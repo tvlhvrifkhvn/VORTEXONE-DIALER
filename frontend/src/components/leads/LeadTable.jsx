@@ -17,8 +17,8 @@ export default function LeadTable({ leads, loading, onSnooze }) {
           </tr>
         </thead>
         <tbody>
-          {leads.map((lead) => (
-            <LeadRow key={lead.id} lead={lead} onSnooze={onSnooze} />
+          {leads.map((lead, index) => (
+            <LeadRow key={lead.id} lead={lead} onSnooze={onSnooze} index={index} />
           ))}
         </tbody>
       </table>

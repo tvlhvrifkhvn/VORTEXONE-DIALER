@@ -1,19 +1,21 @@
 import { useNavigate } from 'react-router-dom';
-import ActionButton from '../ui/ActionButton';
-import NeuButton from '../ui/NeuButton';
+import { Clock, Phone } from 'lucide-react';
 import StatusBadge from './StatusBadge';
 import AttemptBadge from './AttemptBadge';
 import { formatPhone, formatDateTime } from '../../lib/format';
 
 const DIALABLE = ['new', 'in_queue', 'voicemail', 'no_answer', 'callback_scheduled'];
 
-export default function LeadRow({ lead, onSnooze }) {
+export default function LeadRow({ lead, onSnooze, index = 0 }) {
   const navigate = useNavigate();
   const dialable = DIALABLE.includes(lead.status);
   const notDueYet = lead.next_action_at && new Date(lead.next_action_at) > new Date();
 
   return (
-    <tr className={`border-b border-shadow/20 last:border-0 ${lead.isUpNext ? 'bg-action-call/5' : ''}`}>
+    <tr
+      className={`animate-fade-in-row border-b border-shadow/20 last:border-0 ${lead.isUpNext ? 'bg-action-call/5' : ''}`}
+      style={{ animationDelay: `${Math.min(index, 20) * 30}ms` }}
+    >
       <td className="px-3 py-3">
         <div className="font-medium text-text-primary">{lead.name}</div>
         <div className="text-xs text-text-secondary">{lead.brokerage || '—'}</div>
@@ -31,21 +33,31 @@ export default function LeadRow({ lead, onSnooze }) {
         <div className="flex items-center gap-2">
           {lead.isUpNext && <span className="text-xs font-semibold text-action-call">Up next</span>}
           {dialable ? (
-            <ActionButton
-              variant="call"
-              className="px-3 py-1.5 text-xs"
+            <button
+              type="button"
               disabled={notDueYet}
               onClick={() => navigate(`/call/${lead.id}`)}
+              title="Call"
+              aria-label={`Call ${lead.name}`}
+              className={`ripple flex h-9 w-9 items-center justify-center rounded-full bg-action-call text-white shadow-md transition-colors duration-200 hover:bg-blue-600 disabled:cursor-not-allowed disabled:opacity-50 ${
+                notDueYet ? '' : 'animate-pulse-call'
+              }`}
             >
-              Call
-            </ActionButton>
+              <Phone size={16} />
+            </button>
           ) : (
             <span className="text-xs text-text-secondary">—</span>
           )}
           {dialable && !notDueYet && (
-            <NeuButton className="px-2 py-1.5 text-xs" onClick={() => onSnooze(lead.id)}>
-              Not now
-            </NeuButton>
+            <button
+              type="button"
+              onClick={() => onSnooze(lead.id)}
+              title="Not now — snooze this lead"
+              aria-label="Not now"
+              className="ripple flex h-8 w-8 items-center justify-center rounded-input text-text-secondary shadow-neu-sm transition-all duration-200 hover:shadow-neu hover:text-action-call"
+            >
+              <Clock size={14} />
+            </button>
           )}
         </div>
       </td>
