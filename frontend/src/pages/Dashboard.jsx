@@ -57,7 +57,7 @@ export default function Dashboard() {
 
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-2">
-            <ActionButton variant="call" onClick={() => navigate('/call/next')}>
+            <ActionButton variant="call" className="btn-glow" onClick={() => navigate('/call/next')}>
               Start Dialing
             </ActionButton>
             <NeuButton onClick={handleExport} disabled={exporting}>
