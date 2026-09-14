@@ -5,19 +5,34 @@ import AttemptBadge from './AttemptBadge';
 import { formatPhone, formatDateTime } from '../../lib/format';
 
 const DIALABLE = ['new', 'in_queue', 'voicemail', 'no_answer', 'callback_scheduled'];
+const STALE_MS = 7 * 24 * 60 * 60 * 1000;
+const STALE_STATUSES = ['new', 'in_queue'];
 
-export default function LeadRow({ lead, onSnooze, index = 0 }) {
+function isStale(lead) {
+  return STALE_STATUSES.includes(lead.status) && Date.now() - new Date(lead.updated_at).getTime() > STALE_MS;
+}
+
+export default function LeadRow({ lead, onSnooze, index = 0, callbackDueSoon = false }) {
   const navigate = useNavigate();
   const dialable = DIALABLE.includes(lead.status);
   const notDueYet = lead.next_action_at && new Date(lead.next_action_at) > new Date();
 
   return (
     <tr
-      className={`animate-fade-in-row border-b border-shadow/20 last:border-0 ${lead.isUpNext ? 'bg-action-call/5' : ''}`}
+      className={`animate-fade-in-row border-b border-shadow/20 last:border-0 ${lead.isUpNext ? 'bg-action-call/5' : ''} ${
+        callbackDueSoon ? 'border-l-4 border-l-action-warn' : ''
+      }`}
       style={{ animationDelay: `${Math.min(index, 20) * 30}ms` }}
     >
       <td className="px-3 py-3">
-        <div className="font-medium text-text-primary">{lead.name}</div>
+        <div className="flex items-center gap-1.5">
+          <span className="font-medium text-text-primary">{lead.name}</span>
+          {isStale(lead) && (
+            <span title="Not contacted in 7+ days" aria-label="Not contacted in 7+ days" className="text-action-warn">
+              <Clock size={12} />
+            </span>
+          )}
+        </div>
         <div className="text-xs text-text-secondary">{lead.brokerage || '—'}</div>
       </td>
       <td className="px-3 py-3 text-text-primary">{formatPhone(lead.phone)}</td>
@@ -52,7 +67,7 @@ export default function LeadRow({ lead, onSnooze, index = 0 }) {
             <button
               type="button"
               onClick={() => onSnooze(lead.id)}
-              title="Not now — snooze this lead"
+              title="Snooze"
               aria-label="Not now"
               className="ripple flex h-8 w-8 items-center justify-center rounded-input text-text-secondary shadow-neu-sm transition-all duration-200 hover:shadow-neu hover:text-action-call"
             >

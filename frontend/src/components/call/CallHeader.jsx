@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { formatDuration } from '../../lib/format';
 
 const STATE_LABELS = {
@@ -17,16 +17,30 @@ const STATE_DOT = {
 
 export default function CallHeader({ call, ended = false }) {
   const [elapsed, setElapsed] = useState(0);
+  // Set once the call leaves 'ringing' — the timer must count from the
+  // moment the call connects (answered/voicemail), not from started_at
+  // (which is stamped when the call row is created, i.e. page load).
+  const connectedAtRef = useRef(null);
 
   useEffect(() => {
-    if (!call?.started_at) return undefined;
-    const start = new Date(call.started_at).getTime();
+    const state = call?.telephony_state;
+    const isConnected = !!state && state !== 'ringing';
+
+    if (!isConnected) {
+      connectedAtRef.current = null;
+      setElapsed(0);
+      return undefined;
+    }
+    if (connectedAtRef.current === null) {
+      connectedAtRef.current = Date.now();
+    }
+    const start = connectedAtRef.current;
     const tick = () => setElapsed(Math.max(0, Math.round((Date.now() - start) / 1000)));
     tick();
     if (ended) return undefined; // freeze the timer once the rep has hung up or dispositioned
     const id = setInterval(tick, 1000);
     return () => clearInterval(id);
-  }, [call?.started_at, ended]);
+  }, [call?.telephony_state, ended]);
 
   const state = ended ? 'ended' : call?.telephony_state || 'ringing';
 

@@ -10,6 +10,7 @@ const dispositionsRoutes = require('./routes/dispositions');
 const importsRoutes = require('./routes/imports');
 const exportsRoutes = require('./routes/exports');
 const reportsRoutes = require('./routes/reports');
+const aiRoutes = require('./routes/ai');
 
 const app = express();
 
@@ -25,6 +26,7 @@ app.use('/api/dispositions', dispositionsRoutes);
 app.use('/api/imports', importsRoutes);
 app.use('/api/exports', exportsRoutes);
 app.use('/api/reports', reportsRoutes);
+app.use('/api/ai', aiRoutes);
 
 app.use(notFound);
 app.use(errorHandler);

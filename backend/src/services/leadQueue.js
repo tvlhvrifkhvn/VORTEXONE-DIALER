@@ -92,6 +92,19 @@ async function getById(leadId) {
   return rows[0] || null;
 }
 
+/** Past dispositioned calls for a lead, newest first — powers the call
+ * screen's "Previous Notes" panel. */
+async function getHistory(leadId) {
+  const { rows } = await db.query(
+    `SELECT id, started_at, ended_at, duration_seconds, disposition, note
+     FROM call_history
+     WHERE lead_id = $1 AND disposition IS NOT NULL
+     ORDER BY started_at DESC`,
+    [leadId]
+  );
+  return rows;
+}
+
 async function countsByState() {
   await releaseStaleLocks();
   const { rows } = await db.query(
@@ -167,6 +180,7 @@ module.exports = {
   peekNext,
   lockNext,
   getById,
+  getHistory,
   countsByState,
   list,
 };

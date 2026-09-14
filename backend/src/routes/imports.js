@@ -1,6 +1,7 @@
 const express = require('express');
 const multer = require('multer');
 const csvImport = require('../services/csvImport');
+const aiCsvMapper = require('../services/aiCsvMapper');
 const { asyncHandler } = require('../middleware/asyncHandler');
 const { requireAuth } = require('../middleware/auth');
 const { ApiError } = require('../middleware/errorHandler');
@@ -20,6 +21,21 @@ router.post(
     const { headers, rows } = csvImport.parseCsv(req.file.buffer);
     const mapping = csvImport.guessMapping(headers);
     res.json({ headers, rows, mapping, fields: csvImport.LEAD_FIELDS });
+  })
+);
+
+// AI-assisted alternative to /preview: parses the same CSV but asks Groq to
+// suggest the column mapping (with a confidence + needsReview list) instead
+// of the plain heuristic guessMapping(). Does not touch /preview or /commit.
+router.post(
+  '/analyze',
+  upload.single('file'),
+  asyncHandler(async (req, res) => {
+    if (!req.file) throw new ApiError(400, 'No file uploaded (expected multipart field "file")');
+    const { headers, rows } = csvImport.parseCsv(req.file.buffer);
+    const sampleRows = rows.slice(0, 4);
+    const { mapping, confidence, needsReview } = await aiCsvMapper.mapColumns(headers, sampleRows);
+    res.json({ headers, rows, mapping, confidence, needsReview, fields: csvImport.LEAD_FIELDS });
   })
 );
 

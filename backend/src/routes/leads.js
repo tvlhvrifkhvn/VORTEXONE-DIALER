@@ -41,6 +41,14 @@ router.get(
   })
 );
 
+router.get(
+  '/:id/history',
+  asyncHandler(async (req, res) => {
+    const history = await leadQueue.getHistory(req.params.id);
+    res.json({ history });
+  })
+);
+
 router.post(
   '/:id/snooze',
   asyncHandler(async (req, res) => {

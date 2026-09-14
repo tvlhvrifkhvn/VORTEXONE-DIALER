@@ -63,6 +63,7 @@ export const listLeads = (params = {}) => {
 export const getLead = (id) => request(`/leads/${id}`);
 export const getStateCounts = () => request('/leads/state-counts');
 export const snoozeLead = (id) => request(`/leads/${id}/snooze`, { method: 'POST' });
+export const getLeadHistory = (id) => request(`/leads/${id}/history`);
 
 // calls
 export const startCall = (leadId) => request('/calls', { method: 'POST', body: leadId ? { leadId } : {} });
@@ -81,6 +82,14 @@ export const previewImport = (file) => {
 };
 export const commitImport = (mapping, rows) =>
   request('/imports/commit', { method: 'POST', body: { mapping, rows } });
+export const analyzeImport = (file) => {
+  const formData = new FormData();
+  formData.append('file', file);
+  return request('/imports/analyze', { method: 'POST', body: formData, isFormData: true });
+};
+
+// ai
+export const expandNote = (note) => request('/ai/expand-note', { method: 'POST', body: { note } });
 
 // reports
 export const getTodayStats = () => request('/reports/today');
