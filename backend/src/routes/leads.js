@@ -10,7 +10,7 @@ router.use(requireAuth);
 router.get(
   '/',
   asyncHandler(async (req, res) => {
-    const { search, status, dateFrom, dateTo, state, page, pageSize } = req.query;
+    const { search, status, dateFrom, dateTo, state, page, limit } = req.query;
     const result = await leadQueue.list({
       search,
       status,
@@ -18,7 +18,7 @@ router.get(
       dateTo,
       state,
       page: page ? Number(page) : undefined,
-      pageSize: pageSize ? Number(pageSize) : undefined,
+      pageSize: limit ? Number(limit) : 50,
     });
     res.json(result);
   })
@@ -53,6 +53,25 @@ router.post(
   '/:id/snooze',
   asyncHandler(async (req, res) => {
     const lead = await leadLifecycle.snooze({ leadId: req.params.id });
+    res.json({ lead });
+  })
+);
+
+// Inline edit from the lead detail slide-in panel.
+router.put(
+  '/:id',
+  asyncHandler(async (req, res) => {
+    const { name, phone, email, address, brokerage, state } = req.body;
+    const lead = await leadQueue.updateFields(req.params.id, { name, phone, email, address, brokerage, state });
+    res.json({ lead });
+  })
+);
+
+// "Delete lead" button — soft delete, never shown again.
+router.delete(
+  '/:id',
+  asyncHandler(async (req, res) => {
+    const lead = await leadQueue.softDelete(req.params.id);
     res.json({ lead });
   })
 );

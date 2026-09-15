@@ -2,6 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const config = require('./config');
 const { errorHandler, notFound } = require('./middleware/errorHandler');
+const { apiLimiter } = require('./middleware/rateLimit');
 
 const authRoutes = require('./routes/auth');
 const leadsRoutes = require('./routes/leads');
@@ -18,6 +19,10 @@ app.use(cors({ origin: config.corsOrigin }));
 app.use(express.json({ limit: '5mb' }));
 
 app.get('/health', (req, res) => res.json({ status: 'ok' }));
+
+// 100 req/min per user (per IP if unauthenticated) on everything under /api.
+// The login route's own stricter 5/min-per-IP limit is applied in auth.js.
+app.use('/api', apiLimiter);
 
 app.use('/api/auth', authRoutes);
 app.use('/api/leads', leadsRoutes);

@@ -47,6 +47,9 @@ export default function AppShell({ children }) {
             <NavLink to="/reports" className={navLinkClasses}>
               Reports
             </NavLink>
+            <NavLink to="/settings" className={navLinkClasses}>
+              Settings
+            </NavLink>
           </nav>
         </div>
         <div className="flex items-center gap-3">

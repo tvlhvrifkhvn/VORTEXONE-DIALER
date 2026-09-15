@@ -132,7 +132,7 @@ function SessionSummaryModal({ session, onClose }) {
 export default function Dashboard() {
   const navigate = useNavigate();
   const [filters, setFilters] = useState(EMPTY_FILTERS);
-  const { leads, total, loading, refresh } = useLeads(filters);
+  const { leads, total, page, pageSize, setPage, loading, refresh } = useLeads(filters);
   const { counts, refresh: refreshCounts } = useStateCounts();
   const [stats, setStats] = useState({ dials: 0, contacts: 0, connectRate: 0 });
   const [dialMode, setDialMode] = useState(() => localStorage.getItem(DIAL_MODE_KEY) || 'power');
@@ -244,7 +244,17 @@ export default function Dashboard() {
               <LeadFilters filters={filters} onChange={setFilters} />
             </NeuCard>
             <div className="text-xs text-text-secondary">{total} lead{total === 1 ? '' : 's'}</div>
-            <LeadTable leads={leads} loading={loading} onSnooze={handleSnooze} />
+            <LeadTable
+              leads={leads}
+              loading={loading}
+              onSnooze={handleSnooze}
+              selectedState={filters.state}
+              hasAnyLeads={counts.reduce((sum, c) => sum + c.total, 0) > 0}
+              total={total}
+              page={page}
+              pageSize={pageSize}
+              onPageChange={setPage}
+            />
           </div>
         </div>
       </div>

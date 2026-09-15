@@ -35,6 +35,7 @@ async function candidates(limit = 50) {
   const { rows } = await db.query(
     `SELECT * FROM leads
      WHERE dnc_flag = false
+       AND deleted_at IS NULL
        AND status = ANY($1)
        AND (next_action_at IS NULL OR next_action_at <= now())
      ${CANDIDATE_ORDER_SQL}
@@ -111,6 +112,7 @@ async function countsByState() {
     `SELECT state, count(*)::int AS total,
             count(*) FILTER (WHERE status = ANY($1) AND (next_action_at IS NULL OR next_action_at <= now())) AS dialable
      FROM leads
+     WHERE deleted_at IS NULL
      GROUP BY state
      ORDER BY state ASC`,
     [DIALABLE_STATUSES]
@@ -119,7 +121,7 @@ async function countsByState() {
 }
 
 function buildListFilters({ search, status, dateFrom, dateTo }) {
-  const clauses = [];
+  const clauses = ['deleted_at IS NULL'];
   const params = [];
 
   if (search) {
@@ -173,6 +175,35 @@ async function list({ search, status, dateFrom, dateTo, state, page = 1, pageSiz
   };
 }
 
+const EDITABLE_FIELDS = ['name', 'phone', 'email', 'address', 'brokerage', 'state'];
+
+/** Applies an inline edit from the lead detail slide-in panel. Only the six
+ * plain contact fields are editable this way — lifecycle fields (status,
+ * attempts, etc.) go through leadLifecycle instead. */
+async function updateFields(leadId, fields) {
+  const keys = EDITABLE_FIELDS.filter((f) => fields[f] !== undefined);
+  if (keys.length === 0) throw new ApiError(400, 'No editable fields provided');
+
+  const setSql = keys.map((key, i) => `${key} = $${i + 2}`).join(', ');
+  const { rows } = await db.query(
+    `UPDATE leads SET ${setSql}, updated_at = now() WHERE id = $1 AND deleted_at IS NULL RETURNING *`,
+    [leadId, ...keys.map((k) => fields[k])]
+  );
+  if (!rows[0]) throw new ApiError(404, 'Lead not found');
+  return rows[0];
+}
+
+/** Soft-deletes a lead — it stops appearing anywhere in the list/queue but
+ * the row (and its call history) is kept. */
+async function softDelete(leadId) {
+  const { rows } = await db.query(
+    `UPDATE leads SET deleted_at = now(), updated_at = now() WHERE id = $1 AND deleted_at IS NULL RETURNING *`,
+    [leadId]
+  );
+  if (!rows[0]) throw new ApiError(404, 'Lead not found');
+  return rows[0];
+}
+
 module.exports = {
   DIALABLE_STATUSES,
   releaseStaleLocks,
@@ -183,4 +214,6 @@ module.exports = {
   getHistory,
   countsByState,
   list,
+  updateFields,
+  softDelete,
 };
