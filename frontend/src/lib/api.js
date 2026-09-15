@@ -81,11 +81,16 @@ export const getLead = (id) => request(`/leads/${id}`);
 export const getStateCounts = () => request('/leads/state-counts');
 export const snoozeLead = (id) => request(`/leads/${id}/snooze`, { method: 'POST' });
 export const getLeadHistory = (id) => request(`/leads/${id}/history`);
+export const searchLeads = (q) => request(`/leads/search?q=${encodeURIComponent(q)}`);
 export const updateLead = (id, fields) => request(`/leads/${id}`, { method: 'PUT', body: fields });
 export const deleteLead = (id) => request(`/leads/${id}`, { method: 'DELETE' });
 
 // calls
-export const startCall = (leadId) => request('/calls', { method: 'POST', body: leadId ? { leadId } : {} });
+export const startCall = (leadId, sessionId) =>
+  request('/calls', {
+    method: 'POST',
+    body: { ...(leadId ? { leadId } : {}), ...(sessionId ? { sessionId } : {}) },
+  });
 export const getCall = (id) => request(`/calls/${id}`);
 export const hangupCall = (id) => request(`/calls/${id}/hangup`, { method: 'POST' });
 
@@ -99,13 +104,14 @@ export const previewImport = (file) => {
   formData.append('file', file);
   return request('/imports/preview', { method: 'POST', body: formData, isFormData: true });
 };
-export const commitImport = (mapping, rows) =>
-  request('/imports/commit', { method: 'POST', body: { mapping, rows } });
+export const commitImport = (mapping, rows, filename) =>
+  request('/imports/commit', { method: 'POST', body: { mapping, rows, filename } });
 export const analyzeImport = (file) => {
   const formData = new FormData();
   formData.append('file', file);
   return request('/imports/analyze', { method: 'POST', body: formData, isFormData: true });
 };
+export const getImportHistory = () => request('/imports/history');
 
 // ai
 export const expandNote = (note) => request('/ai/expand-note', { method: 'POST', body: { note } });
@@ -113,6 +119,10 @@ export const expandNote = (note) => request('/ai/expand-note', { method: 'POST',
 // reports
 export const getTodayStats = () => request('/reports/today');
 export const getPerStateReport = () => request('/reports/per-state');
+
+// dialing sessions
+export const startSession = (mode) => request('/sessions/start', { method: 'POST', body: { mode } });
+export const endSession = (sessionId) => request('/sessions/end', { method: 'POST', body: { sessionId } });
 
 // exports — fetched as a blob (not a plain <a href>) so the auth header goes along
 export async function downloadDailyPdf(date) {

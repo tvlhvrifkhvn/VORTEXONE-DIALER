@@ -1,23 +1,68 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import AppShell from '../components/layout/AppShell';
 import NeuCard from '../components/ui/NeuCard';
 import NeuButton from '../components/ui/NeuButton';
 import NeuInput from '../components/ui/NeuInput';
 import ActionButton from '../components/ui/ActionButton';
+import { formatDateTime } from '../lib/format';
 import * as api from '../lib/api';
 
 const REQUIRED_FIELDS = ['name', 'phone', 'state'];
 const CONFIDENCE_COLORS = { high: 'text-action-contacted', medium: 'text-action-warn', low: 'text-action-hangup' };
+
+/** Last 10 imports, shown below the upload area. */
+function ImportHistory({ refreshKey }) {
+  const [history, setHistory] = useState([]);
+
+  useEffect(() => {
+    api
+      .getImportHistory()
+      .then(({ history: rows }) => setHistory(rows))
+      .catch(() => {});
+  }, [refreshKey]);
+
+  if (history.length === 0) return null;
+
+  return (
+    <NeuCard className="overflow-x-auto p-5">
+      <h2 className="mb-3 text-sm font-semibold text-text-primary">Import history</h2>
+      <table className="w-full text-xs">
+        <thead>
+          <tr className="text-left uppercase tracking-wide text-text-secondary">
+            <th className="px-2 py-2">Date</th>
+            <th className="px-2 py-2">Filename</th>
+            <th className="px-2 py-2">Imported</th>
+            <th className="px-2 py-2">Skipped</th>
+            <th className="px-2 py-2">Duplicates</th>
+          </tr>
+        </thead>
+        <tbody>
+          {history.map((row) => (
+            <tr key={row.id} className="border-t border-shadow/20">
+              <td className="px-2 py-2 text-text-secondary">{formatDateTime(row.imported_at)}</td>
+              <td className="px-2 py-2 text-text-primary">{row.filename || '—'}</td>
+              <td className="px-2 py-2 text-text-primary">{row.imported}</td>
+              <td className="px-2 py-2 text-text-primary">{row.skipped_dnc + row.skipped_invalid}</td>
+              <td className="px-2 py-2 text-text-primary">{row.skipped_duplicate}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </NeuCard>
+  );
+}
 
 export default function Import() {
   const fileInputRef = useRef(null);
   const [step, setStep] = useState(1); // 1 = upload+detect, 2 = confirm mapping+preview, 3 = cleaning report
   const [analysis, setAnalysis] = useState(null); // { headers, rows, mapping, confidence, needsReview, fields }
   const [mapping, setMapping] = useState({});
+  const [filename, setFilename] = useState(null);
   const [uploading, setUploading] = useState(false);
   const [committing, setCommitting] = useState(false);
   const [summary, setSummary] = useState(null);
   const [error, setError] = useState(null);
+  const [historyRefreshKey, setHistoryRefreshKey] = useState(0);
 
   const handleFileChange = async (e) => {
     const file = e.target.files[0];
@@ -28,6 +73,7 @@ export default function Import() {
       const data = await api.analyzeImport(file);
       setAnalysis(data);
       setMapping(data.mapping);
+      setFilename(file.name);
       setStep(2);
     } catch (err) {
       setError(err.message);
@@ -47,9 +93,10 @@ export default function Import() {
     setCommitting(true);
     setError(null);
     try {
-      const result = await api.commitImport(mapping, analysis.rows);
+      const result = await api.commitImport(mapping, analysis.rows, filename);
       setSummary(result);
       setStep(3);
+      setHistoryRefreshKey((k) => k + 1);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -61,6 +108,7 @@ export default function Import() {
     setStep(1);
     setAnalysis(null);
     setMapping({});
+    setFilename(null);
     setSummary(null);
     setError(null);
   };
@@ -186,6 +234,8 @@ export default function Import() {
             <NeuButton onClick={handleReset}>Import another file</NeuButton>
           </NeuCard>
         )}
+
+        <ImportHistory refreshKey={historyRefreshKey} />
       </div>
     </AppShell>
   );

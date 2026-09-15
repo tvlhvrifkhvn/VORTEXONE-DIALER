@@ -1,8 +1,11 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
-import { Moon, Sun } from 'lucide-react';
+import { Moon, Search, Sun } from 'lucide-react';
 import NeuButton from '../ui/NeuButton';
+import NeuInput from '../ui/NeuInput';
+import { LeadDetailPanel } from '../leads/LeadRow';
 import { useAuth } from '../../hooks/useAuth';
+import * as api from '../../lib/api';
 
 const navLinkClasses = ({ isActive }) =>
   `rounded-input px-4 py-2 text-sm font-medium transition-shadow duration-150 ${
@@ -10,11 +13,139 @@ const navLinkClasses = ({ isActive }) =>
   }`;
 
 const THEME_KEY = 'vortex_dialer_theme';
+const SEARCH_DEBOUNCE_MS = 300;
 
 function getInitialDarkMode() {
   const stored = localStorage.getItem(THEME_KEY);
   if (stored) return stored === 'dark';
   return window.matchMedia?.('(prefers-color-scheme: dark)').matches ?? false;
+}
+
+const TIME_ZONES = [
+  { label: 'EST', tz: 'America/New_York' },
+  { label: 'CST', tz: 'America/Chicago' },
+  { label: 'MST', tz: 'America/Denver' },
+  { label: 'PST', tz: 'America/Los_Angeles' },
+];
+
+function formatZoneTime(now, tz) {
+  const timeStr = new Intl.DateTimeFormat('en-US', {
+    timeZone: tz,
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+  })
+    .format(now)
+    .replace(' ', '')
+    .toLowerCase();
+  const hour24 = Number(
+    new Intl.DateTimeFormat('en-US', { timeZone: tz, hour: 'numeric', hour12: false }).format(now)
+  );
+  const isLegalHours = hour24 >= 8 && hour24 < 21;
+  return { timeStr, isLegalHours };
+}
+
+/** Live clock for all four US time zones the dialer calls into, updated
+ * every second, green when it's within 8am-9pm calling hours there. */
+function TimeZoneClock() {
+  const [now, setNow] = useState(() => new Date());
+
+  useEffect(() => {
+    const id = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(id);
+  }, []);
+
+  return (
+    <div className="hidden items-center gap-2 text-xs text-text-secondary lg:flex">
+      {TIME_ZONES.map(({ label, tz }, i) => {
+        const { timeStr, isLegalHours } = formatZoneTime(now, tz);
+        return (
+          <span key={label} className="flex items-center gap-2">
+            {i > 0 && <span className="text-shadow">·</span>}
+            <span className={isLegalHours ? 'font-medium text-action-contacted' : 'text-text-secondary'}>
+              {label} {timeStr}
+            </span>
+          </span>
+        );
+      })}
+    </div>
+  );
+}
+
+/** Navbar search across all states — debounced, shows a results dropdown,
+ * and opens the lead detail panel directly on click. */
+function GlobalSearch() {
+  const [query, setQuery] = useState('');
+  const [results, setResults] = useState([]);
+  const [open, setOpen] = useState(false);
+  const [selectedLead, setSelectedLead] = useState(null);
+  const debounceRef = useRef(null);
+  const containerRef = useRef(null);
+
+  useEffect(() => {
+    clearTimeout(debounceRef.current);
+    if (!query.trim()) {
+      setResults([]);
+      return;
+    }
+    debounceRef.current = setTimeout(async () => {
+      try {
+        const { leads } = await api.searchLeads(query);
+        setResults(leads);
+        setOpen(true);
+      } catch {
+        setResults([]);
+      }
+    }, SEARCH_DEBOUNCE_MS);
+    return () => clearTimeout(debounceRef.current);
+  }, [query]);
+
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (containerRef.current && !containerRef.current.contains(e.target)) setOpen(false);
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  return (
+    <div ref={containerRef} className="relative mx-auto w-full max-w-sm">
+      <div className="relative">
+        <Search size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary" />
+        <NeuInput
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          onFocus={() => results.length > 0 && setOpen(true)}
+          placeholder="Search all leads…"
+          className="w-full py-1.5 pl-8 text-sm"
+        />
+      </div>
+      {open && results.length > 0 && (
+        <ul className="absolute z-40 mt-1 w-full space-y-1 rounded-input bg-surface p-2 text-sm shadow-neu">
+          {results.map((lead) => (
+            <li key={lead.id}>
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedLead(lead);
+                  setOpen(false);
+                }}
+                className="flex w-full flex-col rounded-input px-2 py-1.5 text-left hover:shadow-neu-sm"
+              >
+                <span className="font-medium text-text-primary">{lead.name}</span>
+                <span className="text-xs text-text-secondary">
+                  {lead.phone} · {lead.state}
+                </span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+      {selectedLead && (
+        <LeadDetailPanel lead={selectedLead} onClose={() => setSelectedLead(null)} onSaved={() => setSelectedLead(null)} onDeleted={() => setSelectedLead(null)} />
+      )}
+    </div>
+  );
 }
 
 export default function AppShell({ children }) {
@@ -52,7 +183,11 @@ export default function AppShell({ children }) {
             </NavLink>
           </nav>
         </div>
-        <div className="flex items-center gap-3">
+
+        <GlobalSearch />
+
+        <div className="flex items-center gap-4">
+          <TimeZoneClock />
           {user && <span className="text-sm text-text-secondary">{user.name}</span>}
           <button
             type="button"

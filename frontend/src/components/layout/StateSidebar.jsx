@@ -32,7 +32,7 @@ export default function StateSidebar({ counts = [], selectedState, onSelectState
             <RowButton
               active={selectedState === c.state}
               label={c.state}
-              count={`${c.dialable}/${c.total}`}
+              count={`${c.total} / ${c.uncontacted}`}
               onClick={() => onSelectState(c.state)}
             />
           </li>

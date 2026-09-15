@@ -12,6 +12,7 @@ const importsRoutes = require('./routes/imports');
 const exportsRoutes = require('./routes/exports');
 const reportsRoutes = require('./routes/reports');
 const aiRoutes = require('./routes/ai');
+const sessionsRoutes = require('./routes/sessions');
 
 const app = express();
 
@@ -32,6 +33,7 @@ app.use('/api/imports', importsRoutes);
 app.use('/api/exports', exportsRoutes);
 app.use('/api/reports', reportsRoutes);
 app.use('/api/ai', aiRoutes);
+app.use('/api/sessions', sessionsRoutes);
 
 app.use(notFound);
 app.use(errorHandler);

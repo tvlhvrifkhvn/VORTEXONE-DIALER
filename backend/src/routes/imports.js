@@ -58,9 +58,18 @@ router.post(
 router.post(
   '/commit',
   asyncHandler(async (req, res) => {
-    const { mapping, rows } = req.body;
-    const summary = await csvImport.commitImport({ mapping, rows });
+    const { mapping, rows, filename } = req.body;
+    const summary = await csvImport.commitImport({ mapping, rows, userId: req.user.sub, filename });
     res.json(summary);
+  })
+);
+
+// Last 10 imports — powers the Import page's "Import History" table.
+router.get(
+  '/history',
+  asyncHandler(async (req, res) => {
+    const history = await csvImport.getImportHistory();
+    res.json({ history });
   })
 );
 

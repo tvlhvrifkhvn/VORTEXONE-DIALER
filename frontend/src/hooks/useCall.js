@@ -3,59 +3,60 @@ import { useNavigate } from 'react-router-dom';
 import * as api from '../lib/api';
 
 const POLL_MS = 600;
-const AUTO_ADVANCE_DELAY_MS = 900; // lets the rep see the "logged as X" confirmation flash first
 export const DIAL_MODE_KEY = 'vortex_dialer_dial_mode';
-export const SESSION_START_KEY = 'vortex_dialer_session_start';
-export const SESSION_STATS_KEY = 'vortex_dialer_session_stats';
+export const SESSION_ID_KEY = 'vortex_dialer_session_id';
+export const SESSION_STARTED_AT_KEY = 'vortex_dialer_session_started_at';
+export const SESSION_PAUSED_KEY = 'vortex_dialer_session_paused';
+export const BETWEEN_CALL_DELAY_KEY = 'vortex_dialer_between_call_delay';
+const DEFAULT_BETWEEN_CALL_DELAY_SECONDS = 5;
 
-const EMPTY_SESSION_STATS = { dials: 0, contacts: 0, voicemails: 0, noAnswers: 0, callbacks: 0 };
-
-/** Reads the in-progress dialing session's stats, or null if none is active. */
-export function getActiveSession() {
-  const startedAt = localStorage.getItem(SESSION_START_KEY);
-  if (!startedAt) return null;
-  let stats = EMPTY_SESSION_STATS;
-  try {
-    stats = { ...EMPTY_SESSION_STATS, ...JSON.parse(localStorage.getItem(SESSION_STATS_KEY) || '{}') };
-  } catch {
-    // ignore malformed localStorage, fall back to zeros
-  }
-  return { startedAt: Number(startedAt), stats };
+/** Backend-tracked dialing session id, or null if none is active. */
+export function getActiveSessionId() {
+  const id = localStorage.getItem(SESSION_ID_KEY);
+  return id ? Number(id) : null;
 }
 
-/** Starts (or restarts) a dialing session, used by the Dashboard's Start Dialing button. */
-export function startSession() {
-  localStorage.setItem(SESSION_START_KEY, String(Date.now()));
-  localStorage.setItem(SESSION_STATS_KEY, JSON.stringify(EMPTY_SESSION_STATS));
+export function isSessionPaused() {
+  return localStorage.getItem(SESSION_PAUSED_KEY) === 'true';
 }
 
-/** Ends the current dialing session, clearing its tracked stats. */
-export function endSession() {
-  localStorage.removeItem(SESSION_START_KEY);
-  localStorage.removeItem(SESSION_STATS_KEY);
+export function setSessionPaused(paused) {
+  if (paused) localStorage.setItem(SESSION_PAUSED_KEY, 'true');
+  else localStorage.removeItem(SESSION_PAUSED_KEY);
 }
 
-function bumpSessionStat(disposition) {
-  if (!localStorage.getItem(SESSION_START_KEY)) return;
-  let stats = EMPTY_SESSION_STATS;
-  try {
-    stats = { ...EMPTY_SESSION_STATS, ...JSON.parse(localStorage.getItem(SESSION_STATS_KEY) || '{}') };
-  } catch {
-    // ignore malformed localStorage, fall back to zeros
-  }
-  stats.dials += 1;
-  if (disposition === 'contacted') stats.contacts += 1;
-  else if (disposition === 'voicemail') stats.voicemails += 1;
-  else if (disposition === 'no_answer') stats.noAnswers += 1;
-  else if (disposition === 'callback_scheduled') stats.callbacks += 1;
-  localStorage.setItem(SESSION_STATS_KEY, JSON.stringify(stats));
+function getBetweenCallDelaySeconds() {
+  const stored = Number(localStorage.getItem(BETWEEN_CALL_DELAY_KEY));
+  return Number.isFinite(stored) && stored >= 0 ? stored : DEFAULT_BETWEEN_CALL_DELAY_SECONDS;
+}
+
+/** Starts a backend dialing session (Dashboard's Start Dialing button). */
+export async function startDialingSession(mode = 'power') {
+  const { sessionId } = await api.startSession(mode);
+  localStorage.setItem(SESSION_ID_KEY, String(sessionId));
+  localStorage.setItem(SESSION_STARTED_AT_KEY, String(Date.now()));
+  setSessionPaused(false);
+  return sessionId;
+}
+
+/** Ends the active dialing session and returns its final stats (Dashboard's
+ * Stop Dialing button uses these to populate the session summary modal). */
+export async function endDialingSession() {
+  const sessionId = getActiveSessionId();
+  if (!sessionId) return null;
+  const { stats } = await api.endSession(sessionId);
+  localStorage.removeItem(SESSION_ID_KEY);
+  localStorage.removeItem(SESSION_STARTED_AT_KEY);
+  setSessionPaused(false);
+  return stats;
 }
 
 /**
  * Drives one call screen visit: starts the call (locks the lead + places it
  * via the configured telephony adapter), polls for live progress, and wraps
- * hangup/disposition/undo. See telephony/index.js on the backend for what
- * "live progress" means — this hook just reflects call_history as polled.
+ * hangup/disposition/undo/redial. See telephony/index.js on the backend for
+ * what "live progress" means — this hook just reflects call_history as
+ * polled.
  */
 export function useCall(leadId) {
   const navigate = useNavigate();
@@ -64,9 +65,10 @@ export function useCall(leadId) {
   const [error, setError] = useState(null);
   const [starting, setStarting] = useState(true);
   const [undoInfo, setUndoInfo] = useState(null); // { callId, expiresAt }
+  const [autoAdvanceSeconds, setAutoAdvanceSeconds] = useState(null); // null = no countdown running
   const pollRef = useRef(null);
   const undoTimeoutRef = useRef(null);
-  const autoAdvanceTimeoutRef = useRef(null);
+  const autoAdvanceIntervalRef = useRef(null);
 
   const stopPolling = useCallback(() => {
     if (pollRef.current) {
@@ -91,32 +93,39 @@ export function useCall(leadId) {
     [stopPolling]
   );
 
+  const startCallFor = useCallback(
+    (id) => {
+      setStarting(true);
+      setError(null);
+      setUndoInfo(null);
+      return api
+        .startCall(id, getActiveSessionId())
+        .then(({ call: newCall, lead: newLead }) => {
+          setCall(newCall);
+          setLead(newLead);
+          pollCall(newCall.id);
+        })
+        .catch((err) => {
+          setError(err.message);
+        })
+        .finally(() => {
+          setStarting(false);
+        });
+    },
+    [pollCall]
+  );
+
   useEffect(() => {
     let cancelled = false;
-    setStarting(true);
-    setError(null);
-    setUndoInfo(null);
-
-    api
-      .startCall(leadId)
-      .then(({ call: newCall, lead: newLead }) => {
-        if (cancelled) return;
-        setCall(newCall);
-        setLead(newLead);
-        pollCall(newCall.id);
-      })
-      .catch((err) => {
-        if (!cancelled) setError(err.message);
-      })
-      .finally(() => {
-        if (!cancelled) setStarting(false);
-      });
+    startCallFor(leadId).then(() => {
+      if (cancelled) stopPolling();
+    });
 
     return () => {
       cancelled = true;
       stopPolling();
       clearTimeout(undoTimeoutRef.current);
-      clearTimeout(autoAdvanceTimeoutRef.current);
+      clearInterval(autoAdvanceIntervalRef.current);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [leadId]);
@@ -127,13 +136,25 @@ export function useCall(leadId) {
     await api.hangupCall(call.id);
   }, [call, stopPolling]);
 
+  /** Redials the same lead immediately, before any disposition has been
+   * submitted on the previous attempt (backend allows re-locking a lead
+   * that's already in_progress and locked to this same user). */
+  const redial = useCallback(() => {
+    if (!lead) return Promise.resolve();
+    return startCallFor(lead.id);
+  }, [lead, startCallFor]);
+
+  const cancelAutoAdvance = useCallback(() => {
+    clearInterval(autoAdvanceIntervalRef.current);
+    setAutoAdvanceSeconds(null);
+  }, []);
+
   const submitDisposition = useCallback(
     async ({ disposition, note, scheduledAt }) => {
       if (!call) return null;
       stopPolling();
       const result = await api.submitDisposition({ callId: call.id, disposition, note, scheduledAt });
       setLead(result.lead);
-      bumpSessionStat(disposition);
 
       const callId = call.id;
       const expiresAt = result.undoExpiresAt;
@@ -144,13 +165,27 @@ export function useCall(leadId) {
         setUndoInfo((current) => (current && current.callId === callId ? null : current));
       }, Math.max(0, remainingMs));
 
-      // Power Dial mode: jump straight to the next in_queue lead's call
-      // screen instead of waiting on the dashboard/"Next Lead" click.
-      if (localStorage.getItem(DIAL_MODE_KEY) === 'power') {
-        clearTimeout(autoAdvanceTimeoutRef.current);
-        autoAdvanceTimeoutRef.current = setTimeout(() => {
+      // Power Dial mode: count down, then jump straight to the next in_queue
+      // lead's call screen instead of waiting on the dashboard/"Next Lead"
+      // click — unless the session is paused, in which case just stop here.
+      if (localStorage.getItem(DIAL_MODE_KEY) === 'power' && !isSessionPaused()) {
+        const delay = getBetweenCallDelaySeconds();
+        clearInterval(autoAdvanceIntervalRef.current);
+        if (delay <= 0) {
           navigate('/call/next');
-        }, AUTO_ADVANCE_DELAY_MS);
+        } else {
+          setAutoAdvanceSeconds(delay);
+          autoAdvanceIntervalRef.current = setInterval(() => {
+            setAutoAdvanceSeconds((secs) => {
+              if (secs <= 1) {
+                clearInterval(autoAdvanceIntervalRef.current);
+                navigate('/call/next');
+                return null;
+              }
+              return secs - 1;
+            });
+          }, 1000);
+        }
       }
 
       return result;
@@ -166,5 +201,17 @@ export function useCall(leadId) {
     setUndoInfo(null);
   }, [undoInfo]);
 
-  return { call, lead, error, starting, undoInfo, hangup, submitDisposition, undo };
+  return {
+    call,
+    lead,
+    error,
+    starting,
+    undoInfo,
+    hangup,
+    submitDisposition,
+    undo,
+    redial,
+    autoAdvanceSeconds,
+    cancelAutoAdvance,
+  };
 }

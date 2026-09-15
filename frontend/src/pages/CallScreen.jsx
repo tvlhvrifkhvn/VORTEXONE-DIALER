@@ -9,6 +9,7 @@ import CallControls from '../components/call/CallControls';
 import StatusBadge from '../components/leads/StatusBadge';
 import NeuCard from '../components/ui/NeuCard';
 import NeuButton from '../components/ui/NeuButton';
+import ActionButton from '../components/ui/ActionButton';
 import { useAuth } from '../hooks/useAuth';
 import { useCall } from '../hooks/useCall';
 import { formatDateTime } from '../lib/format';
@@ -24,10 +25,17 @@ const DISPOSITION_LABELS = {
   callback_scheduled: 'Callback Scheduled',
 };
 
-const PITCH_SCRIPT = (repName) =>
+const PITCH_SCRIPT_KEY = 'vortex_pitch_script';
+const DEFAULT_PITCH_SCRIPT = (repName) =>
   `Hi, I'm ${repName} from Vortexone Agency. We offer virtual assistant services for real ` +
   'estate agents — lead follow-up, appointment setting, and admin support. Do you currently ' +
   'have VA support on your team?';
+
+/** Custom script from the Settings page, if the rep has saved one there. */
+function getPitchScript(repName) {
+  const custom = localStorage.getItem(PITCH_SCRIPT_KEY);
+  return custom || DEFAULT_PITCH_SCRIPT(repName);
+}
 
 /** Collapsible sidebar section — arrow toggle, collapsed by default. */
 function CollapsibleSection({ title, defaultOpen = false, children }) {
@@ -113,7 +121,19 @@ function ShortcutHintBar() {
 function CallScreenInner({ leadId }) {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { call, lead, error, starting, undoInfo, hangup, submitDisposition, undo } = useCall(leadId);
+  const {
+    call,
+    lead,
+    error,
+    starting,
+    undoInfo,
+    hangup,
+    submitDisposition,
+    undo,
+    redial,
+    autoAdvanceSeconds,
+    cancelAutoAdvance,
+  } = useCall(leadId);
   const [note, setNote] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [actionError, setActionError] = useState(null);
@@ -121,7 +141,9 @@ function CallScreenInner({ leadId }) {
   const [hungUp, setHungUp] = useState(false);
   const [muted, setMuted] = useState(false);
   const [showHangupConfirm, setShowHangupConfirm] = useState(false);
+  const [showDncConfirm, setShowDncConfirm] = useState(false);
   const [expanding, setExpanding] = useState(false);
+  const [redialing, setRedialing] = useState(false);
   const dispositionRef = useRef(null);
   const [dispositionHighlight, setDispositionHighlight] = useState(false);
 
@@ -129,7 +151,7 @@ function CallScreenInner({ leadId }) {
   const ended = isFinalized || call?.telephony_state === 'ended';
   const canAct = !submitting && !isFinalized && !!call;
 
-  const handleSelect = async (disposition) => {
+  const submitOutcome = async (disposition) => {
     setSubmitting(true);
     setActionError(null);
     try {
@@ -139,6 +161,30 @@ function CallScreenInner({ leadId }) {
       setActionError(err.message);
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  // DNC is permanent — confirm before it actually fires. Every other
+  // disposition button submits immediately.
+  const handleSelect = (disposition) => {
+    if (disposition === 'dnc') {
+      setShowDncConfirm(true);
+      return;
+    }
+    submitOutcome(disposition);
+  };
+
+  const handleRedial = async () => {
+    setRedialing(true);
+    setActionError(null);
+    setHungUp(false);
+    setLastDisposition(null);
+    try {
+      await redial();
+    } catch (err) {
+      setActionError(err.message);
+    } finally {
+      setRedialing(false);
     }
   };
 
@@ -276,7 +322,7 @@ function CallScreenInner({ leadId }) {
 
         <div className="space-y-4">
           <CollapsibleSection title="Pitch script">
-            <p className="text-xs leading-relaxed text-text-primary">{PITCH_SCRIPT(user?.name || 'the rep')}</p>
+            <p className="text-xs leading-relaxed text-text-primary">{getPitchScript(user?.name || 'the rep')}</p>
           </CollapsibleSection>
 
           <CallControls
@@ -290,6 +336,21 @@ function CallScreenInner({ leadId }) {
             <NeuCard className="p-4 text-sm text-text-secondary">
               Call ended without a disposition — this lead returns to the queue in 30s unless you log an
               outcome now.
+            </NeuCard>
+          )}
+
+          {ended && !isFinalized && (
+            <NeuButton className="w-full text-sm" onClick={handleRedial} disabled={redialing}>
+              {redialing ? 'Redialing…' : 'Redial'}
+            </NeuButton>
+          )}
+
+          {isFinalized && autoAdvanceSeconds != null && (
+            <NeuCard className="space-y-2 p-4 text-center">
+              <p className="text-sm text-text-primary">Next call in {autoAdvanceSeconds}...</p>
+              <NeuButton className="w-full text-sm" onClick={cancelAutoAdvance}>
+                Cancel
+              </NeuButton>
             </NeuCard>
           )}
 
@@ -331,6 +392,31 @@ function CallScreenInner({ leadId }) {
                 Hang up
               </NeuButton>
               <NeuButton className="flex-1 text-sm" onClick={() => setShowHangupConfirm(false)}>
+                Cancel
+              </NeuButton>
+            </div>
+          </NeuCard>
+        </div>
+      )}
+
+      {showDncConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 px-4">
+          <NeuCard className="w-full max-w-sm space-y-4 p-6">
+            <p className="text-sm font-medium text-text-primary">
+              Permanently block {lead.name}'s number from all future dialing? This cannot be undone.
+            </p>
+            <div className="flex gap-3">
+              <ActionButton
+                variant="dnc"
+                className="flex-1 text-sm"
+                onClick={() => {
+                  setShowDncConfirm(false);
+                  submitOutcome('dnc');
+                }}
+              >
+                Confirm
+              </ActionButton>
+              <NeuButton className="flex-1 text-sm" onClick={() => setShowDncConfirm(false)}>
                 Cancel
               </NeuButton>
             </div>

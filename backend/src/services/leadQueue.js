@@ -110,7 +110,8 @@ async function countsByState() {
   await releaseStaleLocks();
   const { rows } = await db.query(
     `SELECT state, count(*)::int AS total,
-            count(*) FILTER (WHERE status = ANY($1) AND (next_action_at IS NULL OR next_action_at <= now())) AS dialable
+            count(*) FILTER (WHERE status = ANY($1) AND (next_action_at IS NULL OR next_action_at <= now())) AS dialable,
+            count(*) FILTER (WHERE status IN ('new', 'in_queue')) AS uncontacted
      FROM leads
      WHERE deleted_at IS NULL
      GROUP BY state
@@ -153,9 +154,23 @@ async function list({ search, status, dateFrom, dateTo, state, page = 1, pageSiz
   const allParams = state ? [...params, state] : params;
 
   const offset = (Math.max(1, page) - 1) * pageSize;
+  // Sort so the most urgent leads always surface first: a due callback,
+  // then never-dialed leads, then in_queue leads that have waited longest.
   const { rows } = await db.query(
-    `SELECT * FROM leads ${where} ${stateClause}
-     ORDER BY created_at DESC
+    `SELECT leads.*, (dnc_list.id IS NOT NULL) AS is_dnc_flagged
+     FROM leads
+     LEFT JOIN dnc_list ON dnc_list.phone = leads.phone
+     ${where} ${stateClause}
+     ORDER BY
+       CASE
+         WHEN status = 'callback_scheduled' THEN 0
+         WHEN status = 'new' THEN 1
+         WHEN status = 'in_queue' THEN 2
+         ELSE 3
+       END,
+       CASE WHEN status = 'callback_scheduled' THEN next_action_at END ASC,
+       CASE WHEN status = 'in_queue' THEN updated_at END ASC,
+       created_at DESC
      LIMIT $${allParams.length + 1} OFFSET $${allParams.length + 2}`,
     [...allParams, pageSize, offset]
   );
@@ -204,6 +219,21 @@ async function softDelete(leadId) {
   return rows[0];
 }
 
+/** Global search across name/phone/brokerage, ignoring any state filter —
+ * powers the navbar search. Capped at 10 results. */
+async function search(q) {
+  if (!q || !q.trim()) return [];
+  const { rows } = await db.query(
+    `SELECT * FROM leads
+     WHERE deleted_at IS NULL
+       AND (name ILIKE $1 OR phone ILIKE $1 OR brokerage ILIKE $1)
+     ORDER BY created_at DESC
+     LIMIT 10`,
+    [`%${q.trim()}%`]
+  );
+  return rows;
+}
+
 module.exports = {
   DIALABLE_STATUSES,
   releaseStaleLocks,
@@ -216,4 +246,5 @@ module.exports = {
   list,
   updateFields,
   softDelete,
+  search,
 };

@@ -32,6 +32,15 @@ router.get(
   })
 );
 
+// Must come before /:id — otherwise Express would treat "search" as an id.
+router.get(
+  '/search',
+  asyncHandler(async (req, res) => {
+    const leads = await leadQueue.search(req.query.q);
+    res.json({ leads });
+  })
+);
+
 router.get(
   '/:id',
   asyncHandler(async (req, res) => {

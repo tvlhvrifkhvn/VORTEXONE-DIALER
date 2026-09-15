@@ -8,7 +8,7 @@ import * as api from '../lib/api';
 
 const MAX_ATTEMPTS_KEY = 'vortex_dialer_default_max_attempts';
 const GOAL_KEY = 'vortex_dialer_daily_goal'; // same key Dashboard.jsx's daily goal tracker reads
-const SCRIPT_KEY = 'vortex_dialer_pitch_script';
+const SCRIPT_KEY = 'vortex_pitch_script'; // matches CallScreen.jsx's read key exactly
 
 const DEFAULT_MAX_ATTEMPTS = 5;
 const DEFAULT_GOAL = 100;

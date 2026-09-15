@@ -53,6 +53,10 @@ export default function LeadTable({
 
   return (
     <NeuCard className="overflow-x-auto p-0">
+      <div className="border-b border-shadow/20 px-4 py-2 text-xs font-medium text-text-secondary">
+        Showing {leads.length} of {total} lead{total === 1 ? '' : 's'}
+        {selectedState ? ` in ${selectedState}` : ''}
+      </div>
       <table className="w-full text-sm">
         <thead>
           <tr className="text-left text-xs uppercase tracking-wide text-text-secondary">

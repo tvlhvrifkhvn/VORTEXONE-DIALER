@@ -49,7 +49,7 @@ function guessMapping(headers) {
  * non-duplicate, non-DNC leads to the database. Returns a summary rather
  * than throwing on a per-row basis — a bad row shouldn't fail the batch.
  */
-async function commitImport({ mapping, rows }) {
+async function commitImport({ mapping, rows, userId, filename }) {
   if (!mapping || !mapping.name || !mapping.phone || !mapping.state) {
     throw new ApiError(400, 'mapping must include at least name, phone, and state');
   }
@@ -130,7 +130,24 @@ async function commitImport({ mapping, rows }) {
     summary.imported += 1;
   }
 
+  await db.query(
+    `INSERT INTO import_history (user_id, filename, total_rows, imported, skipped_dnc, skipped_duplicate, skipped_invalid)
+     VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+    [userId || null, filename || null, summary.totalRows, summary.imported, summary.skippedDnc, summary.skippedDuplicate, summary.skippedInvalid]
+  );
+
   return summary;
 }
 
-module.exports = { LEAD_FIELDS, parseCsv, guessMapping, commitImport };
+/** Last 10 imports for the Import page's history table. */
+async function getImportHistory() {
+  const { rows } = await db.query(
+    `SELECT id, filename, imported_at, total_rows, imported, skipped_dnc, skipped_duplicate, skipped_invalid
+     FROM import_history
+     ORDER BY imported_at DESC
+     LIMIT 10`
+  );
+  return rows;
+}
+
+module.exports = { LEAD_FIELDS, parseCsv, guessMapping, commitImport, getImportHistory };

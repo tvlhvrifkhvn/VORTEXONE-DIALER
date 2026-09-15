@@ -10,7 +10,14 @@ import NeuButton from '../components/ui/NeuButton';
 import NeuInput from '../components/ui/NeuInput';
 import ActionButton from '../components/ui/ActionButton';
 import { useLeads, useStateCounts } from '../hooks/useLeads';
-import { DIAL_MODE_KEY, endSession, getActiveSession, startSession } from '../hooks/useCall';
+import {
+  DIAL_MODE_KEY,
+  endDialingSession,
+  getActiveSessionId,
+  isSessionPaused,
+  setSessionPaused,
+  startDialingSession,
+} from '../hooks/useCall';
 import * as api from '../lib/api';
 
 const EMPTY_FILTERS = { search: '', status: '', dateFrom: '', dateTo: '', state: null };
@@ -94,18 +101,19 @@ function formatMinutes(ms) {
   return h > 0 ? `${h}h ${m}m` : `${m}m`;
 }
 
-/** Shown when the rep clicks Stop Dialing — summarizes the session just ended. */
-function SessionSummaryModal({ session, onClose }) {
-  if (!session) return null;
-  const { stats, startedAt } = session;
-  const elapsed = formatMinutes(Date.now() - startedAt);
+/** Shown when the rep clicks Stop Dialing — summarizes the session just
+ * ended, using the stats POST /api/sessions/end returns. */
+function SessionSummaryModal({ stats, onClose }) {
+  if (!stats) return null;
+  const elapsed = formatMinutes(new Date(stats.ended_at).getTime() - new Date(stats.started_at).getTime());
 
   const rows = [
-    ['Dials made', stats.dials],
-    ['Contacts', stats.contacts],
-    ['Voicemails', stats.voicemails],
-    ['No answers', stats.noAnswers],
-    ['Callbacks set', stats.callbacks],
+    ['Dials made', stats.total_dials],
+    ['Contacts', stats.total_contacts],
+    ['Voicemails', stats.total_voicemails],
+    ['No answers', stats.total_no_answers],
+    ['Callbacks set', stats.total_callbacks],
+    ['DNC', stats.total_dnc],
     ['Time spent', elapsed],
   ];
 
@@ -137,8 +145,9 @@ export default function Dashboard() {
   const [stats, setStats] = useState({ dials: 0, contacts: 0, connectRate: 0 });
   const [dialMode, setDialMode] = useState(() => localStorage.getItem(DIAL_MODE_KEY) || 'power');
   const [exporting, setExporting] = useState(false);
-  const [sessionActive, setSessionActive] = useState(() => !!getActiveSession());
-  const [summarySession, setSummarySession] = useState(null);
+  const [sessionActive, setSessionActive] = useState(() => !!getActiveSessionId());
+  const [paused, setPaused] = useState(() => isSessionPaused());
+  const [summaryStats, setSummaryStats] = useState(null);
 
   useEffect(() => {
     const load = () => api.getTodayStats().then(setStats).catch(() => {});
@@ -168,20 +177,28 @@ export default function Dashboard() {
     }
   };
 
-  const handleStartDialing = () => {
-    startSession();
+  const handleStartDialing = async () => {
+    await startDialingSession(dialMode);
     setSessionActive(true);
+    setPaused(false);
     navigate('/call/next');
   };
 
-  const handleStopDialing = () => {
-    setSummarySession(getActiveSession());
+  const handleStopDialing = async () => {
+    const stats = await endDialingSession();
+    setSessionActive(false);
+    setPaused(false);
+    setSummaryStats(stats);
+  };
+
+  const handleTogglePause = () => {
+    const next = !paused;
+    setSessionPaused(next);
+    setPaused(next);
   };
 
   const handleCloseSummary = () => {
-    endSession();
-    setSessionActive(false);
-    setSummarySession(null);
+    setSummaryStats(null);
   };
 
   return (
@@ -198,16 +215,35 @@ export default function Dashboard() {
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-2">
             {sessionActive ? (
-              <ActionButton variant="hangup" onClick={handleStopDialing}>
-                Stop Dialing
-              </ActionButton>
+              <>
+                {paused ? (
+                  <ActionButton variant="call" onClick={handleStartDialing}>
+                    Resume
+                  </ActionButton>
+                ) : (
+                  <NeuButton onClick={handleTogglePause}>Pause</NeuButton>
+                )}
+                <ActionButton variant="hangup" onClick={handleStopDialing}>
+                  Stop Dialing
+                </ActionButton>
+              </>
             ) : (
               <ActionButton variant="call" className="btn-glow" onClick={handleStartDialing}>
                 Start Dialing
               </ActionButton>
             )}
             <NeuButton onClick={handleExport} disabled={exporting}>
-              {exporting ? 'Exporting…' : 'Export PDF'}
+              {exporting ? (
+                <span className="flex items-center gap-2">
+                  <span
+                    aria-hidden="true"
+                    className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-text-secondary/30 border-t-text-primary"
+                  />
+                  Exporting…
+                </span>
+              ) : (
+                'Export PDF'
+              )}
             </NeuButton>
           </div>
 
@@ -259,7 +295,7 @@ export default function Dashboard() {
         </div>
       </div>
 
-      <SessionSummaryModal session={summarySession} onClose={handleCloseSummary} />
+      <SessionSummaryModal stats={summaryStats} onClose={handleCloseSummary} />
     </AppShell>
   );
 }

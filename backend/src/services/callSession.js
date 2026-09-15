@@ -11,14 +11,14 @@ const MOCK_FROM_NUMBER = '+15555550100';
  * the call_history row as it arrives so the call screen can just poll
  * GET /api/calls/:id — no in-memory state, nothing lost on a restart.
  */
-async function start({ lead, userId }) {
+async function start({ lead, userId, sessionId = null }) {
   const fromNumber = MOCK_FROM_NUMBER;
 
   const { rows } = await db.query(
-    `INSERT INTO call_history (lead_id, user_id, from_number, was_mock, telephony_state)
-     VALUES ($1, $2, $3, true, 'ringing')
+    `INSERT INTO call_history (lead_id, user_id, from_number, was_mock, telephony_state, session_id)
+     VALUES ($1, $2, $3, true, 'ringing', $4)
      RETURNING *`,
-    [lead.id, userId, fromNumber]
+    [lead.id, userId, fromNumber, sessionId]
   );
   const call = rows[0];
 

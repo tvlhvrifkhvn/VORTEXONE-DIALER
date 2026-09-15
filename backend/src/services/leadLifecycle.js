@@ -1,6 +1,7 @@
 const db = require('../db');
 const { ApiError } = require('../middleware/errorHandler');
 const dncCheck = require('./dncCheck');
+const dialingSession = require('./dialingSession');
 
 const UNDO_WINDOW_SECONDS = 10;
 const REQUEUE_HOURS = 4;
@@ -152,6 +153,14 @@ async function applyDisposition({ callHistoryId, disposition, note, scheduledAt 
     );
 
     await client.query('COMMIT');
+
+    // Best-effort — a dialing session may not be active (e.g. a lead dialed
+    // directly from the table rather than via Start Dialing).
+    if (call.session_id) {
+      const statColumn = dialingSession.DISPOSITION_TO_STAT[disposition];
+      if (statColumn) await dialingSession.incrementStat(call.session_id, statColumn);
+    }
+
     return {
       lead: updatedLead,
       cascadedLeadIds,
@@ -259,7 +268,7 @@ async function hangup({ callHistoryId }) {
     if (!call.ended_at) {
       const durationSeconds = Math.max(0, Math.round((now - new Date(call.started_at)) / 1000));
       await client.query(
-        'UPDATE call_history SET ended_at = $2, duration_seconds = $3 WHERE id = $1',
+        'UPDATE call_history SET ended_at = $2, duration_seconds = $3, was_abandoned = true WHERE id = $1',
         [callHistoryId, now, durationSeconds]
       );
     }

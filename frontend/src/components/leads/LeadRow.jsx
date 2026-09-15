@@ -1,7 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
-import { Clock, Info, Phone, X } from 'lucide-react';
+import { Clock, Info, Phone, Shield, X } from 'lucide-react';
 import StatusBadge from './StatusBadge';
 import AttemptBadge from './AttemptBadge';
 import NeuCard from '../ui/NeuCard';
@@ -9,7 +9,16 @@ import NeuButton from '../ui/NeuButton';
 import NeuInput from '../ui/NeuInput';
 import ActionButton from '../ui/ActionButton';
 import { formatPhone, formatDateTime } from '../../lib/format';
+import { DIAL_MODE_KEY } from '../../hooks/useCall';
 import * as api from '../../lib/api';
+
+// Subtle post-disposition background tint — CSS-transitioned via the
+// `transition-colors` class on the row, so the color change is smooth.
+const STATUS_TINT = {
+  contacted: 'rgba(16,185,129,0.08)',
+  dnc: 'rgba(239,68,68,0.08)',
+  callback_scheduled: 'rgba(245,158,11,0.08)',
+};
 
 const DIALABLE = ['new', 'in_queue', 'voicemail', 'no_answer', 'callback_scheduled'];
 const STALE_MS = 7 * 24 * 60 * 60 * 1000;
@@ -29,7 +38,7 @@ function isStale(lead) {
 /** Slide-in panel for viewing/editing a lead's plain contact fields, and
  * soft-deleting it — rendered via a portal so it isn't nested inside the
  * lead table's <tr>/<tbody> structure. */
-function LeadDetailPanel({ lead, onClose, onSaved, onDeleted }) {
+export function LeadDetailPanel({ lead, onClose, onSaved, onDeleted }) {
   const [fields, setFields] = useState(() =>
     EDITABLE_FIELDS.reduce((acc, f) => ({ ...acc, [f]: lead[f] || '' }), {})
   );
@@ -166,20 +175,31 @@ export default function LeadRow({ lead: leadProp, onSnooze, index = 0, callbackD
   const [lead, setLead] = useState(leadProp);
   const [deleted, setDeleted] = useState(false);
   const [panelOpen, setPanelOpen] = useState(false);
+  const rowRef = useRef(null);
 
   useEffect(() => setLead(leadProp), [leadProp]);
+
+  // Power dial: keep the lead currently being called visible as the table
+  // (and everything else on the page) shifts around it.
+  useEffect(() => {
+    if (lead.status === 'in_progress' && localStorage.getItem(DIAL_MODE_KEY) === 'power') {
+      rowRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  }, [lead.status]);
 
   if (deleted) return null;
 
   const dialable = DIALABLE.includes(lead.status);
   const notDueYet = lead.next_action_at && new Date(lead.next_action_at) > new Date();
+  const statusTint = STATUS_TINT[lead.status];
 
   return (
     <tr
-      className={`animate-fade-in-row border-b border-shadow/20 last:border-0 ${lead.isUpNext ? 'bg-action-call/5' : ''} ${
-        callbackDueSoon ? 'border-l-4 border-l-action-warn' : ''
-      }`}
-      style={{ animationDelay: `${Math.min(index, 20) * 30}ms` }}
+      ref={rowRef}
+      className={`animate-fade-in-row border-b border-shadow/20 last:border-0 transition-colors duration-500 ${
+        lead.isUpNext ? 'bg-action-call/5' : ''
+      } ${callbackDueSoon ? 'border-l-4 border-l-action-warn' : ''}`}
+      style={{ animationDelay: `${Math.min(index, 20) * 30}ms`, backgroundColor: statusTint }}
     >
       <td className="px-3 py-3">
         <div className="flex items-center gap-1.5">
@@ -201,7 +221,16 @@ export default function LeadRow({ lead: leadProp, onSnooze, index = 0, callbackD
         </div>
         <div className="text-xs text-text-secondary">{lead.brokerage || '—'}</div>
       </td>
-      <td className="px-3 py-3 text-text-primary">{formatPhone(lead.phone)}</td>
+      <td className="px-3 py-3 text-text-primary">
+        <div className="flex items-center gap-1.5">
+          {formatPhone(lead.phone)}
+          {lead.is_dnc_flagged && (
+            <span title="On the DNC list" aria-label="On the DNC list" className="text-action-dnc">
+              <Shield size={12} />
+            </span>
+          )}
+        </div>
+      </td>
       <td className="px-3 py-3 text-text-primary">{lead.state}</td>
       <td className="px-3 py-3">
         <AttemptBadge attempts={lead.attempts} maxAttempts={lead.max_attempts} />
