@@ -26,7 +26,9 @@ export function setSessionPaused(paused) {
 }
 
 function getBetweenCallDelaySeconds() {
-  const stored = Number(localStorage.getItem(BETWEEN_CALL_DELAY_KEY));
+  const raw = localStorage.getItem(BETWEEN_CALL_DELAY_KEY);
+  if (raw === null || raw === '') return DEFAULT_BETWEEN_CALL_DELAY_SECONDS;
+  const stored = Number(raw);
   return Number.isFinite(stored) && stored >= 0 ? stored : DEFAULT_BETWEEN_CALL_DELAY_SECONDS;
 }
 
