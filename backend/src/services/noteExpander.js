@@ -1,14 +1,26 @@
 const Groq = require('groq-sdk');
 const config = require('../config');
+const settingsStore = require('./settings');
 const { ApiError } = require('../middleware/errorHandler');
 
 const MODEL = 'llama3-8b-8192';
 
-function client() {
-  if (!config.groqApiKey) {
-    throw new ApiError(503, 'GROQ_API_KEY is not configured — note expansion is unavailable');
-  }
-  return new Groq({ apiKey: config.groqApiKey });
+if (!process.env.GROQ_API_KEY) {
+  // eslint-disable-next-line no-console
+  console.warn('GROQ_API_KEY not set — AI note expansion will be unavailable');
+}
+
+/** Settings-table value (Settings → Integrations) takes priority over .env,
+ * matching aiCsvMapper.js. */
+async function resolveApiKey() {
+  const stored = await settingsStore.getSetting('groq-key');
+  return stored || config.groqApiKey || null;
+}
+
+async function client() {
+  const apiKey = await resolveApiKey();
+  if (!apiKey) return null;
+  return new Groq({ apiKey });
 }
 
 const SYSTEM_PROMPT =
@@ -28,7 +40,10 @@ async function expandNote(roughText) {
     throw new ApiError(400, 'note text is required');
   }
 
-  const completion = await client().chat.completions.create({
+  const groq = await client();
+  if (!groq) return trimmed;
+
+  const completion = await groq.chat.completions.create({
     model: MODEL,
     temperature: 0.2,
     messages: [

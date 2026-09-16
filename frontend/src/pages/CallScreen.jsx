@@ -131,8 +131,6 @@ function CallScreenInner({ leadId }) {
     submitDisposition,
     undo,
     redial,
-    autoAdvanceSeconds,
-    cancelAutoAdvance,
   } = useCall(leadId);
   const [note, setNote] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -343,15 +341,6 @@ function CallScreenInner({ leadId }) {
             <NeuButton className="w-full text-sm" onClick={handleRedial} disabled={redialing}>
               {redialing ? 'Redialing…' : 'Redial'}
             </NeuButton>
-          )}
-
-          {isFinalized && autoAdvanceSeconds != null && (
-            <NeuCard className="space-y-2 p-4 text-center">
-              <p className="text-sm text-text-primary">Next call in {autoAdvanceSeconds}...</p>
-              <NeuButton className="w-full text-sm" onClick={cancelAutoAdvance}>
-                Cancel
-              </NeuButton>
-            </NeuCard>
           )}
 
           {isFinalized && (

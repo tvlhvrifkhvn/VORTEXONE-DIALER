@@ -12,6 +12,7 @@ import ActionButton from '../components/ui/ActionButton';
 import { useLeads, useStateCounts } from '../hooks/useLeads';
 import {
   DIAL_MODE_KEY,
+  PENDING_SUMMARY_KEY,
   endDialingSession,
   getActiveSessionId,
   isSessionPaused,
@@ -148,12 +149,29 @@ export default function Dashboard() {
   const [sessionActive, setSessionActive] = useState(() => !!getActiveSessionId());
   const [paused, setPaused] = useState(() => isSessionPaused());
   const [summaryStats, setSummaryStats] = useState(null);
+  const [selectedIds, setSelectedIds] = useState(() => new Set());
 
   useEffect(() => {
     const load = () => api.getTodayStats().then(setStats).catch(() => {});
     load();
     const id = setInterval(load, 5000);
     return () => clearInterval(id);
+  }, []);
+
+  // A selected-leads Power Dial session that ran to completion ends itself
+  // and stashes its stats here (see useCall.js) so the summary modal still
+  // shows up automatically once we land back on the dashboard.
+  useEffect(() => {
+    const raw = localStorage.getItem(PENDING_SUMMARY_KEY);
+    if (!raw) return;
+    localStorage.removeItem(PENDING_SUMMARY_KEY);
+    try {
+      setSummaryStats(JSON.parse(raw));
+    } catch {
+      // ignore malformed leftovers
+    }
+    setSessionActive(false);
+    setPaused(false);
   }, []);
 
   useEffect(() => {
@@ -181,6 +199,42 @@ export default function Dashboard() {
     await startDialingSession(dialMode);
     setSessionActive(true);
     setPaused(false);
+    navigate('/call/next');
+  };
+
+  const toggleLead = (id) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const selectPage = () => {
+    setSelectedIds((prev) => new Set([...prev, ...leads.map((l) => l.id)]));
+  };
+
+  const clearPage = () => {
+    const pageIds = new Set(leads.map((l) => l.id));
+    setSelectedIds((prev) => new Set([...prev].filter((id) => !pageIds.has(id))));
+  };
+
+  const selectAllFiltered = async () => {
+    if (total === 0) return;
+    const { leads: allLeads } = await api.listLeads({ ...filters, page: 1, limit: total });
+    setSelectedIds(new Set(allLeads.map((l) => l.id)));
+  };
+
+  const clearSelection = () => setSelectedIds(new Set());
+
+  const handleStartPowerDialOnSelection = async () => {
+    const ids = Array.from(selectedIds);
+    if (ids.length === 0) return;
+    await startDialingSession(dialMode, ids);
+    setSessionActive(true);
+    setPaused(false);
+    setSelectedIds(new Set());
     navigate('/call/next');
   };
 
@@ -280,6 +334,27 @@ export default function Dashboard() {
               <LeadFilters filters={filters} onChange={setFilters} />
             </NeuCard>
             <div className="text-xs text-text-secondary">{total} lead{total === 1 ? '' : 's'}</div>
+
+            {selectedIds.size > 0 && (
+              <NeuCard className="sticky top-2 z-10 flex flex-wrap items-center justify-between gap-3 p-3">
+                <span className="text-sm font-medium text-text-primary">
+                  {selectedIds.size} lead{selectedIds.size === 1 ? '' : 's'} selected
+                </span>
+                <div className="flex items-center gap-3">
+                  <ActionButton variant="call" onClick={handleStartPowerDialOnSelection}>
+                    Start Power Dial
+                  </ActionButton>
+                  <button
+                    type="button"
+                    onClick={clearSelection}
+                    className="text-sm font-medium text-text-secondary hover:text-text-primary"
+                  >
+                    Clear selection
+                  </button>
+                </div>
+              </NeuCard>
+            )}
+
             <LeadTable
               leads={leads}
               loading={loading}
@@ -290,6 +365,11 @@ export default function Dashboard() {
               page={page}
               pageSize={pageSize}
               onPageChange={setPage}
+              selectedIds={selectedIds}
+              onToggleLead={toggleLead}
+              onSelectPage={selectPage}
+              onClearPage={clearPage}
+              onSelectAllFiltered={selectAllFiltered}
             />
           </div>
         </div>

@@ -137,9 +137,15 @@ export default function Import() {
           <>
             <NeuCard className="p-5">
               <h2 className="mb-1 text-sm font-semibold text-text-primary">We detected these columns</h2>
-              <p className="mb-3 text-xs text-text-secondary">
-                Review the AI's suggested mapping below — fields marked in red or amber may need a manual fix.
-              </p>
+              {analysis.unavailable ? (
+                <p className="mb-3 rounded-input bg-action-warn/10 px-3 py-2 text-xs font-medium text-action-warn">
+                  AI mapping is not configured — please map columns manually.
+                </p>
+              ) : (
+                <p className="mb-3 text-xs text-text-secondary">
+                  Review the AI's suggested mapping below — fields marked in red or amber may need a manual fix.
+                </p>
+              )}
               <div className="space-y-2">
                 {analysis.fields.map((field) => {
                   const confidence = analysis.confidence?.[field] || 'low';

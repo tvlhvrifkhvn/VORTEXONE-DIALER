@@ -170,7 +170,14 @@ export function LeadDetailPanel({ lead, onClose, onSaved, onDeleted }) {
   );
 }
 
-export default function LeadRow({ lead: leadProp, onSnooze, index = 0, callbackDueSoon = false }) {
+export default function LeadRow({
+  lead: leadProp,
+  onSnooze,
+  index = 0,
+  callbackDueSoon = false,
+  selected = false,
+  onToggleSelect = () => {},
+}) {
   const navigate = useNavigate();
   const [lead, setLead] = useState(leadProp);
   const [deleted, setDeleted] = useState(false);
@@ -201,6 +208,15 @@ export default function LeadRow({ lead: leadProp, onSnooze, index = 0, callbackD
       } ${callbackDueSoon ? 'border-l-4 border-l-action-warn' : ''}`}
       style={{ animationDelay: `${Math.min(index, 20) * 30}ms`, backgroundColor: statusTint }}
     >
+      <td className="px-3 py-3">
+        <input
+          type="checkbox"
+          checked={selected}
+          onChange={() => onToggleSelect(lead.id)}
+          aria-label={`Select ${lead.name}`}
+          className="h-4 w-4 cursor-pointer accent-action-call"
+        />
+      </td>
       <td className="px-3 py-3">
         <div className="flex items-center gap-1.5">
           <button

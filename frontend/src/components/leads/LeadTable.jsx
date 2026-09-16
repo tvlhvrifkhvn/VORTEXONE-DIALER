@@ -41,6 +41,11 @@ export default function LeadTable({
   page = 1,
   pageSize = 50,
   onPageChange = () => {},
+  selectedIds = new Set(),
+  onToggleLead = () => {},
+  onSelectPage = () => {},
+  onClearPage = () => {},
+  onSelectAllFiltered = () => {},
 }) {
   // Leads with a callback due within the next 2 hours float to the top
   // (stable sort keeps everything else in its existing order).
@@ -50,16 +55,39 @@ export default function LeadTable({
   const rangeEnd = Math.min(total, page * pageSize);
   const hasPrev = page > 1;
   const hasNext = page * pageSize < total;
+  const pageFullySelected = leads.length > 0 && leads.every((l) => selectedIds.has(l.id));
 
   return (
     <NeuCard className="overflow-x-auto p-0">
-      <div className="border-b border-shadow/20 px-4 py-2 text-xs font-medium text-text-secondary">
-        Showing {leads.length} of {total} lead{total === 1 ? '' : 's'}
-        {selectedState ? ` in ${selectedState}` : ''}
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-shadow/20 px-4 py-2 text-xs font-medium text-text-secondary">
+        <span>
+          Showing {leads.length} of {total} lead{total === 1 ? '' : 's'}
+          {selectedState ? ` in ${selectedState}` : ''}
+        </span>
+        {total > 0 && (
+          <button
+            type="button"
+            onClick={onSelectAllFiltered}
+            className="font-medium text-action-call hover:underline"
+          >
+            Select all {total} lead{total === 1 ? '' : 's'}
+            {selectedState ? ` in ${selectedState}` : ''}
+          </button>
+        )}
       </div>
       <table className="w-full text-sm">
         <thead>
           <tr className="text-left text-xs uppercase tracking-wide text-text-secondary">
+            <th className="px-3 py-3 font-medium">
+              <input
+                type="checkbox"
+                checked={pageFullySelected}
+                onChange={() => (pageFullySelected ? onClearPage() : onSelectPage())}
+                aria-label="Select page"
+                title="Select page"
+                className="h-4 w-4 cursor-pointer accent-action-call"
+              />
+            </th>
             {COLUMNS.map((col) => (
               <th key={col} className="px-3 py-3 font-medium">
                 {col}
@@ -75,6 +103,8 @@ export default function LeadTable({
               onSnooze={onSnooze}
               index={index}
               callbackDueSoon={isCallbackDueSoon(lead)}
+              selected={selectedIds.has(lead.id)}
+              onToggleSelect={onToggleLead}
             />
           ))}
         </tbody>

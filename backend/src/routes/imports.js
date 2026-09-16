@@ -48,8 +48,8 @@ router.post(
   asyncHandler(async (req, res) => {
     const { headers, rows } = csvImport.parseCsv(req.file.buffer);
     const sampleRows = rows.slice(0, 4);
-    const { mapping, confidence, needsReview } = await aiCsvMapper.mapColumns(headers, sampleRows);
-    res.json({ headers, rows, mapping, confidence, needsReview, fields: csvImport.LEAD_FIELDS });
+    const result = await aiCsvMapper.mapColumns(headers, sampleRows);
+    res.json({ headers, rows, fields: csvImport.LEAD_FIELDS, ...result });
   })
 );
 

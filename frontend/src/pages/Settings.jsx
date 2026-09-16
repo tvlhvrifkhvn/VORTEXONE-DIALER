@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import AppShell from '../components/layout/AppShell';
 import NeuCard from '../components/ui/NeuCard';
 import NeuButton from '../components/ui/NeuButton';
@@ -158,6 +158,65 @@ function ScriptEditorSection() {
   );
 }
 
+function IntegrationsSection() {
+  const [groqKey, setGroqKey] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    api
+      .getSetting('groq-key')
+      .then(({ value }) => setGroqKey(value || ''))
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+
+  const handleSave = async (e) => {
+    e.preventDefault();
+    setSaving(true);
+    setError(null);
+    try {
+      await api.putSetting('groq-key', groqKey);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <NeuCard className="space-y-4 p-5">
+      <h2 className="text-sm font-semibold text-text-primary">Integrations</h2>
+      <p className="text-xs text-text-secondary">
+        Configure the Groq API key used for AI CSV column mapping and the ✨ Expand note button — without it,
+        those features degrade gracefully (manual mapping, notes unchanged).
+      </p>
+      <form onSubmit={handleSave} className="space-y-3">
+        <div>
+          <label className="mb-1 block text-xs font-medium text-text-secondary">Groq API key</label>
+          <NeuInput
+            type="password"
+            value={groqKey}
+            onChange={(e) => setGroqKey(e.target.value)}
+            placeholder={loading ? 'Loading…' : 'gsk_…'}
+            className="w-full"
+            autoComplete="off"
+          />
+        </div>
+        {error && <p className="text-sm text-action-hangup">{error}</p>}
+        {saved && <p className="text-sm text-action-contacted">Saved.</p>}
+        <NeuButton type="submit" disabled={saving || loading}>
+          {saving ? 'Saving…' : 'Save key'}
+        </NeuButton>
+      </form>
+    </NeuCard>
+  );
+}
+
 export default function Settings() {
   return (
     <AppShell>
@@ -166,6 +225,7 @@ export default function Settings() {
         <ProfileSection />
         <DialingDefaultsSection />
         <ScriptEditorSection />
+        <IntegrationsSection />
       </div>
     </AppShell>
   );

@@ -82,6 +82,7 @@ export const getStateCounts = () => request('/leads/state-counts');
 export const snoozeLead = (id) => request(`/leads/${id}/snooze`, { method: 'POST' });
 export const getLeadHistory = (id) => request(`/leads/${id}/history`);
 export const searchLeads = (q) => request(`/leads/search?q=${encodeURIComponent(q)}`);
+export const batchQueueLeads = (leadIds) => request('/leads/batch-queue', { method: 'POST', body: { leadIds } });
 export const updateLead = (id, fields) => request(`/leads/${id}`, { method: 'PUT', body: fields });
 export const deleteLead = (id) => request(`/leads/${id}`, { method: 'DELETE' });
 
@@ -119,6 +120,11 @@ export const expandNote = (note) => request('/ai/expand-note', { method: 'POST',
 // reports
 export const getTodayStats = () => request('/reports/today');
 export const getPerStateReport = () => request('/reports/per-state');
+
+// settings (key/value store — e.g. the Groq API key, see Settings.jsx → Integrations)
+export const getSetting = (key) => request(`/settings/${encodeURIComponent(key)}`);
+export const putSetting = (key, value) =>
+  request(`/settings/${encodeURIComponent(key)}`, { method: 'PUT', body: { value } });
 
 // dialing sessions
 export const startSession = (mode) => request('/sessions/start', { method: 'POST', body: { mode } });

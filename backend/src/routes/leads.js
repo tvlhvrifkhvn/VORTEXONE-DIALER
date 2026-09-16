@@ -41,6 +41,18 @@ router.get(
   })
 );
 
+// Returns a rep's selected leads (checkboxes in the lead table) back in
+// correct dialing order — powers "Start Power Dial" over a selection instead
+// of the regular in_queue-driven dialer.
+router.post(
+  '/batch-queue',
+  asyncHandler(async (req, res) => {
+    const { leadIds } = req.body;
+    const leads = await leadQueue.batchQueue(leadIds);
+    res.json({ leads });
+  })
+);
+
 router.get(
   '/:id',
   asyncHandler(async (req, res) => {

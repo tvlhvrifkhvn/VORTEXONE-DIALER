@@ -109,7 +109,7 @@ function GlobalSearch() {
   }, []);
 
   return (
-    <div ref={containerRef} className="relative mx-auto w-full max-w-sm">
+    <div ref={containerRef} className="relative w-44 lg:w-56">
       <div className="relative">
         <Search size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary" />
         <NeuInput
@@ -166,27 +166,29 @@ export default function AppShell({ children }) {
   return (
     <div className="min-h-screen bg-base">
       <header className="flex flex-wrap items-center justify-between gap-4 px-6 py-4">
-        <div className="flex items-center gap-6">
-          <span className="text-lg font-semibold text-text-primary">Vortex Dialer</span>
-          <nav className="flex gap-2">
-            <NavLink to="/" end className={navLinkClasses}>
-              Dashboard
-            </NavLink>
-            <NavLink to="/import" className={navLinkClasses}>
-              Import
-            </NavLink>
-            <NavLink to="/reports" className={navLinkClasses}>
-              Reports
-            </NavLink>
-            <NavLink to="/settings" className={navLinkClasses}>
-              Settings
-            </NavLink>
-          </nav>
-        </div>
+        {/* Left zone: logo only. */}
+        <span className="text-lg font-semibold text-text-primary">Vortex Dialer</span>
 
-        <GlobalSearch />
+        {/* Center zone: nav links only. */}
+        <nav className="flex gap-2">
+          <NavLink to="/" end className={navLinkClasses}>
+            Dashboard
+          </NavLink>
+          <NavLink to="/import" className={navLinkClasses}>
+            Import
+          </NavLink>
+          <NavLink to="/reports" className={navLinkClasses}>
+            Reports
+          </NavLink>
+          <NavLink to="/settings" className={navLinkClasses}>
+            Settings
+          </NavLink>
+        </nav>
 
+        {/* Right zone: search, clock, dark mode toggle, username, logout — all
+            grouped flush to the right edge. */}
         <div className="flex items-center gap-4">
+          <GlobalSearch />
           <TimeZoneClock />
           {user && <span className="text-sm text-text-secondary">{user.name}</span>}
           <button

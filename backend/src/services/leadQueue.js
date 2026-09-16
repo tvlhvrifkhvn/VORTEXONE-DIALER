@@ -234,6 +234,34 @@ async function search(q) {
   return rows;
 }
 
+/**
+ * Given a set of lead ids (a rep's manual selection for targeted dialing),
+ * returns them in the same priority order the regular queue uses — callbacks
+ * first (soonest due), then never-dialed leads, then in_queue leads that
+ * have waited longest. Does not filter by dialable status: a lead the rep
+ * explicitly picked stays in the list even if it's not currently dialable,
+ * so the count the frontend shows matches what it asked for.
+ */
+async function batchQueue(ids) {
+  if (!Array.isArray(ids) || ids.length === 0) return [];
+  const { rows } = await db.query(
+    `SELECT * FROM leads
+     WHERE id = ANY($1) AND deleted_at IS NULL
+     ORDER BY
+       CASE
+         WHEN status = 'callback_scheduled' THEN 0
+         WHEN status = 'new' THEN 1
+         WHEN status = 'in_queue' THEN 2
+         ELSE 3
+       END,
+       CASE WHEN status = 'callback_scheduled' THEN next_action_at END ASC,
+       CASE WHEN status = 'in_queue' THEN updated_at END ASC,
+       created_at DESC`,
+    [ids]
+  );
+  return rows;
+}
+
 module.exports = {
   DIALABLE_STATUSES,
   releaseStaleLocks,
@@ -247,4 +275,5 @@ module.exports = {
   updateFields,
   softDelete,
   search,
+  batchQueue,
 };

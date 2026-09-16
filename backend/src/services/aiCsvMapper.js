@@ -1,16 +1,40 @@
 const Groq = require('groq-sdk');
 const config = require('../config');
+const settingsStore = require('./settings');
 const { ApiError } = require('../middleware/errorHandler');
 
 const MODEL = 'llama3-8b-8192';
 const SCHEMA_FIELDS = ['name', 'phone', 'email', 'address', 'brokerage', 'state'];
 const LOW_CONFIDENCE = 'low';
+const UNAVAILABLE_MESSAGE = 'AI mapping unavailable — please map columns manually.';
 
-function client() {
-  if (!config.groqApiKey) {
-    throw new ApiError(503, 'GROQ_API_KEY is not configured — AI column mapping is unavailable');
+if (!process.env.GROQ_API_KEY) {
+  // eslint-disable-next-line no-console
+  console.warn('GROQ_API_KEY not set — AI CSV mapping will be unavailable');
+}
+
+/** The settings table (configurable from Settings → Integrations) takes
+ * priority over the .env value, so the key can be set from the UI without
+ * redeploying. */
+async function resolveApiKey() {
+  const stored = await settingsStore.getSetting('groq-key');
+  return stored || config.groqApiKey || null;
+}
+
+async function client() {
+  const apiKey = await resolveApiKey();
+  if (!apiKey) return null;
+  return new Groq({ apiKey });
+}
+
+function unavailableResult() {
+  const mapping = {};
+  const confidence = {};
+  for (const field of SCHEMA_FIELDS) {
+    mapping[field] = null;
+    confidence[field] = 'low';
   }
-  return new Groq({ apiKey: config.groqApiKey });
+  return { mapping, confidence, needsReview: [...SCHEMA_FIELDS], unavailable: true, message: UNAVAILABLE_MESSAGE };
 }
 
 function buildPrompt(headers, sampleRows) {
@@ -55,7 +79,10 @@ async function mapColumns(headers, sampleRows = []) {
     throw new ApiError(400, 'headers must be a non-empty array');
   }
 
-  const completion = await client().chat.completions.create({
+  const groq = await client();
+  if (!groq) return unavailableResult();
+
+  const completion = await groq.chat.completions.create({
     model: MODEL,
     temperature: 0,
     messages: [{ role: 'user', content: buildPrompt(headers, sampleRows.slice(0, 3)) }],

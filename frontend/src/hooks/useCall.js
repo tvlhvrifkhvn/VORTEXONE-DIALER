@@ -7,8 +7,9 @@ export const DIAL_MODE_KEY = 'vortex_dialer_dial_mode';
 export const SESSION_ID_KEY = 'vortex_dialer_session_id';
 export const SESSION_STARTED_AT_KEY = 'vortex_dialer_session_started_at';
 export const SESSION_PAUSED_KEY = 'vortex_dialer_session_paused';
-export const BETWEEN_CALL_DELAY_KEY = 'vortex_dialer_between_call_delay';
-const DEFAULT_BETWEEN_CALL_DELAY_SECONDS = 5;
+export const SELECTED_QUEUE_KEY = 'vortex_dialer_selected_queue';
+export const SELECTED_SESSION_KEY = 'vortex_dialer_selected_session';
+export const PENDING_SUMMARY_KEY = 'vortex_dialer_pending_summary';
 
 /** Backend-tracked dialing session id, or null if none is active. */
 export function getActiveSessionId() {
@@ -25,19 +26,54 @@ export function setSessionPaused(paused) {
   else localStorage.removeItem(SESSION_PAUSED_KEY);
 }
 
-function getBetweenCallDelaySeconds() {
-  const raw = localStorage.getItem(BETWEEN_CALL_DELAY_KEY);
-  if (raw === null || raw === '') return DEFAULT_BETWEEN_CALL_DELAY_SECONDS;
-  const stored = Number(raw);
-  return Number.isFinite(stored) && stored >= 0 ? stored : DEFAULT_BETWEEN_CALL_DELAY_SECONDS;
+/** The ordered queue of lead ids for a "Start Power Dial" over a manual
+ * selection (see LeadTable.jsx's checkboxes) — empty when the current
+ * session is just dialing the regular in_queue queue. */
+export function getSelectedQueue() {
+  try {
+    const raw = localStorage.getItem(SELECTED_QUEUE_KEY);
+    const parsed = raw ? JSON.parse(raw) : [];
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
 }
 
-/** Starts a backend dialing session (Dashboard's Start Dialing button). */
-export async function startDialingSession(mode = 'power') {
+function setSelectedQueue(ids) {
+  if (!ids || ids.length === 0) localStorage.removeItem(SELECTED_QUEUE_KEY);
+  else localStorage.setItem(SELECTED_QUEUE_KEY, JSON.stringify(ids));
+}
+
+/** Pops the next id off the selected-leads queue, persisting what's left. */
+function shiftSelectedQueue() {
+  const queue = getSelectedQueue();
+  const next = queue.shift();
+  setSelectedQueue(queue);
+  return next;
+}
+
+function isSelectedSession() {
+  return localStorage.getItem(SELECTED_SESSION_KEY) === 'true';
+}
+
+/** Starts a backend dialing session (Dashboard's Start Dialing / Start Power
+ * Dial buttons). When selectedLeadIds is given, the session dials through
+ * exactly those leads in order instead of pulling from the regular queue. */
+export async function startDialingSession(mode = 'power', selectedLeadIds = null) {
   const { sessionId } = await api.startSession(mode);
   localStorage.setItem(SESSION_ID_KEY, String(sessionId));
   localStorage.setItem(SESSION_STARTED_AT_KEY, String(Date.now()));
   setSessionPaused(false);
+
+  if (selectedLeadIds && selectedLeadIds.length > 0) {
+    const { leads } = await api.batchQueueLeads(selectedLeadIds);
+    setSelectedQueue(leads.map((l) => l.id));
+    localStorage.setItem(SELECTED_SESSION_KEY, 'true');
+  } else {
+    setSelectedQueue([]);
+    localStorage.removeItem(SELECTED_SESSION_KEY);
+  }
+
   return sessionId;
 }
 
@@ -50,6 +86,8 @@ export async function endDialingSession() {
   localStorage.removeItem(SESSION_ID_KEY);
   localStorage.removeItem(SESSION_STARTED_AT_KEY);
   setSessionPaused(false);
+  setSelectedQueue([]);
+  localStorage.removeItem(SELECTED_SESSION_KEY);
   return stats;
 }
 
@@ -67,10 +105,8 @@ export function useCall(leadId) {
   const [error, setError] = useState(null);
   const [starting, setStarting] = useState(true);
   const [undoInfo, setUndoInfo] = useState(null); // { callId, expiresAt }
-  const [autoAdvanceSeconds, setAutoAdvanceSeconds] = useState(null); // null = no countdown running
   const pollRef = useRef(null);
   const undoTimeoutRef = useRef(null);
-  const autoAdvanceIntervalRef = useRef(null);
 
   const stopPolling = useCallback(() => {
     if (pollRef.current) {
@@ -119,7 +155,10 @@ export function useCall(leadId) {
 
   useEffect(() => {
     let cancelled = false;
-    startCallFor(leadId).then(() => {
+    // "/call/next" (no explicit leadId): if a selected-leads queue is active,
+    // it drives which lead comes up next instead of the regular in_queue pick.
+    const targetId = leadId || shiftSelectedQueue() || undefined;
+    startCallFor(targetId).then(() => {
       if (cancelled) stopPolling();
     });
 
@@ -127,7 +166,6 @@ export function useCall(leadId) {
       cancelled = true;
       stopPolling();
       clearTimeout(undoTimeoutRef.current);
-      clearInterval(autoAdvanceIntervalRef.current);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [leadId]);
@@ -146,11 +184,6 @@ export function useCall(leadId) {
     return startCallFor(lead.id);
   }, [lead, startCallFor]);
 
-  const cancelAutoAdvance = useCallback(() => {
-    clearInterval(autoAdvanceIntervalRef.current);
-    setAutoAdvanceSeconds(null);
-  }, []);
-
   const submitDisposition = useCallback(
     async ({ disposition, note, scheduledAt }) => {
       if (!call) return null;
@@ -167,26 +200,17 @@ export function useCall(leadId) {
         setUndoInfo((current) => (current && current.callId === callId ? null : current));
       }, Math.max(0, remainingMs));
 
-      // Power Dial mode: count down, then jump straight to the next in_queue
-      // lead's call screen instead of waiting on the dashboard/"Next Lead"
-      // click — unless the session is paused, in which case just stop here.
+      // Power Dial mode: advance to the next lead instantly, no countdown —
+      // unless the session is paused, in which case just stop here.
       if (localStorage.getItem(DIAL_MODE_KEY) === 'power' && !isSessionPaused()) {
-        const delay = getBetweenCallDelaySeconds();
-        clearInterval(autoAdvanceIntervalRef.current);
-        if (delay <= 0) {
-          navigate('/call/next');
+        if (isSelectedSession() && getSelectedQueue().length === 0) {
+          // The selected-leads queue is exhausted — end the session and let
+          // the dashboard show the summary automatically.
+          const stats = await endDialingSession();
+          if (stats) localStorage.setItem(PENDING_SUMMARY_KEY, JSON.stringify(stats));
+          navigate('/');
         } else {
-          setAutoAdvanceSeconds(delay);
-          autoAdvanceIntervalRef.current = setInterval(() => {
-            setAutoAdvanceSeconds((secs) => {
-              if (secs <= 1) {
-                clearInterval(autoAdvanceIntervalRef.current);
-                navigate('/call/next');
-                return null;
-              }
-              return secs - 1;
-            });
-          }, 1000);
+          navigate('/call/next');
         }
       }
 
@@ -213,7 +237,5 @@ export function useCall(leadId) {
     submitDisposition,
     undo,
     redial,
-    autoAdvanceSeconds,
-    cancelAutoAdvance,
   };
 }
