@@ -35,6 +35,7 @@ async function candidates(limit = 50) {
   const { rows } = await db.query(
     `SELECT * FROM leads
      WHERE dnc_flag = false
+       AND deleted_at IS NULL
        AND status = ANY($1)
        AND (next_action_at IS NULL OR next_action_at <= now())
      ${CANDIDATE_ORDER_SQL}
@@ -92,12 +93,27 @@ async function getById(leadId) {
   return rows[0] || null;
 }
 
+/** Past dispositioned calls for a lead, newest first — powers the call
+ * screen's "Previous Notes" panel. */
+async function getHistory(leadId) {
+  const { rows } = await db.query(
+    `SELECT id, started_at, ended_at, duration_seconds, disposition, note
+     FROM call_history
+     WHERE lead_id = $1 AND disposition IS NOT NULL
+     ORDER BY started_at DESC`,
+    [leadId]
+  );
+  return rows;
+}
+
 async function countsByState() {
   await releaseStaleLocks();
   const { rows } = await db.query(
     `SELECT state, count(*)::int AS total,
-            count(*) FILTER (WHERE status = ANY($1) AND (next_action_at IS NULL OR next_action_at <= now())) AS dialable
+            count(*) FILTER (WHERE status = ANY($1) AND (next_action_at IS NULL OR next_action_at <= now())) AS dialable,
+            count(*) FILTER (WHERE status IN ('new', 'in_queue')) AS uncontacted
      FROM leads
+     WHERE deleted_at IS NULL
      GROUP BY state
      ORDER BY state ASC`,
     [DIALABLE_STATUSES]
@@ -106,7 +122,7 @@ async function countsByState() {
 }
 
 function buildListFilters({ search, status, dateFrom, dateTo }) {
-  const clauses = [];
+  const clauses = ['deleted_at IS NULL'];
   const params = [];
 
   if (search) {
@@ -138,9 +154,23 @@ async function list({ search, status, dateFrom, dateTo, state, page = 1, pageSiz
   const allParams = state ? [...params, state] : params;
 
   const offset = (Math.max(1, page) - 1) * pageSize;
+  // Sort so the most urgent leads always surface first: a due callback,
+  // then never-dialed leads, then in_queue leads that have waited longest.
   const { rows } = await db.query(
-    `SELECT * FROM leads ${where} ${stateClause}
-     ORDER BY created_at DESC
+    `SELECT leads.*, (dnc_list.id IS NOT NULL) AS is_dnc_flagged
+     FROM leads
+     LEFT JOIN dnc_list ON dnc_list.phone = leads.phone
+     ${where} ${stateClause}
+     ORDER BY
+       CASE
+         WHEN status = 'callback_scheduled' THEN 0
+         WHEN status = 'new' THEN 1
+         WHEN status = 'in_queue' THEN 2
+         ELSE 3
+       END,
+       CASE WHEN status = 'callback_scheduled' THEN next_action_at END ASC,
+       CASE WHEN status = 'in_queue' THEN updated_at END ASC,
+       created_at DESC
      LIMIT $${allParams.length + 1} OFFSET $${allParams.length + 2}`,
     [...allParams, pageSize, offset]
   );
@@ -160,6 +190,78 @@ async function list({ search, status, dateFrom, dateTo, state, page = 1, pageSiz
   };
 }
 
+const EDITABLE_FIELDS = ['name', 'phone', 'email', 'address', 'brokerage', 'state'];
+
+/** Applies an inline edit from the lead detail slide-in panel. Only the six
+ * plain contact fields are editable this way — lifecycle fields (status,
+ * attempts, etc.) go through leadLifecycle instead. */
+async function updateFields(leadId, fields) {
+  const keys = EDITABLE_FIELDS.filter((f) => fields[f] !== undefined);
+  if (keys.length === 0) throw new ApiError(400, 'No editable fields provided');
+
+  const setSql = keys.map((key, i) => `${key} = $${i + 2}`).join(', ');
+  const { rows } = await db.query(
+    `UPDATE leads SET ${setSql}, updated_at = now() WHERE id = $1 AND deleted_at IS NULL RETURNING *`,
+    [leadId, ...keys.map((k) => fields[k])]
+  );
+  if (!rows[0]) throw new ApiError(404, 'Lead not found');
+  return rows[0];
+}
+
+/** Soft-deletes a lead — it stops appearing anywhere in the list/queue but
+ * the row (and its call history) is kept. */
+async function softDelete(leadId) {
+  const { rows } = await db.query(
+    `UPDATE leads SET deleted_at = now(), updated_at = now() WHERE id = $1 AND deleted_at IS NULL RETURNING *`,
+    [leadId]
+  );
+  if (!rows[0]) throw new ApiError(404, 'Lead not found');
+  return rows[0];
+}
+
+/** Global search across name/phone/brokerage, ignoring any state filter —
+ * powers the navbar search. Capped at 10 results. */
+async function search(q) {
+  if (!q || !q.trim()) return [];
+  const { rows } = await db.query(
+    `SELECT * FROM leads
+     WHERE deleted_at IS NULL
+       AND (name ILIKE $1 OR phone ILIKE $1 OR brokerage ILIKE $1)
+     ORDER BY created_at DESC
+     LIMIT 10`,
+    [`%${q.trim()}%`]
+  );
+  return rows;
+}
+
+/**
+ * Given a set of lead ids (a rep's manual selection for targeted dialing),
+ * returns them in the same priority order the regular queue uses — callbacks
+ * first (soonest due), then never-dialed leads, then in_queue leads that
+ * have waited longest. Does not filter by dialable status: a lead the rep
+ * explicitly picked stays in the list even if it's not currently dialable,
+ * so the count the frontend shows matches what it asked for.
+ */
+async function batchQueue(ids) {
+  if (!Array.isArray(ids) || ids.length === 0) return [];
+  const { rows } = await db.query(
+    `SELECT * FROM leads
+     WHERE id = ANY($1) AND deleted_at IS NULL
+     ORDER BY
+       CASE
+         WHEN status = 'callback_scheduled' THEN 0
+         WHEN status = 'new' THEN 1
+         WHEN status = 'in_queue' THEN 2
+         ELSE 3
+       END,
+       CASE WHEN status = 'callback_scheduled' THEN next_action_at END ASC,
+       CASE WHEN status = 'in_queue' THEN updated_at END ASC,
+       created_at DESC`,
+    [ids]
+  );
+  return rows;
+}
+
 module.exports = {
   DIALABLE_STATUSES,
   releaseStaleLocks,
@@ -167,6 +269,11 @@ module.exports = {
   peekNext,
   lockNext,
   getById,
+  getHistory,
   countsByState,
   list,
+  updateFields,
+  softDelete,
+  search,
+  batchQueue,
 };

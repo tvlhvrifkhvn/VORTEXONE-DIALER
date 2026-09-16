@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import AppShell from '../components/layout/AppShell';
 import ContactCard from '../components/call/ContactCard';
@@ -6,9 +6,14 @@ import CallHeader from '../components/call/CallHeader';
 import NotesField from '../components/call/NotesField';
 import DispositionButtons from '../components/call/DispositionButtons';
 import CallControls from '../components/call/CallControls';
+import StatusBadge from '../components/leads/StatusBadge';
 import NeuCard from '../components/ui/NeuCard';
 import NeuButton from '../components/ui/NeuButton';
+import ActionButton from '../components/ui/ActionButton';
+import { useAuth } from '../hooks/useAuth';
 import { useCall } from '../hooks/useCall';
+import { formatDateTime } from '../lib/format';
+import * as api from '../lib/api';
 
 const DISPOSITION_LABELS = {
   contacted: 'Spoke / Interested',
@@ -20,19 +25,131 @@ const DISPOSITION_LABELS = {
   callback_scheduled: 'Callback Scheduled',
 };
 
+const PITCH_SCRIPT_KEY = 'vortex_pitch_script';
+const DEFAULT_PITCH_SCRIPT = (repName) =>
+  `Hi, I'm ${repName} from Vortexone Agency. We offer virtual assistant services for real ` +
+  'estate agents — lead follow-up, appointment setting, and admin support. Do you currently ' +
+  'have VA support on your team?';
+
+/** Custom script from the Settings page, if the rep has saved one there. */
+function getPitchScript(repName) {
+  const custom = localStorage.getItem(PITCH_SCRIPT_KEY);
+  return custom || DEFAULT_PITCH_SCRIPT(repName);
+}
+
+/** Collapsible sidebar section — arrow toggle, collapsed by default. */
+function CollapsibleSection({ title, defaultOpen = false, children }) {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <NeuCard className="p-4">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className="flex w-full items-center justify-between text-left text-sm font-semibold text-text-primary"
+      >
+        <span>{title}</span>
+        <span className={`transition-transform duration-200 ${open ? 'rotate-90' : ''}`}>▶</span>
+      </button>
+      {open && <div className="mt-3">{children}</div>}
+    </NeuCard>
+  );
+}
+
+function PreviousNotes({ leadId }) {
+  const [history, setHistory] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!leadId) return;
+    let cancelled = false;
+    setLoading(true);
+    api
+      .getLeadHistory(leadId)
+      .then(({ history: rows }) => {
+        if (!cancelled) setHistory(rows);
+      })
+      .catch(() => {})
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [leadId]);
+
+  if (loading) return <p className="text-xs text-text-secondary">Loading…</p>;
+  if (history.length === 0) return <p className="text-xs text-text-secondary">No previous calls logged.</p>;
+
+  return (
+    <ul className="space-y-3">
+      {history.map((call) => (
+        <li key={call.id} className="border-b border-shadow/20 pb-2 last:border-0 last:pb-0">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-xs text-text-secondary">{formatDateTime(call.started_at)}</span>
+            <StatusBadge status={call.disposition} />
+          </div>
+          {call.note && <p className="mt-1 text-xs text-text-primary">{call.note}</p>}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+const SHORTCUT_HINTS = [
+  { key: 'V', label: 'Voicemail' },
+  { key: 'N', label: 'No answer' },
+  { key: 'D', label: 'Disposition' },
+  { key: 'M', label: 'Mute' },
+  { key: 'Esc', label: 'Hang up' },
+];
+
+function ShortcutHintBar() {
+  return (
+    <div className="flex flex-wrap items-center justify-center gap-4 rounded-input bg-surface px-4 py-2 text-xs text-text-secondary shadow-neu-inset">
+      {SHORTCUT_HINTS.map((s) => (
+        <span key={s.key} className="flex items-center gap-1">
+          <kbd className="rounded border border-shadow/40 px-1.5 py-0.5 font-mono text-[10px] text-text-primary">
+            {s.key}
+          </kbd>
+          {s.label}
+        </span>
+      ))}
+    </div>
+  );
+}
+
 function CallScreenInner({ leadId }) {
   const navigate = useNavigate();
-  const { call, lead, error, starting, undoInfo, hangup, submitDisposition, undo } = useCall(leadId);
+  const { user } = useAuth();
+  const {
+    call,
+    lead,
+    error,
+    starting,
+    undoInfo,
+    hangup,
+    submitDisposition,
+    undo,
+    redial,
+  } = useCall(leadId);
   const [note, setNote] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [actionError, setActionError] = useState(null);
   const [lastDisposition, setLastDisposition] = useState(null);
   const [hungUp, setHungUp] = useState(false);
+  const [muted, setMuted] = useState(false);
+  const [showHangupConfirm, setShowHangupConfirm] = useState(false);
+  const [showDncConfirm, setShowDncConfirm] = useState(false);
+  const [expanding, setExpanding] = useState(false);
+  const [redialing, setRedialing] = useState(false);
+  const dispositionRef = useRef(null);
+  const [dispositionHighlight, setDispositionHighlight] = useState(false);
 
   const isFinalized = !!lastDisposition;
   const ended = isFinalized || call?.telephony_state === 'ended';
+  const canAct = !submitting && !isFinalized && !!call;
 
-  const handleSelect = async (disposition) => {
+  const submitOutcome = async (disposition) => {
     setSubmitting(true);
     setActionError(null);
     try {
@@ -42,6 +159,30 @@ function CallScreenInner({ leadId }) {
       setActionError(err.message);
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  // DNC is permanent — confirm before it actually fires. Every other
+  // disposition button submits immediately.
+  const handleSelect = (disposition) => {
+    if (disposition === 'dnc') {
+      setShowDncConfirm(true);
+      return;
+    }
+    submitOutcome(disposition);
+  };
+
+  const handleRedial = async () => {
+    setRedialing(true);
+    setActionError(null);
+    setHungUp(false);
+    setLastDisposition(null);
+    try {
+      await redial();
+    } catch (err) {
+      setActionError(err.message);
+    } finally {
+      setRedialing(false);
     }
   };
 
@@ -81,6 +222,47 @@ function CallScreenInner({ leadId }) {
     }
   };
 
+  const handleExpandNote = async () => {
+    if (!note.trim() || expanding) return;
+    setExpanding(true);
+    setActionError(null);
+    try {
+      const { note: expanded } = await api.expandNote(note);
+      setNote(expanded);
+    } catch (err) {
+      setActionError(err.message);
+    } finally {
+      setExpanding(false);
+    }
+  };
+
+  // Keyboard shortcuts — ignored while typing in the notes field, and only
+  // active once the call has actually started.
+  useEffect(() => {
+    const handler = (e) => {
+      const tag = e.target?.tagName;
+      if (tag === 'TEXTAREA' || tag === 'INPUT') return;
+
+      if (e.key === 'Escape') {
+        if (!hungUp && !isFinalized) setShowHangupConfirm(true);
+        return;
+      }
+      if (!canAct) return;
+
+      if (e.key === 'v' || e.key === 'V') handleSelect('voicemail');
+      else if (e.key === 'n' || e.key === 'N') handleSelect('no_answer');
+      else if (e.key === 'm' || e.key === 'M') setMuted((m) => !m);
+      else if (e.key === 'd' || e.key === 'D') {
+        dispositionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        setDispositionHighlight(true);
+        setTimeout(() => setDispositionHighlight(false), 800);
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [canAct, hungUp, isFinalized, note]);
+
   if (error) {
     return (
       <NeuCard className="mx-auto mt-12 max-w-md p-6 text-center">
@@ -98,55 +280,138 @@ function CallScreenInner({ leadId }) {
   }
 
   return (
-    <div className="mx-auto mt-6 grid max-w-3xl grid-cols-1 gap-6 md:grid-cols-[1fr_260px]">
-      <div className="space-y-6">
-        <NeuCard className="p-5">
-          <CallHeader call={call} ended={ended} />
-        </NeuCard>
-
-        <ContactCard lead={lead} />
-
-        <NeuCard className="space-y-4 p-5">
-          <NotesField value={note} onChange={setNote} />
-          <DispositionButtons onSelect={handleSelect} disabled={submitting || isFinalized} />
-          {actionError && <p className="text-sm text-action-hangup">{actionError}</p>}
-        </NeuCard>
-      </div>
-
-      <div className="space-y-4">
-        <CallControls
-          onHangup={handleHangup}
-          onScheduleCallback={handleScheduleCallback}
-          disabled={submitting || isFinalized}
-          hangupDisabled={submitting || isFinalized || hungUp}
-        />
-
-        {hungUp && !isFinalized && (
-          <NeuCard className="p-4 text-sm text-text-secondary">
-            Call ended without a disposition — this lead returns to the queue in 30s unless you log an
-            outcome now.
+    <div className="mx-auto mt-6 max-w-3xl space-y-4">
+      <div className="grid grid-cols-1 gap-6 md:grid-cols-[1fr_260px]">
+        <div className="space-y-6">
+          <NeuCard className="p-5">
+            <CallHeader call={call} ended={ended} />
+            {muted && <p className="mt-2 text-xs font-semibold text-action-warn">Muted</p>}
           </NeuCard>
-        )}
 
-        {isFinalized && (
-          <NeuCard className="space-y-3 p-4">
-            <p className="text-sm text-text-primary">
-              Logged as <strong>{DISPOSITION_LABELS[lastDisposition] || lastDisposition}</strong>.
-            </p>
-            {undoInfo && (
-              <NeuButton className="w-full text-sm" onClick={handleUndo}>
-                Undo
+          <ContactCard lead={lead} />
+
+          <NeuCard className="space-y-4 p-5">
+            <div>
+              <div className="flex items-center justify-between">
+                <label className="mb-1 block text-xs font-medium text-text-secondary">Notes</label>
+                <button
+                  type="button"
+                  onClick={handleExpandNote}
+                  disabled={!note.trim() || expanding}
+                  className="text-xs font-medium text-action-call disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {expanding ? 'Expanding…' : '✨ Expand'}
+                </button>
+              </div>
+              <NotesField value={note} onChange={setNote} />
+            </div>
+
+            <div ref={dispositionRef} className={dispositionHighlight ? 'animate-pulse-call rounded-input' : ''}>
+              <DispositionButtons onSelect={handleSelect} disabled={submitting || isFinalized} />
+            </div>
+
+            {actionError && <p className="text-sm text-action-hangup">{actionError}</p>}
+
+            <CollapsibleSection title="Previous Notes">
+              <PreviousNotes leadId={lead.id} />
+            </CollapsibleSection>
+          </NeuCard>
+        </div>
+
+        <div className="space-y-4">
+          <CollapsibleSection title="Pitch script">
+            <p className="text-xs leading-relaxed text-text-primary">{getPitchScript(user?.name || 'the rep')}</p>
+          </CollapsibleSection>
+
+          <CallControls
+            onHangup={() => setShowHangupConfirm(true)}
+            onScheduleCallback={handleScheduleCallback}
+            disabled={submitting || isFinalized}
+            hangupDisabled={submitting || isFinalized || hungUp}
+          />
+
+          {hungUp && !isFinalized && (
+            <NeuCard className="p-4 text-sm text-text-secondary">
+              Call ended without a disposition — this lead returns to the queue in 30s unless you log an
+              outcome now.
+            </NeuCard>
+          )}
+
+          {ended && !isFinalized && (
+            <NeuButton className="w-full text-sm" onClick={handleRedial} disabled={redialing}>
+              {redialing ? 'Redialing…' : 'Redial'}
+            </NeuButton>
+          )}
+
+          {isFinalized && (
+            <NeuCard className="space-y-3 p-4">
+              <p className="text-sm text-text-primary">
+                Logged as <strong>{DISPOSITION_LABELS[lastDisposition] || lastDisposition}</strong>.
+              </p>
+              {undoInfo && (
+                <NeuButton className="w-full text-sm" onClick={handleUndo}>
+                  Undo
+                </NeuButton>
+              )}
+              <NeuButton className="w-full text-sm" onClick={() => navigate('/call/next')}>
+                Next Lead
               </NeuButton>
-            )}
-            <NeuButton className="w-full text-sm" onClick={() => navigate('/call/next')}>
-              Next Lead
-            </NeuButton>
-            <NeuButton className="w-full text-sm" onClick={() => navigate('/')}>
-              Back to Dashboard
-            </NeuButton>
-          </NeuCard>
-        )}
+              <NeuButton className="w-full text-sm" onClick={() => navigate('/')}>
+                Back to Dashboard
+              </NeuButton>
+            </NeuCard>
+          )}
+        </div>
       </div>
+
+      <ShortcutHintBar />
+
+      {showHangupConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 px-4">
+          <NeuCard className="w-full max-w-sm space-y-4 p-6">
+            <p className="text-sm font-medium text-text-primary">Hang up this call?</p>
+            <div className="flex gap-3">
+              <NeuButton
+                className="flex-1 text-sm"
+                onClick={async () => {
+                  setShowHangupConfirm(false);
+                  await handleHangup();
+                }}
+              >
+                Hang up
+              </NeuButton>
+              <NeuButton className="flex-1 text-sm" onClick={() => setShowHangupConfirm(false)}>
+                Cancel
+              </NeuButton>
+            </div>
+          </NeuCard>
+        </div>
+      )}
+
+      {showDncConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 px-4">
+          <NeuCard className="w-full max-w-sm space-y-4 p-6">
+            <p className="text-sm font-medium text-text-primary">
+              Permanently block {lead.name}'s number from all future dialing? This cannot be undone.
+            </p>
+            <div className="flex gap-3">
+              <ActionButton
+                variant="dnc"
+                className="flex-1 text-sm"
+                onClick={() => {
+                  setShowDncConfirm(false);
+                  submitOutcome('dnc');
+                }}
+              >
+                Confirm
+              </ActionButton>
+              <NeuButton className="flex-1 text-sm" onClick={() => setShowDncConfirm(false)}>
+                Cancel
+              </NeuButton>
+            </div>
+          </NeuCard>
+        </div>
+      )}
     </div>
   );
 }

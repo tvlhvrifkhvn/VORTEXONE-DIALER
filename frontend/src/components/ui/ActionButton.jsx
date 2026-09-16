@@ -16,8 +16,8 @@ export default function ActionButton({ variant = 'neutral', children, className 
       type="button"
       disabled={disabled}
       className={`
-        ${VARIANT_STYLES[variant]} text-white font-semibold rounded-input
-        px-4 py-3 shadow-md transition-colors duration-150
+        ripple ${VARIANT_STYLES[variant]} text-white font-semibold rounded-input
+        px-4 py-3 shadow-md transition-colors duration-200
         disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-none
         ${className}
       `}

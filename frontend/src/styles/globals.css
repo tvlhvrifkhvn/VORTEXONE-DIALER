@@ -2,10 +2,115 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Colors as "R G B" triplets (not hex) so Tailwind's opacity modifiers
+   (e.g. border-shadow/20) can compose them via rgb(var(--x) / <alpha>). */
+:root {
+  --color-base: 228 233 240; /* #E4E9F0 */
+  --color-surface: 228 233 240; /* #E4E9F0 */
+  --color-text-primary: 62 76 99; /* #3E4C63 */
+  --color-text-secondary: 106 122 148; /* #6A7A94 */
+  --color-highlight: 255 255 255; /* #FFFFFF */
+  --color-shadow: 163 177 198; /* #A3B1C6 */
+}
+
+/* Dark mode — same dual-shadow neumorphism, re-tuned so the "highlight"
+   shadow is a lighter tone than the surface and "shadow" a darker one,
+   instead of white/gray. See CLAUDE.md → toggled from AppShell, persisted
+   in localStorage. */
+.dark {
+  --color-base: 26 31 46; /* #1a1f2e */
+  --color-surface: 34 40 64; /* #222840 */
+  --color-text-primary: 228 233 240; /* #E4E9F0 */
+  --color-text-secondary: 156 168 196; /* #9CA8C4 */
+  --color-highlight: 45 53 82; /* #2d3552 */
+  --color-shadow: 18 21 31; /* #12151f */
+}
+
 body {
   @apply bg-base text-text-primary font-sans text-sm antialiased;
+  transition: background-color 200ms ease, color 200ms ease;
 }
 
 * {
   box-sizing: border-box;
+}
+
+/* Hover lift for neumorphic cards (NeuCard) */
+.neu-card {
+  transition: transform 200ms ease, box-shadow 200ms ease;
+}
+.neu-card:hover {
+  transform: translateY(-2px);
+  box-shadow: -8px -8px 18px rgb(var(--color-highlight)), 8px 8px 18px rgb(var(--color-shadow));
+}
+
+/* Fade-in for lead rows as they load */
+@keyframes fade-in-row {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.animate-fade-in-row {
+  animation: fade-in-row 250ms ease-out both;
+}
+
+/* Subtle "alive" pulse on the row call button */
+@keyframes pulse-call {
+  0% {
+    box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.5);
+  }
+  70% {
+    box-shadow: 0 0 0 8px rgba(59, 130, 246, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(59, 130, 246, 0);
+  }
+}
+.animate-pulse-call {
+  animation: pulse-call 2s ease-out infinite;
+}
+
+/* Glow effect for the primary Start Dialing button */
+@keyframes glow-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.45);
+  }
+  50% {
+    box-shadow: 0 0 14px 4px rgba(59, 130, 246, 0.45);
+  }
+}
+.btn-glow {
+  animation: glow-pulse 2.5s ease-in-out infinite;
+}
+
+/* Simple center-out ripple on click, works for any button without JS */
+.ripple {
+  position: relative;
+  overflow: hidden;
+}
+.ripple::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 0;
+  height: 0;
+  border-radius: 9999px;
+  background: currentColor;
+  opacity: 0;
+  transform: translate(-50%, -50%);
+  transition: width 500ms ease, height 500ms ease, opacity 700ms ease;
+  pointer-events: none;
+}
+.ripple:active::after {
+  width: 220%;
+  height: 220%;
+  opacity: 0.18;
+  transition: width 0s, height 0s, opacity 0s;
 }

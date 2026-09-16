@@ -5,6 +5,7 @@ import Dashboard from './pages/Dashboard';
 import CallScreen from './pages/CallScreen';
 import Import from './pages/Import';
 import Reports from './pages/Reports';
+import Settings from './pages/Settings';
 
 function RequireAuth({ children }) {
   const { isAuthenticated, loading } = useAuth();
@@ -52,6 +53,14 @@ function AppRoutes() {
         element={
           <RequireAuth>
             <Reports />
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/settings"
+        element={
+          <RequireAuth>
+            <Settings />
           </RequireAuth>
         }
       />

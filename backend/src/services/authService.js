@@ -28,4 +28,23 @@ async function getById(userId) {
   return rows[0] ? toPublicUser(rows[0]) : null;
 }
 
-module.exports = { login, getById };
+/** Updates the logged-in user's display name and/or email. Powers the
+ * Settings page's Profile section. */
+async function updateProfile(userId, { name, email }) {
+  if (!name || !email) {
+    throw new ApiError(400, 'name and email are required');
+  }
+  try {
+    const { rows } = await db.query(
+      'UPDATE users SET name = $1, email = $2 WHERE id = $3 RETURNING *',
+      [name, email, userId]
+    );
+    if (!rows[0]) throw new ApiError(404, 'User not found');
+    return toPublicUser(rows[0]);
+  } catch (err) {
+    if (err.code === '23505') throw new ApiError(409, 'That email is already in use');
+    throw err;
+  }
+}
+
+module.exports = { login, getById, updateProfile };

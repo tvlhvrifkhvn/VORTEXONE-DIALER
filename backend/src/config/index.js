@@ -16,4 +16,5 @@ module.exports = {
   jwtExpiresIn: process.env.JWT_EXPIRES_IN || '12h',
   telephonyProvider: process.env.TELEPHONY_PROVIDER || 'mock',
   corsOrigin: process.env.CORS_ORIGIN || 'http://localhost:5173',
+  groqApiKey: process.env.GROQ_API_KEY || '',
 };

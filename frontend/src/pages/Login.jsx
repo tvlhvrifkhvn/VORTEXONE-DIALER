@@ -53,7 +53,17 @@ export default function Login() {
           />
           {error && <p className="text-sm text-action-hangup">{error}</p>}
           <NeuButton type="submit" disabled={submitting} className="w-full text-center">
-            {submitting ? 'Signing in…' : 'Sign in'}
+            {submitting ? (
+              <span className="flex items-center justify-center gap-2">
+                <span
+                  aria-hidden="true"
+                  className="h-4 w-4 animate-spin rounded-full border-2 border-text-secondary/30 border-t-text-primary"
+                />
+                Signing in…
+              </span>
+            ) : (
+              'Sign in'
+            )}
           </NeuButton>
         </form>
       </NeuCard>
