@@ -3,7 +3,9 @@ const config = require('../config');
 const settingsStore = require('./settings');
 const { ApiError } = require('../middleware/errorHandler');
 
-const MODEL = 'llama3-8b-8192';
+// llama3-8b-8192 was decommissioned by Groq — llama-3.1-8b-instant is its
+// direct successor and also the cheapest model on Groq's lineup.
+const MODEL = 'llama-3.1-8b-instant';
 
 if (!process.env.GROQ_API_KEY) {
   // eslint-disable-next-line no-console

@@ -3,7 +3,10 @@ const config = require('../config');
 const settingsStore = require('./settings');
 const { ApiError } = require('../middleware/errorHandler');
 
-const MODEL = 'llama3-8b-8192';
+// llama3-8b-8192 was decommissioned by Groq — llama-3.1-8b-instant is its
+// direct successor and also the cheapest model on Groq's lineup, which is
+// plenty for a structured column-mapping task like this one.
+const MODEL = 'llama-3.1-8b-instant';
 const SCHEMA_FIELDS = ['name', 'phone', 'email', 'address', 'brokerage', 'state'];
 const LOW_CONFIDENCE = 'low';
 const UNAVAILABLE_MESSAGE = 'AI mapping unavailable — please map columns manually.';
