@@ -1,7 +1,14 @@
 const Groq = require('groq-sdk');
 const config = require('../config');
 const settingsStore = require('./settings');
+const { US_STATES } = require('../utils/usStates');
 const { ApiError } = require('../middleware/errorHandler');
+
+const STATE_GUESS_BATCH_SIZE = 25;
+// Hard ceiling on how many rows get an AI state guess per import — this is
+// a last-resort fallback after deterministic address parsing and area-code
+// lookup both fail, not the primary path, so it's capped for cost and speed.
+const MAX_STATE_GUESS_ROWS = 200;
 
 // llama3-8b-8192, then its successor llama-3.1-8b-instant, were both
 // decommissioned by Groq. openai/gpt-oss-20b is Groq's current recommended
@@ -112,4 +119,60 @@ async function mapColumns(headers, sampleRows = []) {
   return { mapping, confidence, needsReview };
 }
 
-module.exports = { SCHEMA_FIELDS, mapColumns };
+function buildStateGuessPrompt(batch) {
+  const lines = batch
+    .map((r) => `${r.index}: name="${r.name || ''}", address="${r.address || ''}", brokerage="${r.brokerage || ''}"`)
+    .join('\n');
+
+  return `Each line below is a US real-estate lead with no recognizable state on file. Guess the
+2-letter US state code ONLY when the text plainly implies one (e.g. a city you're certain is in
+that state, or a state name/abbreviation embedded in the text). If you are not confident, answer
+null — never guess randomly.
+
+${lines}
+
+Respond with ONLY a JSON array, no prose, shaped exactly like:
+[{"index": 0, "state": "ID"}, {"index": 1, "state": null}]`;
+}
+
+/**
+ * Last-resort AI fallback for rows where neither the mapped state column,
+ * deterministic address-text parsing, nor phone area code produced a valid
+ * state (see csvImport.js). Every answer is validated against US_STATES
+ * before use — an invalid or hallucinated code is silently discarded, same
+ * as a "null" answer, so a bad guess never corrupts a lead's state (state
+ * drives calling-hours enforcement, see CLAUDE.md).
+ */
+async function guessStates(candidates) {
+  const results = new Map();
+  if (!Array.isArray(candidates) || candidates.length === 0) return results;
+
+  const groq = await client();
+  if (!groq) return results;
+
+  const capped = candidates.slice(0, MAX_STATE_GUESS_ROWS);
+  for (let i = 0; i < capped.length; i += STATE_GUESS_BATCH_SIZE) {
+    const batch = capped.slice(i, i + STATE_GUESS_BATCH_SIZE);
+    try {
+      const completion = await groq.chat.completions.create({
+        model: MODEL,
+        temperature: 0,
+        messages: [{ role: 'user', content: buildStateGuessPrompt(batch) }],
+      });
+      const text = completion.choices?.[0]?.message?.content || '';
+      const match = text.match(/\[[\s\S]*\]/);
+      if (!match) continue;
+      const parsed = JSON.parse(match[0]);
+      for (const entry of parsed) {
+        const state = (entry?.state || '').toUpperCase();
+        if (US_STATES.includes(state)) results.set(entry.index, state);
+      }
+    } catch {
+      // A malformed/failed batch just means those rows stay unresolved —
+      // never propagate a guess we couldn't validate.
+    }
+  }
+  return results;
+}
+
+module.exports = { SCHEMA_FIELDS, mapColumns, guessStates };

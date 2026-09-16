@@ -3,8 +3,23 @@ const db = require('../db');
 const { ApiError } = require('../middleware/errorHandler');
 const { normalizePhone } = require('../utils/phoneNormalize');
 const { stateFromAreaCode } = require('../utils/stateFromAreaCode');
+const { stateFromAddressText } = require('../utils/stateFromAddressText');
 const { US_STATES } = require('../utils/usStates');
 const dncCheck = require('./dncCheck');
+const aiCsvMapper = require('./aiCsvMapper');
+
+/** Collapses runs of whitespace and trims — every text field gets this, not
+ * just name, since scraped CSVs routinely have double spaces/newlines baked in. */
+function cleanText(raw) {
+  return (raw || '').replace(/\s+/g, ' ').trim();
+}
+
+/** Strips scraped-site junk commonly glued onto a name, e.g. "Joshua Barkes
+ * License #: AB44850 - null MARKET CENTER Keller Williams Realty Boise" →
+ * "Joshua Barkes". Deterministic (no AI) — only ever removes, never rewrites. */
+function cleanLeadName(raw) {
+  return cleanText(raw).replace(/\s*license\s*#?:?.*$/i, '').trim();
+}
 
 const LEAD_FIELDS = ['name', 'phone', 'email', 'address', 'brokerage', 'state'];
 const MAX_SKIPPED_DETAILS = 100;
@@ -50,8 +65,8 @@ function guessMapping(headers) {
  * than throwing on a per-row basis — a bad row shouldn't fail the batch.
  */
 async function commitImport({ mapping, rows, userId, filename }) {
-  if (!mapping || !mapping.name || !mapping.phone || !mapping.state) {
-    throw new ApiError(400, 'mapping must include at least name, phone, and state');
+  if (!mapping || !mapping.name || !mapping.phone) {
+    throw new ApiError(400, 'mapping must include at least name and phone');
   }
   if (!Array.isArray(rows) || rows.length === 0) {
     throw new ApiError(400, 'No rows to import');
@@ -66,32 +81,70 @@ async function commitImport({ mapping, rows, userId, filename }) {
     skippedDetails: [],
   };
 
-  const seenPhones = new Set();
-
   const skip = (row, reason) => {
     if (summary.skippedDetails.length < MAX_SKIPPED_DETAILS) {
       summary.skippedDetails.push({ row: row[mapping.name] || row[mapping.phone] || '(unknown)', reason });
     }
   };
 
-  for (const row of rows) {
+  // Pass 1 — deterministic cleanup + state resolution (mapped column, then
+  // address text, then phone area code). No AI involved yet.
+  const prepared = rows.map((row) => {
     const rawPhone = row[mapping.phone];
     const phone = normalizePhone(rawPhone);
-    const name = (row[mapping.name] || '').trim();
+    const name = cleanLeadName(row[mapping.name]);
+    const address = mapping.address ? cleanText(row[mapping.address]) : '';
+
+    let state = mapping.state ? cleanText(row[mapping.state]).toUpperCase() : '';
+    if (!US_STATES.includes(state)) state = stateFromAddressText(address) || '';
+    if (!US_STATES.includes(state) && phone) state = stateFromAreaCode(phone) || '';
+
+    return {
+      row,
+      rawPhone,
+      phone,
+      name,
+      address,
+      state: US_STATES.includes(state) ? state : null,
+    };
+  });
+
+  // Pass 2 — last-resort AI guess (validated against US_STATES) for
+  // otherwise-valid rows that still have no state, capped and batched inside
+  // aiCsvMapper.guessStates. Rows with no name/phone aren't worth the call.
+  const needsAiState = prepared
+    .map((p, index) => ({ ...p, index }))
+    .filter((p) => p.name && p.phone && !p.state);
+
+  if (needsAiState.length > 0) {
+    const guesses = await aiCsvMapper.guessStates(
+      needsAiState.map((p) => ({
+        index: p.index,
+        name: p.name,
+        address: p.address,
+        brokerage: mapping.brokerage ? cleanText(p.row[mapping.brokerage]) : '',
+      }))
+    );
+    for (const [index, state] of guesses) {
+      prepared[index].state = state;
+    }
+  }
+
+  // Pass 3 — dedupe (exact phone match, in-file and against existing leads),
+  // DNC check, and insert.
+  const seenPhones = new Set();
+
+  for (const p of prepared) {
+    const { row, rawPhone, phone, name, address, state } = p;
 
     if (!name || !phone) {
       summary.skippedInvalid += 1;
       skip(row, !name ? 'Missing name' : `Invalid phone number: "${rawPhone}"`);
       continue;
     }
-
-    let state = (row[mapping.state] || '').trim().toUpperCase();
-    if (!US_STATES.includes(state)) {
-      state = stateFromAreaCode(phone) || '';
-    }
-    if (!US_STATES.includes(state)) {
+    if (!state) {
       summary.skippedInvalid += 1;
-      skip(row, `Unrecognized US state: "${row[mapping.state] || ''}"`);
+      skip(row, `Could not determine a US state for this lead`);
       continue;
     }
 
@@ -121,9 +174,9 @@ async function commitImport({ mapping, rows, userId, filename }) {
       [
         name,
         phone,
-        mapping.email ? (row[mapping.email] || '').trim() || null : null,
-        mapping.address ? (row[mapping.address] || '').trim() || null : null,
-        mapping.brokerage ? (row[mapping.brokerage] || '').trim() || null : null,
+        mapping.email ? cleanText(row[mapping.email]) || null : null,
+        address || null,
+        mapping.brokerage ? cleanText(row[mapping.brokerage]) || null : null,
         state,
       ]
     );

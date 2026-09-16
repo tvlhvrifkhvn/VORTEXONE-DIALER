@@ -7,7 +7,10 @@ import ActionButton from '../components/ui/ActionButton';
 import { formatDateTime } from '../lib/format';
 import * as api from '../lib/api';
 
-const REQUIRED_FIELDS = ['name', 'phone', 'state'];
+// State isn't strictly required here even though it's mandatory on every
+// lead — the backend derives it from address text or phone area code (and,
+// as a last resort, a validated AI guess) when no column is mapped to it.
+const REQUIRED_FIELDS = ['name', 'phone'];
 const CONFIDENCE_COLORS = { high: 'text-action-contacted', medium: 'text-action-warn', low: 'text-action-hangup' };
 
 /** Last 10 imports, shown below the upload area. */
@@ -212,7 +215,7 @@ export default function Import() {
               </ActionButton>
               <NeuButton onClick={handleReset}>Start over</NeuButton>
               {!canContinue && (
-                <span className="text-xs text-text-secondary">Map name, phone, and state to continue.</span>
+                <span className="text-xs text-text-secondary">Map name and phone to continue.</span>
               )}
             </div>
           </>
