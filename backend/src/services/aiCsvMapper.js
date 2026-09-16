@@ -3,10 +3,11 @@ const config = require('../config');
 const settingsStore = require('./settings');
 const { ApiError } = require('../middleware/errorHandler');
 
-// llama3-8b-8192 was decommissioned by Groq — llama-3.1-8b-instant is its
-// direct successor and also the cheapest model on Groq's lineup, which is
-// plenty for a structured column-mapping task like this one.
-const MODEL = 'llama-3.1-8b-instant';
+// llama3-8b-8192, then its successor llama-3.1-8b-instant, were both
+// decommissioned by Groq. openai/gpt-oss-20b is Groq's current recommended
+// replacement for that small/cheap tier — gpt-oss-120b is the (pricier)
+// replacement for the larger 70b-class models, not needed here.
+const MODEL = 'openai/gpt-oss-20b';
 const SCHEMA_FIELDS = ['name', 'phone', 'email', 'address', 'brokerage', 'state'];
 const LOW_CONFIDENCE = 'low';
 const UNAVAILABLE_MESSAGE = 'AI mapping unavailable — please map columns manually.';

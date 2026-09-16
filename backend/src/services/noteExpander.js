@@ -3,9 +3,10 @@ const config = require('../config');
 const settingsStore = require('./settings');
 const { ApiError } = require('../middleware/errorHandler');
 
-// llama3-8b-8192 was decommissioned by Groq — llama-3.1-8b-instant is its
-// direct successor and also the cheapest model on Groq's lineup.
-const MODEL = 'llama-3.1-8b-instant';
+// llama3-8b-8192, then its successor llama-3.1-8b-instant, were both
+// decommissioned by Groq. openai/gpt-oss-20b is Groq's current recommended
+// replacement for that small/cheap tier.
+const MODEL = 'openai/gpt-oss-20b';
 
 if (!process.env.GROQ_API_KEY) {
   // eslint-disable-next-line no-console
