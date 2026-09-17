@@ -6,5 +6,6 @@
     "4000": { "label": "Backend API", "onAutoForward": "notify" },
     "5173": { "label": "Frontend (Vite)", "onAutoForward": "openPreview" }
   },
+  "postCreateCommand": "bash .devcontainer/setup-postgres.sh",
   "postStartCommand": "sudo service postgresql start"
 }
