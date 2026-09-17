@@ -198,11 +198,23 @@ export default function Import() {
                 <tbody>
                   {analysis.rows.slice(0, 5).map((row, i) => (
                     <tr key={i} className="border-t border-shadow/20">
-                      {analysis.fields.map((f) => (
-                        <td key={f} className="px-2 py-2 text-text-primary">
-                          {mapping[f] ? row[mapping[f]] || '—' : '—'}
-                        </td>
-                      ))}
+                      {analysis.fields.map((f) => {
+                        const original = f === 'name' ? analysis.originalNames?.[i] : null;
+                        return (
+                          <td key={f} className="px-2 py-2 text-text-primary">
+                            {mapping[f] ? row[mapping[f]] || '—' : '—'}
+                            {original && (
+                              <span
+                                title={`Cleaned by AI from: ${original}`}
+                                aria-label={`Cleaned by AI from: ${original}`}
+                                className="ml-1 cursor-help"
+                              >
+                                ✨
+                              </span>
+                            )}
+                          </td>
+                        );
+                      })}
                     </tr>
                   ))}
                 </tbody>
@@ -225,8 +237,9 @@ export default function Import() {
           <NeuCard className="space-y-3 p-5">
             <h2 className="text-sm font-semibold text-text-primary">Cleaning report</h2>
             <p className="text-sm text-text-secondary">
-              {summary.imported} leads imported · {summary.skippedDnc} skipped (DNC) · {summary.skippedDuplicate}{' '}
-              duplicates removed · {summary.skippedInvalid} invalid phones
+              {summary.imported} leads imported · {summary.mergedDuplicates ?? 0} duplicates merged ·{' '}
+              {summary.skippedDnc} skipped (DNC) · {summary.skippedDuplicate} duplicates removed ·{' '}
+              {summary.skippedInvalid} invalid phones
             </p>
             {summary.skippedDetails.length > 0 && (
               <details className="text-xs text-text-secondary">

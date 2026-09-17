@@ -119,6 +119,138 @@ async function mapColumns(headers, sampleRows = []) {
   return { mapping, confidence, needsReview };
 }
 
+const CLEAN_BATCH_SIZE = 20;
+
+function buildCleaningPrompt(batch) {
+  const rows = batch.map((r) => `${r.index}: ${JSON.stringify(r.fields)}`).join('\n');
+
+  return `You are a data cleaning assistant. Clean each row of real estate agent data:
+
+1. NAME cleaning rules:
+   - Remove anything matching "License #: [alphanumeric]"
+   - Remove " - null" or "null" anywhere in the name
+   - Remove brokerage/company names mixed into the name field (e.g. "MARKET CENTER", "Keller Williams Realty Boise", "Coldwell Banker")
+   - Keep only "First Last" or "First Middle Last" format
+   - If you cannot extract a real person name, mark the row as SKIP
+
+2. STATE cleaning rules:
+   - Extract only the 2-letter US state code
+   - "boise id usa" → "ID", "miami florida" → "FL", "austin tx" → "TX"
+   - If state cannot be determined, leave blank
+
+3. ADDRESS cleaning rules:
+   - If address contains city+state+country mixed like "boise id usa", extract just the city: "Boise"
+   - Keep proper street addresses as-is
+
+Rows (index: fields):
+${rows}
+
+Return ONLY a JSON array with the same number of rows, no prose, each shaped:
+[{"index": 0, "name": "<cleaned>", "state": "<2-letter or empty>", "address": "<cleaned>", "skip": false}]
+Mark any unrecoverable row with "skip": true.`;
+}
+
+/**
+ * Second Groq pass, run after column mapping: cleans the actual row values
+ * (license numbers and brokerage names glued into the name field, "boise id
+ * usa" in place of a state, and so on). Returns { rows, cleaned, skipped }
+ * where rows are the surviving rows with cleaned values applied.
+ *
+ * Safety: the model's output is only ever used to overwrite name/state/
+ * address, and each value is sanity-checked before it's accepted — a state
+ * has to be a real US code, a name has to be non-empty and free of the junk
+ * patterns. When the key isn't configured or a batch fails, the original
+ * rows pass through untouched so the import still works.
+ */
+async function cleanRows(rows, mapping) {
+  const result = { rows, cleanedCount: 0, skippedCount: 0, originals: new Map() };
+  if (!Array.isArray(rows) || rows.length === 0) return result;
+  if (!mapping || !mapping.name) return result;
+
+  const groq = await client();
+  if (!groq) return result;
+
+  const cleanedByIndex = new Map();
+  const skipped = new Set();
+
+  for (let i = 0; i < rows.length; i += CLEAN_BATCH_SIZE) {
+    const batch = rows.slice(i, i + CLEAN_BATCH_SIZE).map((row, offset) => ({
+      index: i + offset,
+      fields: {
+        name: row[mapping.name] ?? '',
+        state: mapping.state ? row[mapping.state] ?? '' : '',
+        address: mapping.address ? row[mapping.address] ?? '' : '',
+      },
+    }));
+
+    try {
+      const completion = await groq.chat.completions.create({
+        model: MODEL,
+        temperature: 0,
+        messages: [{ role: 'user', content: buildCleaningPrompt(batch) }],
+      });
+      const text = completion.choices?.[0]?.message?.content || '';
+      const match = text.match(/\[[\s\S]*\]/);
+      if (!match) continue;
+
+      for (const entry of JSON.parse(match[0])) {
+        if (typeof entry?.index !== 'number' || !rows[entry.index]) continue;
+        if (entry.skip === true) {
+          skipped.add(entry.index);
+          continue;
+        }
+        cleanedByIndex.set(entry.index, entry);
+      }
+    } catch {
+      // A failed batch leaves those rows as-is rather than dropping them.
+    }
+  }
+
+  const surviving = [];
+  rows.forEach((row, index) => {
+    if (skipped.has(index)) {
+      result.skippedCount += 1;
+      return;
+    }
+
+    const cleaned = cleanedByIndex.get(index);
+    if (!cleaned) {
+      surviving.push(row);
+      return;
+    }
+
+    const next = { ...row };
+    let changed = false;
+
+    const cleanName = typeof cleaned.name === 'string' ? cleaned.name.trim() : '';
+    // Reject a "cleaned" name that is empty or still carries the junk we
+    // asked it to strip — better to keep the original than trust a bad edit.
+    if (cleanName && !/license\s*#|null/i.test(cleanName) && cleanName !== String(row[mapping.name] ?? '').trim()) {
+      result.originals.set(surviving.length, String(row[mapping.name] ?? ''));
+      next[mapping.name] = cleanName;
+      changed = true;
+    }
+
+    const cleanState = typeof cleaned.state === 'string' ? cleaned.state.trim().toUpperCase() : '';
+    if (mapping.state && US_STATES.includes(cleanState) && cleanState !== String(row[mapping.state] ?? '').trim()) {
+      next[mapping.state] = cleanState;
+      changed = true;
+    }
+
+    const cleanAddress = typeof cleaned.address === 'string' ? cleaned.address.trim() : '';
+    if (mapping.address && cleanAddress && cleanAddress !== String(row[mapping.address] ?? '').trim()) {
+      next[mapping.address] = cleanAddress;
+      changed = true;
+    }
+
+    if (changed) result.cleanedCount += 1;
+    surviving.push(next);
+  });
+
+  result.rows = surviving;
+  return result;
+}
+
 function buildStateGuessPrompt(batch) {
   const lines = batch
     .map((r) => `${r.index}: name="${r.name || ''}", address="${r.address || ''}", brokerage="${r.brokerage || ''}"`)
@@ -175,4 +307,4 @@ async function guessStates(candidates) {
   return results;
 }
 
-module.exports = { SCHEMA_FIELDS, mapColumns, guessStates };
+module.exports = { SCHEMA_FIELDS, mapColumns, guessStates, cleanRows };

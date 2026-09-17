@@ -95,6 +95,22 @@ export const startCall = (leadId, sessionId) =>
 export const getCall = (id) => request(`/calls/${id}`);
 export const hangupCall = (id) => request(`/calls/${id}/hangup`, { method: 'POST' });
 
+// multi-line dialing — live status arrives over SSE rather than polling.
+// EventSource can't set an Authorization header, so the token goes in the
+// query string and the /stream route verifies it there (see routes/calls.js).
+export function openCallStream() {
+  const token = getToken();
+  if (!token) return null;
+  return new EventSource(`${API_URL}/calls/stream?token=${encodeURIComponent(token)}`);
+}
+export const startMultiline = (sessionId) =>
+  request('/calls/multiline/start', { method: 'POST', body: { sessionId: sessionId || null } });
+export const dropMultilineSlot = (slotNumber) =>
+  request('/calls/multiline/drop', { method: 'POST', body: { slotNumber } });
+export const takeMultilineCall = (slotNumber) =>
+  request('/calls/multiline/take', { method: 'POST', body: { slotNumber } });
+export const stopMultiline = () => request('/calls/multiline/stop', { method: 'POST' });
+
 // dispositions
 export const submitDisposition = (payload) => request('/dispositions', { method: 'POST', body: payload });
 export const undoDisposition = (callId) => request(`/dispositions/${callId}/undo`, { method: 'POST' });

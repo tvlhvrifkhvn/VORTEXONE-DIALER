@@ -60,6 +60,77 @@ function guessMapping(headers) {
 }
 
 /**
+ * Scraped agent lists repeat the same person across rows: one row carries the
+ * dirty name plus the phone/email, another carries the clean name with no
+ * contact details. Merging them by name keeps one complete lead instead of
+ * importing a usable row and a useless one.
+ *
+ * Runs before the per-row import loop below, purely on the in-memory rows —
+ * the DNC check, phone validation and existing-lead dedup are untouched and
+ * still run afterwards on whatever survives here.
+ */
+function mergeDuplicateRows(mapping, rows) {
+  const valueOf = (row, field) => (mapping[field] ? cleanText(row[mapping[field]]) : '');
+  const byName = new Map();
+  let mergedCount = 0;
+
+  for (const row of rows) {
+    const key = cleanLeadName(row[mapping.name]).toLowerCase();
+    if (!key) {
+      // No usable name to group on — leave it for the import loop to reject.
+      byName.set(`__unkeyed_${byName.size}`, row);
+      continue;
+    }
+
+    const existing = byName.get(key);
+    if (!existing) {
+      byName.set(key, row);
+      continue;
+    }
+
+    // Same person twice: take each field from whichever row actually has it,
+    // and prefer the shorter (already-cleaner) name.
+    const merged = { ...existing };
+    for (const field of LEAD_FIELDS) {
+      if (!mapping[field]) continue;
+      const existingValue = valueOf(existing, field);
+      const incomingValue = valueOf(row, field);
+
+      if (field === 'name') {
+        if (incomingValue && (!existingValue || incomingValue.length < existingValue.length)) {
+          merged[mapping[field]] = row[mapping[field]];
+        }
+        continue;
+      }
+      if (!existingValue && incomingValue) {
+        merged[mapping[field]] = row[mapping[field]];
+      }
+    }
+
+    byName.set(key, merged);
+    mergedCount += 1;
+  }
+
+  // Two different people sharing one phone number is bad data either way —
+  // keep whichever came first, drop the rest.
+  const seenPhones = new Set();
+  const deduped = [];
+  for (const row of byName.values()) {
+    const phone = normalizePhone(row[mapping.phone]);
+    if (phone) {
+      if (seenPhones.has(phone)) {
+        mergedCount += 1;
+        continue;
+      }
+      seenPhones.add(phone);
+    }
+    deduped.push(row);
+  }
+
+  return { rows: deduped, mergedCount };
+}
+
+/**
  * Applies a column mapping to previously-parsed rows and commits valid,
  * non-duplicate, non-DNC leads to the database. Returns a summary rather
  * than throwing on a per-row basis — a bad row shouldn't fail the batch.
@@ -78,8 +149,15 @@ async function commitImport({ mapping, rows, userId, filename }) {
     skippedDnc: 0,
     skippedDuplicate: 0,
     skippedInvalid: 0,
+    mergedDuplicates: 0,
     skippedDetails: [],
   };
+
+  // Fold repeated rows for the same person into one complete lead first.
+  // summary.totalRows above is deliberately the pre-merge count.
+  const merged = mergeDuplicateRows(mapping, rows);
+  summary.mergedDuplicates = merged.mergedCount;
+  const workingRows = merged.rows;
 
   const skip = (row, reason) => {
     if (summary.skippedDetails.length < MAX_SKIPPED_DETAILS) {
@@ -89,7 +167,7 @@ async function commitImport({ mapping, rows, userId, filename }) {
 
   // Pass 1 — deterministic cleanup + state resolution (mapped column, then
   // address text, then phone area code). No AI involved yet.
-  const prepared = rows.map((row) => {
+  const prepared = workingRows.map((row) => {
     const rawPhone = row[mapping.phone];
     const phone = normalizePhone(rawPhone);
     const name = cleanLeadName(row[mapping.name]);

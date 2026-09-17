@@ -49,7 +49,22 @@ router.post(
     const { headers, rows } = csvImport.parseCsv(req.file.buffer);
     const sampleRows = rows.slice(0, 4);
     const result = await aiCsvMapper.mapColumns(headers, sampleRows);
-    res.json({ headers, rows, fields: csvImport.LEAD_FIELDS, ...result });
+
+    // Second AI pass: clean the row values themselves (license numbers and
+    // brokerages glued into names, "boise id usa" instead of a state). Runs
+    // after mapping because it needs to know which column is which. Rows are
+    // returned already cleaned, so the preview and the commit both use them.
+    const cleaning = await aiCsvMapper.cleanRows(rows, result.mapping);
+
+    res.json({
+      headers,
+      rows: cleaning.rows,
+      fields: csvImport.LEAD_FIELDS,
+      ...result,
+      cleanedCount: cleaning.cleanedCount,
+      aiSkippedCount: cleaning.skippedCount,
+      originalNames: Object.fromEntries(cleaning.originals),
+    });
   })
 );
 

@@ -4,12 +4,14 @@ import AppShell from '../components/layout/AppShell';
 import StateSidebar from '../components/layout/StateSidebar';
 import LeadTable from '../components/leads/LeadTable';
 import LeadFilters from '../components/leads/LeadFilters';
+import MultilinePanel from '../components/call/MultilinePanel';
 import StatCard from '../components/stats/StatCard';
 import NeuCard from '../components/ui/NeuCard';
 import NeuButton from '../components/ui/NeuButton';
 import NeuInput from '../components/ui/NeuInput';
 import ActionButton from '../components/ui/ActionButton';
 import { useLeads, useStateCounts } from '../hooks/useLeads';
+import { useMultiline } from '../hooks/useMultiline';
 import {
   DIAL_MODE_KEY,
   PENDING_SUMMARY_KEY,
@@ -104,7 +106,7 @@ function formatMinutes(ms) {
 
 /** Shown when the rep clicks Stop Dialing — summarizes the session just
  * ended, using the stats POST /api/sessions/end returns. */
-function SessionSummaryModal({ stats, onClose }) {
+function SessionSummaryModal({ stats, abandonedCount = 0, onClose }) {
   if (!stats) return null;
   const elapsed = formatMinutes(new Date(stats.ended_at).getTime() - new Date(stats.started_at).getTime());
 
@@ -130,6 +132,11 @@ function SessionSummaryModal({ stats, onClose }) {
             </div>
           ))}
         </dl>
+        {abandonedCount > 0 && (
+          <p className="text-xs text-text-secondary">
+            {abandonedCount} call{abandonedCount === 1 ? ' was' : 's were'} abandoned when a live contact was found.
+          </p>
+        )}
         <NeuButton className="w-full" onClick={onClose}>
           Close
         </NeuButton>
@@ -149,7 +156,10 @@ export default function Dashboard() {
   const [sessionActive, setSessionActive] = useState(() => !!getActiveSessionId());
   const [paused, setPaused] = useState(() => isSessionPaused());
   const [summaryStats, setSummaryStats] = useState(null);
+  const [abandonedCount, setAbandonedCount] = useState(0);
   const [selectedIds, setSelectedIds] = useState(() => new Set());
+  const [multilineActive, setMultilineActive] = useState(false);
+  const multiline = useMultiline({ enabled: multilineActive });
 
   useEffect(() => {
     const load = () => api.getTodayStats().then(setStats).catch(() => {});
@@ -199,6 +209,16 @@ export default function Dashboard() {
     await startDialingSession(dialMode);
     setSessionActive(true);
     setPaused(false);
+
+    // Multi-line stays on this page: three lines run in the panel below
+    // instead of navigating to the single-line call screen.
+    if (dialMode === 'multiline') {
+      setAbandonedCount(0);
+      setMultilineActive(true);
+      await multiline.start();
+      return;
+    }
+
     navigate('/call/next');
   };
 
@@ -239,10 +259,19 @@ export default function Dashboard() {
   };
 
   const handleStopDialing = async () => {
+    let abandoned = 0;
+    if (multilineActive) {
+      const result = await multiline.stopSession();
+      abandoned = result?.abandonedCount || 0;
+      setMultilineActive(false);
+    }
     const stats = await endDialingSession();
     setSessionActive(false);
     setPaused(false);
+    setAbandonedCount(abandoned);
     setSummaryStats(stats);
+    refresh();
+    refreshCounts();
   };
 
   const handleTogglePause = () => {
@@ -313,9 +342,11 @@ export default function Dashboard() {
             </button>
             <button
               type="button"
-              disabled
-              title="Coming in Phase 2"
-              className="cursor-not-allowed rounded-input px-3 py-1.5 text-xs font-medium text-text-secondary/50"
+              onClick={() => setDialMode('multiline')}
+              title="Dial three lines at once"
+              className={`rounded-input px-3 py-1.5 text-xs font-medium transition-shadow ${
+                dialMode === 'multiline' ? 'shadow-neu-sm text-text-primary' : 'text-text-secondary'
+              }`}
             >
               Multi-line
             </button>
@@ -330,6 +361,18 @@ export default function Dashboard() {
           />
 
           <div className="flex-1 space-y-3">
+            {multilineActive ? (
+              <MultilinePanel
+                lines={multiline.lines}
+                connected={multiline.connected}
+                starting={multiline.starting}
+                error={multiline.error}
+                onTake={multiline.takeCall}
+                onDrop={multiline.dropLine}
+                onStop={handleStopDialing}
+              />
+            ) : (
+              <>
             <NeuCard className="p-3">
               <LeadFilters filters={filters} onChange={setFilters} />
             </NeuCard>
@@ -371,11 +414,13 @@ export default function Dashboard() {
               onClearPage={clearPage}
               onSelectAllFiltered={selectAllFiltered}
             />
+              </>
+            )}
           </div>
         </div>
       </div>
 
-      <SessionSummaryModal stats={summaryStats} onClose={handleCloseSummary} />
+      <SessionSummaryModal stats={summaryStats} abandonedCount={abandonedCount} onClose={handleCloseSummary} />
     </AppShell>
   );
 }

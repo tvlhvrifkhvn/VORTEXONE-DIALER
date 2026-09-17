@@ -1,5 +1,7 @@
 const express = require('express');
+const jwt = require('jsonwebtoken');
 const db = require('../db');
+const config = require('../config');
 const leadQueue = require('../services/leadQueue');
 const callSession = require('../services/callSession');
 const leadLifecycle = require('../services/leadLifecycle');
@@ -8,6 +10,44 @@ const { asyncHandler } = require('../middleware/asyncHandler');
 const { requireAuth } = require('../middleware/auth');
 
 const router = express.Router();
+
+// Multi-line live status feed. Registered before requireAuth because the
+// browser's EventSource API cannot set an Authorization header, so the token
+// arrives as a query param and is verified here instead — requireAuth itself
+// is untouched and still guards every other route in this file.
+router.get('/stream', (req, res) => {
+  let user;
+  try {
+    user = jwt.verify(req.query.token || '', config.jwtSecret);
+  } catch {
+    return res.status(401).json({ error: 'Invalid or expired token' });
+  }
+
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  res.flushHeaders?.();
+
+  // Opening comment so the browser fires onopen even before the first call.
+  res.write(': connected\n\n');
+
+  const onCall = (payload) => {
+    if (String(payload.userId) !== String(user.sub)) return;
+    res.write(`data: ${JSON.stringify(payload)}\n\n`);
+  };
+  callSession.callEvents.on('call', onCall);
+
+  // Proxies between here and the browser will cut an idle stream; a comment
+  // line every 25s keeps it open without showing up as an event.
+  const keepAlive = setInterval(() => res.write(': ping\n\n'), 25000);
+
+  req.on('close', () => {
+    clearInterval(keepAlive);
+    callSession.callEvents.off('call', onCall);
+    res.end();
+  });
+});
+
 router.use(requireAuth);
 
 // Starts a call: locks a specific lead (leadId) or whichever lead is next in
@@ -54,6 +94,41 @@ router.post(
   '/:id/hangup',
   asyncHandler(async (req, res) => {
     const result = await leadLifecycle.hangup({ callHistoryId: req.params.id });
+    res.json(result);
+  })
+);
+
+// Multi-line dialing — opens three lines at once. Live progress for all of
+// them arrives over GET /api/calls/stream, not in these responses.
+router.post(
+  '/multiline/start',
+  asyncHandler(async (req, res) => {
+    const result = await callSession.startMultilineSession(req.user.sub, req.body.sessionId || null);
+    res.status(201).json(result);
+  })
+);
+
+router.post(
+  '/multiline/drop',
+  asyncHandler(async (req, res) => {
+    const result = await callSession.dropMultilineSlot(req.user.sub, req.body.slotNumber);
+    res.json(result);
+  })
+);
+
+router.post(
+  '/multiline/take',
+  asyncHandler(async (req, res) => {
+    const result = await callSession.takeMultilineCall(req.user.sub, req.body.slotNumber);
+    if (!result) return res.status(404).json({ error: 'That line is no longer active' });
+    res.json(result);
+  })
+);
+
+router.post(
+  '/multiline/stop',
+  asyncHandler(async (req, res) => {
+    const result = await callSession.stopMultilineSession(req.user.sub);
     res.json(result);
   })
 );
