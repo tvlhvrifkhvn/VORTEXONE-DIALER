@@ -1,0 +1,10 @@
+{
+  "name": "Vortex Dialer",
+  "image": "mcr.microsoft.com/devcontainers/universal:2",
+  "forwardPorts": [4000, 5173],
+  "portsAttributes": {
+    "4000": { "label": "Backend API", "onAutoForward": "notify" },
+    "5173": { "label": "Frontend (Vite)", "onAutoForward": "openPreview" }
+  },
+  "postStartCommand": "sudo service postgresql start"
+}
