@@ -124,30 +124,43 @@ const CLEAN_BATCH_SIZE = 20;
 function buildCleaningPrompt(batch) {
   const rows = batch.map((r) => `${r.index}: ${JSON.stringify(r.fields)}`).join('\n');
 
-  return `You are a data cleaning assistant. Clean each row of real estate agent data:
+  return `You are a data cleaning assistant. Clean each row of real estate agent data. Source files are
+inconsistent — many rows will have blank/missing state or address. That is completely normal and is
+NEVER a reason to skip a row.
 
 1. NAME cleaning rules:
    - Remove anything matching "License #: [alphanumeric]"
    - Remove " - null" or "null" anywhere in the name
    - Remove brokerage/company names mixed into the name field (e.g. "MARKET CENTER", "Keller Williams Realty Boise", "Coldwell Banker")
    - Keep only "First Last" or "First Middle Last" format
-   - If you cannot extract a real person name, mark the row as SKIP
+   - Only mark a row SKIP if, after removing that junk, there is no real person name left at all —
+     never skip a row just because state/address is blank or because you're unsure of the state.
 
 2. STATE cleaning rules:
    - Extract only the 2-letter US state code
    - "boise id usa" → "ID", "miami florida" → "FL", "austin tx" → "TX"
-   - If state cannot be determined, leave blank
+   - If state cannot be determined, leave blank — this is expected and fine, not an error
 
 3. ADDRESS cleaning rules:
    - If address contains city+state+country mixed like "boise id usa", extract just the city: "Boise"
    - Keep proper street addresses as-is
+   - If address is already blank, leave it blank
 
 Rows (index: fields):
 ${rows}
 
 Return ONLY a JSON array with the same number of rows, no prose, each shaped:
 [{"index": 0, "name": "<cleaned>", "state": "<2-letter or empty>", "address": "<cleaned>", "skip": false}]
-Mark any unrecoverable row with "skip": true.`;
+Mark a row "skip": true ONLY when no usable person name exists for it.`;
+}
+
+/** True when a raw field value has real content once whitespace is trimmed
+ * — used to decide whether an AI "skip" verdict is actually justified. This
+ * is the one thing that can make a row unusable for cleanRows/cleanRowsChunk
+ * to hand back: everything else (email, brokerage, address, state) is
+ * optional and blank is a normal, non-failing outcome. */
+function hasContent(value) {
+  return typeof value === 'string' ? value.trim().length > 0 : !!value;
 }
 
 /**
@@ -194,7 +207,13 @@ async function cleanRowsChunk(chunk, mapping) {
   for (const entry of parsed) {
     if (typeof entry?.index !== 'number' || !chunk[entry.index]) continue;
     if (entry.skip === true) {
-      result.skippedIndexes.add(entry.index);
+      // Only honor a skip when the row genuinely has no usable name of its
+      // own — email/brokerage/address/state being blank is normal and must
+      // never cost the row its spot in the import. A model that skips for
+      // the wrong reason just gets its cleaning ignored, not the row.
+      if (!hasContent(chunk[entry.index][mapping.name])) {
+        result.skippedIndexes.add(entry.index);
+      }
       continue;
     }
     byIndex.set(entry.index, entry);
@@ -233,11 +252,15 @@ async function cleanRowsChunk(chunk, mapping) {
  * Safety: the model's output is only ever used to overwrite name/state/
  * address, and each value is sanity-checked before it's accepted — a state
  * has to be a real US code, a name has to be non-empty and free of the junk
- * patterns. When the key isn't configured or a batch fails, the original
- * rows pass through untouched so the import still works.
+ * patterns, and a "skip" is only honored when the row's own name field is
+ * genuinely empty (missing email/brokerage/address/state is normal and never
+ * skips a row on its own). When the key isn't configured or a whole batch's
+ * Groq call fails (bad response, network error, timeout), that batch's rows
+ * pass through with their original raw mapped values — never dropped — and
+ * are counted in needsManualReviewCount so the caller can flag them.
  */
 async function cleanRows(rows, mapping) {
-  const result = { rows, cleanedCount: 0, skippedCount: 0, originals: new Map() };
+  const result = { rows, cleanedCount: 0, skippedCount: 0, needsManualReviewCount: 0, originals: new Map() };
   if (!Array.isArray(rows) || rows.length === 0) return result;
   if (!mapping || !mapping.name) return result;
 
@@ -246,9 +269,11 @@ async function cleanRows(rows, mapping) {
 
   const cleanedByIndex = new Map();
   const skipped = new Set();
+  const needsManualReview = new Set();
 
   for (let i = 0; i < rows.length; i += CLEAN_BATCH_SIZE) {
-    const batch = rows.slice(i, i + CLEAN_BATCH_SIZE).map((row, offset) => ({
+    const batchRows = rows.slice(i, i + CLEAN_BATCH_SIZE);
+    const batch = batchRows.map((row, offset) => ({
       index: i + offset,
       fields: {
         name: row[mapping.name] ?? '',
@@ -265,18 +290,22 @@ async function cleanRows(rows, mapping) {
       });
       const text = completion.choices?.[0]?.message?.content || '';
       const match = text.match(/\[[\s\S]*\]/);
-      if (!match) continue;
+      if (!match) throw new Error('AI cleaning response was not valid JSON');
 
       for (const entry of JSON.parse(match[0])) {
         if (typeof entry?.index !== 'number' || !rows[entry.index]) continue;
         if (entry.skip === true) {
-          skipped.add(entry.index);
+          if (!hasContent(rows[entry.index][mapping.name])) skipped.add(entry.index);
           continue;
         }
         cleanedByIndex.set(entry.index, entry);
       }
     } catch {
-      // A failed batch leaves those rows as-is rather than dropping them.
+      // The whole batch failed (bad response, network error, timeout) — its
+      // rows fall back to their raw mapped values rather than being dropped,
+      // and are flagged for manual review instead of silently passing
+      // through as if they'd been cleaned.
+      batch.forEach((entry) => needsManualReview.add(entry.index));
     }
   }
 
@@ -284,6 +313,11 @@ async function cleanRows(rows, mapping) {
   rows.forEach((row, index) => {
     if (skipped.has(index)) {
       result.skippedCount += 1;
+      return;
+    }
+    if (needsManualReview.has(index)) {
+      result.needsManualReviewCount += 1;
+      surviving.push(row);
       return;
     }
 
