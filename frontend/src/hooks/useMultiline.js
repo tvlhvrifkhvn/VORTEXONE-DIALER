@@ -8,6 +8,7 @@ const SLOT_COUNT = 3;
 function emptySlots() {
   return Array.from({ length: SLOT_COUNT }, (_, i) => ({
     slotNumber: i + 1,
+    callId: null,
     lead: null,
     status: 'idle',
     duration: 0,
@@ -52,8 +53,10 @@ export function useMultiline({ enabled = true } = {}) {
       setLines((prev) =>
         prev.map((line) => {
           if (line.slotNumber !== payload.slotNumber) return line;
+          const timed = payload.status === 'answered' || payload.status === 'held';
           return {
             slotNumber: payload.slotNumber,
+            callId: payload.callId ?? null,
             lead: payload.leadId
               ? {
                   id: payload.leadId,
@@ -64,9 +67,10 @@ export function useMultiline({ enabled = true } = {}) {
                 }
               : null,
             status: payload.status,
-            // Only an answered line carries a running timer; everything else
-            // resets it so a refilled slot doesn't inherit the last call's.
-            duration: payload.status === 'answered' ? payload.duration || 0 : 0,
+            // An answered or held line carries a running timer; everything
+            // else resets it so a refilled slot doesn't inherit the last
+            // call's.
+            duration: timed ? payload.duration || 0 : 0,
             message: payload.message || null,
           };
         })
@@ -80,30 +84,43 @@ export function useMultiline({ enabled = true } = {}) {
     };
   }, [enabled]);
 
-  // Live timer for whichever line is connected.
+  // Live timer for any connected line — including one on hold, where the
+  // caller is genuinely waiting and the rep should see how long for.
   useEffect(() => {
-    const hasAnswered = lines.some((l) => l.status === 'answered');
-    if (!hasAnswered) return undefined;
+    const TIMED = ['answered', 'held'];
+    const hasLive = lines.some((l) => TIMED.includes(l.status));
+    if (!hasLive) return undefined;
 
     const id = setInterval(() => {
       setLines((prev) =>
-        prev.map((l) => (l.status === 'answered' ? { ...l, duration: l.duration + 1 } : l))
+        prev.map((l) => (TIMED.includes(l.status) ? { ...l, duration: l.duration + 1 } : l))
       );
     }, 1000);
     return () => clearInterval(id);
   }, [lines]);
 
-  const start = useCallback(async () => {
+  const start = useCallback(async (lineCount) => {
     setStarting(true);
     setError(null);
     try {
       setLines(emptySlots());
-      await api.startMultiline(getActiveSessionId());
+      await api.startMultiline(getActiveSessionId(), lineCount);
     } catch (err) {
       setError(err.message);
     } finally {
       setStarting(false);
     }
+  }, []);
+
+  /**
+   * Submits the disposition for the line the rep is on, then tells the
+   * backend to free that slot — which promotes any held live call to be
+   * handled next before dialing a new lead in.
+   */
+  const submitDispositionFor = useCallback(async (line, { disposition, note }) => {
+    if (!line?.callId) throw new Error('That line is no longer active.');
+    await api.submitDisposition({ callId: line.callId, disposition, note });
+    await api.releaseMultilineSlot(line.slotNumber);
   }, []);
 
   const dropLine = useCallback(async (slotNumber) => {
@@ -138,5 +155,5 @@ export function useMultiline({ enabled = true } = {}) {
     }
   }, []);
 
-  return { lines, connected, starting, error, start, takeCall, dropLine, stopSession };
+  return { lines, connected, starting, error, start, takeCall, dropLine, stopSession, submitDispositionFor };
 }

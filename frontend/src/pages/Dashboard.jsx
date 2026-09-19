@@ -26,6 +26,15 @@ import * as api from '../lib/api';
 const EMPTY_FILTERS = { search: '', status: '', dateFrom: '', dateTo: '', state: null };
 const GOAL_KEY = 'vortex_dialer_daily_goal';
 const DEFAULT_GOAL = 100;
+// Default simultaneous lines, set under Settings → Dialing defaults. The
+// dashboard selector starts here and can be changed per session.
+export const DEFAULT_LINES_KEY = 'vortex_dialer_default_lines';
+const DEFAULT_LINES = 3;
+
+function readDefaultLines() {
+  const stored = Number(localStorage.getItem(DEFAULT_LINES_KEY));
+  return [1, 2, 3].includes(stored) ? stored : DEFAULT_LINES;
+}
 
 function readGoal() {
   const stored = Number(localStorage.getItem(GOAL_KEY));
@@ -151,7 +160,7 @@ export default function Dashboard() {
   const { leads, total, page, pageSize, setPage, loading, refresh } = useLeads(filters);
   const { counts, refresh: refreshCounts } = useStateCounts();
   const [stats, setStats] = useState({ dials: 0, contacts: 0, connectRate: 0 });
-  const [dialMode, setDialMode] = useState(() => localStorage.getItem(DIAL_MODE_KEY) || 'power');
+  const [lineCount, setLineCount] = useState(readDefaultLines);
   const [exporting, setExporting] = useState(false);
   const [sessionActive, setSessionActive] = useState(() => !!getActiveSessionId());
   const [paused, setPaused] = useState(() => isSessionPaused());
@@ -185,8 +194,8 @@ export default function Dashboard() {
   }, []);
 
   useEffect(() => {
-    localStorage.setItem(DIAL_MODE_KEY, dialMode);
-  }, [dialMode]);
+    localStorage.setItem(DIAL_MODE_KEY, 'multiline');
+  }, []);
 
   const handleSnooze = async (id) => {
     await api.snoozeLead(id);
@@ -205,21 +214,16 @@ export default function Dashboard() {
     }
   };
 
+  // One continuous dialing mode: always the multi-line engine, with the
+  // number of simultaneous lines chosen beside the button. A single line
+  // behaves like the old power dial, just without the separate toggle.
   const handleStartDialing = async () => {
-    await startDialingSession(dialMode);
+    await startDialingSession('multiline');
     setSessionActive(true);
     setPaused(false);
-
-    // Multi-line stays on this page: three lines run in the panel below
-    // instead of navigating to the single-line call screen.
-    if (dialMode === 'multiline') {
-      setAbandonedCount(0);
-      setMultilineActive(true);
-      await multiline.start();
-      return;
-    }
-
-    navigate('/call/next');
+    setAbandonedCount(0);
+    setMultilineActive(true);
+    await multiline.start(lineCount);
   };
 
   const toggleLead = (id) => {
@@ -251,11 +255,20 @@ export default function Dashboard() {
   const handleStartPowerDialOnSelection = async () => {
     const ids = Array.from(selectedIds);
     if (ids.length === 0) return;
-    await startDialingSession(dialMode, ids);
+    await startDialingSession('power', ids);
     setSessionActive(true);
     setPaused(false);
     setSelectedIds(new Set());
     navigate('/call/next');
+  };
+
+  // A disposition submitted on an answered line: record it, free that slot
+  // (promoting any held live caller), and refresh the lead list behind the
+  // panel so counts stay honest.
+  const handleMultilineDisposition = async (line, payload) => {
+    await multiline.submitDispositionFor(line, payload);
+    refresh();
+    refreshCounts();
   };
 
   const handleStopDialing = async () => {
@@ -330,26 +343,23 @@ export default function Dashboard() {
             </NeuButton>
           </div>
 
-          <div className="flex items-center gap-1 rounded-input bg-surface p-1 shadow-neu-inset">
-            <button
-              type="button"
-              onClick={() => setDialMode('power')}
-              className={`rounded-input px-3 py-1.5 text-xs font-medium transition-shadow ${
-                dialMode === 'power' ? 'shadow-neu-sm text-text-primary' : 'text-text-secondary'
-              }`}
-            >
-              Power dial
-            </button>
-            <button
-              type="button"
-              onClick={() => setDialMode('multiline')}
-              title="Dial three lines at once"
-              className={`rounded-input px-3 py-1.5 text-xs font-medium transition-shadow ${
-                dialMode === 'multiline' ? 'shadow-neu-sm text-text-primary' : 'text-text-secondary'
-              }`}
-            >
-              Multi-line
-            </button>
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-text-secondary">Lines</span>
+            <div className="flex items-center gap-1 rounded-input bg-surface p-1 shadow-neu-inset">
+              {[1, 2, 3].map((n) => (
+                <button
+                  key={n}
+                  type="button"
+                  onClick={() => setLineCount(n)}
+                  title={`Dial ${n} line${n === 1 ? '' : 's'} at a time`}
+                  className={`rounded-input px-3 py-1.5 text-xs font-medium transition-shadow ${
+                    lineCount === n ? 'shadow-neu-sm text-text-primary' : 'text-text-secondary'
+                  }`}
+                >
+                  {n}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
 
@@ -363,13 +373,13 @@ export default function Dashboard() {
           <div className="flex-1 space-y-3">
             {multilineActive ? (
               <MultilinePanel
-                lines={multiline.lines}
+                lines={multiline.lines.slice(0, lineCount)}
                 connected={multiline.connected}
                 starting={multiline.starting}
                 error={multiline.error}
-                onTake={multiline.takeCall}
                 onDrop={multiline.dropLine}
                 onStop={handleStopDialing}
+                onDispositionSubmit={handleMultilineDisposition}
               />
             ) : (
               <>

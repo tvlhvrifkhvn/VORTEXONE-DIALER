@@ -4,6 +4,7 @@ const telephony = require('../telephony');
 const leadQueue = require('./leadQueue');
 const leadLifecycle = require('./leadLifecycle');
 const dialingSession = require('./dialingSession');
+const dncCheck = require('./dncCheck');
 
 // Reserved-for-fiction NANP range (555-0100 through 555-0199) — safe
 // placeholder until phone_numbers is populated with real numbers in phase 2.
@@ -78,6 +79,7 @@ function emitSlot(session, slot, status, extra = {}) {
     userId: session.userId,
     sessionId: session.sessionId,
     slotNumber: slot.slotNumber,
+    callId: slot.callId ?? null,
     leadId: lead.id ?? null,
     leadName: lead.name ?? null,
     brokerage: lead.brokerage ?? null,
@@ -143,11 +145,22 @@ async function handleSlotEvent(session, slot, event) {
   }
 
   if (event.type === 'answered') {
-    slot.status = 'answered';
     slot.answeredAt = Date.now();
+
+    // The rep can only talk to one person at a time. A second live answer is
+    // NOT dropped — a real human who picked up must never be logged as
+    // abandoned just because the rep was mid-conversation. It waits as
+    // 'held' and is presented as soon as the current disposition is
+    // submitted (see releaseActiveSlot).
+    if (session.activeSlot != null && session.activeSlot !== slot.slotNumber) {
+      slot.status = 'held';
+      emitSlot(session, slot, 'held', { duration: 0 });
+      return;
+    }
+
+    session.activeSlot = slot.slotNumber;
+    slot.status = 'active_disposition';
     emitSlot(session, slot, 'answered', { duration: 0 });
-    // A live human is on this line — every other line is dead weight now.
-    await dropOtherSlots(session, slot.slotNumber);
     return;
   }
 
@@ -158,11 +171,20 @@ async function handleSlotEvent(session, slot, event) {
     return;
   }
 
+  // Busy is resolved exactly like voicemail/no_answer: count the attempt,
+  // free the slot, dial the next lead.
+  if (event.type === 'busy') {
+    slot.status = 'busy';
+    emitSlot(session, slot, 'busy');
+    await releaseSlot(session, slot, 'no_answer');
+    return;
+  }
+
   if (event.type === 'ended') {
-    // An answered line ends when the rep dispositions it on the call screen,
-    // and a voicemail line was already released above — neither is a
+    // A line the rep is on (or holding) ends when they disposition it, and
+    // voicemail/busy lines were already released above — none of those are a
     // no-answer.
-    if (slot.status === 'answered' || slot.status === 'voicemail') return;
+    if (['active_disposition', 'held', 'voicemail', 'busy'].includes(slot.status)) return;
     slot.status = 'no_answer';
     emitSlot(session, slot, 'no_answer', { duration: event.duration ?? null });
     await releaseSlot(session, slot, 'no_answer');
@@ -181,9 +203,44 @@ async function releaseSlot(session, slot, disposition) {
     console.error(`Multi-line slot ${slot.slotNumber} disposition failed:`, err.message);
   }
 
-  if (session.stopped || session.hasLiveCall) return;
+  if (session.stopped) return;
   session.slots.delete(slot.slotNumber);
   await dialIntoSlot(session, slot.slotNumber);
+}
+
+/**
+ * The rep just submitted a disposition for the line they were on. Promote a
+ * held call to be presented next — before dialing anything new into the
+ * freed slot, so a real person who is already waiting always jumps the queue.
+ */
+async function releaseActiveSlot(userId, slotNumber) {
+  const session = multilineSessions.get(userId);
+  if (!session) return { promoted: null };
+
+  const finished = session.slots.get(Number(slotNumber));
+  if (finished) session.slots.delete(finished.slotNumber);
+  if (session.activeSlot === Number(slotNumber)) session.activeSlot = null;
+
+  // Any line still holding a live person is presented next.
+  const held = [...session.slots.values()]
+    .filter((s) => s.status === 'held')
+    .sort((a, b) => (a.answeredAt || 0) - (b.answeredAt || 0))[0];
+
+  if (held) {
+    session.activeSlot = held.slotNumber;
+    held.status = 'active_disposition';
+    emitSlot(session, held, 'answered', {
+      duration: held.answeredAt ? Math.round((Date.now() - held.answeredAt) / 1000) : 0,
+      promotedFromHold: true,
+    });
+  }
+
+  // Refill the slot the rep just finished with.
+  if (finished && !session.stopped) {
+    await dialIntoSlot(session, finished.slotNumber);
+  }
+
+  return { promoted: held ? held.slotNumber : null };
 }
 
 /**
@@ -199,7 +256,6 @@ async function releaseSlot(session, slot, disposition) {
 const DROPPABLE_STATUSES = ['dialing', 'ringing'];
 
 async function dropOtherSlots(session, keepSlotNumber) {
-  session.hasLiveCall = true;
   const others = [...session.slots.values()].filter((s) => s.slotNumber !== keepSlotNumber);
 
   for (const slot of others) {
@@ -248,25 +304,46 @@ async function abandonSlotCall(session, slot) {
  * of them write and every line ends up on the same lead.
  */
 async function reserveSlot(session, slotNumber) {
-  if (session.stopped || session.hasLiveCall) return null;
+  if (session.stopped) return null;
 
   const placeholder = { slotNumber, lead: {}, status: 'loading', callId: null };
   emitSlot(session, placeholder, 'loading');
 
-  let lead;
-  try {
-    // Reuses the existing queue + calling-hours logic exactly as single-line
-    // dialing does.
-    lead = await leadQueue.lockNext({ userId: session.userId });
-  } catch (err) {
-    // Queue exhausted, or nothing dialable inside calling hours right now.
-    emitSlot(session, placeholder, 'idle', { message: err.message });
-    return null;
+  // A DNC number must never be dialed. The import already blocks them, but a
+  // lead can be added to the list after import (a rep pressing DNC on an
+  // earlier call), so re-check right before dialing and skip past any that
+  // slipped through.
+  const MAX_DNC_SKIPS = 25;
+  for (let attempt = 0; attempt < MAX_DNC_SKIPS; attempt++) {
+    let lead;
+    try {
+      // Reuses the existing queue + calling-hours logic exactly as single-line
+      // dialing does.
+      lead = await leadQueue.lockNext({ userId: session.userId });
+    } catch (err) {
+      // Queue exhausted, or nothing dialable inside calling hours right now.
+      emitSlot(session, placeholder, 'idle', { message: err.message });
+      return null;
+    }
+
+    if (await dncCheck.isOnDncList(lead.phone)) {
+      console.log(`Multi-line: skipping lead ${lead.id} — number is on the DNC list`);
+      await db.query(
+        `UPDATE leads SET status = 'dnc', dnc_flag = true, locked_by = NULL, locked_at = NULL, updated_at = now()
+         WHERE id = $1`,
+        [lead.id]
+      );
+      session.dncSkipped += 1;
+      continue;
+    }
+
+    const slot = { slotNumber, lead, status: 'dialing', callId: null, answeredAt: null };
+    session.slots.set(slotNumber, slot);
+    return slot;
   }
 
-  const slot = { slotNumber, lead, status: 'dialing', callId: null, answeredAt: null };
-  session.slots.set(slotNumber, slot);
-  return slot;
+  emitSlot(session, placeholder, 'idle', { message: 'Too many DNC numbers in a row — stopping this line.' });
+  return null;
 }
 
 /** Refills one freed slot: reserve a lead, then dial it. */
@@ -277,33 +354,38 @@ async function dialIntoSlot(session, slotNumber) {
 }
 
 /**
- * Opens three lines at once for a rep. Returns immediately after the first
- * three dials are placed — progress arrives over callEvents (SSE), not as a
- * response body.
+ * Opens `lineCount` lines at once for a rep (1-3, chosen on the dashboard).
+ * Returns immediately after the dials are placed — progress arrives over
+ * callEvents (SSE), not as a response body.
  */
-async function startMultilineSession(userId, sessionId) {
+async function startMultilineSession(userId, sessionId, lineCount = MULTILINE_SLOTS) {
   await stopMultilineSession(userId);
+
+  const lines = Math.min(MULTILINE_SLOTS, Math.max(1, Number(lineCount) || MULTILINE_SLOTS));
 
   const session = {
     userId,
     sessionId: sessionId || null,
     slots: new Map(),
     stopped: false,
-    hasLiveCall: false,
+    activeSlot: null,
     abandonedCount: 0,
+    dncSkipped: 0,
+    lineCount: lines,
   };
   multilineSessions.set(userId, session);
 
-  // Reserve the three leads one at a time (see reserveSlot on why), then fire
-  // all three calls together so the lines genuinely ring in parallel.
+  // Reserve the leads one at a time (see reserveSlot on why), then fire all
+  // the calls together so the lines genuinely ring in parallel.
   const reserved = [];
-  for (let slotNumber = 1; slotNumber <= MULTILINE_SLOTS; slotNumber++) {
+  for (let slotNumber = 1; slotNumber <= lines; slotNumber++) {
     const slot = await reserveSlot(session, slotNumber);
     if (slot) reserved.push(slot);
   }
   await Promise.all(reserved.map((slot) => placeSlotCall(session, slot)));
 
   return {
+    lineCount: lines,
     slots: [...session.slots.values()].map((s) => ({
       slotNumber: s.slotNumber,
       leadId: s.lead.id,
@@ -328,9 +410,9 @@ async function dropMultilineSlot(userId, slotNumber) {
 }
 
 /**
- * Rep clicked "Take this call": the other lines are already dropped, so this
- * just tears down multi-line tracking and hands back the lead to open on the
- * existing call screen.
+ * Legacy "Take this call" hand-off to the single-line call screen. The panel
+ * now expands the disposition UI in place instead, but this stays for the
+ * route that still exposes it (and ends multi-line tracking cleanly).
  */
 async function takeMultilineCall(userId, slotNumber) {
   const session = multilineSessions.get(userId);
@@ -346,7 +428,13 @@ async function takeMultilineCall(userId, slotNumber) {
   return { leadId: slot.lead.id, callId: slot.callId, abandonedCount: session.abandonedCount };
 }
 
-/** Ends multi-line dialing, dropping every line still up. */
+// A line with a real person on it — never abandon one of these just because
+// the session is ending. 'answered' is kept alongside the newer
+// 'active_disposition' so an in-flight session from before this change is
+// still handled correctly.
+const LIVE_CALL_STATUSES = ['answered', 'active_disposition', 'held'];
+
+/** Ends multi-line dialing, dropping every line that's still just ringing. */
 async function stopMultilineSession(userId) {
   const session = multilineSessions.get(userId);
   if (!session) return { abandonedCount: 0 };
@@ -354,7 +442,7 @@ async function stopMultilineSession(userId) {
   session.stopped = true;
   for (const slot of [...session.slots.values()]) {
     session.slots.delete(slot.slotNumber);
-    if (slot.callId && slot.status !== 'answered') await abandonSlotCall(session, slot);
+    if (slot.callId && !LIVE_CALL_STATUSES.includes(slot.status)) await abandonSlotCall(session, slot);
   }
   multilineSessions.delete(userId);
   return { abandonedCount: session.abandonedCount };
@@ -369,5 +457,6 @@ module.exports = {
   startMultilineSession,
   dropMultilineSlot,
   takeMultilineCall,
+  releaseActiveSlot,
   stopMultilineSession,
 };

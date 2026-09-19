@@ -9,9 +9,11 @@ import * as api from '../lib/api';
 const MAX_ATTEMPTS_KEY = 'vortex_dialer_default_max_attempts';
 const GOAL_KEY = 'vortex_dialer_daily_goal'; // same key Dashboard.jsx's daily goal tracker reads
 const SCRIPT_KEY = 'vortex_pitch_script'; // matches CallScreen.jsx's read key exactly
+const DEFAULT_LINES_KEY = 'vortex_dialer_default_lines'; // Dashboard's line selector starts from this
 
 const DEFAULT_MAX_ATTEMPTS = 5;
 const DEFAULT_GOAL = 100;
+const DEFAULT_LINES = 3;
 const DEFAULT_SCRIPT =
   "Hi, I'm {name} from Vortexone Agency. We offer virtual assistant services for real " +
   'estate agents — lead follow-up, appointment setting, and admin support. Do you currently ' +
@@ -77,12 +79,14 @@ function ProfileSection() {
 function DialingDefaultsSection() {
   const [maxAttempts, setMaxAttempts] = useState(() => readLocalNumber(MAX_ATTEMPTS_KEY, DEFAULT_MAX_ATTEMPTS));
   const [dailyGoal, setDailyGoal] = useState(() => readLocalNumber(GOAL_KEY, DEFAULT_GOAL));
+  const [defaultLines, setDefaultLines] = useState(() => readLocalNumber(DEFAULT_LINES_KEY, DEFAULT_LINES));
   const [saved, setSaved] = useState(false);
 
   const handleSave = (e) => {
     e.preventDefault();
     localStorage.setItem(MAX_ATTEMPTS_KEY, String(maxAttempts));
     localStorage.setItem(GOAL_KEY, String(dailyGoal));
+    localStorage.setItem(DEFAULT_LINES_KEY, String(defaultLines));
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
   };
@@ -113,6 +117,24 @@ function DialingDefaultsSection() {
             onChange={(e) => setDailyGoal(Number(e.target.value))}
             className="w-32"
           />
+        </div>
+        <div>
+          <label className="mb-1 block text-xs font-medium text-text-secondary">
+            Default simultaneous lines
+          </label>
+          <NeuInput
+            as="select"
+            value={defaultLines}
+            onChange={(e) => setDefaultLines(Number(e.target.value))}
+            className="w-32"
+          >
+            <option value={1}>1 line</option>
+            <option value={2}>2 lines</option>
+            <option value={3}>3 lines</option>
+          </NeuInput>
+          <p className="mt-1 text-xs text-text-secondary">
+            How many leads a dialing session rings at once. Adjustable per session on the dashboard.
+          </p>
         </div>
         <p className="text-xs text-text-secondary">
           Calling hours: calls outside 8am–9pm local time (based on the lead's state) are blocked

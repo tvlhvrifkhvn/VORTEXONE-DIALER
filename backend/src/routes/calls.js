@@ -103,7 +103,11 @@ router.post(
 router.post(
   '/multiline/start',
   asyncHandler(async (req, res) => {
-    const result = await callSession.startMultilineSession(req.user.sub, req.body.sessionId || null);
+    const result = await callSession.startMultilineSession(
+      req.user.sub,
+      req.body.sessionId || null,
+      req.body.lineCount
+    );
     res.status(201).json(result);
   })
 );
@@ -121,6 +125,16 @@ router.post(
   asyncHandler(async (req, res) => {
     const result = await callSession.takeMultilineCall(req.user.sub, req.body.slotNumber);
     if (!result) return res.status(404).json({ error: 'That line is no longer active' });
+    res.json(result);
+  })
+);
+
+// The rep submitted a disposition for the line they were on: free that slot,
+// promote any held live call to be handled next, then refill.
+router.post(
+  '/multiline/release',
+  asyncHandler(async (req, res) => {
+    const result = await callSession.releaseActiveSlot(req.user.sub, req.body.slotNumber);
     res.json(result);
   })
 );

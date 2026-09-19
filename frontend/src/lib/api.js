@@ -103,8 +103,13 @@ export function openCallStream() {
   if (!token) return null;
   return new EventSource(`${API_URL}/calls/stream?token=${encodeURIComponent(token)}`);
 }
-export const startMultiline = (sessionId) =>
-  request('/calls/multiline/start', { method: 'POST', body: { sessionId: sessionId || null } });
+export const startMultiline = (sessionId, lineCount) =>
+  request('/calls/multiline/start', {
+    method: 'POST',
+    body: { sessionId: sessionId || null, lineCount: lineCount || undefined },
+  });
+export const releaseMultilineSlot = (slotNumber) =>
+  request('/calls/multiline/release', { method: 'POST', body: { slotNumber } });
 export const dropMultilineSlot = (slotNumber) =>
   request('/calls/multiline/drop', { method: 'POST', body: { slotNumber } });
 export const takeMultilineCall = (slotNumber) =>

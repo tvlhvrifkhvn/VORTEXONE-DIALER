@@ -1,19 +1,13 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import AppShell from '../components/layout/AppShell';
 import ContactCard from '../components/call/ContactCard';
 import CallHeader from '../components/call/CallHeader';
-import NotesField from '../components/call/NotesField';
-import DispositionButtons from '../components/call/DispositionButtons';
 import CallControls from '../components/call/CallControls';
-import StatusBadge from '../components/leads/StatusBadge';
+import DispositionPanel, { ScriptPanel } from '../components/call/DispositionPanel';
 import NeuCard from '../components/ui/NeuCard';
 import NeuButton from '../components/ui/NeuButton';
-import ActionButton from '../components/ui/ActionButton';
-import { useAuth } from '../hooks/useAuth';
 import { useCall } from '../hooks/useCall';
-import { formatDateTime } from '../lib/format';
-import * as api from '../lib/api';
 
 const DISPOSITION_LABELS = {
   contacted: 'Spoke / Interested',
@@ -24,76 +18,6 @@ const DISPOSITION_LABELS = {
   dnc: 'DNC',
   callback_scheduled: 'Callback Scheduled',
 };
-
-const PITCH_SCRIPT_KEY = 'vortex_pitch_script';
-const DEFAULT_PITCH_SCRIPT = (repName) =>
-  `Hi, I'm ${repName} from Vortexone Agency. We offer virtual assistant services for real ` +
-  'estate agents — lead follow-up, appointment setting, and admin support. Do you currently ' +
-  'have VA support on your team?';
-
-/** Custom script from the Settings page, if the rep has saved one there. */
-function getPitchScript(repName) {
-  const custom = localStorage.getItem(PITCH_SCRIPT_KEY);
-  return custom || DEFAULT_PITCH_SCRIPT(repName);
-}
-
-/** Collapsible sidebar section — arrow toggle, collapsed by default. */
-function CollapsibleSection({ title, defaultOpen = false, children }) {
-  const [open, setOpen] = useState(defaultOpen);
-  return (
-    <NeuCard className="p-4">
-      <button
-        type="button"
-        onClick={() => setOpen((o) => !o)}
-        className="flex w-full items-center justify-between text-left text-sm font-semibold text-text-primary"
-      >
-        <span>{title}</span>
-        <span className={`transition-transform duration-200 ${open ? 'rotate-90' : ''}`}>▶</span>
-      </button>
-      {open && <div className="mt-3">{children}</div>}
-    </NeuCard>
-  );
-}
-
-function PreviousNotes({ leadId }) {
-  const [history, setHistory] = useState([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    if (!leadId) return;
-    let cancelled = false;
-    setLoading(true);
-    api
-      .getLeadHistory(leadId)
-      .then(({ history: rows }) => {
-        if (!cancelled) setHistory(rows);
-      })
-      .catch(() => {})
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [leadId]);
-
-  if (loading) return <p className="text-xs text-text-secondary">Loading…</p>;
-  if (history.length === 0) return <p className="text-xs text-text-secondary">No previous calls logged.</p>;
-
-  return (
-    <ul className="space-y-3">
-      {history.map((call) => (
-        <li key={call.id} className="border-b border-shadow/20 pb-2 last:border-0 last:pb-0">
-          <div className="flex items-center justify-between gap-2">
-            <span className="text-xs text-text-secondary">{formatDateTime(call.started_at)}</span>
-            <StatusBadge status={call.disposition} />
-          </div>
-          {call.note && <p className="mt-1 text-xs text-text-primary">{call.note}</p>}
-        </li>
-      ))}
-    </ul>
-  );
-}
 
 const SHORTCUT_HINTS = [
   { key: 'V', label: 'Voicemail' },
@@ -120,7 +44,6 @@ function ShortcutHintBar() {
 
 function CallScreenInner({ leadId }) {
   const navigate = useNavigate();
-  const { user } = useAuth();
   const {
     call,
     lead,
@@ -132,44 +55,24 @@ function CallScreenInner({ leadId }) {
     undo,
     redial,
   } = useCall(leadId);
-  const [note, setNote] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [actionError, setActionError] = useState(null);
   const [lastDisposition, setLastDisposition] = useState(null);
   const [hungUp, setHungUp] = useState(false);
   const [muted, setMuted] = useState(false);
   const [showHangupConfirm, setShowHangupConfirm] = useState(false);
-  const [showDncConfirm, setShowDncConfirm] = useState(false);
-  const [expanding, setExpanding] = useState(false);
   const [redialing, setRedialing] = useState(false);
-  const dispositionRef = useRef(null);
-  const [dispositionHighlight, setDispositionHighlight] = useState(false);
 
   const isFinalized = !!lastDisposition;
   const ended = isFinalized || call?.telephony_state === 'ended';
   const canAct = !submitting && !isFinalized && !!call;
 
-  const submitOutcome = async (disposition) => {
-    setSubmitting(true);
+  // Submission path handed to the shared DispositionPanel — the panel owns
+  // the note text and the DNC confirmation, this owns how it's sent.
+  const handlePanelDisposition = async ({ disposition, note: panelNote }) => {
     setActionError(null);
-    try {
-      await submitDisposition({ disposition, note });
-      setLastDisposition(disposition);
-    } catch (err) {
-      setActionError(err.message);
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  // DNC is permanent — confirm before it actually fires. Every other
-  // disposition button submits immediately.
-  const handleSelect = (disposition) => {
-    if (disposition === 'dnc') {
-      setShowDncConfirm(true);
-      return;
-    }
-    submitOutcome(disposition);
+    await submitDisposition({ disposition, note: panelNote });
+    setLastDisposition(disposition);
   };
 
   const handleRedial = async () => {
@@ -190,7 +93,7 @@ function CallScreenInner({ leadId }) {
     setSubmitting(true);
     setActionError(null);
     try {
-      await submitDisposition({ disposition: 'callback_scheduled', note, scheduledAt });
+      await submitDisposition({ disposition: 'callback_scheduled', scheduledAt });
       setLastDisposition('callback_scheduled');
     } catch (err) {
       setActionError(err.message);
@@ -222,22 +125,8 @@ function CallScreenInner({ leadId }) {
     }
   };
 
-  const handleExpandNote = async () => {
-    if (!note.trim() || expanding) return;
-    setExpanding(true);
-    setActionError(null);
-    try {
-      const { note: expanded } = await api.expandNote(note);
-      setNote(expanded);
-    } catch (err) {
-      setActionError(err.message);
-    } finally {
-      setExpanding(false);
-    }
-  };
-
-  // Keyboard shortcuts — ignored while typing in the notes field, and only
-  // active once the call has actually started.
+  // Esc (hang up) and M (mute) stay here since this screen owns those
+  // controls; V / N / D moved into DispositionPanel with the buttons.
   useEffect(() => {
     const handler = (e) => {
       const tag = e.target?.tagName;
@@ -249,19 +138,12 @@ function CallScreenInner({ leadId }) {
       }
       if (!canAct) return;
 
-      if (e.key === 'v' || e.key === 'V') handleSelect('voicemail');
-      else if (e.key === 'n' || e.key === 'N') handleSelect('no_answer');
-      else if (e.key === 'm' || e.key === 'M') setMuted((m) => !m);
-      else if (e.key === 'd' || e.key === 'D') {
-        dispositionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        setDispositionHighlight(true);
-        setTimeout(() => setDispositionHighlight(false), 800);
-      }
+      if (e.key === 'm' || e.key === 'M') setMuted((m) => !m);
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [canAct, hungUp, isFinalized, note]);
+  }, [canAct, hungUp, isFinalized]);
 
   if (error) {
     return (
@@ -290,38 +172,22 @@ function CallScreenInner({ leadId }) {
 
           <ContactCard lead={lead} />
 
-          <NeuCard className="space-y-4 p-5">
-            <div>
-              <div className="flex items-center justify-between">
-                <label className="mb-1 block text-xs font-medium text-text-secondary">Notes</label>
-                <button
-                  type="button"
-                  onClick={handleExpandNote}
-                  disabled={!note.trim() || expanding}
-                  className="text-xs font-medium text-action-call disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  {expanding ? 'Expanding…' : '✨ Expand'}
-                </button>
-              </div>
-              <NotesField value={note} onChange={setNote} />
-            </div>
+          {/* Notes, ✨ Expand, the six disposition buttons and Previous Notes
+              now live in the shared DispositionPanel, so this screen and an
+              answered multi-line card show identical UI. */}
+          <DispositionPanel
+            lead={lead}
+            callId={call?.id}
+            onDispositionSubmit={handlePanelDisposition}
+            disabled={submitting || isFinalized}
+            showScript={false}
+          />
 
-            <div ref={dispositionRef} className={dispositionHighlight ? 'animate-pulse-call rounded-input' : ''}>
-              <DispositionButtons onSelect={handleSelect} disabled={submitting || isFinalized} />
-            </div>
-
-            {actionError && <p className="text-sm text-action-hangup">{actionError}</p>}
-
-            <CollapsibleSection title="Previous Notes">
-              <PreviousNotes leadId={lead.id} />
-            </CollapsibleSection>
-          </NeuCard>
+          {actionError && <p className="text-sm text-action-hangup">{actionError}</p>}
         </div>
 
         <div className="space-y-4">
-          <CollapsibleSection title="Pitch script">
-            <p className="text-xs leading-relaxed text-text-primary">{getPitchScript(user?.name || 'the rep')}</p>
-          </CollapsibleSection>
+          <ScriptPanel />
 
           <CallControls
             onHangup={() => setShowHangupConfirm(true)}
@@ -388,30 +254,6 @@ function CallScreenInner({ leadId }) {
         </div>
       )}
 
-      {showDncConfirm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 px-4">
-          <NeuCard className="w-full max-w-sm space-y-4 p-6">
-            <p className="text-sm font-medium text-text-primary">
-              Permanently block {lead.name}'s number from all future dialing? This cannot be undone.
-            </p>
-            <div className="flex gap-3">
-              <ActionButton
-                variant="dnc"
-                className="flex-1 text-sm"
-                onClick={() => {
-                  setShowDncConfirm(false);
-                  submitOutcome('dnc');
-                }}
-              >
-                Confirm
-              </ActionButton>
-              <NeuButton className="flex-1 text-sm" onClick={() => setShowDncConfirm(false)}>
-                Cancel
-              </NeuButton>
-            </div>
-          </NeuCard>
-        </div>
-      )}
     </div>
   );
 }
