@@ -1,6 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 const config = require('./config');
+const db = require('./db');
 const { errorHandler, notFound } = require('./middleware/errorHandler');
 const { apiLimiter } = require('./middleware/rateLimit');
 
@@ -56,8 +57,47 @@ app.use('/api/settings', settingsRoutes);
 app.use(notFound);
 app.use(errorHandler);
 
-app.listen(config.port, () => {
-  console.log(`Vortex Dialer API listening on port ${config.port} (telephony: ${config.telephonyProvider})`);
-});
+// Every table a migration has ever created. Catches exactly the failure mode
+// that prompted this: a migration file existed in the repo but was never run
+// against this database, so the app started fine and then failed
+// confusingly the first time a route touched the missing table.
+const EXPECTED_TABLES = [
+  'users',
+  'leads',
+  'call_history',
+  'dnc_list',
+  'callbacks',
+  'phone_numbers',
+  'dialing_sessions',
+  'import_jobs',
+  'settings',
+];
+
+async function assertSchemaIsMigrated() {
+  const { rows } = await db.query(
+    `SELECT tablename FROM pg_tables WHERE schemaname = 'public' AND tablename = ANY($1)`,
+    [EXPECTED_TABLES]
+  );
+  const present = new Set(rows.map((r) => r.tablename));
+  const missing = EXPECTED_TABLES.filter((t) => !present.has(t));
+
+  if (missing.length > 0) {
+    for (const table of missing) {
+      console.error(`Missing table: ${table} — run npm run migrate before starting the server`);
+    }
+    process.exit(1);
+  }
+}
+
+assertSchemaIsMigrated()
+  .then(() => {
+    app.listen(config.port, () => {
+      console.log(`Vortex Dialer API listening on port ${config.port} (telephony: ${config.telephonyProvider})`);
+    });
+  })
+  .catch((err) => {
+    console.error('Could not verify the database schema on startup:', err.message);
+    process.exit(1);
+  });
 
 module.exports = app;
