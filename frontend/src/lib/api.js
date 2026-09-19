@@ -77,6 +77,7 @@ export const listLeads = (params = {}) => {
   const qs = new URLSearchParams(cleaned).toString();
   return request(`/leads${qs ? `?${qs}` : ''}`);
 };
+export const createLead = (fields) => request('/leads', { method: 'POST', body: fields });
 export const getLead = (id) => request(`/leads/${id}`);
 export const getStateCounts = () => request('/leads/state-counts');
 export const snoozeLead = (id) => request(`/leads/${id}/snooze`, { method: 'POST' });
@@ -95,6 +96,10 @@ export const startCall = (leadId, sessionId) =>
 export const getCall = (id) => request(`/calls/${id}`);
 export const hangupCall = (id) => request(`/calls/${id}/hangup`, { method: 'POST' });
 
+// manual dial pad — an ad-hoc call to a typed-in number, not tied to a lead
+export const startManualCall = (toNumber) =>
+  request('/calls/manual/start', { method: 'POST', body: { toNumber } });
+
 // multi-line dialing — live status arrives over SSE rather than polling.
 // EventSource can't set an Authorization header, so the token goes in the
 // query string and the /stream route verifies it there (see routes/calls.js).
@@ -103,10 +108,14 @@ export function openCallStream() {
   if (!token) return null;
   return new EventSource(`${API_URL}/calls/stream?token=${encodeURIComponent(token)}`);
 }
-export const startMultiline = (sessionId, lineCount) =>
+export const startMultiline = (sessionId, lineCount, leadIds) =>
   request('/calls/multiline/start', {
     method: 'POST',
-    body: { sessionId: sessionId || null, lineCount: lineCount || undefined },
+    body: {
+      sessionId: sessionId || null,
+      lineCount: lineCount || undefined,
+      leadIds: leadIds && leadIds.length > 0 ? leadIds : undefined,
+    },
   });
 export const releaseMultilineSlot = (slotNumber) =>
   request('/calls/multiline/release', { method: 'POST', body: { slotNumber } });
@@ -153,6 +162,7 @@ export const expandNote = (note) => request('/ai/expand-note', { method: 'POST',
 // reports
 export const getTodayStats = () => request('/reports/today');
 export const getPerStateReport = () => request('/reports/per-state');
+export const getManualCallsToday = () => request('/reports/manual-today');
 
 // settings (key/value store — e.g. the Groq API key, see Settings.jsx → Integrations)
 export const getSetting = (key) => request(`/settings/${encodeURIComponent(key)}`);

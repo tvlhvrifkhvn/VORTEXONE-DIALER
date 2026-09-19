@@ -1,11 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
-import { NavLink, useNavigate } from 'react-router-dom';
-import { Moon, Search, Sun } from 'lucide-react';
+import { NavLink, useLocation, useNavigate } from 'react-router-dom';
+import { Moon, Phone, Search, Sun } from 'lucide-react';
 import NeuButton from '../ui/NeuButton';
 import NeuInput from '../ui/NeuInput';
 import { LeadDetailPanel } from '../leads/LeadRow';
+import DialPad from '../call/DialPad';
 import { useAuth } from '../../hooks/useAuth';
 import { useImportJob } from '../../hooks/useImportJob';
+import { getActiveSessionId } from '../../hooks/useCall';
 import * as api from '../../lib/api';
 
 const navLinkClasses = ({ isActive }) =>
@@ -149,6 +151,28 @@ function GlobalSearch() {
   );
 }
 
+const SESSION_POLL_MS = 2000;
+
+/** Whether a dialing session is currently running, for the navbar's "Live"
+ * badge — cheap localStorage read (see useCall.js's getActiveSessionId),
+ * rechecked on navigation and on a short poll so starting/ending a session
+ * on /dialer updates the badge without a page change. */
+function useSessionLive() {
+  const location = useLocation();
+  const [live, setLive] = useState(() => !!getActiveSessionId());
+
+  useEffect(() => {
+    setLive(!!getActiveSessionId());
+  }, [location.pathname]);
+
+  useEffect(() => {
+    const id = setInterval(() => setLive(!!getActiveSessionId()), SESSION_POLL_MS);
+    return () => clearInterval(id);
+  }, []);
+
+  return live;
+}
+
 /** Persistent progress pill while an import runs, so leaving the Import page
  * never feels like the work was lost. Clicking it goes back to that page. */
 function ImportProgressBadge() {
@@ -174,6 +198,8 @@ export default function AppShell({ children }) {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const [darkMode, setDarkMode] = useState(getInitialDarkMode);
+  const [dialPadOpen, setDialPadOpen] = useState(false);
+  const sessionLive = useSessionLive();
 
   useEffect(() => {
     document.documentElement.classList.toggle('dark', darkMode);
@@ -196,6 +222,16 @@ export default function AppShell({ children }) {
           <NavLink to="/" end className={navLinkClasses}>
             Dashboard
           </NavLink>
+          <NavLink to="/dialer" className={navLinkClasses}>
+            <span className="inline-flex items-center gap-1.5">
+              Dialer
+              {sessionLive && (
+                <span className="rounded-full bg-action-call px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white">
+                  Live
+                </span>
+              )}
+            </span>
+          </NavLink>
           <NavLink to="/import" className={navLinkClasses}>
             Import
           </NavLink>
@@ -216,6 +252,15 @@ export default function AppShell({ children }) {
           {user && <span className="text-sm text-text-secondary">{user.name}</span>}
           <button
             type="button"
+            onClick={() => setDialPadOpen(true)}
+            title="Dial a number"
+            aria-label="Dial a number"
+            className="ripple flex h-9 w-9 items-center justify-center rounded-full text-action-call shadow-neu-sm transition-all duration-200 hover:shadow-neu"
+          >
+            <Phone size={16} />
+          </button>
+          <button
+            type="button"
             onClick={() => setDarkMode((d) => !d)}
             title={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}
             aria-label={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}
@@ -229,6 +274,8 @@ export default function AppShell({ children }) {
         </div>
       </header>
       <main className="px-6 pb-10">{children}</main>
+
+      {dialPadOpen && <DialPad onClose={() => setDialPadOpen(false)} />}
     </div>
   );
 }

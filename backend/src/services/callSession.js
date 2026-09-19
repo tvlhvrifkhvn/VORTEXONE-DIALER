@@ -5,6 +5,8 @@ const leadQueue = require('./leadQueue');
 const leadLifecycle = require('./leadLifecycle');
 const dialingSession = require('./dialingSession');
 const dncCheck = require('./dncCheck');
+const { ApiError } = require('../middleware/errorHandler');
+const { normalizePhone } = require('../utils/phoneNormalize');
 
 // Reserved-for-fiction NANP range (555-0100 through 555-0199) — safe
 // placeholder until phone_numbers is populated with real numbers in phase 2.
@@ -60,6 +62,66 @@ async function start({ lead, userId, sessionId = null }) {
 async function get(callHistoryId) {
   const { rows } = await db.query('SELECT * FROM call_history WHERE id = $1', [callHistoryId]);
   return rows[0] || null;
+}
+
+// ---------------------------------------------------------------------------
+// Manual dial pad — an ad-hoc call to a typed-in number, not tied to any
+// lead. Deliberately separate from start() above (same reasoning as
+// placeSlotCall below): no lead to lock, no attempts to increment, no
+// disposition workflow — just place the call and record it.
+// ---------------------------------------------------------------------------
+
+/**
+ * Places a manual call. Rejects a number that doesn't resolve to a valid US
+ * NANP number, and — same as multi-line dialing (see reserveSlot) — a number
+ * already on the DNC list, so the dial pad can't be used to route around
+ * that protection.
+ */
+async function startManual({ userId, toNumberRaw }) {
+  const toNumber = normalizePhone(toNumberRaw);
+  if (!toNumber) throw new ApiError(400, 'Enter a valid 10-digit US phone number');
+
+  if (await dncCheck.isOnDncList(toNumber)) {
+    throw new ApiError(409, 'This number is on the DNC list and cannot be dialed');
+  }
+
+  const fromNumber = MOCK_FROM_NUMBER;
+
+  const { rows } = await db.query(
+    `INSERT INTO call_history (lead_id, user_id, from_number, to_number, is_manual, was_mock, telephony_state)
+     VALUES (NULL, $1, $2, $3, true, true, 'ringing')
+     RETURNING *`,
+    [userId, fromNumber, toNumber]
+  );
+  const call = rows[0];
+
+  const telephonyCallId = telephony.placeCall(fromNumber, toNumber, (event) => {
+    db.query('UPDATE call_history SET telephony_state = $2 WHERE id = $1', [call.id, event.type]).catch((err) => {
+      console.error(`Failed to record telephony event "${event.type}" for manual call ${call.id}:`, err.message);
+    });
+  });
+
+  await db.query('UPDATE call_history SET telephony_call_id = $2 WHERE id = $1', [call.id, telephonyCallId]);
+
+  return { ...call, telephony_call_id: telephonyCallId };
+}
+
+/** Ends a manual call — no lead to release, no disposition, just close out
+ * the call_history row (mirrors leadLifecycle.hangup's timing logic). */
+async function endManualCall(callHistoryId) {
+  const call = await get(callHistoryId);
+  if (!call) throw new ApiError(404, 'Call not found');
+
+  if (!call.ended_at) {
+    const now = new Date();
+    const durationSeconds = Math.max(0, Math.round((now - new Date(call.started_at)) / 1000));
+    await db.query(
+      `UPDATE call_history SET ended_at = $2, duration_seconds = $3, telephony_state = 'ended' WHERE id = $1`,
+      [callHistoryId, now, durationSeconds]
+    );
+  }
+
+  return get(callHistoryId);
 }
 
 // ---------------------------------------------------------------------------
@@ -316,14 +378,34 @@ async function reserveSlot(session, slotNumber) {
   const MAX_DNC_SKIPS = 25;
   for (let attempt = 0; attempt < MAX_DNC_SKIPS; attempt++) {
     let lead;
-    try {
-      // Reuses the existing queue + calling-hours logic exactly as single-line
-      // dialing does.
-      lead = await leadQueue.lockNext({ userId: session.userId });
-    } catch (err) {
-      // Queue exhausted, or nothing dialable inside calling hours right now.
-      emitSlot(session, placeholder, 'idle', { message: err.message });
-      return null;
+
+    if (session.leadIds) {
+      // A rep-selected list is driving this session (see startMultilineSession)
+      // — dial only from it, in order, and never fall back to the general
+      // queue once a selection was explicitly given.
+      if (session.leadIds.length === 0) {
+        emitSlot(session, placeholder, 'idle', { message: 'No more selected leads to dial.' });
+        return null;
+      }
+      const nextId = session.leadIds.shift();
+      try {
+        lead = await leadQueue.lockNext({ userId: session.userId, leadId: nextId });
+      } catch (err) {
+        // That specific lead is no longer dialable (handled since selection,
+        // DNC'd, outside calling hours, etc.) — move to the next selected id
+        // rather than treating it as the whole line stopping.
+        continue;
+      }
+    } else {
+      try {
+        // Reuses the existing queue + calling-hours logic exactly as
+        // single-line dialing does.
+        lead = await leadQueue.lockNext({ userId: session.userId });
+      } catch (err) {
+        // Queue exhausted, or nothing dialable inside calling hours right now.
+        emitSlot(session, placeholder, 'idle', { message: err.message });
+        return null;
+      }
     }
 
     if (await dncCheck.isOnDncList(lead.phone)) {
@@ -342,7 +424,10 @@ async function reserveSlot(session, slotNumber) {
     return slot;
   }
 
-  emitSlot(session, placeholder, 'idle', { message: 'Too many DNC numbers in a row — stopping this line.' });
+  const skipMessage = session.leadIds
+    ? 'Too many selected leads were skipped in a row (already handled or not dialable) — stopping this line.'
+    : 'Too many DNC numbers in a row — stopping this line.';
+  emitSlot(session, placeholder, 'idle', { message: skipMessage });
   return null;
 }
 
@@ -357,11 +442,23 @@ async function dialIntoSlot(session, slotNumber) {
  * Opens `lineCount` lines at once for a rep (1-3, chosen on the dashboard).
  * Returns immediately after the dials are placed — progress arrives over
  * callEvents (SSE), not as a response body.
+ *
+ * selectedLeadIds, when given, constrains the whole session to dial only
+ * those leads (the dashboard's checkbox selection), in the same priority
+ * order the regular queue would use (leadQueue.batchQueue — the same helper
+ * the older single-line selected-power-dial flow already used). Omitted or
+ * empty, the session dials the general queue exactly as before.
  */
-async function startMultilineSession(userId, sessionId, lineCount = MULTILINE_SLOTS) {
+async function startMultilineSession(userId, sessionId, lineCount = MULTILINE_SLOTS, selectedLeadIds = null) {
   await stopMultilineSession(userId);
 
   const lines = Math.min(MULTILINE_SLOTS, Math.max(1, Number(lineCount) || MULTILINE_SLOTS));
+
+  let orderedLeadIds = null;
+  if (Array.isArray(selectedLeadIds) && selectedLeadIds.length > 0) {
+    const ordered = await leadQueue.batchQueue(selectedLeadIds);
+    orderedLeadIds = ordered.map((lead) => lead.id);
+  }
 
   const session = {
     userId,
@@ -372,6 +469,7 @@ async function startMultilineSession(userId, sessionId, lineCount = MULTILINE_SL
     abandonedCount: 0,
     dncSkipped: 0,
     lineCount: lines,
+    leadIds: orderedLeadIds,
   };
   multilineSessions.set(userId, session);
 
@@ -451,6 +549,8 @@ async function stopMultilineSession(userId) {
 module.exports = {
   start,
   get,
+  startManual,
+  endManualCall,
   MOCK_FROM_NUMBER,
   MULTILINE_SLOTS,
   callEvents,

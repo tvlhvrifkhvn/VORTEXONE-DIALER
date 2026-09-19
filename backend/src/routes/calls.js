@@ -90,11 +90,26 @@ router.get(
   })
 );
 
+// A manual (dial-pad) call has no lead to release or disposition — branch
+// before delegating to leadLifecycle, which assumes a lead.
 router.post(
   '/:id/hangup',
   asyncHandler(async (req, res) => {
-    const result = await leadLifecycle.hangup({ callHistoryId: req.params.id });
+    const call = await callSession.get(req.params.id);
+    if (!call) return res.status(404).json({ error: 'Call not found' });
+    const result = call.lead_id
+      ? await leadLifecycle.hangup({ callHistoryId: req.params.id })
+      : await callSession.endManualCall(req.params.id);
     res.json(result);
+  })
+);
+
+// Manual dial pad — places a call to a typed-in number, not tied to any lead.
+router.post(
+  '/manual/start',
+  asyncHandler(async (req, res) => {
+    const call = await callSession.startManual({ userId: req.user.sub, toNumberRaw: req.body.toNumber });
+    res.status(201).json({ call });
   })
 );
 
@@ -106,7 +121,8 @@ router.post(
     const result = await callSession.startMultilineSession(
       req.user.sub,
       req.body.sessionId || null,
-      req.body.lineCount
+      req.body.lineCount,
+      req.body.leadIds
     );
     res.status(201).json(result);
   })

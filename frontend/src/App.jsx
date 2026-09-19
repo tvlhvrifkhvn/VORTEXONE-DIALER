@@ -2,6 +2,7 @@ import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth } from './hooks/useAuth';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
+import DialerSession from './pages/DialerSession';
 import CallScreen from './pages/CallScreen';
 import Import from './pages/Import';
 import Reports from './pages/Reports';
@@ -29,6 +30,14 @@ function AppRoutes() {
         element={
           <RequireAuth>
             <Dashboard />
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/dialer"
+        element={
+          <RequireAuth>
+            <DialerSession />
           </RequireAuth>
         }
       />

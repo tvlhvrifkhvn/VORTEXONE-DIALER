@@ -99,12 +99,12 @@ export function useMultiline({ enabled = true } = {}) {
     return () => clearInterval(id);
   }, [lines]);
 
-  const start = useCallback(async (lineCount) => {
+  const start = useCallback(async (lineCount, leadIds) => {
     setStarting(true);
     setError(null);
     try {
       setLines(emptySlots());
-      await api.startMultiline(getActiveSessionId(), lineCount);
+      await api.startMultiline(getActiveSessionId(), lineCount, leadIds);
     } catch (err) {
       setError(err.message);
     } finally {

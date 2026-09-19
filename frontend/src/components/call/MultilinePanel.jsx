@@ -153,7 +153,7 @@ export default function MultilinePanel({
           </span>
         </div>
         <ActionButton variant="hangup" onClick={onStop}>
-          Stop session
+          End session
         </ActionButton>
       </div>
 

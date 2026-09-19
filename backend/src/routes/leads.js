@@ -53,6 +53,17 @@ router.post(
   })
 );
 
+// Hand-entry path (the manual dial pad's optional "Save as lead" form) —
+// every other lead comes from a CSV import.
+router.post(
+  '/',
+  asyncHandler(async (req, res) => {
+    const { name, phone, email, address, brokerage, state } = req.body;
+    const lead = await leadQueue.create({ name, phone, email, address, brokerage, state });
+    res.status(201).json({ lead });
+  })
+);
+
 router.get(
   '/:id',
   asyncHandler(async (req, res) => {

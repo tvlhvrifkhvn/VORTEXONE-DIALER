@@ -1,6 +1,9 @@
 const db = require('../db');
 const { ApiError } = require('../middleware/errorHandler');
 const callingHours = require('./callingHours');
+const dncCheck = require('./dncCheck');
+const { normalizePhone } = require('../utils/phoneNormalize');
+const { US_STATES } = require('../utils/usStates');
 
 const LOCK_TIMEOUT_SECONDS = 30;
 
@@ -190,6 +193,39 @@ async function list({ search, status, dateFrom, dateTo, state, page = 1, pageSiz
   };
 }
 
+/**
+ * Creates a new lead directly — the manual dial pad's optional "Save as
+ * lead" form (see AppShell.jsx / DialPad.jsx) is the one hand-entry path in
+ * an app where every other lead comes from a CSV import, so it applies the
+ * same phone validation and DNC block CLAUDE.md requires of imports.
+ */
+async function create({ name, phone, state, email = null, address = null, brokerage = null }) {
+  if (!name || !name.trim()) throw new ApiError(400, 'Name is required');
+
+  const normalizedPhone = normalizePhone(phone);
+  if (!normalizedPhone) throw new ApiError(400, 'Enter a valid 10-digit US phone number');
+
+  const normalizedState = String(state || '').trim().toUpperCase();
+  if (!US_STATES.includes(normalizedState)) throw new ApiError(400, 'Enter a valid US state');
+
+  if (await dncCheck.isOnDncList(normalizedPhone)) {
+    throw new ApiError(409, 'This number is on the DNC list and cannot be added as a lead');
+  }
+
+  try {
+    const { rows } = await db.query(
+      `INSERT INTO leads (name, phone, email, address, brokerage, state, status)
+       VALUES ($1, $2, $3, $4, $5, $6, 'new')
+       RETURNING *`,
+      [name.trim(), normalizedPhone, email || null, address || null, brokerage || null, normalizedState]
+    );
+    return rows[0];
+  } catch (err) {
+    if (err.code === '23505') throw new ApiError(409, 'A lead with this phone number already exists');
+    throw err;
+  }
+}
+
 const EDITABLE_FIELDS = ['name', 'phone', 'email', 'address', 'brokerage', 'state'];
 
 /** Applies an inline edit from the lead detail slide-in panel. Only the six
@@ -268,6 +304,7 @@ module.exports = {
   candidates,
   peekNext,
   lockNext,
+  create,
   getById,
   getHistory,
   countsByState,

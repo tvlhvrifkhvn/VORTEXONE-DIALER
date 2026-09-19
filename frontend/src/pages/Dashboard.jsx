@@ -4,23 +4,13 @@ import AppShell from '../components/layout/AppShell';
 import StateSidebar from '../components/layout/StateSidebar';
 import LeadTable from '../components/leads/LeadTable';
 import LeadFilters from '../components/leads/LeadFilters';
-import MultilinePanel from '../components/call/MultilinePanel';
 import StatCard from '../components/stats/StatCard';
 import NeuCard from '../components/ui/NeuCard';
 import NeuButton from '../components/ui/NeuButton';
 import NeuInput from '../components/ui/NeuInput';
 import ActionButton from '../components/ui/ActionButton';
 import { useLeads, useStateCounts } from '../hooks/useLeads';
-import { useMultiline } from '../hooks/useMultiline';
-import {
-  DIAL_MODE_KEY,
-  PENDING_SUMMARY_KEY,
-  endDialingSession,
-  getActiveSessionId,
-  isSessionPaused,
-  setSessionPaused,
-  startDialingSession,
-} from '../hooks/useCall';
+import { DIAL_MODE_KEY, startDialingSession } from '../hooks/useCall';
 import * as api from '../lib/api';
 
 const EMPTY_FILTERS = { search: '', status: '', dateFrom: '', dateTo: '', state: null };
@@ -106,54 +96,6 @@ function DailyGoalTracker({ dials }) {
   );
 }
 
-function formatMinutes(ms) {
-  const totalMinutes = Math.max(0, Math.round(ms / 60000));
-  const h = Math.floor(totalMinutes / 60);
-  const m = totalMinutes % 60;
-  return h > 0 ? `${h}h ${m}m` : `${m}m`;
-}
-
-/** Shown when the rep clicks Stop Dialing — summarizes the session just
- * ended, using the stats POST /api/sessions/end returns. */
-function SessionSummaryModal({ stats, abandonedCount = 0, onClose }) {
-  if (!stats) return null;
-  const elapsed = formatMinutes(new Date(stats.ended_at).getTime() - new Date(stats.started_at).getTime());
-
-  const rows = [
-    ['Dials made', stats.total_dials],
-    ['Contacts', stats.total_contacts],
-    ['Voicemails', stats.total_voicemails],
-    ['No answers', stats.total_no_answers],
-    ['Callbacks set', stats.total_callbacks],
-    ['DNC', stats.total_dnc],
-    ['Time spent', elapsed],
-  ];
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 px-4">
-      <NeuCard className="w-full max-w-sm space-y-4 p-6">
-        <h2 className="text-lg font-semibold text-text-primary">Session summary</h2>
-        <dl className="space-y-2 text-sm">
-          {rows.map(([label, value]) => (
-            <div key={label} className="flex justify-between">
-              <dt className="text-text-secondary">{label}</dt>
-              <dd className="font-medium text-text-primary">{value}</dd>
-            </div>
-          ))}
-        </dl>
-        {abandonedCount > 0 && (
-          <p className="text-xs text-text-secondary">
-            {abandonedCount} call{abandonedCount === 1 ? ' was' : 's were'} abandoned when a live contact was found.
-          </p>
-        )}
-        <NeuButton className="w-full" onClick={onClose}>
-          Close
-        </NeuButton>
-      </NeuCard>
-    </div>
-  );
-}
-
 export default function Dashboard() {
   const navigate = useNavigate();
   const [filters, setFilters] = useState(EMPTY_FILTERS);
@@ -162,35 +104,13 @@ export default function Dashboard() {
   const [stats, setStats] = useState({ dials: 0, contacts: 0, connectRate: 0 });
   const [lineCount, setLineCount] = useState(readDefaultLines);
   const [exporting, setExporting] = useState(false);
-  const [sessionActive, setSessionActive] = useState(() => !!getActiveSessionId());
-  const [paused, setPaused] = useState(() => isSessionPaused());
-  const [summaryStats, setSummaryStats] = useState(null);
-  const [abandonedCount, setAbandonedCount] = useState(0);
   const [selectedIds, setSelectedIds] = useState(() => new Set());
-  const [multilineActive, setMultilineActive] = useState(false);
-  const multiline = useMultiline({ enabled: multilineActive });
 
   useEffect(() => {
     const load = () => api.getTodayStats().then(setStats).catch(() => {});
     load();
     const id = setInterval(load, 5000);
     return () => clearInterval(id);
-  }, []);
-
-  // A selected-leads Power Dial session that ran to completion ends itself
-  // and stashes its stats here (see useCall.js) so the summary modal still
-  // shows up automatically once we land back on the dashboard.
-  useEffect(() => {
-    const raw = localStorage.getItem(PENDING_SUMMARY_KEY);
-    if (!raw) return;
-    localStorage.removeItem(PENDING_SUMMARY_KEY);
-    try {
-      setSummaryStats(JSON.parse(raw));
-    } catch {
-      // ignore malformed leftovers
-    }
-    setSessionActive(false);
-    setPaused(false);
   }, []);
 
   useEffect(() => {
@@ -212,18 +132,6 @@ export default function Dashboard() {
     } finally {
       setExporting(false);
     }
-  };
-
-  // One continuous dialing mode: always the multi-line engine, with the
-  // number of simultaneous lines chosen beside the button. A single line
-  // behaves like the old power dial, just without the separate toggle.
-  const handleStartDialing = async () => {
-    await startDialingSession('multiline');
-    setSessionActive(true);
-    setPaused(false);
-    setAbandonedCount(0);
-    setMultilineActive(true);
-    await multiline.start(lineCount);
   };
 
   const toggleLead = (id) => {
@@ -252,49 +160,15 @@ export default function Dashboard() {
 
   const clearSelection = () => setSelectedIds(new Set());
 
-  const handleStartPowerDialOnSelection = async () => {
-    const ids = Array.from(selectedIds);
-    if (ids.length === 0) return;
-    await startDialingSession('power', ids);
-    setSessionActive(true);
-    setPaused(false);
+  // Exactly one way to start dialing: whatever's currently checked (if
+  // anything) plus the chosen line count travel to /dialer, which owns the
+  // multi-line engine entirely from here (see DialerSession.jsx). An empty
+  // selection dials the general queue, same as the old plain "Start Dialing".
+  const handleStartDialingSession = async () => {
+    const leadIds = Array.from(selectedIds);
+    await startDialingSession('multiline');
     setSelectedIds(new Set());
-    navigate('/call/next');
-  };
-
-  // A disposition submitted on an answered line: record it, free that slot
-  // (promoting any held live caller), and refresh the lead list behind the
-  // panel so counts stay honest.
-  const handleMultilineDisposition = async (line, payload) => {
-    await multiline.submitDispositionFor(line, payload);
-    refresh();
-    refreshCounts();
-  };
-
-  const handleStopDialing = async () => {
-    let abandoned = 0;
-    if (multilineActive) {
-      const result = await multiline.stopSession();
-      abandoned = result?.abandonedCount || 0;
-      setMultilineActive(false);
-    }
-    const stats = await endDialingSession();
-    setSessionActive(false);
-    setPaused(false);
-    setAbandonedCount(abandoned);
-    setSummaryStats(stats);
-    refresh();
-    refreshCounts();
-  };
-
-  const handleTogglePause = () => {
-    const next = !paused;
-    setSessionPaused(next);
-    setPaused(next);
-  };
-
-  const handleCloseSummary = () => {
-    setSummaryStats(null);
+    navigate('/dialer', { state: { lineCount, leadIds } });
   };
 
   return (
@@ -310,24 +184,9 @@ export default function Dashboard() {
 
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-2">
-            {sessionActive ? (
-              <>
-                {paused ? (
-                  <ActionButton variant="call" onClick={handleStartDialing}>
-                    Resume
-                  </ActionButton>
-                ) : (
-                  <NeuButton onClick={handleTogglePause}>Pause</NeuButton>
-                )}
-                <ActionButton variant="hangup" onClick={handleStopDialing}>
-                  Stop Dialing
-                </ActionButton>
-              </>
-            ) : (
-              <ActionButton variant="call" className="btn-glow" onClick={handleStartDialing}>
-                Start Dialing
-              </ActionButton>
-            )}
+            <ActionButton variant="call" className="btn-glow" onClick={handleStartDialingSession}>
+              Start dialing session
+            </ActionButton>
             <NeuButton onClick={handleExport} disabled={exporting}>
               {exporting ? (
                 <span className="flex items-center gap-2">
@@ -371,18 +230,6 @@ export default function Dashboard() {
           />
 
           <div className="flex-1 space-y-3">
-            {multilineActive ? (
-              <MultilinePanel
-                lines={multiline.lines.slice(0, lineCount)}
-                connected={multiline.connected}
-                starting={multiline.starting}
-                error={multiline.error}
-                onDrop={multiline.dropLine}
-                onStop={handleStopDialing}
-                onDispositionSubmit={handleMultilineDisposition}
-              />
-            ) : (
-              <>
             <NeuCard className="p-3">
               <LeadFilters filters={filters} onChange={setFilters} />
             </NeuCard>
@@ -391,20 +238,16 @@ export default function Dashboard() {
             {selectedIds.size > 0 && (
               <NeuCard className="sticky top-2 z-10 flex flex-wrap items-center justify-between gap-3 p-3">
                 <span className="text-sm font-medium text-text-primary">
-                  {selectedIds.size} lead{selectedIds.size === 1 ? '' : 's'} selected
+                  {selectedIds.size} lead{selectedIds.size === 1 ? '' : 's'} selected — use "Start dialing session"
+                  above to dial them
                 </span>
-                <div className="flex items-center gap-3">
-                  <ActionButton variant="call" onClick={handleStartPowerDialOnSelection}>
-                    Start Power Dial
-                  </ActionButton>
-                  <button
-                    type="button"
-                    onClick={clearSelection}
-                    className="text-sm font-medium text-text-secondary hover:text-text-primary"
-                  >
-                    Clear selection
-                  </button>
-                </div>
+                <button
+                  type="button"
+                  onClick={clearSelection}
+                  className="text-sm font-medium text-text-secondary hover:text-text-primary"
+                >
+                  Clear selection
+                </button>
               </NeuCard>
             )}
 
@@ -424,13 +267,9 @@ export default function Dashboard() {
               onClearPage={clearPage}
               onSelectAllFiltered={selectAllFiltered}
             />
-              </>
-            )}
           </div>
         </div>
       </div>
-
-      <SessionSummaryModal stats={summaryStats} abandonedCount={abandonedCount} onClose={handleCloseSummary} />
     </AppShell>
   );
 }
