@@ -17,7 +17,23 @@ const settingsRoutes = require('./routes/settings');
 
 const app = express();
 
-app.use(cors({ origin: config.corsOrigin }));
+// Codespaces forwards each session to a fresh *.app.github.dev subdomain, so
+// CORS_ORIGIN would otherwise need hand-updating every time it changes.
+// Outside production, accept that pattern in addition to the exact
+// configured origin; production keeps strict exact-match only.
+const CODESPACES_ORIGIN_PATTERN = /^https:\/\/[a-z0-9-]+\.app\.github\.dev$/i;
+
+function corsOriginCheck(origin, callback) {
+  // No Origin header (curl, server-to-server, same-origin) — allow through.
+  if (!origin) return callback(null, true);
+  if (origin === config.corsOrigin) return callback(null, true);
+  if (config.nodeEnv !== 'production' && CODESPACES_ORIGIN_PATTERN.test(origin)) {
+    return callback(null, true);
+  }
+  return callback(new Error(`Not allowed by CORS: ${origin}`));
+}
+
+app.use(cors({ origin: corsOriginCheck }));
 app.use(express.json({ limit: '5mb' }));
 
 app.get('/health', (req, res) => res.json({ status: 'ok' }));
