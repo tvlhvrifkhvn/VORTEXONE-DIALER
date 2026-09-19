@@ -14,6 +14,9 @@ const DEFAULT_LINES_KEY = 'vortex_dialer_default_lines'; // Dashboard's line sel
 const DEFAULT_MAX_ATTEMPTS = 5;
 const DEFAULT_GOAL = 100;
 const DEFAULT_LINES = 3;
+// Matches callingHours.js's ENFORCEMENT_SETTING_KEY — server-backed (the
+// settings table), not localStorage, since the backend reads it directly.
+const CALLING_HOURS_KEY = 'calling_hours_enforced';
 const DEFAULT_SCRIPT =
   "Hi, I'm {name} from Vortexone Agency. We offer virtual assistant services for real " +
   'estate agents — lead follow-up, appointment setting, and admin support. Do you currently ' +
@@ -80,15 +83,34 @@ function DialingDefaultsSection() {
   const [maxAttempts, setMaxAttempts] = useState(() => readLocalNumber(MAX_ATTEMPTS_KEY, DEFAULT_MAX_ATTEMPTS));
   const [dailyGoal, setDailyGoal] = useState(() => readLocalNumber(GOAL_KEY, DEFAULT_GOAL));
   const [defaultLines, setDefaultLines] = useState(() => readLocalNumber(DEFAULT_LINES_KEY, DEFAULT_LINES));
+  // Server-backed (settings table) since callingHours.js reads it directly —
+  // unlike the fields above, this isn't a localStorage-only preference.
+  const [enforceHours, setEnforceHours] = useState(false);
+  const [loadingToggle, setLoadingToggle] = useState(true);
   const [saved, setSaved] = useState(false);
+  const [error, setError] = useState(null);
 
-  const handleSave = (e) => {
+  useEffect(() => {
+    api
+      .getSetting(CALLING_HOURS_KEY)
+      .then(({ value }) => setEnforceHours(value === 'true'))
+      .catch(() => {})
+      .finally(() => setLoadingToggle(false));
+  }, []);
+
+  const handleSave = async (e) => {
     e.preventDefault();
+    setError(null);
     localStorage.setItem(MAX_ATTEMPTS_KEY, String(maxAttempts));
     localStorage.setItem(GOAL_KEY, String(dailyGoal));
     localStorage.setItem(DEFAULT_LINES_KEY, String(defaultLines));
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
+    try {
+      await api.putSetting(CALLING_HOURS_KEY, String(enforceHours));
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+    } catch (err) {
+      setError(err.message);
+    }
   };
 
   return (
@@ -136,10 +158,32 @@ function DialingDefaultsSection() {
             How many leads a dialing session rings at once. Adjustable per session on the dashboard.
           </p>
         </div>
-        <p className="text-xs text-text-secondary">
-          Calling hours: calls outside 8am–9pm local time (based on the lead's state) are blocked
-          automatically — this isn't configurable here.
-        </p>
+        <div>
+          <label className="flex cursor-pointer items-center gap-3">
+            <button
+              type="button"
+              role="switch"
+              aria-checked={enforceHours}
+              onClick={() => setEnforceHours((v) => !v)}
+              disabled={loadingToggle}
+              className={`relative h-6 w-11 shrink-0 rounded-full transition-colors duration-200 disabled:opacity-50 ${
+                enforceHours ? 'bg-action-call' : 'bg-shadow/40'
+              }`}
+            >
+              <span
+                className={`absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform duration-200 ${
+                  enforceHours ? 'translate-x-5' : 'translate-x-0'
+                }`}
+              />
+            </button>
+            <span className="text-xs font-medium text-text-secondary">Enforce calling hours (8am–9pm local)</span>
+          </label>
+          <p className="mt-1 text-xs text-text-secondary">
+            Testing phase: off by default so leads can be dialed at any time. Turn on to block calls
+            outside 8am–9pm local time for the lead's state.
+          </p>
+        </div>
+        {error && <p className="text-sm text-action-hangup">{error}</p>}
         {saved && <p className="text-sm text-action-contacted">Saved.</p>}
         <NeuButton type="submit">Save defaults</NeuButton>
       </form>
