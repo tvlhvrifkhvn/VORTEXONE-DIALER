@@ -130,6 +130,18 @@ export const analyzeImport = (file) => {
 };
 export const getImportHistory = () => request('/imports/history');
 
+// background import jobs — upload parses + records the job, process kicks off
+// the work and returns immediately, status is polled for progress.
+export const uploadImportFile = (file) => {
+  const formData = new FormData();
+  formData.append('file', file);
+  return request('/imports/upload', { method: 'POST', body: formData, isFormData: true });
+};
+export const processImportJob = (jobId, sheets, mapping) =>
+  request('/imports/process', { method: 'POST', body: { jobId, sheets, mapping } });
+export const getImportJobStatus = (jobId) => request(`/imports/status/${jobId}`);
+export const cancelImportJob = (jobId) => request(`/imports/cancel/${jobId}`, { method: 'POST' });
+
 // ai
 export const expandNote = (note) => request('/ai/expand-note', { method: 'POST', body: { note } });
 

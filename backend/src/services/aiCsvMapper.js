@@ -151,6 +151,80 @@ Mark any unrecoverable row with "skip": true.`;
 }
 
 /**
+ * Cleans a single chunk of rows with one Groq call, and THROWS if that call
+ * fails — unlike cleanRows() below, which swallows failures so an interactive
+ * preview still works. The background import job needs the failure signal so
+ * it can retry with backoff and, if a chunk still won't clean, flag just
+ * those rows for manual review (see csvImport.processImportJob).
+ *
+ * Returns { cleanedRows, originals: Map<indexInChunk, originalName>,
+ * skippedIndexes: Set }. Applies the same validation as cleanRows: a state
+ * must be a real US code, and a "cleaned" name still carrying the junk it was
+ * asked to strip is rejected in favour of the original.
+ */
+async function cleanRowsChunk(chunk, mapping) {
+  const result = { cleanedRows: chunk, originals: new Map(), skippedIndexes: new Set() };
+  if (!Array.isArray(chunk) || chunk.length === 0) return result;
+  if (!mapping || !mapping.name) return result;
+
+  const groq = await client();
+  if (!groq) return result; // no key configured — pass through untouched
+
+  const batch = chunk.map((row, index) => ({
+    index,
+    fields: {
+      name: row[mapping.name] ?? '',
+      state: mapping.state ? row[mapping.state] ?? '' : '',
+      address: mapping.address ? row[mapping.address] ?? '' : '',
+    },
+  }));
+
+  const completion = await groq.chat.completions.create({
+    model: MODEL,
+    temperature: 0,
+    messages: [{ role: 'user', content: buildCleaningPrompt(batch) }],
+  });
+
+  const text = completion.choices?.[0]?.message?.content || '';
+  const match = text.match(/\[[\s\S]*\]/);
+  if (!match) throw new Error('AI cleaning response was not valid JSON');
+  const parsed = JSON.parse(match[0]);
+
+  const byIndex = new Map();
+  for (const entry of parsed) {
+    if (typeof entry?.index !== 'number' || !chunk[entry.index]) continue;
+    if (entry.skip === true) {
+      result.skippedIndexes.add(entry.index);
+      continue;
+    }
+    byIndex.set(entry.index, entry);
+  }
+
+  result.cleanedRows = chunk.map((row, index) => {
+    const cleaned = byIndex.get(index);
+    if (!cleaned) return row;
+
+    const next = { ...row };
+
+    const cleanName = typeof cleaned.name === 'string' ? cleaned.name.trim() : '';
+    if (cleanName && !/license\s*#|null/i.test(cleanName) && cleanName !== String(row[mapping.name] ?? '').trim()) {
+      result.originals.set(index, String(row[mapping.name] ?? ''));
+      next[mapping.name] = cleanName;
+    }
+
+    const cleanState = typeof cleaned.state === 'string' ? cleaned.state.trim().toUpperCase() : '';
+    if (mapping.state && US_STATES.includes(cleanState)) next[mapping.state] = cleanState;
+
+    const cleanAddress = typeof cleaned.address === 'string' ? cleaned.address.trim() : '';
+    if (mapping.address && cleanAddress) next[mapping.address] = cleanAddress;
+
+    return next;
+  });
+
+  return result;
+}
+
+/**
  * Second Groq pass, run after column mapping: cleans the actual row values
  * (license numbers and brokerage names glued into the name field, "boise id
  * usa" in place of a state, and so on). Returns { rows, cleaned, skipped }
@@ -307,4 +381,4 @@ async function guessStates(candidates) {
   return results;
 }
 
-module.exports = { SCHEMA_FIELDS, mapColumns, guessStates, cleanRows };
+module.exports = { SCHEMA_FIELDS, mapColumns, guessStates, cleanRows, cleanRowsChunk };

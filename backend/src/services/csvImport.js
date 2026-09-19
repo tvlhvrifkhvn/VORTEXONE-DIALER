@@ -270,6 +270,218 @@ async function commitImport({ mapping, rows, userId, filename }) {
   return summary;
 }
 
+// ---------------------------------------------------------------------------
+// Background import jobs
+// ---------------------------------------------------------------------------
+
+const CHUNK_SIZE = 20;
+const MAX_CONCURRENT_CHUNKS = 3;
+const RETRY_DELAYS_MS = [2000, 4000, 8000]; // 3 attempts total, backing off
+
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+async function isJobCancelled(jobId) {
+  const { rows } = await db.query('SELECT cancelled FROM import_jobs WHERE id = $1', [jobId]);
+  return rows[0]?.cancelled === true;
+}
+
+/**
+ * Cleans one chunk, retrying a failed Groq call with backoff. A chunk that
+ * still fails after every attempt is returned untouched and flagged — one bad
+ * chunk must never fail the whole file.
+ */
+async function cleanChunkWithRetry(chunk, mapping) {
+  for (let attempt = 0; attempt < RETRY_DELAYS_MS.length; attempt++) {
+    try {
+      const cleaned = await aiCsvMapper.cleanRowsChunk(chunk, mapping);
+      return { ...cleaned, needsManualReview: false };
+    } catch (err) {
+      const isLastAttempt = attempt === RETRY_DELAYS_MS.length - 1;
+      if (isLastAttempt) {
+        console.error(`Import chunk failed after ${RETRY_DELAYS_MS.length} attempts:`, err.message);
+        return {
+          cleanedRows: chunk,
+          originals: new Map(),
+          skippedIndexes: new Set(),
+          needsManualReview: true,
+        };
+      }
+      await sleep(RETRY_DELAYS_MS[attempt]);
+    }
+  }
+  // Unreachable, but keeps the shape explicit.
+  return { cleanedRows: chunk, originals: new Map(), skippedIndexes: new Set(), needsManualReview: true };
+}
+
+/**
+ * Runs an import as a background job: AI-cleans the rows in chunks of 20 (up
+ * to 3 chunks in flight at once), recording progress and honouring the
+ * cancel flag as it goes, then hands the cleaned rows to the existing
+ * commitImport() so merging, dedup, the DNC check and insertion all behave
+ * exactly as they already did.
+ *
+ * Never throws at the caller — it's fire-and-forget from the route, so every
+ * outcome is written to the job row instead.
+ */
+async function processImportJob(jobId) {
+  const { rows: jobRows } = await db.query('SELECT * FROM import_jobs WHERE id = $1', [jobId]);
+  const job = jobRows[0];
+  if (!job) return;
+
+  try {
+    const sourceRows = job.source_rows || [];
+    const mapping = job.mapping || {};
+
+    const chunks = [];
+    for (let i = 0; i < sourceRows.length; i += CHUNK_SIZE) {
+      chunks.push({ index: chunks.length, rows: sourceRows.slice(i, i + CHUNK_SIZE) });
+    }
+
+    const cleanedChunks = new Array(chunks.length);
+    let processed = 0;
+    let failedRows = 0;
+    let needsManualReview = 0;
+    let cancelled = false;
+    let nextChunk = 0;
+
+    // Up to MAX_CONCURRENT_CHUNKS workers pulling from the same chunk list —
+    // faster than one at a time without firing 50 Groq calls simultaneously.
+    const worker = async () => {
+      for (;;) {
+        if (cancelled) return;
+        const current = nextChunk++;
+        if (current >= chunks.length) return;
+
+        // Checked before every chunk so a cancel lands promptly.
+        if (await isJobCancelled(jobId)) {
+          cancelled = true;
+          return;
+        }
+
+        const chunk = chunks[current];
+        const cleaned = await cleanChunkWithRetry(chunk.rows, mapping);
+        cleanedChunks[current] = cleaned;
+
+        processed += chunk.rows.length;
+        if (cleaned.needsManualReview) {
+          failedRows += chunk.rows.length;
+          needsManualReview += chunk.rows.length;
+        }
+
+        await db.query('UPDATE import_jobs SET processed_rows = $2, failed_rows = $3 WHERE id = $1', [
+          jobId,
+          processed,
+          failedRows,
+        ]);
+
+        // Checked again after the chunk, not just before claiming one: with
+        // every chunk already claimed (a small file, or fewer chunks than
+        // workers) a pre-claim check alone can never observe a cancel.
+        if (await isJobCancelled(jobId)) {
+          cancelled = true;
+          return;
+        }
+      }
+    };
+
+    await Promise.all(Array.from({ length: MAX_CONCURRENT_CHUNKS }, worker));
+
+    // Final gate before anything is written to leads — a cancel that landed
+    // while the last chunks were in flight must still prevent the insert.
+    if (!cancelled && (await isJobCancelled(jobId))) cancelled = true;
+
+    if (cancelled) {
+      await db.query(
+        `UPDATE import_jobs SET status = 'cancelled', completed_at = now() WHERE id = $1`,
+        [jobId]
+      );
+      return;
+    }
+
+    // Reassemble in original order, dropping rows the model marked
+    // unrecoverable, and remember which names it rewrote (for the ✨ marker).
+    const rowsToImport = [];
+    const originalNames = {};
+    let aiSkipped = 0;
+
+    cleanedChunks.forEach((cleaned, chunkIndex) => {
+      if (!cleaned) return;
+      cleaned.cleanedRows.forEach((row, indexInChunk) => {
+        if (cleaned.skippedIndexes.has(indexInChunk)) {
+          aiSkipped += 1;
+          return;
+        }
+        const original = cleaned.originals.get(indexInChunk);
+        if (original) originalNames[rowsToImport.length] = original;
+        rowsToImport.push(row);
+      });
+      void chunkIndex;
+    });
+
+    const summary = await commitImport({
+      mapping,
+      rows: rowsToImport,
+      userId: job.user_id,
+      filename: job.filename,
+    });
+
+    summary.needsManualReview = needsManualReview;
+    summary.aiSkipped = aiSkipped;
+    summary.originalNames = originalNames;
+
+    await db.query(
+      `UPDATE import_jobs
+       SET status = 'completed', completed_at = now(), result_summary = $2, processed_rows = $3
+       WHERE id = $1`,
+      [jobId, JSON.stringify(summary), sourceRows.length]
+    );
+  } catch (err) {
+    console.error(`Import job ${jobId} failed:`, err.message);
+    await db
+      .query(
+        `UPDATE import_jobs SET status = 'failed', error_message = $2, completed_at = now() WHERE id = $1`,
+        [jobId, err.message]
+      )
+      .catch(() => {});
+  }
+}
+
+async function createImportJob({ userId, filename, totalRows, sourceRows, mapping }) {
+  const { rows } = await db.query(
+    `INSERT INTO import_jobs (user_id, filename, status, total_rows, source_rows, mapping)
+     VALUES ($1, $2, 'pending', $3, $4, $5)
+     RETURNING id`,
+    [userId || null, filename || null, totalRows, JSON.stringify(sourceRows), JSON.stringify(mapping || {})]
+  );
+  return rows[0].id;
+}
+
+async function getImportJob(jobId) {
+  const { rows } = await db.query(
+    `SELECT id, filename, status, total_rows, processed_rows, failed_rows, result_summary,
+            error_message, cancelled, created_at, completed_at
+     FROM import_jobs WHERE id = $1`,
+    [jobId]
+  );
+  return rows[0] || null;
+}
+
+async function setJobMappingAndRows(jobId, { mapping, sourceRows, totalRows }) {
+  await db.query(
+    `UPDATE import_jobs SET mapping = $2, source_rows = $3, total_rows = $4, status = 'processing'
+     WHERE id = $1`,
+    [jobId, JSON.stringify(mapping || {}), JSON.stringify(sourceRows), totalRows]
+  );
+}
+
+async function cancelImportJob(jobId) {
+  const { rows } = await db.query(
+    `UPDATE import_jobs SET cancelled = true WHERE id = $1 RETURNING id, status`,
+    [jobId]
+  );
+  return rows[0] || null;
+}
+
 /** Last 10 imports for the Import page's history table. */
 async function getImportHistory() {
   const { rows } = await db.query(
@@ -281,4 +493,15 @@ async function getImportHistory() {
   return rows;
 }
 
-module.exports = { LEAD_FIELDS, parseCsv, guessMapping, commitImport, getImportHistory };
+module.exports = {
+  LEAD_FIELDS,
+  parseCsv,
+  guessMapping,
+  commitImport,
+  getImportHistory,
+  createImportJob,
+  getImportJob,
+  setJobMappingAndRows,
+  cancelImportJob,
+  processImportJob,
+};

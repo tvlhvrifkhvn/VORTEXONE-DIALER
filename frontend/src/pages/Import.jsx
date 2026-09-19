@@ -5,6 +5,7 @@ import NeuButton from '../components/ui/NeuButton';
 import NeuInput from '../components/ui/NeuInput';
 import ActionButton from '../components/ui/ActionButton';
 import { formatDateTime } from '../lib/format';
+import { useImportJob, trackImportJob } from '../hooks/useImportJob';
 import * as api from '../lib/api';
 
 // State isn't strictly required here even though it's mandatory on every
@@ -57,15 +58,36 @@ function ImportHistory({ refreshKey }) {
 
 export default function Import() {
   const fileInputRef = useRef(null);
-  const [step, setStep] = useState(1); // 1 = upload+detect, 2 = confirm mapping+preview, 3 = cleaning report
-  const [analysis, setAnalysis] = useState(null); // { headers, rows, mapping, confidence, needsReview, fields }
+  // 1 = upload, 1.5 = pick sheets (multi-sheet files only), 2 = confirm
+  // mapping + preview, 3 = cleaning report
+  const [step, setStep] = useState(1);
+  const [analysis, setAnalysis] = useState(null); // { jobId, headers, sampleRows, mapping, sheetNames, ... }
   const [mapping, setMapping] = useState({});
   const [filename, setFilename] = useState(null);
+  const [selectedSheets, setSelectedSheets] = useState([]);
   const [uploading, setUploading] = useState(false);
   const [committing, setCommitting] = useState(false);
   const [summary, setSummary] = useState(null);
   const [error, setError] = useState(null);
   const [historyRefreshKey, setHistoryRefreshKey] = useState(0);
+  const { job, isActive, cancelJob, clearJob } = useImportJob();
+
+  // The job runs on the server, so its result arrives here whether or not the
+  // page stayed open — including after navigating away and coming back.
+  useEffect(() => {
+    if (!job) return;
+    if (job.status === 'completed' && job.resultSummary) {
+      setSummary(job.resultSummary);
+      setStep(3);
+      setHistoryRefreshKey((k) => k + 1);
+    } else if (job.status === 'failed') {
+      setError(job.errorMessage || 'Import failed.');
+      setStep(2);
+    } else if (job.status === 'cancelled') {
+      setError('Import cancelled.');
+      setStep(2);
+    }
+  }, [job]);
 
   const handleFileChange = async (e) => {
     const file = e.target.files[0];
@@ -73,17 +95,23 @@ export default function Import() {
     setError(null);
     setUploading(true);
     try {
-      const data = await api.analyzeImport(file);
+      const data = await api.uploadImportFile(file);
       setAnalysis(data);
-      setMapping(data.mapping);
+      setMapping(data.mapping || {});
       setFilename(file.name);
-      setStep(2);
+      setSelectedSheets(data.sheetNames || []);
+      // Only ask which sheets to use when there's actually a choice.
+      setStep(data.sheetNames?.length > 1 ? 1.5 : 2);
     } catch (err) {
       setError(err.message);
     } finally {
       setUploading(false);
       e.target.value = '';
     }
+  };
+
+  const toggleSheet = (name) => {
+    setSelectedSheets((prev) => (prev.includes(name) ? prev.filter((s) => s !== name) : [...prev, name]));
   };
 
   const handleMappingChange = (field, header) => {
@@ -96,10 +124,9 @@ export default function Import() {
     setCommitting(true);
     setError(null);
     try {
-      const result = await api.commitImport(mapping, analysis.rows, filename);
-      setSummary(result);
-      setStep(3);
-      setHistoryRefreshKey((k) => k + 1);
+      const { jobId } = analysis;
+      await api.processImportJob(jobId, selectedSheets, mapping);
+      trackImportJob(jobId);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -108,13 +135,17 @@ export default function Import() {
   };
 
   const handleReset = () => {
+    clearJob();
     setStep(1);
     setAnalysis(null);
     setMapping({});
     setFilename(null);
+    setSelectedSheets([]);
     setSummary(null);
     setError(null);
   };
+
+  const selectedRowCount = selectedSheets.reduce((sum, name) => sum + (analysis?.sheetRowCounts?.[name] || 0), 0);
 
   return (
     <AppShell>
@@ -123,16 +154,81 @@ export default function Import() {
 
         {error && <NeuCard className="p-4 text-sm text-action-hangup">{error}</NeuCard>}
 
-        {step === 1 && (
+        {isActive && job && (
+          <NeuCard className="space-y-3 p-5">
+            <div className="flex items-center justify-between">
+              <h2 className="text-sm font-semibold text-text-primary">
+                Importing {job.filename || filename || 'leads'}…
+              </h2>
+              <span className="text-sm font-semibold text-text-primary">{job.percentage}%</span>
+            </div>
+            <div className="h-2.5 overflow-hidden rounded-full bg-shadow/20 shadow-neu-inset">
+              <div
+                className="h-full rounded-full bg-action-call transition-all duration-300"
+                style={{ width: `${job.percentage}%` }}
+              />
+            </div>
+            <p className="text-xs text-text-secondary">
+              {job.processedRows} of {job.totalRows} rows processed
+              {job.failedRows > 0 ? ` · ${job.failedRows} need manual review` : ''}
+            </p>
+            <p className="text-xs text-text-secondary">
+              This runs on the server — you can leave this page and it keeps going.
+            </p>
+            <NeuButton onClick={cancelJob}>Cancel import</NeuButton>
+          </NeuCard>
+        )}
+
+        {step === 1 && !isActive && (
           <NeuCard className="p-6 text-center">
-            <p className="text-sm text-text-secondary">Upload a CSV with lead name, phone, and state at minimum.</p>
+            <p className="text-sm text-text-secondary">
+              Upload a CSV or Excel file with lead name, phone, and state at minimum.
+            </p>
             <p className="mt-1 text-xs text-text-secondary">
-              We'll use AI to detect which columns map to each field.
+              We'll use AI to detect which columns map to each field. Files over 5,000 leads should be split up
+              for now.
             </p>
             <NeuButton className="mt-4" onClick={() => fileInputRef.current?.click()} disabled={uploading}>
-              {uploading ? 'Analyzing…' : 'Choose CSV file'}
+              {uploading ? 'Reading file…' : 'Choose CSV or Excel file'}
             </NeuButton>
-            <input ref={fileInputRef} type="file" accept=".csv,text/csv" onChange={handleFileChange} className="hidden" />
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".csv,text/csv,.xlsx,.xls"
+              onChange={handleFileChange}
+              className="hidden"
+            />
+          </NeuCard>
+        )}
+
+        {step === 1.5 && analysis && !isActive && (
+          <NeuCard className="space-y-3 p-5">
+            <h2 className="text-sm font-semibold text-text-primary">
+              This file has {analysis.sheetNames.length} sheets — which should we import?
+            </h2>
+            <div className="space-y-2">
+              {analysis.sheetNames.map((name) => (
+                <label key={name} className="flex cursor-pointer items-center gap-3 text-sm text-text-primary">
+                  <input
+                    type="checkbox"
+                    checked={selectedSheets.includes(name)}
+                    onChange={() => toggleSheet(name)}
+                    className="h-4 w-4 cursor-pointer accent-action-call"
+                  />
+                  <span>{name}</span>
+                  <span className="text-xs text-text-secondary">
+                    {analysis.sheetRowCounts?.[name] ?? 0} rows
+                  </span>
+                </label>
+              ))}
+            </div>
+            <p className="text-xs text-text-secondary">{selectedRowCount} rows selected</p>
+            <div className="flex gap-3">
+              <ActionButton variant="call" onClick={() => setStep(2)} disabled={selectedSheets.length === 0}>
+                Continue
+              </ActionButton>
+              <NeuButton onClick={handleReset}>Start over</NeuButton>
+            </div>
           </NeuCard>
         )}
 
@@ -196,7 +292,7 @@ export default function Import() {
                   </tr>
                 </thead>
                 <tbody>
-                  {analysis.rows.slice(0, 5).map((row, i) => (
+                  {(analysis.sampleRows || []).slice(0, 5).map((row, i) => (
                     <tr key={i} className="border-t border-shadow/20">
                       {analysis.fields.map((f) => {
                         const original = f === 'name' ? analysis.originalNames?.[i] : null;
@@ -223,7 +319,9 @@ export default function Import() {
 
             <div className="flex items-center gap-3">
               <ActionButton variant="call" onClick={handleCommit} disabled={!canContinue || committing}>
-                {committing ? 'Importing…' : `Confirm & import ${analysis.rows.length} leads`}
+                {committing
+                  ? 'Starting…'
+                  : `Confirm & import ${selectedRowCount || analysis.totalRows} leads`}
               </ActionButton>
               <NeuButton onClick={handleReset}>Start over</NeuButton>
               {!canContinue && (
@@ -241,6 +339,18 @@ export default function Import() {
               {summary.skippedDnc} skipped (DNC) · {summary.skippedDuplicate} duplicates removed ·{' '}
               {summary.skippedInvalid} invalid phones
             </p>
+            {summary.needsManualReview > 0 && (
+              <details className="rounded-input bg-action-warn/10 px-3 py-2 text-xs text-action-warn">
+                <summary className="cursor-pointer font-medium">
+                  {summary.needsManualReview} rows need manual review
+                </summary>
+                <p className="mt-2 text-text-secondary">
+                  AI cleaning couldn't run on these rows (the service didn't respond after three attempts), so
+                  they were imported with their original values. Check them in the lead list and fix any names
+                  or states that look wrong.
+                </p>
+              </details>
+            )}
             {summary.skippedDetails.length > 0 && (
               <details className="text-xs text-text-secondary">
                 <summary className="cursor-pointer">Skipped rows ({summary.skippedDetails.length} shown)</summary>
