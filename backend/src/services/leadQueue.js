@@ -130,7 +130,7 @@ function buildListFilters({ search, status, dateFrom, dateTo }) {
 
   if (search) {
     params.push(`%${search}%`);
-    clauses.push(`(name ILIKE $${params.length} OR phone ILIKE $${params.length} OR brokerage ILIKE $${params.length})`);
+    clauses.push(`(name ILIKE $${params.length} OR leads.phone ILIKE $${params.length} OR brokerage ILIKE $${params.length})`);
   }
   if (status) {
     params.push(status);
