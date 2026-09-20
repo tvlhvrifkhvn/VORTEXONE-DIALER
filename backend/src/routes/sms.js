@@ -1,10 +1,47 @@
 const express = require('express');
+const multer = require('multer');
+const path = require('path');
+const crypto = require('crypto');
 const smsService = require('../services/smsService');
 const { asyncHandler } = require('../middleware/asyncHandler');
 const { requireAuth } = require('../middleware/auth');
+const { ApiError } = require('../middleware/errorHandler');
 
 const router = express.Router();
+
+const MAX_MEDIA_BYTES = 5 * 1024 * 1024;
+const UPLOADS_DIR = path.join(__dirname, '..', '..', 'uploads');
+
+const mediaStorage = multer.diskStorage({
+  destination: (req, file, cb) => cb(null, UPLOADS_DIR),
+  filename: (req, file, cb) => {
+    const ext = path.extname(file.originalname) || '';
+    cb(null, `${Date.now()}-${crypto.randomBytes(6).toString('hex')}${ext}`);
+  },
+});
+const uploadMedia = multer({ storage: mediaStorage, limits: { fileSize: MAX_MEDIA_BYTES } });
+
 router.use(requireAuth);
+
+// MMS-style attachment plumbing (Part C) — real delivery needs Twilio
+// (phase 2); this saves the file and hands back a URL the compose box and
+// timeline can already use with the mock adapter today.
+router.post(
+  '/upload-media',
+  (req, res, next) => {
+    uploadMedia.single('file')(req, res, (err) => {
+      if (err instanceof multer.MulterError && err.code === 'LIMIT_FILE_SIZE') {
+        return next(new ApiError(400, 'File is too large — the limit is 5MB'));
+      }
+      if (err) return next(err);
+      next();
+    });
+  },
+  asyncHandler(async (req, res) => {
+    if (!req.file) throw new ApiError(400, 'No file uploaded');
+    res.status(201).json({ url: `/uploads/${req.file.filename}` });
+  })
+);
 
 router.get(
   '/templates',
@@ -43,8 +80,8 @@ router.delete(
 router.post(
   '/send',
   asyncHandler(async (req, res) => {
-    const { leadId, templateId, rawBody } = req.body;
-    const message = await smsService.sendSingleSms(leadId, { templateId, rawBody });
+    const { leadId, templateId, rawBody, mediaUrl } = req.body;
+    const message = await smsService.sendSingleSms(leadId, { templateId, rawBody, mediaUrl });
     res.status(201).json({ message });
   })
 );

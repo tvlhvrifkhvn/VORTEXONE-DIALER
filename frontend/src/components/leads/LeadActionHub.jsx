@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Mail, MessageSquare, Phone } from 'lucide-react';
+import { File, Mail, MessageSquare, Paperclip, Phone, X } from 'lucide-react';
 import NeuCard from '../ui/NeuCard';
 import NeuButton from '../ui/NeuButton';
 import NeuInput from '../ui/NeuInput';
@@ -22,7 +22,8 @@ function mergePreview(body, lead) {
     .trim();
 }
 
-/** SMS compose section within the lead detail panel — E3. */
+/** SMS compose section within the lead detail panel — E3, plus Part C's
+ * optional media attachment. */
 function SmsCompose({ lead, onSent }) {
   const [templates, setTemplates] = useState([]);
   const [templateId, setTemplateId] = useState('');
@@ -31,6 +32,10 @@ function SmsCompose({ lead, onSent }) {
   const [sending, setSending] = useState(false);
   const [error, setError] = useState(null);
   const [sent, setSent] = useState(false);
+  const [mediaUrl, setMediaUrl] = useState(null);
+  const [mediaName, setMediaName] = useState(null);
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef(null);
 
   useEffect(() => {
     api.getSmsTemplates().then(({ templates: t }) => setTemplates(t)).catch(() => {});
@@ -38,18 +43,47 @@ function SmsCompose({ lead, onSent }) {
 
   const rawBody = useCustom ? customText : templates.find((t) => String(t.id) === String(templateId))?.body || '';
   const preview = mergePreview(rawBody, lead);
-  const canSend = (useCustom ? customText.trim() : templateId) && !sending;
+  const canSend = (useCustom ? customText.trim() : templateId) && !sending && !uploading;
+
+  const handleAttachClick = () => fileInputRef.current?.click();
+
+  const handleFileSelected = async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    setUploading(true);
+    setError(null);
+    try {
+      const { url } = await api.uploadSmsMedia(file);
+      setMediaUrl(url);
+      setMediaName(file.name);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleRemoveMedia = () => {
+    setMediaUrl(null);
+    setMediaName(null);
+  };
 
   const handleSend = async () => {
     setSending(true);
     setError(null);
     try {
-      await api.sendSms({ leadId: lead.id, ...(useCustom ? { rawBody: customText } : { templateId }) });
+      await api.sendSms({
+        leadId: lead.id,
+        ...(useCustom ? { rawBody: customText } : { templateId }),
+        ...(mediaUrl ? { mediaUrl } : {}),
+      });
       setSent(true);
       onSent?.();
       setTimeout(() => setSent(false), 2000);
       setCustomText('');
       setTemplateId('');
+      handleRemoveMedia();
     } catch (err) {
       setError(err.message);
     } finally {
@@ -110,12 +144,45 @@ function SmsCompose({ lead, onSent }) {
         {segmentCount(preview.length) === 1 ? '' : 's'})
       </p>
 
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*,application/pdf"
+        className="hidden"
+        onChange={handleFileSelected}
+      />
+
+      {mediaUrl && mediaName && (
+        <div className="flex items-center gap-2 rounded-input bg-base p-2 text-xs text-text-primary">
+          {/\.(png|jpe?g|gif|webp)$/i.test(mediaName) ? (
+            <img src={api.resolveMediaUrl(mediaUrl)} alt={mediaName} className="h-10 w-10 rounded object-cover" />
+          ) : (
+            <File size={16} className="shrink-0 text-text-secondary" />
+          )}
+          <span className="min-w-0 flex-1 truncate">{mediaName}</span>
+          <button type="button" onClick={handleRemoveMedia} className="shrink-0 text-text-secondary hover:text-action-hangup">
+            <X size={14} />
+          </button>
+        </div>
+      )}
+
       {error && <p className="text-xs text-action-hangup">{error}</p>}
       {sent && <p className="text-xs text-action-contacted">Sent</p>}
 
-      <NeuButton className="w-full text-sm" onClick={handleSend} disabled={!canSend}>
-        {sending ? 'Sending…' : 'Send'}
-      </NeuButton>
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          onClick={handleAttachClick}
+          disabled={uploading || sending}
+          title="Attach a file"
+          className="flex shrink-0 items-center justify-center rounded-input p-2 text-text-secondary shadow-neu-sm hover:shadow-neu disabled:opacity-50"
+        >
+          <Paperclip size={16} />
+        </button>
+        <NeuButton className="flex-1 text-sm" onClick={handleSend} disabled={!canSend}>
+          {uploading ? 'Uploading…' : sending ? 'Sending…' : 'Send'}
+        </NeuButton>
+      </div>
     </div>
   );
 }
@@ -148,12 +215,35 @@ function TimelineEntry({ entry }) {
           isOutbound ? 'bg-action-call/10 text-text-primary' : 'bg-surface text-text-primary shadow-neu-sm'
         }`}
       >
-        <p>{entry.body}</p>
+        {entry.body && <p>{entry.body}</p>}
+        {entry.media_url && (
+          /\.(png|jpe?g|gif|webp)$/i.test(entry.media_url) ? (
+            <a href={api.resolveMediaUrl(entry.media_url)} target="_blank" rel="noreferrer">
+              <img
+                src={api.resolveMediaUrl(entry.media_url)}
+                alt="attachment"
+                className="mt-1 max-h-40 max-w-full rounded-input object-cover"
+              />
+            </a>
+          ) : (
+            <a
+              href={api.resolveMediaUrl(entry.media_url)}
+              target="_blank"
+              rel="noreferrer"
+              className="mt-1 flex items-center gap-1 text-[11px] underline"
+            >
+              <File size={12} className="shrink-0" />
+              {entry.media_url.split('/').pop()}
+            </a>
+          )
+        )}
         <p className="mt-1 text-[10px] text-text-secondary">{formatDateTime(entry.timestamp)}</p>
       </div>
     </div>
   );
 }
+
+const TIMELINE_POLL_MS = 8000;
 
 /** Action row + SMS compose + unified timeline — Part E, the lead detail
  * panel's "action hub". */
@@ -173,6 +263,26 @@ export default function LeadActionHub({ lead }) {
   };
 
   useEffect(loadTimeline, [lead.id]);
+
+  // Opening a lead's panel from anywhere (Dashboard row, Inbox row, global
+  // search) mounts this component, so this is the one place that needs to
+  // clear unread state — not every call site that can open a panel.
+  useEffect(() => {
+    api.markSmsRead(lead.id).catch(() => {});
+  }, [lead.id]);
+
+  // Poll for a new inbound reply while the panel stays open, so it shows up
+  // without closing and reopening. Stopped (interval cleared) on unmount —
+  // i.e. when the panel closes.
+  useEffect(() => {
+    const id = setInterval(() => {
+      api
+        .getLeadTimeline(lead.id)
+        .then((data) => setTimeline(data.timeline))
+        .catch(() => {});
+    }, TIMELINE_POLL_MS);
+    return () => clearInterval(id);
+  }, [lead.id]);
 
   return (
     <div className="space-y-3">
@@ -204,7 +314,7 @@ export default function LeadActionHub({ lead }) {
         </button>
       </div>
 
-      {smsOpen && <SmsCompose lead={lead} onSent={() => { setSmsOpen(false); loadTimeline(); }} />}
+      {smsOpen && <SmsCompose lead={lead} onSent={loadTimeline} />}
 
       <NeuCard inset className="max-h-64 space-y-1 overflow-y-auto p-3">
         <p className="mb-1 text-xs font-semibold text-text-secondary">History</p>

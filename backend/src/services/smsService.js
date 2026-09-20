@@ -78,19 +78,21 @@ async function resolveBody({ templateId, rawBody }, lead) {
   return { merged: mergeFields(body, lead), templateId: resolvedTemplateId };
 }
 
-/** Sends one SMS to a lead — opt-out/DNC checked before anything else. */
-async function sendSingleSms(leadId, { templateId, rawBody } = {}) {
+/** Sends one SMS to a lead — opt-out/DNC checked before anything else.
+ * mediaUrl is optional MMS-style plumbing (Part C) — the mock adapter logs
+ * and ignores it; real delivery is Twilio's job in phase 2. */
+async function sendSingleSms(leadId, { templateId, rawBody, mediaUrl } = {}) {
   const lead = await getLeadForSms(leadId);
   assertEligible(lead);
 
   const { merged, templateId: resolvedTemplateId } = await resolveBody({ templateId, rawBody }, lead);
-  await smsAdapter.sendSms(lead.phone, merged);
+  await smsAdapter.sendSms(lead.phone, merged, mediaUrl);
 
   const { rows } = await db.query(
-    `INSERT INTO sms_messages (lead_id, direction, body, template_id, status, segment_count)
-     VALUES ($1, 'outbound', $2, $3, 'sent', $4)
+    `INSERT INTO sms_messages (lead_id, direction, body, template_id, status, segment_count, media_url)
+     VALUES ($1, 'outbound', $2, $3, 'sent', $4, $5)
      RETURNING *`,
-    [leadId, merged, resolvedTemplateId, segmentCount(merged)]
+    [leadId, merged, resolvedTemplateId, segmentCount(merged), mediaUrl || null]
   );
   return rows[0];
 }
@@ -188,7 +190,7 @@ async function getTimeline(leadId) {
     [leadId]
   );
   const { rows: messages } = await db.query(
-    `SELECT id, sent_at AS timestamp, direction, body FROM sms_messages WHERE lead_id = $1 ORDER BY sent_at DESC`,
+    `SELECT id, sent_at AS timestamp, direction, body, media_url FROM sms_messages WHERE lead_id = $1 ORDER BY sent_at DESC`,
     [leadId]
   );
   const combined = [

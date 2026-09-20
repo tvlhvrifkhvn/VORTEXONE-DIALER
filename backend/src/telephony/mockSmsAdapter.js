@@ -1,7 +1,9 @@
 // CI-safe / dev SMS adapter — mirrors mockAdapter.js's role for calls.
 // twilioSmsAdapter.js (phase 2) drops in behind the same sendSms(toNumber,
-// body) signature; nothing else should need to change when it lands.
-function sendSms(toNumber, body) {
+// body, mediaUrl) signature; nothing else should need to change when it
+// lands. mediaUrl is accepted and logged only — no real MMS delivery here.
+function sendSms(toNumber, body, mediaUrl) {
+  if (mediaUrl) console.log(`[mockSmsAdapter] would attach media: ${mediaUrl}`);
   const delayMs = 300 + Math.random() * 500;
   return new Promise((resolve) => {
     setTimeout(() => {

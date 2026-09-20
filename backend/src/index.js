@@ -1,5 +1,7 @@
 const express = require('express');
 const cors = require('cors');
+const fs = require('fs');
+const path = require('path');
 const config = require('./config');
 const db = require('./db');
 const { errorHandler, notFound } = require('./middleware/errorHandler');
@@ -37,6 +39,13 @@ function corsOriginCheck(origin, callback) {
 
 app.use(cors({ origin: corsOriginCheck }));
 app.use(express.json({ limit: '5mb' }));
+
+// MMS-style media attachments on SMS (see routes/sms.js's upload-media
+// endpoint) — served back out statically from the same directory they're
+// saved to.
+const UPLOADS_DIR = path.join(__dirname, '..', 'uploads');
+fs.mkdirSync(UPLOADS_DIR, { recursive: true });
+app.use('/uploads', express.static(UPLOADS_DIR));
 
 app.get('/health', (req, res) => res.json({ status: 'ok' }));
 

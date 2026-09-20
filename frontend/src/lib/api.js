@@ -1,7 +1,45 @@
 // Central API client — the frontend never talks to the database directly,
 // every read/write goes through this file. See CLAUDE.md → API-first.
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000/api';
+const BACKEND_PORT = 4000;
+
+/**
+ * A GitHub Codespaces forwarded URL bakes the frontend's own port into its
+ * hostname (e.g. my-codespace-5173.app.github.dev) — the backend lives at
+ * the same pattern with port 4000 instead. Deriving it from the page's own
+ * location at runtime means every save action keeps working after a
+ * Codespace restart without anyone having to edit frontend/.env and restart
+ * Vite by hand — a stale VITE_API_URL pointing at a plain http://localhost
+ * is exactly what was causing every Settings/SMS-template save to fail with
+ * "Failed to fetch": Chrome's Private Network Access policy blocks a page
+ * served over https from fetching a bare http://localhost address, since
+ * that address is on the viewer's own machine, not the Codespace, once the
+ * page is loaded via its forwarded https URL. That's a browser-side block
+ * before the request ever reaches the server — unrelated to, and not fixed
+ * by, the server's CORS_ORIGIN allowlist.
+ */
+function detectApiUrl() {
+  if (typeof window !== 'undefined') {
+    const { hostname, protocol } = window.location;
+    const codespacesMatch = hostname.match(/^(.+)-(\d+)\.(app\.github\.dev|github\.dev)$/);
+    if (codespacesMatch) {
+      const [, name, , domain] = codespacesMatch;
+      return `${protocol}//${name}-${BACKEND_PORT}.${domain}/api`;
+    }
+  }
+  return import.meta.env.VITE_API_URL || `http://localhost:${BACKEND_PORT}/api`;
+}
+
+const API_URL = detectApiUrl();
+// API_URL always ends in "/api" — strip it to get the backend's plain
+// origin, e.g. for resolving an uploaded media file's relative /uploads/...
+// path (see sms.js's upload-media endpoint) to a fetchable absolute URL.
+const API_ORIGIN = API_URL.replace(/\/api$/, '');
+export function resolveMediaUrl(relativeUrl) {
+  if (!relativeUrl) return relativeUrl;
+  return `${API_ORIGIN}${relativeUrl}`;
+}
+
 const TOKEN_KEY = 'vortex_dialer_token';
 
 export function getToken() {
@@ -35,14 +73,23 @@ function showServerErrorToast() {
 
 async function request(path, { method = 'GET', body, isFormData = false } = {}) {
   const token = getToken();
-  const res = await fetch(`${API_URL}${path}`, {
-    method,
-    headers: {
-      ...(isFormData ? {} : { 'Content-Type': 'application/json' }),
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    },
-    body: isFormData ? body : body !== undefined ? JSON.stringify(body) : undefined,
-  });
+  let res;
+  try {
+    res = await fetch(`${API_URL}${path}`, {
+      method,
+      headers: {
+        ...(isFormData ? {} : { 'Content-Type': 'application/json' }),
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: isFormData ? body : body !== undefined ? JSON.stringify(body) : undefined,
+    });
+  } catch {
+    // fetch() itself rejected — the request never reached the server at
+    // all (wrong/unreachable host, DNS failure, CORS/Private-Network-Access
+    // block, offline). A real API error response is handled separately
+    // below and keeps its actual message from the response body.
+    throw new Error("Couldn't reach the server — check that the backend is running and the app's URL is up to date");
+  }
 
   if (res.status === 401) {
     setToken(null);
@@ -94,6 +141,11 @@ export const createSmsTemplate = (fields) => request('/sms/templates', { method:
 export const updateSmsTemplate = (id, fields) => request(`/sms/templates/${id}`, { method: 'PUT', body: fields });
 export const deleteSmsTemplate = (id) => request(`/sms/templates/${id}`, { method: 'DELETE' });
 export const sendSms = (payload) => request('/sms/send', { method: 'POST', body: payload });
+export const uploadSmsMedia = (file) => {
+  const formData = new FormData();
+  formData.append('file', file);
+  return request('/sms/upload-media', { method: 'POST', body: formData, isFormData: true });
+};
 export const sendBulkSms = (leadIds, templateId) =>
   request('/sms/bulk-send', { method: 'POST', body: { leadIds, templateId } });
 export const getSmsInbox = (page = 1, limit = 20) => request(`/sms/inbox?page=${page}&limit=${limit}`);

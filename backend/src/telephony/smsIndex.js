@@ -16,10 +16,10 @@ function getSmsAdapter(provider = config.smsProvider) {
 }
 
 /**
- * SmsAdapter interface — sendSms(toNumber, body) → Promise<{ success, messageId }>.
+ * SmsAdapter interface — sendSms(toNumber, body, mediaUrl?) → Promise<{ success, messageId }>.
  */
-function sendSms(toNumber, body) {
-  return getSmsAdapter().sendSms(toNumber, body);
+function sendSms(toNumber, body, mediaUrl) {
+  return getSmsAdapter().sendSms(toNumber, body, mediaUrl);
 }
 
 module.exports = { sendSms, getSmsAdapter };
