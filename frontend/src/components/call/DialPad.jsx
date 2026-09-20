@@ -4,12 +4,38 @@ import NeuCard from '../ui/NeuCard';
 import NeuButton from '../ui/NeuButton';
 import NeuInput from '../ui/NeuInput';
 import ActionButton from '../ui/ActionButton';
-import { formatDuration } from '../../lib/format';
+import { formatDuration, formatPhone } from '../../lib/format';
 import * as api from '../../lib/api';
 
 const POLL_MS = 600;
 const KEYS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '*', '0', '#'];
 const MIN_DIGITS = 10;
+
+function digitCount(str) {
+  return (str.match(/[0-9]/g) || []).length;
+}
+
+/** Keeps *,# but drops any digit past the 10-digit cap (letters don't count
+ * toward the cap, per the spec, so they're never the reason input stops). */
+function capDigits(str, max) {
+  let seen = 0;
+  let out = '';
+  for (const ch of str) {
+    if (/[0-9]/.test(ch)) {
+      if (seen >= max) continue;
+      seen += 1;
+    }
+    out += ch;
+  }
+  return out;
+}
+
+/** Display-only formatting for a raw 10-digit (or partial) dialed number. */
+function formatDialed(value) {
+  const digits = value.replace(/\D/g, '');
+  if (digits.length === 10) return formatPhone(`+1${digits}`);
+  return value;
+}
 
 // Local copy matching LeadRow.jsx's — the manual dial pad's optional "Save
 // as lead" form needs the same state list, and this codebase keeps it
@@ -112,7 +138,8 @@ function SaveAsLeadForm({ phone, onSaved, onSkip }) {
  * orphaned with no UI left to hang it up from.
  */
 export default function DialPad({ onClose }) {
-  const [digits, setDigits] = useState('');
+  // Single source of truth for typing, pasting, and every keypad press.
+  const [dialedNumber, setDialedNumber] = useState('');
   const [phase, setPhase] = useState('entry'); // entry | calling | ended
   const [call, setCall] = useState(null);
   const [telephonyState, setTelephonyState] = useState(null);
@@ -157,19 +184,44 @@ export default function DialPad({ onClose }) {
 
   const handleKey = (key) => {
     if (phase !== 'entry') return;
-    setDigits((d) => d + key);
+    setDialedNumber((prev) => capDigits(prev + key, MIN_DIGITS));
   };
 
   const handleBackspace = () => {
     if (phase !== 'entry') return;
-    setDigits((d) => d.slice(0, -1));
+    setDialedNumber((prev) => prev.slice(0, -1));
+  };
+
+  const handleClear = () => {
+    if (phase !== 'entry') return;
+    setDialedNumber('');
+  };
+
+  // Typing directly into the field: allow only 0-9,*,# and cap at 10 digits.
+  const handleInputChange = (e) => {
+    const cleaned = e.target.value.replace(/[^0-9*#]/g, '');
+    setDialedNumber(capDigits(cleaned, MIN_DIGITS));
+  };
+
+  // "+1 (305) 555-0138" -> 3055550138; an 11-digit paste starting with 1
+  // drops the leading country code so the field shows a clean 10-digit number.
+  const handlePaste = (e) => {
+    e.preventDefault();
+    const pasted = e.clipboardData.getData('text');
+    let onlyDigits = pasted.replace(/\D/g, '');
+    if (onlyDigits.length === 11 && onlyDigits.startsWith('1')) {
+      onlyDigits = onlyDigits.slice(1);
+    }
+    setDialedNumber(onlyDigits.slice(0, MIN_DIGITS));
   };
 
   const handleCall = async () => {
     setStarting(true);
     setError(null);
     try {
-      const { call: newCall } = await api.startManualCall(digits);
+      // *,# are for display only — never sent to the telephony API.
+      const toNumber = dialedNumber.replace(/[^0-9]/g, '');
+      const { call: newCall } = await api.startManualCall(toNumber);
       setCall(newCall);
       setTelephonyState(newCall.telephony_state);
       setDuration(0);
@@ -194,7 +246,8 @@ export default function DialPad({ onClose }) {
     setPhase('ended');
   };
 
-  const canDial = digits.replace(/\D/g, '').length >= MIN_DIGITS;
+  const canDial = digitCount(dialedNumber) >= MIN_DIGITS;
+  const showHelper = dialedNumber.length > 0 && !canDial;
   const callInFlight = phase === 'calling';
 
   const handleBackdropClick = () => {
@@ -223,10 +276,17 @@ export default function DialPad({ onClose }) {
 
         {phase === 'entry' && (
           <>
-            <div className="rounded-input bg-surface p-3 text-center shadow-neu-inset">
-              <span className="font-mono text-xl tracking-wider text-text-primary">
-                {digits || <span className="text-text-secondary">Enter a number</span>}
-              </span>
+            <div>
+              <input
+                type="tel"
+                value={dialedNumber}
+                onChange={handleInputChange}
+                onPaste={handlePaste}
+                placeholder="Enter a number"
+                aria-label="Phone number"
+                className="w-full rounded-input bg-surface p-3 text-center font-mono text-xl tracking-wider text-text-primary shadow-neu-inset outline-none placeholder:text-text-secondary placeholder:text-base"
+              />
+              {showHelper && <p className="mt-1 text-center text-xs text-text-secondary">Enter a 10-digit number</p>}
             </div>
 
             <div className="grid grid-cols-3 gap-3">
@@ -241,15 +301,29 @@ export default function DialPad({ onClose }) {
               ))}
             </div>
 
-            <NeuButton onClick={handleBackspace} disabled={!digits} className="w-full flex items-center justify-center gap-2">
-              <Delete size={14} /> Backspace
-            </NeuButton>
+            <div className="flex items-center gap-2">
+              <NeuButton
+                onClick={handleBackspace}
+                disabled={!dialedNumber}
+                className="flex-1 flex items-center justify-center gap-2"
+              >
+                <Delete size={14} /> Backspace
+              </NeuButton>
+              <button
+                type="button"
+                onClick={handleClear}
+                disabled={!dialedNumber}
+                className="text-xs font-medium text-text-secondary hover:text-text-primary disabled:opacity-50"
+              >
+                Clear
+              </button>
+            </div>
 
             {error && <p className="text-sm text-action-hangup">{error}</p>}
 
             <ActionButton
               variant="call"
-              className="flex w-full items-center justify-center gap-2"
+              className="flex w-full items-center justify-center gap-2 disabled:cursor-not-allowed"
               onClick={handleCall}
               disabled={!canDial || starting}
             >
@@ -261,10 +335,16 @@ export default function DialPad({ onClose }) {
 
         {phase === 'calling' && (
           <div className="space-y-4 py-4 text-center">
-            <p className="font-mono text-lg text-text-primary">{digits}</p>
+            {telephonyState !== 'answered' && (
+              <span
+                aria-hidden="true"
+                className="mx-auto block h-5 w-5 animate-spin rounded-full border-2 border-text-secondary/30 border-t-text-primary"
+              />
+            )}
             <p className="text-sm font-medium text-action-call">
-              {TELEPHONY_LABELS[telephonyState] || 'Dialing…'}
-              {telephonyState === 'answered' && ` — ${formatDuration(duration)}`}
+              {telephonyState === 'answered'
+                ? `Connected — ${formatDuration(duration)}`
+                : `${TELEPHONY_LABELS[telephonyState] || 'Calling'} ${formatDialed(dialedNumber)}...`}
             </p>
             <ActionButton variant="hangup" className="w-full" onClick={handleHangup}>
               Hang up
@@ -274,7 +354,7 @@ export default function DialPad({ onClose }) {
 
         {phase === 'ended' && (
           <div className="space-y-4 py-2 text-center">
-            <p className="font-mono text-lg text-text-primary">{digits}</p>
+            <p className="font-mono text-lg text-text-primary">{formatDialed(dialedNumber)}</p>
             <p className="text-sm text-text-secondary">
               Call ended — {formatDuration(call?.duration_seconds ?? duration)}
             </p>
@@ -282,7 +362,11 @@ export default function DialPad({ onClose }) {
             {savedLead ? (
               <p className="text-sm text-action-contacted">Saved as a lead.</p>
             ) : showSaveForm ? (
-              <SaveAsLeadForm phone={digits} onSaved={setSavedLead} onSkip={() => setShowSaveForm(false)} />
+              <SaveAsLeadForm
+                phone={dialedNumber.replace(/[^0-9]/g, '')}
+                onSaved={setSavedLead}
+                onSkip={() => setShowSaveForm(false)}
+              />
             ) : (
               <NeuButton className="w-full" onClick={() => setShowSaveForm(true)}>
                 Save as lead
