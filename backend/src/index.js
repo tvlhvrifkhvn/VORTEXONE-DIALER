@@ -15,6 +15,7 @@ const reportsRoutes = require('./routes/reports');
 const aiRoutes = require('./routes/ai');
 const sessionsRoutes = require('./routes/sessions');
 const settingsRoutes = require('./routes/settings');
+const smsRoutes = require('./routes/sms');
 
 const app = express();
 
@@ -53,6 +54,7 @@ app.use('/api/reports', reportsRoutes);
 app.use('/api/ai', aiRoutes);
 app.use('/api/sessions', sessionsRoutes);
 app.use('/api/settings', settingsRoutes);
+app.use('/api/sms', smsRoutes);
 
 app.use(notFound);
 app.use(errorHandler);
@@ -71,6 +73,8 @@ const EXPECTED_TABLES = [
   'dialing_sessions',
   'import_jobs',
   'settings',
+  'sms_templates',
+  'sms_messages',
 ];
 
 async function assertSchemaIsMigrated() {

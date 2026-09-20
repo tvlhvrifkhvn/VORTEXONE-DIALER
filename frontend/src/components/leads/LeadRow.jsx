@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { Clock, Info, Phone, Shield, X } from 'lucide-react';
 import StatusBadge from './StatusBadge';
 import AttemptBadge from './AttemptBadge';
+import LeadActionHub from './LeadActionHub';
 import NeuCard from '../ui/NeuCard';
 import NeuButton from '../ui/NeuButton';
 import NeuInput from '../ui/NeuInput';
@@ -89,6 +90,8 @@ export function LeadDetailPanel({ lead, onClose, onSaved, onDeleted }) {
               <X size={14} />
             </button>
           </div>
+
+          <LeadActionHub lead={lead} />
 
           <div className="space-y-3">
             <div>

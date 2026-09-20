@@ -1,6 +1,7 @@
 const express = require('express');
 const leadQueue = require('../services/leadQueue');
 const leadLifecycle = require('../services/leadLifecycle');
+const smsService = require('../services/smsService');
 const { asyncHandler } = require('../middleware/asyncHandler');
 const { requireAuth } = require('../middleware/auth');
 
@@ -70,6 +71,14 @@ router.get(
     const lead = await leadQueue.getById(req.params.id);
     if (!lead) return res.status(404).json({ error: 'Lead not found' });
     res.json({ lead });
+  })
+);
+
+router.get(
+  '/:id/timeline',
+  asyncHandler(async (req, res) => {
+    const timeline = await smsService.getTimeline(req.params.id);
+    res.json(timeline);
   })
 );
 

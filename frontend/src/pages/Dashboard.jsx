@@ -4,6 +4,7 @@ import AppShell from '../components/layout/AppShell';
 import StateSidebar from '../components/layout/StateSidebar';
 import LeadTable from '../components/leads/LeadTable';
 import LeadFilters from '../components/leads/LeadFilters';
+import BulkSmsModal from '../components/leads/BulkSmsModal';
 import StatCard from '../components/stats/StatCard';
 import NeuCard from '../components/ui/NeuCard';
 import NeuButton from '../components/ui/NeuButton';
@@ -105,6 +106,7 @@ export default function Dashboard() {
   const [lineCount, setLineCount] = useState(readDefaultLines);
   const [exporting, setExporting] = useState(false);
   const [selectedIds, setSelectedIds] = useState(() => new Set());
+  const [bulkSmsLeads, setBulkSmsLeads] = useState(null);
 
   useEffect(() => {
     const load = () => api.getTodayStats().then(setStats).catch(() => {});
@@ -159,6 +161,11 @@ export default function Dashboard() {
   };
 
   const clearSelection = () => setSelectedIds(new Set());
+
+  const handleOpenBulkSms = async () => {
+    const { leads: selectedLeads } = await api.batchQueueLeads(Array.from(selectedIds));
+    setBulkSmsLeads(selectedLeads);
+  };
 
   // Exactly one way to start dialing: whatever's currently checked (if
   // anything) plus the chosen line count travel to /dialer, which owns the
@@ -241,14 +248,29 @@ export default function Dashboard() {
                   {selectedIds.size} lead{selectedIds.size === 1 ? '' : 's'} selected — use "Start dialing session"
                   above to dial them
                 </span>
-                <button
-                  type="button"
-                  onClick={clearSelection}
-                  className="text-sm font-medium text-text-secondary hover:text-text-primary"
-                >
-                  Clear selection
-                </button>
+                <div className="flex items-center gap-3">
+                  <NeuButton className="text-sm" onClick={handleOpenBulkSms}>
+                    Send bulk SMS
+                  </NeuButton>
+                  <button
+                    type="button"
+                    onClick={clearSelection}
+                    className="text-sm font-medium text-text-secondary hover:text-text-primary"
+                  >
+                    Clear selection
+                  </button>
+                </div>
               </NeuCard>
+            )}
+
+            {bulkSmsLeads && (
+              <BulkSmsModal
+                leads={bulkSmsLeads}
+                onClose={() => setBulkSmsLeads(null)}
+                onSent={() => {
+                  clearSelection();
+                }}
+              />
             )}
 
             <LeadTable

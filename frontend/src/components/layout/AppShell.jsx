@@ -151,6 +151,61 @@ function GlobalSearch() {
   );
 }
 
+const SMS_POLL_MS = 30000;
+const LAST_SEEN_SMS_KEY = 'vortex_last_seen_sms_at';
+
+/** Part F3/F4 — unread-inbox badge + "new message" toast, polling the same
+ * way useSessionLive above does (no separate polling module to reuse yet
+ * for this kind of ambient cross-page state). */
+function useSmsInboxPoll() {
+  const navigate = useNavigate();
+  const [unreadLeadCount, setUnreadLeadCount] = useState(0);
+
+  useEffect(() => {
+    let cancelled = false;
+    const poll = async () => {
+      try {
+        const { leads } = await api.getSmsInbox(1, 50);
+        if (cancelled) return;
+        setUnreadLeadCount(leads.length);
+
+        const newest = leads[0];
+        if (newest?.lastMessageAt) {
+          const lastSeen = localStorage.getItem(LAST_SEEN_SMS_KEY);
+          if (!lastSeen || new Date(newest.lastMessageAt) > new Date(lastSeen)) {
+            localStorage.setItem(LAST_SEEN_SMS_KEY, newest.lastMessageAt);
+            if (lastSeen) {
+              const toast = document.createElement('button');
+              toast.type = 'button';
+              toast.textContent = `New message from ${newest.leadName}`;
+              toast.className =
+                'fixed bottom-4 right-4 z-50 animate-fade-in-row rounded-input bg-action-call px-4 py-3 text-sm ' +
+                'font-medium text-white shadow-lg';
+              toast.onclick = () => {
+                navigate('/inbox');
+                toast.remove();
+              };
+              document.body.appendChild(toast);
+              setTimeout(() => toast.remove(), 6000);
+            }
+          }
+        }
+      } catch {
+        // best-effort — a failed poll just tries again in 30s
+      }
+    };
+    poll();
+    const id = setInterval(poll, SMS_POLL_MS);
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  return unreadLeadCount;
+}
+
 const SESSION_POLL_MS = 2000;
 
 /** Whether a dialing session is currently running, for the navbar's "Live"
@@ -200,6 +255,7 @@ export default function AppShell({ children }) {
   const [darkMode, setDarkMode] = useState(getInitialDarkMode);
   const [dialPadOpen, setDialPadOpen] = useState(false);
   const sessionLive = useSessionLive();
+  const unreadSmsCount = useSmsInboxPoll();
 
   useEffect(() => {
     document.documentElement.classList.toggle('dark', darkMode);
@@ -228,6 +284,16 @@ export default function AppShell({ children }) {
               {sessionLive && (
                 <span className="rounded-full bg-action-call px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white">
                   Live
+                </span>
+              )}
+            </span>
+          </NavLink>
+          <NavLink to="/inbox" className={navLinkClasses}>
+            <span className="relative inline-flex items-center">
+              Inbox
+              {unreadSmsCount > 0 && (
+                <span className="ml-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-action-hangup px-1 text-[10px] font-semibold text-white">
+                  {unreadSmsCount}
                 </span>
               )}
             </span>

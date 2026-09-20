@@ -86,6 +86,19 @@ export const searchLeads = (q) => request(`/leads/search?q=${encodeURIComponent(
 export const batchQueueLeads = (leadIds) => request('/leads/batch-queue', { method: 'POST', body: { leadIds } });
 export const updateLead = (id, fields) => request(`/leads/${id}`, { method: 'PUT', body: fields });
 export const deleteLead = (id) => request(`/leads/${id}`, { method: 'DELETE' });
+export const getLeadTimeline = (id) => request(`/leads/${id}/timeline`);
+
+// sms
+export const getSmsTemplates = () => request('/sms/templates');
+export const createSmsTemplate = (fields) => request('/sms/templates', { method: 'POST', body: fields });
+export const updateSmsTemplate = (id, fields) => request(`/sms/templates/${id}`, { method: 'PUT', body: fields });
+export const deleteSmsTemplate = (id) => request(`/sms/templates/${id}`, { method: 'DELETE' });
+export const sendSms = (payload) => request('/sms/send', { method: 'POST', body: payload });
+export const sendBulkSms = (leadIds, templateId) =>
+  request('/sms/bulk-send', { method: 'POST', body: { leadIds, templateId } });
+export const getSmsInbox = (page = 1, limit = 20) => request(`/sms/inbox?page=${page}&limit=${limit}`);
+export const markSmsRead = (leadId) => request(`/sms/mark-read/${leadId}`, { method: 'POST' });
+export const optOutSms = (leadId) => request(`/sms/opt-out/${leadId}`, { method: 'POST' });
 
 // calls
 export const startCall = (leadId, sessionId) =>

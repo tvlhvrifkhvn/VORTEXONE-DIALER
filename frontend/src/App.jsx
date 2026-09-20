@@ -3,6 +3,8 @@ import { AuthProvider, useAuth } from './hooks/useAuth';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import DialerSession from './pages/DialerSession';
+import SmsTemplates from './pages/SmsTemplates';
+import Inbox from './pages/Inbox';
 import CallScreen from './pages/CallScreen';
 import Import from './pages/Import';
 import Reports from './pages/Reports';
@@ -38,6 +40,22 @@ function AppRoutes() {
         element={
           <RequireAuth>
             <DialerSession />
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/sms/templates"
+        element={
+          <RequireAuth>
+            <SmsTemplates />
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/inbox"
+        element={
+          <RequireAuth>
+            <Inbox />
           </RequireAuth>
         }
       />
