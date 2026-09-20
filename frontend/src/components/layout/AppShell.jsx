@@ -271,7 +271,7 @@ export default function AppShell({ children }) {
     <div className="min-h-screen bg-base">
       <header className="flex flex-wrap items-center justify-between gap-4 px-6 py-4">
         {/* Left zone: logo only. */}
-        <span className="text-lg font-semibold text-text-primary">Vortex Dialer</span>
+        <span className="text-lg font-semibold text-text-primary">Vortex Outreach</span>
 
         {/* Center zone: nav links only. */}
         <nav className="flex gap-2">

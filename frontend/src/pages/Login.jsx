@@ -31,7 +31,7 @@ export default function Login() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-base px-4">
       <NeuCard className="w-full max-w-sm p-8">
-        <h1 className="text-center text-xl font-semibold text-text-primary">Vortex Dialer</h1>
+        <h1 className="text-center text-xl font-semibold text-text-primary">Vortex Outreach</h1>
         <p className="mt-1 text-center text-sm text-text-secondary">Sign in to start dialing</p>
         <form onSubmit={handleSubmit} className="mt-6 space-y-4">
           <NeuInput
