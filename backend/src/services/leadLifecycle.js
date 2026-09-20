@@ -144,12 +144,17 @@ async function applyDisposition({ callHistoryId, disposition, note, scheduledAt 
       cascadedLeadIds = siblings.map((r) => r.id);
     }
 
+    // Recording eligibility: only a real conversation ('contacted') is ever
+    // recorded — voicemail/no_answer/busy/no_contact_*/dnc never are.
+    // recording_url stays null; Phase 2 fills it via Twilio's webhook.
+    const wasRecorded = disposition === 'contacted';
+
     await client.query(
       `UPDATE call_history
        SET disposition = $2, note = $3, ended_at = $4, duration_seconds = $5,
-           pre_disposition_snapshot = $6, disposition_at = $7
+           pre_disposition_snapshot = $6, disposition_at = $7, was_recorded = $8
        WHERE id = $1`,
-      [callHistoryId, disposition, note || null, endedAt, durationSeconds, JSON.stringify(snapshot), now]
+      [callHistoryId, disposition, note || null, endedAt, durationSeconds, JSON.stringify(snapshot), now, wasRecorded]
     );
 
     await client.query('COMMIT');

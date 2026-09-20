@@ -50,7 +50,17 @@ export default function CallHeader({ call, ended = false }) {
         <span className={`h-2.5 w-2.5 rounded-full ${STATE_DOT[state] || 'bg-text-secondary'}`} />
         <span className="text-sm font-medium text-text-primary">{STATE_LABELS[state] || state}</span>
       </div>
-      <span className="text-2xl font-semibold tabular-nums text-text-primary">{formatDuration(elapsed)}</span>
+      <div className="flex items-center gap-3">
+        {state === 'answered' && (
+          <span className="flex items-center gap-1.5">
+            <span className="h-2 w-2 rounded-full" style={{ background: '#EF4444' }} />
+            <span className="text-xs font-medium" style={{ color: 'var(--text-danger, #EF4444)' }}>
+              Recording
+            </span>
+          </span>
+        )}
+        <span className="text-2xl font-semibold tabular-nums text-text-primary">{formatDuration(elapsed)}</span>
+      </div>
     </div>
   );
 }

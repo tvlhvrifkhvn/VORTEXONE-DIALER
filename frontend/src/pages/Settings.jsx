@@ -183,6 +183,12 @@ function DialingDefaultsSection() {
             outside 8am–9pm local time for the lead's state.
           </p>
         </div>
+        <div className="rounded-input bg-surface p-3 text-xs text-text-secondary shadow-neu-inset">
+          Recordings are only saved for calls where a real conversation happened —
+          voicemails, no-answers, and busy signals are never recorded. Several US states
+          require verbally notifying the other party that a call may be recorded —
+          consider adding this line to your pitch script.
+        </div>
         {error && <p className="text-sm text-action-hangup">{error}</p>}
         {saved && <p className="text-sm text-action-contacted">Saved.</p>}
         <NeuButton type="submit">Save defaults</NeuButton>
