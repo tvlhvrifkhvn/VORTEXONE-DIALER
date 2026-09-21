@@ -119,12 +119,6 @@ export default function Dashboard() {
     localStorage.setItem(DIAL_MODE_KEY, 'multiline');
   }, []);
 
-  const handleSnooze = async (id) => {
-    await api.snoozeLead(id);
-    refresh();
-    refreshCounts();
-  };
-
   const handleExport = async () => {
     setExporting(true);
     try {
@@ -276,7 +270,6 @@ export default function Dashboard() {
             <LeadTable
               leads={leads}
               loading={loading}
-              onSnooze={handleSnooze}
               selectedState={filters.state}
               hasAnyLeads={counts.reduce((sum, c) => sum + c.total, 0) > 0}
               total={total}

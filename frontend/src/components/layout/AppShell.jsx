@@ -3,7 +3,6 @@ import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { Moon, Phone, Search, Sun } from 'lucide-react';
 import NeuButton from '../ui/NeuButton';
 import NeuInput from '../ui/NeuInput';
-import { LeadDetailPanel } from '../leads/LeadRow';
 import { useAuth } from '../../hooks/useAuth';
 import { useImportJob } from '../../hooks/useImportJob';
 import { getActiveSessionId } from '../../hooks/useCall';
@@ -77,10 +76,10 @@ function TimeZoneClock() {
 /** Navbar search across all states — debounced, shows a results dropdown,
  * and opens the lead detail panel directly on click. */
 function GlobalSearch() {
+  const navigate = useNavigate();
   const [query, setQuery] = useState('');
   const [results, setResults] = useState([]);
   const [open, setOpen] = useState(false);
-  const [selectedLead, setSelectedLead] = useState(null);
   const debounceRef = useRef(null);
   const containerRef = useRef(null);
 
@@ -129,8 +128,9 @@ function GlobalSearch() {
               <button
                 type="button"
                 onClick={() => {
-                  setSelectedLead(lead);
                   setOpen(false);
+                  setQuery('');
+                  navigate(`/leads/${lead.id}`);
                 }}
                 className="flex w-full flex-col rounded-input px-2 py-1.5 text-left hover:shadow-neu-sm"
               >
@@ -142,9 +142,6 @@ function GlobalSearch() {
             </li>
           ))}
         </ul>
-      )}
-      {selectedLead && (
-        <LeadDetailPanel lead={selectedLead} onClose={() => setSelectedLead(null)} onSaved={() => setSelectedLead(null)} onDeleted={() => setSelectedLead(null)} />
       )}
     </div>
   );

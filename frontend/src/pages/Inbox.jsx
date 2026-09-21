@@ -1,9 +1,8 @@
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import AppShell from '../components/layout/AppShell';
 import NeuCard from '../components/ui/NeuCard';
 import NeuButton from '../components/ui/NeuButton';
-import { LeadDetailPanel } from '../components/leads/LeadRow';
 import { formatRelativeToNow } from '../lib/format';
 import * as api from '../lib/api';
 
@@ -14,11 +13,11 @@ function initialsOf(name) {
 }
 
 export default function Inbox() {
+  const navigate = useNavigate();
   const [rows, setRows] = useState([]);
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
   const [confirmingOptOut, setConfirmingOptOut] = useState(null);
-  const [openLead, setOpenLead] = useState(null);
 
   const load = () => {
     setLoading(true);
@@ -41,11 +40,12 @@ export default function Inbox() {
     load();
   };
 
+  // Opening the lead's page marks its messages read on mount too
+  // (LeadActionHub does it), but this keeps the inbox badge accurate the
+  // instant the row is clicked rather than one navigation later.
   const handleOpenRow = async (row) => {
-    await api.markSmsRead(row.leadId);
-    const { lead } = await api.getLead(row.leadId);
-    setOpenLead(lead);
-    load();
+    await api.markSmsRead(row.leadId).catch(() => {});
+    navigate(`/leads/${row.leadId}`);
   };
 
   return (
@@ -124,14 +124,6 @@ export default function Inbox() {
         </div>
       </div>
 
-      {openLead && (
-        <LeadDetailPanel
-          lead={openLead}
-          onClose={() => setOpenLead(null)}
-          onSaved={(updated) => setOpenLead(updated)}
-          onDeleted={() => setOpenLead(null)}
-        />
-      )}
     </AppShell>
   );
 }

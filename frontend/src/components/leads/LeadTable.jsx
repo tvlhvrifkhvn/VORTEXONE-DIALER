@@ -4,7 +4,9 @@ import NeuCard from '../ui/NeuCard';
 import NeuButton from '../ui/NeuButton';
 import LeadRow from './LeadRow';
 
-const COLUMNS = ['Lead', 'Phone', 'State', 'Attempts', 'Status', 'Added', 'Actions'];
+// No Actions column — calling, snoozing and scheduling all moved to the lead
+// page, which a row click opens.
+const COLUMNS = ['Lead', 'Phone', 'State', 'Attempts', 'Status', 'Added'];
 const CALLBACK_DUE_SOON_MS = 2 * 60 * 60 * 1000;
 
 function isCallbackDueSoon(lead) {
@@ -34,7 +36,6 @@ function EmptyState({ hasAnyLeads, selectedState }) {
 export default function LeadTable({
   leads,
   loading,
-  onSnooze,
   selectedState = null,
   hasAnyLeads = true,
   total = 0,
@@ -100,7 +101,6 @@ export default function LeadTable({
             <LeadRow
               key={lead.id}
               lead={lead}
-              onSnooze={onSnooze}
               index={index}
               callbackDueSoon={isCallbackDueSoon(lead)}
               selected={selectedIds.has(lead.id)}
