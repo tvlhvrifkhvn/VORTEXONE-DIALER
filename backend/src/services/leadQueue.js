@@ -115,6 +115,94 @@ async function getHistory(leadId) {
   return rows;
 }
 
+/** Appends a tag to a lead, ignoring duplicates and blank input. */
+async function addTag(leadId, rawTag) {
+  const tag = (rawTag || '').replace(/\s+/g, ' ').trim();
+  if (!tag) throw new ApiError(400, 'Tag cannot be empty');
+  if (tag.length > 40) throw new ApiError(400, 'Tag is too long (40 characters max)');
+
+  const { rows } = await db.query(
+    `UPDATE leads
+     SET tags = CASE WHEN $2 = ANY(tags) THEN tags ELSE array_append(tags, $2) END,
+         updated_at = now()
+     WHERE id = $1 AND deleted_at IS NULL
+     RETURNING *`,
+    [leadId, tag]
+  );
+  if (!rows[0]) throw new ApiError(404, 'Lead not found');
+  return rows[0];
+}
+
+async function removeTag(leadId, rawTag) {
+  const { rows } = await db.query(
+    `UPDATE leads SET tags = array_remove(tags, $2), updated_at = now()
+     WHERE id = $1 AND deleted_at IS NULL
+     RETURNING *`,
+    [leadId, (rawTag || '').trim()]
+  );
+  if (!rows[0]) throw new ApiError(404, 'Lead not found');
+  return rows[0];
+}
+
+/**
+ * A note saved during a call, without submitting a disposition. Stored in
+ * lead_notes rather than call_history.note, which applyDisposition overwrites
+ * wholesale — see migration 018.
+ */
+async function addNote({ leadId, callId = null, userId = null, body }) {
+  const text = (body || '').trim();
+  if (!text) throw new ApiError(400, 'Note cannot be empty');
+
+  const { rows: leadRows } = await db.query(
+    'SELECT id FROM leads WHERE id = $1 AND deleted_at IS NULL',
+    [leadId]
+  );
+  if (!leadRows[0]) throw new ApiError(404, 'Lead not found');
+
+  const { rows } = await db.query(
+    `INSERT INTO lead_notes (lead_id, call_id, user_id, body)
+     VALUES ($1, $2, $3, $4)
+     RETURNING *`,
+    [leadId, callId || null, userId || null, text]
+  );
+  await db.query('UPDATE leads SET notes_count = notes_count + 1, updated_at = now() WHERE id = $1', [leadId]);
+  return rows[0];
+}
+
+/**
+ * Schedules a callback from the lead page, with no call in progress.
+ * leadLifecycle.applyDisposition covers the same transition, but only for a
+ * live call — it requires a call_history row to attach the disposition to.
+ * Same two writes (lead status + next_action_at, and a callbacks row) so both
+ * paths leave identical state behind.
+ */
+async function scheduleCallback(leadId, scheduledAt) {
+  const when = new Date(scheduledAt);
+  if (!scheduledAt || Number.isNaN(when.getTime())) {
+    throw new ApiError(400, 'A valid callback date and time is required');
+  }
+
+  const { rows } = await db.query(
+    `UPDATE leads
+     SET status = 'callback_scheduled', next_action_at = $2, updated_at = now()
+     WHERE id = $1 AND deleted_at IS NULL
+     RETURNING *`,
+    [leadId, when]
+  );
+  if (!rows[0]) throw new ApiError(404, 'Lead not found');
+
+  await db.query('INSERT INTO callbacks (lead_id, scheduled_at) VALUES ($1, $2)', [leadId, when]);
+  return rows[0];
+}
+
+async function listNotes(leadId) {
+  const { rows } = await db.query(
+    'SELECT id, body, call_id, created_at FROM lead_notes WHERE lead_id = $1 ORDER BY created_at DESC',
+    [leadId]
+  );
+  return rows;
+}
+
 async function countsByState() {
   await releaseStaleLocks();
   const { rows } = await db.query(
@@ -313,6 +401,11 @@ module.exports = {
   create,
   getById,
   getHistory,
+  addTag,
+  removeTag,
+  addNote,
+  listNotes,
+  scheduleCallback,
   countsByState,
   list,
   updateFields,

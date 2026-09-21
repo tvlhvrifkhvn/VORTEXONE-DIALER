@@ -134,6 +134,16 @@ export const batchQueueLeads = (leadIds) => request('/leads/batch-queue', { meth
 export const updateLead = (id, fields) => request(`/leads/${id}`, { method: 'PUT', body: fields });
 export const deleteLead = (id) => request(`/leads/${id}`, { method: 'DELETE' });
 export const getLeadTimeline = (id) => request(`/leads/${id}/timeline`);
+// Tags and mid-call notes — both usable during a call, neither requires a
+// disposition to be submitted first.
+export const addLeadTag = (id, tag) => request(`/leads/${id}/tags`, { method: 'POST', body: { tag } });
+export const removeLeadTag = (id, tag) =>
+  request(`/leads/${id}/tags/${encodeURIComponent(tag)}`, { method: 'DELETE' });
+export const getLeadNotes = (id) => request(`/leads/${id}/notes`);
+export const scheduleCallback = (id, scheduledAt) =>
+  request(`/leads/${id}/callback`, { method: 'POST', body: { scheduledAt } });
+export const addLeadNote = (id, body, callId) =>
+  request(`/leads/${id}/notes`, { method: 'POST', body: { body, callId } });
 
 // sms
 export const getSmsTemplates = () => request('/sms/templates');

@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import AppShell from '../components/layout/AppShell';
-import ContactCard from '../components/call/ContactCard';
-import CallHeader from '../components/call/CallHeader';
+import CallContactHeader from '../components/call/CallContactHeader';
+import CallActionGrid from '../components/call/CallActionGrid';
 import CallControls from '../components/call/CallControls';
 import DispositionPanel, { ScriptPanel } from '../components/call/DispositionPanel';
 import NeuCard from '../components/ui/NeuCard';
 import NeuButton from '../components/ui/NeuButton';
+import ActionButton from '../components/ui/ActionButton';
 import { useCall } from '../hooks/useCall';
 
 const DISPOSITION_LABELS = {
@@ -46,7 +47,7 @@ function CallScreenInner({ leadId }) {
   const navigate = useNavigate();
   const {
     call,
-    lead,
+    lead: dialedLead,
     error,
     starting,
     undoInfo,
@@ -55,6 +56,10 @@ function CallScreenInner({ leadId }) {
     undo,
     redial,
   } = useCall(leadId);
+  // Adding a tag mid-call returns an updated lead; useCall's copy is the one
+  // it dialed and doesn't refetch, so the newer row is layered over it.
+  const [leadOverride, setLeadOverride] = useState(null);
+  const lead = leadOverride && leadOverride.id === dialedLead?.id ? leadOverride : dialedLead;
   const [submitting, setSubmitting] = useState(false);
   const [actionError, setActionError] = useState(null);
   const [lastDisposition, setLastDisposition] = useState(null);
@@ -164,16 +169,28 @@ function CallScreenInner({ leadId }) {
   return (
     <div className="mx-auto mt-6 max-w-3xl space-y-4">
       <div className="grid grid-cols-1 gap-6 md:grid-cols-[1fr_260px]">
-        <div className="space-y-6">
-          <NeuCard className="p-5">
-            <CallHeader call={call} ended={ended} />
-            {muted && <p className="mt-2 text-xs font-semibold text-action-warn">Muted</p>}
-          </NeuCard>
+        <div className="space-y-4">
+          <CallContactHeader lead={lead} call={call} ended={ended} />
 
-          <ContactCard lead={lead} />
+          <CallActionGrid
+            lead={lead}
+            callId={call?.id}
+            onLeadUpdated={setLeadOverride}
+            muted={muted}
+            onToggleMute={() => setMuted((m) => !m)}
+          />
+
+          <ActionButton
+            variant="hangup"
+            className="w-full py-3 text-base"
+            onClick={() => setShowHangupConfirm(true)}
+            disabled={submitting || isFinalized || hungUp}
+          >
+            {hungUp ? 'Call ended' : 'End call'}
+          </ActionButton>
 
           {/* Notes, ✨ Expand, the six disposition buttons and Previous Notes
-              now live in the shared DispositionPanel, so this screen and an
+              live in the shared DispositionPanel, so this screen and an
               answered multi-line card show identical UI. */}
           <DispositionPanel
             lead={lead}
@@ -189,12 +206,7 @@ function CallScreenInner({ leadId }) {
         <div className="space-y-4">
           <ScriptPanel />
 
-          <CallControls
-            onHangup={() => setShowHangupConfirm(true)}
-            onScheduleCallback={handleScheduleCallback}
-            disabled={submitting || isFinalized}
-            hangupDisabled={submitting || isFinalized || hungUp}
-          />
+          <CallControls onScheduleCallback={handleScheduleCallback} disabled={submitting || isFinalized} />
 
           {hungUp && !isFinalized && (
             <NeuCard className="p-4 text-sm text-text-secondary">

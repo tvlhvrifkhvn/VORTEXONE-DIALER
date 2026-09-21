@@ -4,7 +4,6 @@ import { Moon, Phone, Search, Sun } from 'lucide-react';
 import NeuButton from '../ui/NeuButton';
 import NeuInput from '../ui/NeuInput';
 import { LeadDetailPanel } from '../leads/LeadRow';
-import DialPad from '../call/DialPad';
 import { useAuth } from '../../hooks/useAuth';
 import { useImportJob } from '../../hooks/useImportJob';
 import { getActiveSessionId } from '../../hooks/useCall';
@@ -253,7 +252,6 @@ export default function AppShell({ children }) {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const [darkMode, setDarkMode] = useState(getInitialDarkMode);
-  const [dialPadOpen, setDialPadOpen] = useState(false);
   const sessionLive = useSessionLive();
   const unreadSmsCount = useSmsInboxPoll();
 
@@ -318,7 +316,7 @@ export default function AppShell({ children }) {
           {user && <span className="text-sm text-text-secondary">{user.name}</span>}
           <button
             type="button"
-            onClick={() => setDialPadOpen(true)}
+            onClick={() => navigate('/call/manual')}
             title="Dial a number"
             aria-label="Dial a number"
             className="ripple flex h-9 w-9 items-center justify-center rounded-full text-action-call shadow-neu-sm transition-all duration-200 hover:shadow-neu"
@@ -340,8 +338,6 @@ export default function AppShell({ children }) {
         </div>
       </header>
       <main className="px-6 pb-10">{children}</main>
-
-      {dialPadOpen && <DialPad onClose={() => setDialPadOpen(false)} />}
     </div>
   );
 }

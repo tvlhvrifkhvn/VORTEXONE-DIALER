@@ -195,11 +195,18 @@ async function getTimeline(leadId) {
     `SELECT id, sent_at AS timestamp, direction, body, media_url FROM sms_messages WHERE lead_id = $1 ORDER BY sent_at DESC`,
     [leadId]
   );
+  // Notes taken mid-call live in their own table (migration 018) so a later
+  // disposition can't overwrite them — they join the timeline as a third source.
+  const { rows: notes } = await db.query(
+    `SELECT id, created_at AS timestamp, body FROM lead_notes WHERE lead_id = $1 ORDER BY created_at DESC`,
+    [leadId]
+  );
   const combined = [
     ...calls.map((c) => ({ type: 'call', ...c })),
     ...messages.map((m) => ({ type: 'sms', ...m })),
+    ...notes.map((n) => ({ type: 'note', ...n })),
   ].sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
-  return { calls, messages, timeline: combined };
+  return { calls, messages, notes, timeline: combined };
 }
 
 module.exports = {

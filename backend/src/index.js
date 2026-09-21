@@ -84,6 +84,7 @@ const EXPECTED_TABLES = [
   'settings',
   'sms_templates',
   'sms_messages',
+  'lead_notes',
 ];
 
 async function assertSchemaIsMigrated() {

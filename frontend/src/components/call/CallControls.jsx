@@ -1,9 +1,10 @@
 import { useState } from 'react';
-import ActionButton from '../ui/ActionButton';
 import NeuButton from '../ui/NeuButton';
 import NeuInput from '../ui/NeuInput';
 
-export default function CallControls({ onHangup, onScheduleCallback, disabled, hangupDisabled }) {
+// Hanging up moved to the call page's own prominent "End call" button, below
+// the action grid — two hangup controls on one screen invited misclicks.
+export default function CallControls({ onScheduleCallback, disabled }) {
   const [showSchedule, setShowSchedule] = useState(false);
   const [when, setWhen] = useState('');
 
@@ -16,10 +17,6 @@ export default function CallControls({ onHangup, onScheduleCallback, disabled, h
 
   return (
     <div className="flex flex-col gap-3">
-      <ActionButton variant="hangup" disabled={hangupDisabled ?? disabled} onClick={onHangup} className="w-full">
-        Hang Up
-      </ActionButton>
-
       {!showSchedule ? (
         <NeuButton onClick={() => setShowSchedule(true)} disabled={disabled} className="w-full text-sm">
           Schedule callback

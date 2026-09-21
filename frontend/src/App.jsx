@@ -6,6 +6,8 @@ import DialerSession from './pages/DialerSession';
 import SmsTemplates from './pages/SmsTemplates';
 import Inbox from './pages/Inbox';
 import CallScreen from './pages/CallScreen';
+import ManualCall from './pages/ManualCall';
+import LeadDetail from './pages/LeadDetail';
 import Import from './pages/Import';
 import Reports from './pages/Reports';
 import Settings from './pages/Settings';
@@ -59,11 +61,29 @@ function AppRoutes() {
           </RequireAuth>
         }
       />
+      {/* Must precede /call/:leadId, which would otherwise match "manual"
+          as a lead id. */}
+      <Route
+        path="/call/manual"
+        element={
+          <RequireAuth>
+            <ManualCall />
+          </RequireAuth>
+        }
+      />
       <Route
         path="/call/:leadId"
         element={
           <RequireAuth>
             <CallScreen />
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/leads/:id"
+        element={
+          <RequireAuth>
+            <LeadDetail />
           </RequireAuth>
         }
       />

@@ -24,7 +24,7 @@ function mergePreview(body, lead) {
 
 /** SMS compose section within the lead detail panel — E3, plus Part C's
  * optional media attachment. */
-function SmsCompose({ lead, onSent }) {
+export function SmsCompose({ lead, onSent }) {
   const [templates, setTemplates] = useState([]);
   const [templateId, setTemplateId] = useState('');
   const [customText, setCustomText] = useState('');

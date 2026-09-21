@@ -90,6 +90,53 @@ router.get(
   })
 );
 
+// Tags and notes are both call-screen actions: they have to work mid-call
+// without submitting a disposition, so neither goes through leadLifecycle.
+router.post(
+  '/:id/tags',
+  asyncHandler(async (req, res) => {
+    const lead = await leadQueue.addTag(req.params.id, req.body.tag);
+    res.status(201).json({ lead });
+  })
+);
+
+router.delete(
+  '/:id/tags/:tag',
+  asyncHandler(async (req, res) => {
+    const lead = await leadQueue.removeTag(req.params.id, req.params.tag);
+    res.json({ lead });
+  })
+);
+
+router.get(
+  '/:id/notes',
+  asyncHandler(async (req, res) => {
+    const notes = await leadQueue.listNotes(req.params.id);
+    res.json({ notes });
+  })
+);
+
+router.post(
+  '/:id/notes',
+  asyncHandler(async (req, res) => {
+    const note = await leadQueue.addNote({
+      leadId: req.params.id,
+      callId: req.body.callId || null,
+      userId: req.user.sub,
+      body: req.body.body,
+    });
+    res.status(201).json({ note });
+  })
+);
+
+router.post(
+  '/:id/callback',
+  asyncHandler(async (req, res) => {
+    const lead = await leadQueue.scheduleCallback(req.params.id, req.body.scheduledAt);
+    res.json({ lead });
+  })
+);
+
 router.post(
   '/:id/snooze',
   asyncHandler(async (req, res) => {

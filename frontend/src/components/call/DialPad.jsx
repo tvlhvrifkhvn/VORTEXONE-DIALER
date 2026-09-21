@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
-import { Delete, Phone, X } from 'lucide-react';
+import { Delete, Phone } from 'lucide-react';
 import NeuCard from '../ui/NeuCard';
 import NeuButton from '../ui/NeuButton';
 import NeuInput from '../ui/NeuInput';
 import ActionButton from '../ui/ActionButton';
 import { formatDuration, formatPhone } from '../../lib/format';
+import { US_STATES } from '../../lib/usStates';
 import * as api from '../../lib/api';
 
 const POLL_MS = 600;
@@ -36,16 +37,6 @@ function formatDialed(value) {
   if (digits.length === 10) return formatPhone(`+1${digits}`);
   return value;
 }
-
-// Local copy matching LeadRow.jsx's — the manual dial pad's optional "Save
-// as lead" form needs the same state list, and this codebase keeps it
-// inlined per-component rather than as a shared import (see LeadRow.jsx).
-const US_STATES = [
-  'AL', 'AK', 'AZ', 'AR', 'CA', 'CO', 'CT', 'DE', 'FL', 'GA', 'HI', 'ID', 'IL', 'IN', 'IA',
-  'KS', 'KY', 'LA', 'ME', 'MD', 'MA', 'MI', 'MN', 'MS', 'MO', 'MT', 'NE', 'NV', 'NH', 'NJ',
-  'NM', 'NY', 'NC', 'ND', 'OH', 'OK', 'OR', 'PA', 'RI', 'SC', 'SD', 'TN', 'TX', 'UT', 'VT',
-  'VA', 'WA', 'WV', 'WI', 'WY', 'DC',
-];
 
 const TELEPHONY_LABELS = {
   ringing: 'Ringing…',
@@ -131,13 +122,14 @@ function SaveAsLeadForm({ phone, onSaved, onSkip }) {
 }
 
 /**
- * Navbar dial pad — places an ad-hoc call to a typed-in number via the same
- * telephony adapter as lead dialing, but entirely outside the lead
- * lifecycle (see callSession.js's startManual/endManualCall). Closing is
- * blocked while a call is actually in flight so a live call can't be
- * orphaned with no UI left to hang it up from.
+ * Dial pad panel for the /call/manual page — places an ad-hoc call to a
+ * typed-in number via the same telephony adapter as lead dialing, but
+ * entirely outside the lead lifecycle (see callSession.js's
+ * startManual/endManualCall). `callInFlight` is reported to the page so it
+ * can block navigation away from a live call, which used to be handled by
+ * refusing to close the modal this was.
  */
-export default function DialPad({ onClose }) {
+export default function DialPad({ onDone, onCallStateChange }) {
   // Single source of truth for typing, pasting, and every keypad press.
   const [dialedNumber, setDialedNumber] = useState('');
   const [phase, setPhase] = useState('entry'); // entry | calling | ended
@@ -234,6 +226,18 @@ export default function DialPad({ onClose }) {
     }
   };
 
+  // A full page (unlike the old modal) can sensibly host back-to-back calls.
+  const handleDialAnother = () => {
+    setDialedNumber('');
+    setCall(null);
+    setTelephonyState(null);
+    setDuration(0);
+    setError(null);
+    setShowSaveForm(false);
+    setSavedLead(null);
+    setPhase('entry');
+  };
+
   const handleHangup = async () => {
     stopPolling();
     if (call) {
@@ -250,29 +254,14 @@ export default function DialPad({ onClose }) {
   const showHelper = dialedNumber.length > 0 && !canDial;
   const callInFlight = phase === 'calling';
 
-  const handleBackdropClick = () => {
-    if (!callInFlight) onClose();
-  };
+  useEffect(() => {
+    onCallStateChange?.(callInFlight);
+  }, [callInFlight, onCallStateChange]);
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 px-4"
-      onClick={handleBackdropClick}
-    >
-      <NeuCard className="w-full max-w-xs space-y-4 p-6" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center justify-between">
-          <h2 className="text-sm font-semibold text-text-primary">Dial pad</h2>
-          {!callInFlight && (
-            <button
-              type="button"
-              onClick={onClose}
-              aria-label="Close"
-              className="ripple flex h-8 w-8 items-center justify-center rounded-input text-text-secondary shadow-neu-sm hover:shadow-neu"
-            >
-              <X size={14} />
-            </button>
-          )}
-        </div>
+    <div className="mx-auto w-full max-w-xs">
+      <NeuCard className="w-full space-y-4 p-6">
+        <h2 className="text-sm font-semibold text-text-primary">Dial pad</h2>
 
         {phase === 'entry' && (
           <>
@@ -373,9 +362,14 @@ export default function DialPad({ onClose }) {
               </NeuButton>
             )}
 
-            <NeuButton className="w-full" onClick={onClose}>
-              Close
-            </NeuButton>
+            <div className="flex gap-2">
+              <NeuButton className="flex-1" onClick={handleDialAnother}>
+                Dial another
+              </NeuButton>
+              <NeuButton className="flex-1" onClick={onDone}>
+                Done
+              </NeuButton>
+            </div>
           </div>
         )}
       </NeuCard>
