@@ -22,7 +22,28 @@ function cleanLeadName(raw) {
 }
 
 const LEAD_FIELDS = ['name', 'phone', 'email', 'address', 'brokerage', 'state'];
+// Mappable but not leads columns. `source` is the secondary column that
+// carries the brokerage when the primary one's cell is blank (see
+// resolveBrokerage); `city` is a city-only locality column, which scraped
+// files often have instead of a full address — it feeds state resolution and
+// the merge identity.
+const SOURCE_FIELD = 'source';
+const CITY_FIELD = 'city';
+const MAPPABLE_FIELDS = [...LEAD_FIELDS, CITY_FIELD, SOURCE_FIELD];
 const MAX_SKIPPED_DETAILS = 100;
+
+/**
+ * Real scraped files put the brokerage in different columns row by row: an
+ * "office" column that's populated for some agents and blank for others, with
+ * a "source" column carrying it in exactly the blank cases. Choosing one
+ * column for the whole file is wrong for half of it either way, so the
+ * fallback is applied per row.
+ */
+function resolveBrokerage(row, mapping) {
+  const primary = mapping.brokerage ? cleanText(row[mapping.brokerage]) : '';
+  if (primary) return primary;
+  return mapping[SOURCE_FIELD] ? cleanText(row[mapping[SOURCE_FIELD]]) : '';
+}
 
 /** Parses a CSV buffer into headers + row objects. Does not touch the DB. */
 function parseCsv(buffer) {
@@ -47,7 +68,7 @@ function guessMapping(headers) {
   const mapping = {};
   const used = new Set();
 
-  for (const field of LEAD_FIELDS) {
+  for (const field of MAPPABLE_FIELDS) {
     const exact = normalized.find((h) => !used.has(h.header) && h.key === field);
     const partial = normalized.find((h) => !used.has(h.header) && h.key.includes(field));
     const match = exact || partial;
@@ -59,11 +80,27 @@ function guessMapping(headers) {
   return mapping;
 }
 
+/** The locality half of a merge identity — whichever of city/address/state the
+ * file actually carries, normalized so "texas-city, TX" and "Texas City TX"
+ * compare equal. Blank when the file has no locality column at all. */
+function localityKey(row, mapping) {
+  const raw =
+    (mapping.city ? cleanText(row[mapping.city]) : '') ||
+    (mapping.address ? cleanText(row[mapping.address]) : '') ||
+    (mapping.state ? cleanText(row[mapping.state]) : '');
+  return raw.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+}
+
 /**
  * Scraped agent lists repeat the same person across rows: one row carries the
  * dirty name plus the phone/email, another carries the clean name with no
- * contact details. Merging them by name keeps one complete lead instead of
- * importing a usable row and a useless one.
+ * contact details. Merging them keeps one complete lead instead of importing a
+ * usable row and a useless one.
+ *
+ * Identity is name AND locality, not name alone — two different agents can
+ * share a name in different markets, and collapsing those loses a real person.
+ * Rows with no locality data at all still group on name, since two blank
+ * localities match each other.
  *
  * Runs before the per-row import loop below, purely on the in-memory rows —
  * the DNC check, phone validation and existing-lead dedup are untouched and
@@ -75,7 +112,8 @@ function mergeDuplicateRows(mapping, rows) {
   let mergedCount = 0;
 
   for (const row of rows) {
-    const key = cleanLeadName(row[mapping.name]).toLowerCase();
+    const name = cleanLeadName(row[mapping.name]).toLowerCase();
+    const key = name ? `${name}|${localityKey(row, mapping)}` : '';
     if (!key) {
       // No usable name to group on — leave it for the import loop to reject.
       byName.set(`__unkeyed_${byName.size}`, row);
@@ -150,6 +188,7 @@ async function commitImport({ mapping, rows, userId, filename }) {
     skippedDuplicate: 0,
     skippedInvalid: 0,
     mergedDuplicates: 0,
+    importedWithoutPhone: 0,
     skippedDetails: [],
   };
 
@@ -172,9 +211,14 @@ async function commitImport({ mapping, rows, userId, filename }) {
     const phone = normalizePhone(rawPhone);
     const name = cleanLeadName(row[mapping.name]);
     const address = mapping.address ? cleanText(row[mapping.address]) : '';
+    // A city-only column ("boise id usa") is the only locality a scraped row
+    // may carry, and it's the sole state source for a row with no phone —
+    // the area-code tier below can't help those.
+    const city = mapping.city ? cleanText(row[mapping.city]) : '';
+    const locationText = [address, city].filter(Boolean).join(' ');
 
     let state = mapping.state ? cleanText(row[mapping.state]).toUpperCase() : '';
-    if (!US_STATES.includes(state)) state = stateFromAddressText(address) || '';
+    if (!US_STATES.includes(state)) state = stateFromAddressText(locationText) || '';
     if (!US_STATES.includes(state) && phone) state = stateFromAreaCode(phone) || '';
 
     return {
@@ -182,17 +226,19 @@ async function commitImport({ mapping, rows, userId, filename }) {
       rawPhone,
       phone,
       name,
-      address,
+      address: address || city,
       state: US_STATES.includes(state) ? state : null,
     };
   });
 
   // Pass 2 — last-resort AI guess (validated against US_STATES) for
   // otherwise-valid rows that still have no state, capped and batched inside
-  // aiCsvMapper.guessStates. Rows with no name/phone aren't worth the call.
+  // aiCsvMapper.guessStates. Rows with no name aren't worth the call — but
+  // phoneless ones are exactly the rows that need it most, since they skipped
+  // the area-code tier above.
   const needsAiState = prepared
     .map((p, index) => ({ ...p, index }))
-    .filter((p) => p.name && p.phone && !p.state);
+    .filter((p) => p.name && !p.state);
 
   if (needsAiState.length > 0) {
     const guesses = await aiCsvMapper.guessStates(
@@ -200,7 +246,7 @@ async function commitImport({ mapping, rows, userId, filename }) {
         index: p.index,
         name: p.name,
         address: p.address,
-        brokerage: mapping.brokerage ? cleanText(p.row[mapping.brokerage]) : '',
+        brokerage: resolveBrokerage(p.row, mapping),
       }))
     );
     for (const [index, state] of guesses) {
@@ -215,9 +261,9 @@ async function commitImport({ mapping, rows, userId, filename }) {
   for (const p of prepared) {
     const { row, rawPhone, phone, name, address, state } = p;
 
-    if (!name || !phone) {
+    if (!name) {
       summary.skippedInvalid += 1;
-      skip(row, !name ? 'Missing name' : `Invalid phone number: "${rawPhone}"`);
+      skip(row, 'Missing name');
       continue;
     }
     if (!state) {
@@ -226,39 +272,61 @@ async function commitImport({ mapping, rows, userId, filename }) {
       continue;
     }
 
-    if (seenPhones.has(phone)) {
-      summary.skippedDuplicate += 1;
-      skip(row, `Duplicate phone number within this file: ${phone}`);
-      continue;
-    }
-    seenPhones.add(phone);
+    // A row with a name but no usable phone is a real person from a partial
+    // scrape, not junk — import it flagged and non-dialable rather than
+    // dropping it (CLAUDE.md: no lead ever silently disappears).
+    const missingPhone = !phone;
 
-    if (await dncCheck.isOnDncList(phone)) {
-      summary.skippedDnc += 1;
-      skip(row, `Phone number is on the DNC list: ${phone}`);
-      continue;
-    }
+    if (phone) {
+      if (seenPhones.has(phone)) {
+        summary.skippedDuplicate += 1;
+        skip(row, `Duplicate phone number within this file: ${phone}`);
+        continue;
+      }
+      seenPhones.add(phone);
 
-    const { rows: existing } = await db.query('SELECT id FROM leads WHERE phone = $1', [phone]);
-    if (existing.length > 0) {
-      summary.skippedDuplicate += 1;
-      skip(row, `Lead with this phone number already exists: ${phone}`);
-      continue;
+      if (await dncCheck.isOnDncList(phone)) {
+        summary.skippedDnc += 1;
+        skip(row, `Phone number is on the DNC list: ${phone}`);
+        continue;
+      }
+
+      const { rows: existing } = await db.query('SELECT id FROM leads WHERE phone = $1', [phone]);
+      if (existing.length > 0) {
+        summary.skippedDuplicate += 1;
+        skip(row, `Lead with this phone number already exists: ${phone}`);
+        continue;
+      }
+    } else {
+      // No phone to dedupe on, so re-importing the same file would stack
+      // copies — match on the name+state identity instead.
+      const { rows: existing } = await db.query(
+        `SELECT id FROM leads
+         WHERE phone IS NULL AND lower(name) = lower($1) AND state = $2 AND deleted_at IS NULL`,
+        [name, state]
+      );
+      if (existing.length > 0) {
+        summary.skippedDuplicate += 1;
+        skip(row, `Lead without a phone number already exists: ${name} (${state})`);
+        continue;
+      }
     }
 
     await db.query(
-      `INSERT INTO leads (name, phone, email, address, brokerage, state, status)
-       VALUES ($1, $2, $3, $4, $5, $6, 'new')`,
+      `INSERT INTO leads (name, phone, email, address, brokerage, state, status, missing_phone)
+       VALUES ($1, $2, $3, $4, $5, $6, 'new', $7)`,
       [
         name,
         phone,
         mapping.email ? cleanText(row[mapping.email]) || null : null,
         address || null,
-        mapping.brokerage ? cleanText(row[mapping.brokerage]) || null : null,
+        resolveBrokerage(row, mapping) || null,
         state,
+        missingPhone,
       ]
     );
     summary.imported += 1;
+    if (missingPhone) summary.importedWithoutPhone += 1;
   }
 
   await db.query(

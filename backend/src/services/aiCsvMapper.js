@@ -15,8 +15,12 @@ const MAX_STATE_GUESS_ROWS = 200;
 // replacement for that small/cheap tier — gpt-oss-120b is the (pricier)
 // replacement for the larger 70b-class models, not needed here.
 const MODEL = 'openai/gpt-oss-20b';
-const SCHEMA_FIELDS = ['name', 'phone', 'email', 'address', 'brokerage', 'state'];
+// `source` is not a leads column — it's a mapping-only slot for the secondary
+// column that scraped lists sometimes put the brokerage in when the primary
+// office column is blank. csvImport.resolveBrokerage applies it per row.
+const SCHEMA_FIELDS = ['name', 'phone', 'email', 'address', 'brokerage', 'state', 'city', 'source'];
 const LOW_CONFIDENCE = 'low';
+const OPTIONAL_FIELDS = ['city', 'source'];
 const UNAVAILABLE_MESSAGE = 'AI mapping unavailable — please map columns manually.';
 
 if (!process.env.GROQ_API_KEY) {
@@ -57,6 +61,16 @@ function buildPrompt(headers, sampleRows) {
 
 Schema fields: ${SCHEMA_FIELDS.join(', ')}
 
+Field meanings:
+- brokerage: the agent's brokerage/office name. Prefer a column literally holding an
+  office or brokerage name (e.g. "office"), even when many of its cells are blank.
+- source: a SECONDARY column that sometimes carries the brokerage name when the
+  brokerage column's cell is blank (e.g. a "source" column reading "Keller Williams").
+  Map it here rather than to brokerage — blank brokerage cells fall back to it per row.
+- address: a full street address, if the file has one.
+- city: a city/locality column, including messy scraped forms like
+  "boise id usa" or "texas-city, TX". Map those here, not to address.
+
 CSV headers: ${JSON.stringify(headers)}
 
 Sample rows:
@@ -65,8 +79,8 @@ ${sample}
 For each schema field, pick the CSV header that best matches it (or null if no header matches).
 Respond with ONLY a JSON object, no prose, in exactly this shape:
 {
-  "mapping": { "name": "<header or null>", "phone": "<header or null>", "email": "<header or null>", "address": "<header or null>", "brokerage": "<header or null>", "state": "<header or null>" },
-  "confidence": { "name": "high|medium|low", "phone": "high|medium|low", "email": "high|medium|low", "address": "high|medium|low", "brokerage": "high|medium|low", "state": "high|medium|low" }
+  "mapping": { "name": "<header or null>", "phone": "<header or null>", "email": "<header or null>", "address": "<header or null>", "brokerage": "<header or null>", "state": "<header or null>", "city": "<header or null>", "source": "<header or null>" },
+  "confidence": { "name": "high|medium|low", "phone": "high|medium|low", "email": "high|medium|low", "address": "high|medium|low", "brokerage": "high|medium|low", "state": "high|medium|low", "city": "high|medium|low", "source": "high|medium|low" }
 }`;
 }
 
@@ -111,6 +125,9 @@ async function mapColumns(headers, sampleRows = []) {
     mapping[field] = header && headers.includes(header) ? header : null;
     const fieldConfidence = (parsed.confidence?.[field] || 'low').toLowerCase();
     confidence[field] = fieldConfidence;
+    // Plenty of files have no city or secondary-brokerage column at all, so
+    // leaving these unmapped is normal, not something to send a human to review.
+    if (OPTIONAL_FIELDS.includes(field)) continue;
     if (!mapping[field] || fieldConfidence === LOW_CONFIDENCE) {
       needsReview.push(field);
     }

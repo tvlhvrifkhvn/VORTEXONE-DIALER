@@ -339,6 +339,12 @@ export default function Import() {
               {summary.skippedDnc} skipped (DNC) · {summary.skippedDuplicate} duplicates removed ·{' '}
               {summary.skippedInvalid} invalid phones
             </p>
+            {summary.importedWithoutPhone > 0 && (
+              <p className="rounded-input bg-action-warn/10 px-3 py-2 text-xs font-medium text-action-warn">
+                {summary.importedWithoutPhone} leads imported without a phone number (visible in the list,
+                not dialable until a number is added manually).
+              </p>
+            )}
             {summary.needsManualReview > 0 && (
               <details className="rounded-input bg-action-warn/10 px-3 py-2 text-xs text-action-warn">
                 <summary className="cursor-pointer font-medium">

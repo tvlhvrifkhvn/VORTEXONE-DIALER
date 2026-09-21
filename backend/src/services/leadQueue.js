@@ -39,6 +39,7 @@ async function candidates(limit = 50) {
     `SELECT * FROM leads
      WHERE dnc_flag = false
        AND deleted_at IS NULL
+       AND missing_phone = false
        AND status = ANY($1)
        AND (next_action_at IS NULL OR next_action_at <= now())
      ${CANDIDATE_ORDER_SQL}
@@ -68,6 +69,11 @@ async function lockNext({ userId, leadId = null }) {
     const { rows } = await db.query('SELECT * FROM leads WHERE id = $1', [leadId]);
     lead = rows[0];
     if (!lead) throw new ApiError(404, 'Lead not found');
+    // This by-id path bypasses candidates() entirely, so it needs its own
+    // phoneless guard — otherwise a flagged lead clicked from the table dials.
+    if (lead.missing_phone || !lead.phone) {
+      throw new ApiError(409, 'This lead has no phone number yet — add one before calling.');
+    }
     if (lead.dnc_flag || !DIALABLE_STATUSES.includes(lead.status)) {
       throw new ApiError(409, `Lead is not dialable (status: ${lead.status})`);
     }
@@ -113,8 +119,8 @@ async function countsByState() {
   await releaseStaleLocks();
   const { rows } = await db.query(
     `SELECT state, count(*)::int AS total,
-            count(*) FILTER (WHERE status = ANY($1) AND (next_action_at IS NULL OR next_action_at <= now())) AS dialable,
-            count(*) FILTER (WHERE status IN ('new', 'in_queue')) AS uncontacted
+            count(*) FILTER (WHERE missing_phone = false AND status = ANY($1) AND (next_action_at IS NULL OR next_action_at <= now())) AS dialable,
+            count(*) FILTER (WHERE missing_phone = false AND status IN ('new', 'in_queue')) AS uncontacted
      FROM leads
      WHERE deleted_at IS NULL
      GROUP BY state
@@ -282,7 +288,7 @@ async function batchQueue(ids) {
   if (!Array.isArray(ids) || ids.length === 0) return [];
   const { rows } = await db.query(
     `SELECT * FROM leads
-     WHERE id = ANY($1) AND deleted_at IS NULL
+     WHERE id = ANY($1) AND deleted_at IS NULL AND missing_phone = false
      ORDER BY
        CASE
          WHEN status = 'callback_scheduled' THEN 0

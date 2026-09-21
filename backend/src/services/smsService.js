@@ -63,6 +63,8 @@ async function getLeadForSms(leadId) {
 function assertEligible(lead) {
   if (lead.dnc_flag) throw new ApiError(400, 'This lead is on the Do Not Call list');
   if (lead.sms_opt_out) throw new ApiError(400, 'This lead has opted out of SMS');
+  // leads.phone became nullable for partial-scrape imports (migration 017).
+  if (!lead.phone) throw new ApiError(400, 'This lead has no phone number yet — add one before texting.');
 }
 
 async function resolveBody({ templateId, rawBody }, lead) {

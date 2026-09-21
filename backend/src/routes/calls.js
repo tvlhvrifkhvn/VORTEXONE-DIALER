@@ -65,7 +65,7 @@ router.post(
     let lead;
     if (leadId) {
       const { rows } = await db.query(
-        'SELECT * FROM leads WHERE id = $1 AND status = $2 AND locked_by = $3',
+        'SELECT * FROM leads WHERE id = $1 AND status = $2 AND locked_by = $3 AND missing_phone = false',
         [leadId, 'in_progress', req.user.sub]
       );
       lead = rows[0];
