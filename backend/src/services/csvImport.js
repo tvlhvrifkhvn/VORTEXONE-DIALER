@@ -4,6 +4,7 @@ const { ApiError } = require('../middleware/errorHandler');
 const { normalizePhone } = require('../utils/phoneNormalize');
 const { stateFromAreaCode } = require('../utils/stateFromAreaCode');
 const { stateFromAddressText } = require('../utils/stateFromAddressText');
+const { buildOfficeKey } = require('../utils/officeKey');
 const { US_STATES } = require('../utils/usStates');
 const dncCheck = require('./dncCheck');
 const aiCsvMapper = require('./aiCsvMapper');
@@ -227,6 +228,9 @@ async function commitImport({ mapping, rows, userId, filename }) {
       phone,
       name,
       address: address || city,
+      // Kept separately from address: a mapped city column is a cleaner
+      // office-grouping input than re-parsing it back out of the address.
+      city,
       state: US_STATES.includes(state) ? state : null,
     };
   });
@@ -259,7 +263,7 @@ async function commitImport({ mapping, rows, userId, filename }) {
   const seenPhones = new Set();
 
   for (const p of prepared) {
-    const { row, rawPhone, phone, name, address, state } = p;
+    const { row, rawPhone, phone, name, address, city, state } = p;
 
     if (!name) {
       summary.skippedInvalid += 1;
@@ -312,17 +316,20 @@ async function commitImport({ mapping, rows, userId, filename }) {
       }
     }
 
+    const brokerage = resolveBrokerage(row, mapping) || null;
+
     await db.query(
-      `INSERT INTO leads (name, phone, email, address, brokerage, state, status, missing_phone)
-       VALUES ($1, $2, $3, $4, $5, $6, 'new', $7)`,
+      `INSERT INTO leads (name, phone, email, address, brokerage, state, status, missing_phone, office_key)
+       VALUES ($1, $2, $3, $4, $5, $6, 'new', $7, $8)`,
       [
         name,
         phone,
         mapping.email ? cleanText(row[mapping.email]) || null : null,
         address || null,
-        resolveBrokerage(row, mapping) || null,
+        brokerage,
         state,
         missingPhone,
+        buildOfficeKey({ brokerage, address, city, state }),
       ]
     );
     summary.imported += 1;

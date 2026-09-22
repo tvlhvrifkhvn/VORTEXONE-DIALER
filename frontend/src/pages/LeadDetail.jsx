@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, PhoneOff } from 'lucide-react';
 import AppShell from '../components/layout/AppShell';
 import LeadActionHub from '../components/leads/LeadActionHub';
+import ColleagueCard from '../components/leads/ColleagueCard';
 import NeuCard from '../components/ui/NeuCard';
 import NeuButton from '../components/ui/NeuButton';
 import NeuInput from '../components/ui/NeuInput';
@@ -171,6 +172,8 @@ export default function LeadDetail() {
             </div>
           )}
         </NeuCard>
+
+        <ColleagueCard leadId={lead.id} />
 
         <LeadActionHub lead={lead} />
 

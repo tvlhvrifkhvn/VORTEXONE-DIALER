@@ -6,6 +6,10 @@ import NeuInput from '../ui/NeuInput';
 import { SmsCompose } from '../leads/LeadActionHub';
 import * as api from '../../lib/api';
 
+// Read by colleagueIntel.js when summarizing an office — keep in sync with
+// CLIENT_TAG / INTERESTED_TAG there.
+const SUGGESTED_TAGS = ['interested', 'client'];
+
 function GridButton({ icon: Icon, label, onClick, active = false, disabled = false, title }) {
   return (
     <button
@@ -49,12 +53,13 @@ export default function CallActionGrid({ lead, callId, onLeadUpdated, muted = fa
     setTimeout(() => setFlash(null), 2000);
   };
 
-  const handleAddTag = async () => {
-    if (!tagText.trim()) return;
+  const handleAddTag = async (explicitTag) => {
+    const tag = (explicitTag ?? tagText).trim();
+    if (!tag) return;
     setBusy(true);
     setError(null);
     try {
-      const { lead: updated } = await api.addLeadTag(lead.id, tagText);
+      const { lead: updated } = await api.addLeadTag(lead.id, tag);
       onLeadUpdated?.(updated);
       setTagText('');
       showFlash('Tag added');
@@ -155,18 +160,37 @@ export default function CallActionGrid({ lead, callId, onLeadUpdated, muted = fa
       )}
 
       {openPanel === 'tag' && (
-        <div className="flex gap-2">
-          <NeuInput
-            value={tagText}
-            onChange={(e) => setTagText(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && handleAddTag()}
-            placeholder="e.g. interested, callback, gatekeeper"
-            className="flex-1 text-sm"
-            autoFocus
-          />
-          <NeuButton className="text-sm" onClick={handleAddTag} disabled={busy || !tagText.trim()}>
-            Add
-          </NeuButton>
+        <div className="space-y-2">
+          <div className="flex gap-2">
+            <NeuInput
+              value={tagText}
+              onChange={(e) => setTagText(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleAddTag()}
+              placeholder="e.g. interested, callback, gatekeeper"
+              className="flex-1 text-sm"
+              autoFocus
+            />
+            <NeuButton className="text-sm" onClick={() => handleAddTag()} disabled={busy || !tagText.trim()}>
+              Add
+            </NeuButton>
+          </div>
+          {/* `client` and `interested` are the two tags colleagueIntel reads
+              to build an office's social proof, so they get one-tap entry
+              rather than relying on the rep spelling them the same way. */}
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className="text-[11px] text-text-secondary">Quick:</span>
+            {SUGGESTED_TAGS.map((tag) => (
+              <button
+                key={tag}
+                type="button"
+                onClick={() => handleAddTag(tag)}
+                disabled={busy || lead.tags?.includes(tag)}
+                className="rounded-full px-2 py-0.5 text-[11px] text-text-primary shadow-neu-sm hover:shadow-neu disabled:opacity-40"
+              >
+                {tag}
+              </button>
+            ))}
+          </div>
         </div>
       )}
 

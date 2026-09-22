@@ -3,6 +3,7 @@ import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import AppShell from '../components/layout/AppShell';
 import CallContactHeader from '../components/call/CallContactHeader';
 import CallActionGrid from '../components/call/CallActionGrid';
+import ColleagueCard from '../components/leads/ColleagueCard';
 import CallControls from '../components/call/CallControls';
 import DispositionPanel, { ScriptPanel } from '../components/call/DispositionPanel';
 import NeuCard from '../components/ui/NeuCard';
@@ -171,6 +172,8 @@ function CallScreenInner({ leadId }) {
       <div className="grid grid-cols-1 gap-6 md:grid-cols-[1fr_260px]">
         <div className="space-y-4">
           <CallContactHeader lead={lead} call={call} ended={ended} />
+
+          <ColleagueCard leadId={lead.id} />
 
           <CallActionGrid
             lead={lead}

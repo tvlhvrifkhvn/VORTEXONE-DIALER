@@ -2,6 +2,7 @@ const express = require('express');
 const leadQueue = require('../services/leadQueue');
 const leadLifecycle = require('../services/leadLifecycle');
 const smsService = require('../services/smsService');
+const colleagueIntel = require('../services/colleagueIntel');
 const { asyncHandler } = require('../middleware/asyncHandler');
 const { requireAuth } = require('../middleware/auth');
 
@@ -87,6 +88,16 @@ router.get(
   asyncHandler(async (req, res) => {
     const history = await leadQueue.getHistory(req.params.id);
     res.json({ history });
+  })
+);
+
+// What's already happened with other agents at the same office — social
+// proof for the call opener. See services/colleagueIntel.js.
+router.get(
+  '/:id/colleagues',
+  asyncHandler(async (req, res) => {
+    const summary = await colleagueIntel.getColleagueSummary(req.params.id);
+    res.json(summary);
   })
 );
 
