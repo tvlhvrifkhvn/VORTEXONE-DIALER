@@ -187,7 +187,94 @@ export function SmsCompose({ lead, onSent }) {
   );
 }
 
+/** Email compose section — Part C. Same merge-field preview pattern as
+ * SmsCompose, minus templates/segments/attachments, none of which the brief
+ * asked for on this channel. */
+export function EmailCompose({ lead, onSent }) {
+  const [subject, setSubject] = useState('');
+  const [body, setBody] = useState('');
+  const [sending, setSending] = useState(false);
+  const [error, setError] = useState(null);
+  const [sent, setSent] = useState(false);
+
+  const previewSubject = mergePreview(subject, lead);
+  const previewBody = mergePreview(body, lead);
+  const canSend = body.trim() && !sending;
+
+  const handleSend = async () => {
+    setSending(true);
+    setError(null);
+    try {
+      await api.sendEmail({ leadId: lead.id, subject, body });
+      setSent(true);
+      onSent?.();
+      setTimeout(() => setSent(false), 2000);
+      setSubject('');
+      setBody('');
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSending(false);
+    }
+  };
+
+  if (!lead.email) {
+    return (
+      <p className="rounded-input bg-surface p-3 text-xs text-text-secondary shadow-neu-inset">
+        No email address on file for this lead.
+      </p>
+    );
+  }
+
+  return (
+    <div className="space-y-2 rounded-input bg-surface p-3 shadow-neu-inset">
+      <NeuInput
+        value={subject}
+        onChange={(e) => setSubject(e.target.value)}
+        placeholder="Subject"
+        className="w-full text-sm"
+      />
+      <NeuInput
+        as="textarea"
+        value={body}
+        onChange={(e) => setBody(e.target.value)}
+        className="w-full resize-none"
+        style={{ minHeight: 100 }}
+        placeholder="Write a message… use {{name}}, {{brokerage}}, {{state}}"
+      />
+
+      {(previewSubject || previewBody) && (
+        <div className="rounded-input bg-base p-2 text-xs text-text-primary">
+          {previewSubject && <p className="font-medium">{previewSubject}</p>}
+          {previewBody && <p className="mt-1 whitespace-pre-wrap">{previewBody}</p>}
+        </div>
+      )}
+
+      {error && <p className="text-xs text-action-hangup">{error}</p>}
+      {sent && <p className="text-xs text-action-contacted">Sent</p>}
+
+      <NeuButton className="w-full text-sm" onClick={handleSend} disabled={!canSend}>
+        {sending ? 'Sending…' : 'Send'}
+      </NeuButton>
+    </div>
+  );
+}
+
 function TimelineEntry({ entry }) {
+  if (entry.type === 'email') {
+    return (
+      <div className="flex items-start gap-2 border-b border-shadow/20 py-2 last:border-0">
+        <Mail size={14} className="mt-0.5 shrink-0 text-text-secondary" />
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2 text-xs">
+            <span className="font-medium text-text-primary">{entry.subject || '(no subject)'}</span>
+            <span className="text-text-secondary">{formatDateTime(entry.timestamp)}</span>
+          </div>
+          {entry.body && <p className="mt-0.5 whitespace-pre-wrap text-xs text-text-secondary">{entry.body}</p>}
+        </div>
+      </div>
+    );
+  }
   if (entry.type === 'call') {
     return (
       <div className="flex items-start gap-2 border-b border-shadow/20 py-2 last:border-0">
@@ -250,6 +337,7 @@ const TIMELINE_POLL_MS = 8000;
 export default function LeadActionHub({ lead }) {
   const navigate = useNavigate();
   const [smsOpen, setSmsOpen] = useState(false);
+  const [emailOpen, setEmailOpen] = useState(false);
   const [timeline, setTimeline] = useState([]);
   const [loadingTimeline, setLoadingTimeline] = useState(true);
 
@@ -305,9 +393,8 @@ export default function LeadActionHub({ lead }) {
         </button>
         <button
           type="button"
-          disabled
-          title="Coming soon"
-          className="flex flex-1 cursor-not-allowed flex-col items-center gap-1 rounded-input px-2 py-2 text-xs font-medium text-text-secondary opacity-50 shadow-neu-sm"
+          onClick={() => setEmailOpen((v) => !v)}
+          className="flex flex-1 flex-col items-center gap-1 rounded-input px-2 py-2 text-xs font-medium text-text-primary shadow-neu-sm hover:shadow-neu"
         >
           <Mail size={16} />
           Send Email
@@ -315,13 +402,14 @@ export default function LeadActionHub({ lead }) {
       </div>
 
       {smsOpen && <SmsCompose lead={lead} onSent={loadTimeline} />}
+      {emailOpen && <EmailCompose lead={lead} onSent={loadTimeline} />}
 
       <NeuCard inset className="max-h-64 space-y-1 overflow-y-auto p-3">
         <p className="mb-1 text-xs font-semibold text-text-secondary">History</p>
         {loadingTimeline ? (
           <p className="text-xs text-text-secondary">Loading…</p>
         ) : timeline.length === 0 ? (
-          <p className="text-xs text-text-secondary">No calls or messages yet.</p>
+          <p className="text-xs text-text-secondary">No calls, messages, or emails yet.</p>
         ) : (
           timeline.map((entry) => <TimelineEntry key={`${entry.type}-${entry.id}`} entry={entry} />)
         )}

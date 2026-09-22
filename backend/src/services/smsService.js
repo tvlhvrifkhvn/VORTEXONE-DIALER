@@ -201,12 +201,17 @@ async function getTimeline(leadId) {
     `SELECT id, created_at AS timestamp, body FROM lead_notes WHERE lead_id = $1 ORDER BY created_at DESC`,
     [leadId]
   );
+  const { rows: emails } = await db.query(
+    `SELECT id, sent_at AS timestamp, direction, subject, body FROM email_messages WHERE lead_id = $1 ORDER BY sent_at DESC`,
+    [leadId]
+  );
   const combined = [
     ...calls.map((c) => ({ type: 'call', ...c })),
     ...messages.map((m) => ({ type: 'sms', ...m })),
     ...notes.map((n) => ({ type: 'note', ...n })),
+    ...emails.map((e) => ({ type: 'email', ...e })),
   ].sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
-  return { calls, messages, notes, timeline: combined };
+  return { calls, messages, notes, emails, timeline: combined };
 }
 
 module.exports = {

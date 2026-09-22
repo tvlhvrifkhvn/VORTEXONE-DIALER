@@ -162,6 +162,9 @@ export const getSmsInbox = (page = 1, limit = 20) => request(`/sms/inbox?page=${
 export const markSmsRead = (leadId) => request(`/sms/mark-read/${leadId}`, { method: 'POST' });
 export const optOutSms = (leadId) => request(`/sms/opt-out/${leadId}`, { method: 'POST' });
 
+// email
+export const sendEmail = (payload) => request('/email/send', { method: 'POST', body: payload });
+
 // calls
 export const startCall = (leadId, sessionId) =>
   request('/calls', {

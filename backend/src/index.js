@@ -18,6 +18,7 @@ const aiRoutes = require('./routes/ai');
 const sessionsRoutes = require('./routes/sessions');
 const settingsRoutes = require('./routes/settings');
 const smsRoutes = require('./routes/sms');
+const emailRoutes = require('./routes/email');
 
 const app = express();
 
@@ -64,6 +65,7 @@ app.use('/api/ai', aiRoutes);
 app.use('/api/sessions', sessionsRoutes);
 app.use('/api/settings', settingsRoutes);
 app.use('/api/sms', smsRoutes);
+app.use('/api/email', emailRoutes);
 
 app.use(notFound);
 app.use(errorHandler);
@@ -85,6 +87,7 @@ const EXPECTED_TABLES = [
   'sms_templates',
   'sms_messages',
   'lead_notes',
+  'email_messages',
 ];
 
 async function assertSchemaIsMigrated() {
