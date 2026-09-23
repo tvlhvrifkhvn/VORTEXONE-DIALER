@@ -29,6 +29,21 @@ export function useMultiline({ enabled = true } = {}) {
   const [starting, setStarting] = useState(false);
   const [error, setError] = useState(null);
   const sourceRef = useRef(null);
+  // Pre-call briefs keyed by callId, fetched the moment a line starts
+  // dialing so whichever line answers already has its brief loaded.
+  const [briefs, setBriefs] = useState({});
+  const briefRequestedRef = useRef(new Set());
+
+  const prefetchBrief = useCallback((payload) => {
+    const { callId, leadId, status } = payload;
+    if (!callId || !leadId || briefRequestedRef.current.has(callId)) return;
+    if (!['dialing', 'ringing', 'answered', 'held'].includes(status)) return;
+    briefRequestedRef.current.add(callId);
+    // Instant line first, then the (possibly slower) AI version.
+    const store = (b) => setBriefs((prev) => ({ ...prev, [callId]: { instant: b.instant, ai: b.ai || prev[callId]?.ai || null } }));
+    api.getLeadBrief(leadId, { withAi: false }).then(store).catch(() => {});
+    api.getLeadBrief(leadId).then(store).catch(() => {});
+  }, []);
 
   useEffect(() => {
     if (!enabled) return undefined;
@@ -49,6 +64,8 @@ export function useMultiline({ enabled = true } = {}) {
       } catch {
         return;
       }
+
+      prefetchBrief(payload);
 
       setLines((prev) =>
         prev.map((line) => {
@@ -82,7 +99,7 @@ export function useMultiline({ enabled = true } = {}) {
       sourceRef.current = null;
       setConnected(false);
     };
-  }, [enabled]);
+  }, [enabled, prefetchBrief]);
 
   // Live timer for any connected line — including one on hold, where the
   // caller is genuinely waiting and the rep should see how long for.
@@ -155,5 +172,7 @@ export function useMultiline({ enabled = true } = {}) {
     }
   }, []);
 
-  return { lines, connected, starting, error, start, takeCall, dropLine, stopSession, submitDispositionFor };
+  const linesWithBriefs = lines.map((line) => ({ ...line, brief: (line.callId && briefs[line.callId]) || null }));
+
+  return { lines: linesWithBriefs, connected, starting, error, start, takeCall, dropLine, stopSession, submitDispositionFor };
 }

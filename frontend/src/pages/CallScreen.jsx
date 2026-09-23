@@ -3,6 +3,7 @@ import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import AppShell from '../components/layout/AppShell';
 import CallContactHeader from '../components/call/CallContactHeader';
 import CallActionGrid from '../components/call/CallActionGrid';
+import BriefCard from '../components/call/BriefCard';
 import ColleagueCard from '../components/leads/ColleagueCard';
 import CallControls from '../components/call/CallControls';
 import DispositionPanel, { ScriptPanel } from '../components/call/DispositionPanel';
@@ -10,6 +11,7 @@ import NeuCard from '../components/ui/NeuCard';
 import NeuButton from '../components/ui/NeuButton';
 import ActionButton from '../components/ui/ActionButton';
 import { useCall } from '../hooks/useCall';
+import { useBrief } from '../hooks/useBrief';
 
 const DISPOSITION_LABELS = {
   contacted: 'Spoke / Interested',
@@ -68,10 +70,15 @@ function CallScreenInner({ leadId }) {
   const [muted, setMuted] = useState(false);
   const [showHangupConfirm, setShowHangupConfirm] = useState(false);
   const [redialing, setRedialing] = useState(false);
+  // A known leadId starts the brief fetch in parallel with placing the call;
+  // /call/next only learns its lead once the call has started.
+  const brief = useBrief(leadId || dialedLead?.id);
 
   const isFinalized = !!lastDisposition;
   const ended = isFinalized || call?.telephony_state === 'ended';
   const canAct = !submitting && !isFinalized && !!call;
+  // Full brief while dialing/ringing; one line once the call has connected.
+  const briefCollapsed = ended || (!!call && !['dialing', 'ringing'].includes(call.telephony_state));
 
   // Submission path handed to the shared DispositionPanel — the panel owns
   // the note text and the DNC confirmation, this owns how it's sent.
@@ -171,6 +178,8 @@ function CallScreenInner({ leadId }) {
     <div className="mx-auto mt-6 max-w-3xl space-y-4">
       <div className="grid grid-cols-1 gap-6 md:grid-cols-[1fr_260px]">
         <div className="space-y-4">
+          <BriefCard brief={brief} collapsed={briefCollapsed} />
+
           <CallContactHeader lead={lead} call={call} ended={ended} />
 
           <ColleagueCard leadId={lead.id} />

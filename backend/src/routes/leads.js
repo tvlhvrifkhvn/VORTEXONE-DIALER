@@ -3,6 +3,7 @@ const leadQueue = require('../services/leadQueue');
 const leadLifecycle = require('../services/leadLifecycle');
 const smsService = require('../services/smsService');
 const colleagueIntel = require('../services/colleagueIntel');
+const preCallBrief = require('../services/preCallBrief');
 const { asyncHandler } = require('../middleware/asyncHandler');
 const { requireAuth } = require('../middleware/auth');
 
@@ -98,6 +99,16 @@ router.get(
   asyncHandler(async (req, res) => {
     const summary = await colleagueIntel.getColleagueSummary(req.params.id);
     res.json(summary);
+  })
+);
+
+// Shown while a call dials/rings. ?ai=0 skips Groq (instant line + any cached
+// AI line) so the call screen can paint immediately, then ask again for AI.
+router.get(
+  '/:id/brief',
+  asyncHandler(async (req, res) => {
+    const brief = await preCallBrief.buildBrief(req.params.id, { withAi: req.query.ai !== '0' });
+    res.json(brief);
   })
 );
 
