@@ -1,9 +1,10 @@
 import { useState } from 'react';
-import { FileText, MessageSquare, MicOff, PauseCircle, Tag, User } from 'lucide-react';
+import { FileText, MessageSquare, MessageSquareWarning, MicOff, PauseCircle, Tag, User } from 'lucide-react';
 import NeuCard from '../ui/NeuCard';
 import NeuButton from '../ui/NeuButton';
 import NeuInput from '../ui/NeuInput';
 import { SmsCompose } from '../leads/LeadActionHub';
+import ObjectionPanel from './ObjectionPanel';
 import * as api from '../../lib/api';
 
 // Read by colleagueIntel.js when summarizing an office — keep in sync with
@@ -35,7 +36,7 @@ function GridButton({ icon: Icon, label, onClick, active = false, disabled = fal
  * Deliberately no call-transfer button — there is no second rep to transfer to.
  */
 export default function CallActionGrid({ lead, callId, onLeadUpdated, muted = false, onToggleMute }) {
-  const [openPanel, setOpenPanel] = useState(null); // 'tag' | 'note' | 'sms' | null
+  const [openPanel, setOpenPanel] = useState(null); // 'tag' | 'note' | 'sms' | 'objection' | null
   const [tagText, setTagText] = useState('');
   const [noteText, setNoteText] = useState('');
   const [busy, setBusy] = useState(false);
@@ -132,6 +133,20 @@ export default function CallActionGrid({ lead, callId, onLeadUpdated, muted = fa
         />
       </div>
 
+      {/* Own full-width row so the 2x3 grid above keeps its layout (and the
+          rep's muscle memory). */}
+      <button
+        type="button"
+        onClick={() => toggle('objection')}
+        disabled={!callId}
+        className={`flex w-full items-center justify-center gap-2 rounded-input px-2 py-2.5 text-xs font-medium transition-all duration-200 disabled:cursor-not-allowed disabled:opacity-50 ${
+          openPanel === 'objection' ? 'text-action-call shadow-neu-pressed' : 'text-text-primary shadow-neu-sm hover:shadow-neu'
+        }`}
+      >
+        <MessageSquareWarning size={16} />
+        Objection
+      </button>
+
       {(muted || onHold) && (
         <p className="text-xs font-semibold text-action-warn">
           {[muted && 'Muted', onHold && 'On hold'].filter(Boolean).join(' · ')}
@@ -212,6 +227,8 @@ export default function CallActionGrid({ lead, callId, onLeadUpdated, muted = fa
       )}
 
       {openPanel === 'sms' && <SmsCompose lead={lead} />}
+
+      {openPanel === 'objection' && <ObjectionPanel callId={callId} />}
 
       {error && <p className="text-xs text-action-hangup">{error}</p>}
       {flash && <p className="text-xs text-action-contacted">{flash}</p>}

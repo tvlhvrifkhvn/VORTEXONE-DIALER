@@ -289,6 +289,161 @@ function IntegrationsSection() {
   );
 }
 
+/** Objection chips shown on the call screen. No delete: a deactivated type
+ * leaves the call screen but keeps its history in Reports. */
+function ObjectionsSection() {
+  const [types, setTypes] = useState([]);
+  const [labels, setLabels] = useState({}); // id -> label being edited
+  const [newLabel, setNewLabel] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState(null);
+
+  useEffect(() => {
+    api
+      .listObjectionTypes(true)
+      .then(({ types: t }) => setTypes(t))
+      .catch((err) => setMessage({ type: 'error', text: err.message }));
+  }, []);
+
+  const flash = (text) => {
+    setMessage({ type: 'ok', text });
+    setTimeout(() => setMessage(null), 2000);
+  };
+
+  const run = async (fn, okText) => {
+    setBusy(true);
+    setMessage(null);
+    try {
+      await fn();
+      if (okText) flash(okText);
+    } catch (err) {
+      setMessage({ type: 'error', text: err.message });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const replaceType = (updated) => setTypes((list) => list.map((t) => (t.id === updated.id ? updated : t)));
+
+  const handleRename = (type) => {
+    const label = labels[type.id];
+    if (label === undefined || label.trim() === type.label) return;
+    run(async () => {
+      try {
+        const { type: updated } = await api.updateObjectionType(type.id, { label });
+        replaceType(updated);
+      } finally {
+        setLabels(({ [type.id]: _, ...rest }) => rest);
+      }
+    }, 'Renamed.');
+  };
+
+  const handleToggle = (type) =>
+    run(async () => {
+      const { type: updated } = await api.updateObjectionType(type.id, { isActive: !type.is_active });
+      replaceType(updated);
+    });
+
+  const handleMove = (index, delta) => {
+    const target = index + delta;
+    if (target < 0 || target >= types.length) return;
+    const reordered = [...types];
+    [reordered[index], reordered[target]] = [reordered[target], reordered[index]];
+    run(async () => {
+      const { types: saved } = await api.reorderObjectionTypes(reordered.map((t) => t.id));
+      setTypes(saved);
+    });
+  };
+
+  const handleAdd = (e) => {
+    e.preventDefault();
+    if (!newLabel.trim()) return;
+    run(async () => {
+      const { type } = await api.createObjectionType(newLabel);
+      setTypes((list) => [...list, type]);
+      setNewLabel('');
+    }, 'Objection added.');
+  };
+
+  return (
+    <NeuCard className="space-y-4 p-5">
+      <h2 className="text-sm font-semibold text-text-primary">Objections</h2>
+      <p className="text-xs text-text-secondary">
+        The chips shown behind the Objection button on the call screen, in this order. Switching one off hides
+        it from the call screen; everything already logged stays in Reports.
+      </p>
+      <ul className="space-y-2">
+        {types.map((type, index) => (
+          <li key={type.id} className={`flex items-center gap-2 ${type.is_active ? '' : 'opacity-50'}`}>
+            <div className="flex flex-col">
+              <button
+                type="button"
+                onClick={() => handleMove(index, -1)}
+                disabled={busy || index === 0}
+                aria-label={`Move ${type.label} up`}
+                className="px-1 text-[10px] leading-none text-text-secondary hover:text-text-primary disabled:opacity-30"
+              >
+                ▲
+              </button>
+              <button
+                type="button"
+                onClick={() => handleMove(index, 1)}
+                disabled={busy || index === types.length - 1}
+                aria-label={`Move ${type.label} down`}
+                className="px-1 text-[10px] leading-none text-text-secondary hover:text-text-primary disabled:opacity-30"
+              >
+                ▼
+              </button>
+            </div>
+            <NeuInput
+              value={labels[type.id] ?? type.label}
+              onChange={(e) => setLabels((l) => ({ ...l, [type.id]: e.target.value }))}
+              onBlur={() => handleRename(type)}
+              onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
+              aria-label={`Objection label: ${type.label}`}
+              className="flex-1 text-sm"
+            />
+            <button
+              type="button"
+              role="switch"
+              aria-checked={type.is_active}
+              aria-label={`${type.is_active ? 'Deactivate' : 'Activate'} ${type.label}`}
+              onClick={() => handleToggle(type)}
+              disabled={busy}
+              className={`relative h-6 w-11 shrink-0 rounded-full transition-colors duration-200 disabled:opacity-50 ${
+                type.is_active ? 'bg-action-call' : 'bg-shadow/40'
+              }`}
+            >
+              <span
+                className={`absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform duration-200 ${
+                  type.is_active ? 'translate-x-5' : 'translate-x-0'
+                }`}
+              />
+            </button>
+          </li>
+        ))}
+      </ul>
+      <form onSubmit={handleAdd} className="flex gap-2">
+        <NeuInput
+          value={newLabel}
+          onChange={(e) => setNewLabel(e.target.value)}
+          placeholder="Add an objection, e.g. Using a CRM already"
+          className="flex-1 text-sm"
+          maxLength={80}
+        />
+        <NeuButton type="submit" disabled={busy || !newLabel.trim()}>
+          Add
+        </NeuButton>
+      </form>
+      {message && (
+        <p className={`text-sm ${message.type === 'ok' ? 'text-action-contacted' : 'text-action-hangup'}`}>
+          {message.text}
+        </p>
+      )}
+    </NeuCard>
+  );
+}
+
 export default function Settings() {
   return (
     <AppShell>
@@ -297,6 +452,7 @@ export default function Settings() {
         <ProfileSection />
         <DialingDefaultsSection />
         <ScriptEditorSection />
+        <ObjectionsSection />
         <IntegrationsSection />
       </div>
     </AppShell>

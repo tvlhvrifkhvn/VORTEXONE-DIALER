@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import AppShell from '../components/layout/AppShell';
 import StatCard from '../components/stats/StatCard';
 import StateReport from '../components/stats/StateReport';
+import ObjectionReport from '../components/stats/ObjectionReport';
 import NeuCard from '../components/ui/NeuCard';
 import { formatDuration, formatTime } from '../lib/format';
 import * as api from '../lib/api';
@@ -60,6 +61,7 @@ export default function Reports() {
           <>
             <StateReport states={states} />
             <ManualCallsSection calls={manualCalls} />
+            <ObjectionReport />
           </>
         )}
       </div>
