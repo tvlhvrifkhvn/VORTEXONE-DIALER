@@ -10,7 +10,8 @@
     "dev": "node --watch src/index.js",
     "migrate": "node src/db/migrate.js",
     "seed": "node src/db/seeds/run.js",
-    "backfill:office-keys": "node src/db/seeds/backfillOfficeKeys.js"
+    "backfill:office-keys": "node src/db/seeds/backfillOfficeKeys.js",
+    "seed:objection-demo": "node src/db/seeds/seedObjectionDemo.js"
   },
   "dependencies": {
     "bcrypt": "^6.0.0",

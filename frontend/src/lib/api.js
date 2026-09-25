@@ -265,3 +265,26 @@ export async function downloadDailyPdf(date) {
   a.remove();
   URL.revokeObjectURL(url);
 }
+
+// objections (call-screen logging, Settings types, Reports chart + rebuttal ideas)
+export const listObjectionTypes = (includeInactive = false) =>
+  request(`/objections/types${includeInactive ? '?includeInactive=1' : ''}`);
+export const createObjectionType = (label) => request('/objections/types', { method: 'POST', body: { label } });
+export const updateObjectionType = (id, changes) => request(`/objections/types/${id}`, { method: 'PUT', body: changes });
+export const reorderObjectionTypes = (ids) => request('/objections/types/reorder', { method: 'POST', body: { ids } });
+export const getCallObjections = (callId) => request(`/objections/calls/${callId}`);
+export const logCallObjection = (callId, objectionTypeId) =>
+  request(`/objections/calls/${callId}`, { method: 'POST', body: { objectionTypeId } });
+export const removeCallObjection = (callId, objectionTypeId) =>
+  request(`/objections/calls/${callId}/${objectionTypeId}`, { method: 'DELETE' });
+export const saveObjectionRebuttal = (callId, objectionTypeId, rebuttalUsed) =>
+  request(`/objections/calls/${callId}/${objectionTypeId}`, { method: 'PUT', body: { rebuttalUsed } });
+export const getObjectionReport = (filters = {}) => {
+  const qs = new URLSearchParams(Object.entries(filters).filter(([, v]) => v)).toString();
+  return request(`/objections/report${qs ? `?${qs}` : ''}`);
+};
+export const getObjectionOffices = () => request('/objections/offices');
+export const getRebuttalSuggestions = (typeId) => request(`/objections/types/${typeId}/suggestions`);
+export const regenerateRebuttals = (typeId) =>
+  request(`/objections/types/${typeId}/suggestions/regenerate`, { method: 'POST' });
+export const getObjectionHints = () => request('/objections/hints');

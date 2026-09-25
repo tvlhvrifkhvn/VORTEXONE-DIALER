@@ -19,6 +19,7 @@ const sessionsRoutes = require('./routes/sessions');
 const settingsRoutes = require('./routes/settings');
 const smsRoutes = require('./routes/sms');
 const emailRoutes = require('./routes/email');
+const objectionRoutes = require('./routes/objections');
 
 const app = express();
 
@@ -66,6 +67,7 @@ app.use('/api/sessions', sessionsRoutes);
 app.use('/api/settings', settingsRoutes);
 app.use('/api/sms', smsRoutes);
 app.use('/api/email', emailRoutes);
+app.use('/api/objections', objectionRoutes);
 
 app.use(notFound);
 app.use(errorHandler);
@@ -88,6 +90,9 @@ const EXPECTED_TABLES = [
   'sms_messages',
   'lead_notes',
   'email_messages',
+  'objection_types',
+  'call_objections',
+  'rebuttal_suggestions',
 ];
 
 async function assertSchemaIsMigrated() {
