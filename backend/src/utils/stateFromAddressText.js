@@ -48,4 +48,7 @@ function stateFromAddressText(text) {
   return null;
 }
 
-module.exports = { stateFromAddressText };
+// STATE_NAMES / COUNTRY_TOKENS are exported so officeKey.js can strip the
+// state and country parts off an address while pulling the city out of it,
+// instead of keeping a second copy of these tables.
+module.exports = { stateFromAddressText, STATE_NAMES, COUNTRY_TOKENS };

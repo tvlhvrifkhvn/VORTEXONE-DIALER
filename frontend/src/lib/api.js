@@ -140,6 +140,8 @@ export const addLeadTag = (id, tag) => request(`/leads/${id}/tags`, { method: 'P
 export const removeLeadTag = (id, tag) =>
   request(`/leads/${id}/tags/${encodeURIComponent(tag)}`, { method: 'DELETE' });
 export const getLeadNotes = (id) => request(`/leads/${id}/notes`);
+// Other agents at the same office — social proof for the call opener.
+export const getLeadColleagues = (id) => request(`/leads/${id}/colleagues`);
 export const scheduleCallback = (id, scheduledAt) =>
   request(`/leads/${id}/callback`, { method: 'POST', body: { scheduledAt } });
 export const addLeadNote = (id, body, callId) =>

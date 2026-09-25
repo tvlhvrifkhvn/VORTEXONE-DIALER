@@ -3,6 +3,7 @@ const { ApiError } = require('../middleware/errorHandler');
 const callingHours = require('./callingHours');
 const dncCheck = require('./dncCheck');
 const { normalizePhone } = require('../utils/phoneNormalize');
+const { buildOfficeKey } = require('../utils/officeKey');
 const { US_STATES } = require('../utils/usStates');
 
 const LOCK_TIMEOUT_SECONDS = 30;
@@ -308,10 +309,18 @@ async function create({ name, phone, state, email = null, address = null, broker
 
   try {
     const { rows } = await db.query(
-      `INSERT INTO leads (name, phone, email, address, brokerage, state, status)
-       VALUES ($1, $2, $3, $4, $5, $6, 'new')
+      `INSERT INTO leads (name, phone, email, address, brokerage, state, status, office_key)
+       VALUES ($1, $2, $3, $4, $5, $6, 'new', $7)
        RETURNING *`,
-      [name.trim(), normalizedPhone, email || null, address || null, brokerage || null, normalizedState]
+      [
+        name.trim(),
+        normalizedPhone,
+        email || null,
+        address || null,
+        brokerage || null,
+        normalizedState,
+        buildOfficeKey({ brokerage, address, state: normalizedState }),
+      ]
     );
     return rows[0];
   } catch (err) {
@@ -335,7 +344,23 @@ async function updateFields(leadId, fields) {
     [leadId, ...keys.map((k) => fields[k])]
   );
   if (!rows[0]) throw new ApiError(404, 'Lead not found');
-  return rows[0];
+
+  // Editing brokerage/address/state changes which office this lead belongs
+  // to, so the stored key would otherwise go stale.
+  const updated = rows[0];
+  const nextKey = buildOfficeKey({
+    brokerage: updated.brokerage,
+    address: updated.address,
+    state: updated.state,
+  });
+  if (nextKey !== updated.office_key) {
+    const { rows: rekeyed } = await db.query(
+      'UPDATE leads SET office_key = $2 WHERE id = $1 RETURNING *',
+      [leadId, nextKey]
+    );
+    return rekeyed[0];
+  }
+  return updated;
 }
 
 /** Soft-deletes a lead — it stops appearing anywhere in the list/queue but
