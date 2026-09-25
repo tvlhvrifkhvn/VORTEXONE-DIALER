@@ -1,15 +1,105 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import * as api from '../lib/api';
 
 const POLL_MS = 600;
+export const DIAL_MODE_KEY = 'vortex_dialer_dial_mode';
+export const SESSION_ID_KEY = 'vortex_dialer_session_id';
+export const SESSION_STARTED_AT_KEY = 'vortex_dialer_session_started_at';
+export const SESSION_PAUSED_KEY = 'vortex_dialer_session_paused';
+export const SELECTED_QUEUE_KEY = 'vortex_dialer_selected_queue';
+export const SELECTED_SESSION_KEY = 'vortex_dialer_selected_session';
+export const PENDING_SUMMARY_KEY = 'vortex_dialer_pending_summary';
+
+/** Backend-tracked dialing session id, or null if none is active. */
+export function getActiveSessionId() {
+  const id = localStorage.getItem(SESSION_ID_KEY);
+  return id ? Number(id) : null;
+}
+
+export function isSessionPaused() {
+  return localStorage.getItem(SESSION_PAUSED_KEY) === 'true';
+}
+
+export function setSessionPaused(paused) {
+  if (paused) localStorage.setItem(SESSION_PAUSED_KEY, 'true');
+  else localStorage.removeItem(SESSION_PAUSED_KEY);
+}
+
+/** The ordered queue of lead ids for a "Start Power Dial" over a manual
+ * selection (see LeadTable.jsx's checkboxes) — empty when the current
+ * session is just dialing the regular in_queue queue. */
+export function getSelectedQueue() {
+  try {
+    const raw = localStorage.getItem(SELECTED_QUEUE_KEY);
+    const parsed = raw ? JSON.parse(raw) : [];
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function setSelectedQueue(ids) {
+  if (!ids || ids.length === 0) localStorage.removeItem(SELECTED_QUEUE_KEY);
+  else localStorage.setItem(SELECTED_QUEUE_KEY, JSON.stringify(ids));
+}
+
+/** Pops the next id off the selected-leads queue, persisting what's left. */
+function shiftSelectedQueue() {
+  const queue = getSelectedQueue();
+  const next = queue.shift();
+  setSelectedQueue(queue);
+  return next;
+}
+
+function isSelectedSession() {
+  return localStorage.getItem(SELECTED_SESSION_KEY) === 'true';
+}
+
+/** Starts a backend dialing session (Dashboard's Start Dialing / Start Power
+ * Dial buttons). When selectedLeadIds is given, the session dials through
+ * exactly those leads in order instead of pulling from the regular queue. */
+export async function startDialingSession(mode = 'power', selectedLeadIds = null) {
+  const { sessionId } = await api.startSession(mode);
+  localStorage.setItem(SESSION_ID_KEY, String(sessionId));
+  localStorage.setItem(SESSION_STARTED_AT_KEY, String(Date.now()));
+  setSessionPaused(false);
+
+  if (selectedLeadIds && selectedLeadIds.length > 0) {
+    const { leads } = await api.batchQueueLeads(selectedLeadIds);
+    setSelectedQueue(leads.map((l) => l.id));
+    localStorage.setItem(SELECTED_SESSION_KEY, 'true');
+  } else {
+    setSelectedQueue([]);
+    localStorage.removeItem(SELECTED_SESSION_KEY);
+  }
+
+  return sessionId;
+}
+
+/** Ends the active dialing session and returns its final stats (Dashboard's
+ * Stop Dialing button uses these to populate the session summary modal). */
+export async function endDialingSession() {
+  const sessionId = getActiveSessionId();
+  if (!sessionId) return null;
+  const { stats } = await api.endSession(sessionId);
+  localStorage.removeItem(SESSION_ID_KEY);
+  localStorage.removeItem(SESSION_STARTED_AT_KEY);
+  setSessionPaused(false);
+  setSelectedQueue([]);
+  localStorage.removeItem(SELECTED_SESSION_KEY);
+  return stats;
+}
 
 /**
  * Drives one call screen visit: starts the call (locks the lead + places it
  * via the configured telephony adapter), polls for live progress, and wraps
- * hangup/disposition/undo. See telephony/index.js on the backend for what
- * "live progress" means — this hook just reflects call_history as polled.
+ * hangup/disposition/undo/redial. See telephony/index.js on the backend for
+ * what "live progress" means — this hook just reflects call_history as
+ * polled.
  */
 export function useCall(leadId) {
+  const navigate = useNavigate();
   const [call, setCall] = useState(null);
   const [lead, setLead] = useState(null);
   const [error, setError] = useState(null);
@@ -41,26 +131,36 @@ export function useCall(leadId) {
     [stopPolling]
   );
 
+  const startCallFor = useCallback(
+    (id) => {
+      setStarting(true);
+      setError(null);
+      setUndoInfo(null);
+      return api
+        .startCall(id, getActiveSessionId())
+        .then(({ call: newCall, lead: newLead }) => {
+          setCall(newCall);
+          setLead(newLead);
+          pollCall(newCall.id);
+        })
+        .catch((err) => {
+          setError(err.message);
+        })
+        .finally(() => {
+          setStarting(false);
+        });
+    },
+    [pollCall]
+  );
+
   useEffect(() => {
     let cancelled = false;
-    setStarting(true);
-    setError(null);
-    setUndoInfo(null);
-
-    api
-      .startCall(leadId)
-      .then(({ call: newCall, lead: newLead }) => {
-        if (cancelled) return;
-        setCall(newCall);
-        setLead(newLead);
-        pollCall(newCall.id);
-      })
-      .catch((err) => {
-        if (!cancelled) setError(err.message);
-      })
-      .finally(() => {
-        if (!cancelled) setStarting(false);
-      });
+    // "/call/next" (no explicit leadId): if a selected-leads queue is active,
+    // it drives which lead comes up next instead of the regular in_queue pick.
+    const targetId = leadId || shiftSelectedQueue() || undefined;
+    startCallFor(targetId).then(() => {
+      if (cancelled) stopPolling();
+    });
 
     return () => {
       cancelled = true;
@@ -75,6 +175,14 @@ export function useCall(leadId) {
     stopPolling();
     await api.hangupCall(call.id);
   }, [call, stopPolling]);
+
+  /** Redials the same lead immediately, before any disposition has been
+   * submitted on the previous attempt (backend allows re-locking a lead
+   * that's already in_progress and locked to this same user). */
+  const redial = useCallback(() => {
+    if (!lead) return Promise.resolve();
+    return startCallFor(lead.id);
+  }, [lead, startCallFor]);
 
   const submitDisposition = useCallback(
     async ({ disposition, note, scheduledAt }) => {
@@ -92,9 +200,23 @@ export function useCall(leadId) {
         setUndoInfo((current) => (current && current.callId === callId ? null : current));
       }, Math.max(0, remainingMs));
 
+      // Power Dial mode: advance to the next lead instantly, no countdown —
+      // unless the session is paused, in which case just stop here.
+      if (localStorage.getItem(DIAL_MODE_KEY) === 'power' && !isSessionPaused()) {
+        if (isSelectedSession() && getSelectedQueue().length === 0) {
+          // The selected-leads queue is exhausted — end the session and let
+          // the dashboard show the summary automatically.
+          const stats = await endDialingSession();
+          if (stats) localStorage.setItem(PENDING_SUMMARY_KEY, JSON.stringify(stats));
+          navigate('/');
+        } else {
+          navigate('/call/next');
+        }
+      }
+
       return result;
     },
-    [call, stopPolling]
+    [call, stopPolling, navigate]
   );
 
   const undo = useCallback(async () => {
@@ -105,5 +227,15 @@ export function useCall(leadId) {
     setUndoInfo(null);
   }, [undoInfo]);
 
-  return { call, lead, error, starting, undoInfo, hangup, submitDisposition, undo };
+  return {
+    call,
+    lead,
+    error,
+    starting,
+    undoInfo,
+    hangup,
+    submitDisposition,
+    undo,
+    redial,
+  };
 }

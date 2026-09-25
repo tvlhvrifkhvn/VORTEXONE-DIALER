@@ -22,4 +22,12 @@ router.get(
   })
 );
 
+router.get(
+  '/manual-today',
+  asyncHandler(async (req, res) => {
+    const calls = await reports.manualCallsToday();
+    res.json({ calls });
+  })
+);
+
 module.exports = router;

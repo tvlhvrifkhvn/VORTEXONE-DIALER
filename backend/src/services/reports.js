@@ -33,4 +33,16 @@ async function perStateReport() {
   return rows.map(withConnectRate);
 }
 
-module.exports = { todayStats, perStateReport };
+/** Today's ad-hoc dial-pad calls (no lead) — the per-state report can't
+ * carry these (no lead means no state), so they get their own small list. */
+async function manualCallsToday() {
+  const { rows } = await db.query(
+    `SELECT id, to_number, started_at, ended_at, duration_seconds
+     FROM call_history
+     WHERE is_manual = true AND started_at >= date_trunc('day', now())
+     ORDER BY started_at DESC`
+  );
+  return rows;
+}
+
+module.exports = { todayStats, perStateReport, manualCallsToday };

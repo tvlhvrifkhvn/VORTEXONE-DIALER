@@ -5,8 +5,10 @@ function RowButton({ active, label, count, onClick }) {
     <button
       type="button"
       onClick={onClick}
-      className={`flex w-full items-center justify-between rounded-input px-3 py-2 text-sm transition-shadow duration-150 ${
-        active ? 'shadow-neu-pressed text-text-primary' : 'text-text-secondary hover:shadow-neu-sm'
+      className={`flex w-full items-center justify-between rounded-input px-3 py-2 text-sm transition-all duration-200 ${
+        active
+          ? 'shadow-neu-pressed text-action-call border-l-2 border-action-call'
+          : 'border-l-2 border-transparent text-text-secondary hover:shadow-neu-sm'
       }`}
     >
       <span>{label}</span>
@@ -30,7 +32,7 @@ export default function StateSidebar({ counts = [], selectedState, onSelectState
             <RowButton
               active={selectedState === c.state}
               label={c.state}
-              count={`${c.dialable}/${c.total}`}
+              count={`${c.total} / ${c.uncontacted}`}
               onClick={() => onSelectState(c.state)}
             />
           </li>

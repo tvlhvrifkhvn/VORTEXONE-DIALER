@@ -1,6 +1,7 @@
 const express = require('express');
 const leadQueue = require('../services/leadQueue');
 const leadLifecycle = require('../services/leadLifecycle');
+const smsService = require('../services/smsService');
 const { asyncHandler } = require('../middleware/asyncHandler');
 const { requireAuth } = require('../middleware/auth');
 
@@ -10,7 +11,7 @@ router.use(requireAuth);
 router.get(
   '/',
   asyncHandler(async (req, res) => {
-    const { search, status, dateFrom, dateTo, state, page, pageSize } = req.query;
+    const { search, status, dateFrom, dateTo, state, page, limit } = req.query;
     const result = await leadQueue.list({
       search,
       status,
@@ -18,7 +19,7 @@ router.get(
       dateTo,
       state,
       page: page ? Number(page) : undefined,
-      pageSize: pageSize ? Number(pageSize) : undefined,
+      pageSize: limit ? Number(limit) : 50,
     });
     res.json(result);
   })
@@ -32,6 +33,38 @@ router.get(
   })
 );
 
+// Must come before /:id — otherwise Express would treat "search" as an id.
+router.get(
+  '/search',
+  asyncHandler(async (req, res) => {
+    const leads = await leadQueue.search(req.query.q);
+    res.json({ leads });
+  })
+);
+
+// Returns a rep's selected leads (checkboxes in the lead table) back in
+// correct dialing order — powers "Start Power Dial" over a selection instead
+// of the regular in_queue-driven dialer.
+router.post(
+  '/batch-queue',
+  asyncHandler(async (req, res) => {
+    const { leadIds } = req.body;
+    const leads = await leadQueue.batchQueue(leadIds);
+    res.json({ leads });
+  })
+);
+
+// Hand-entry path (the manual dial pad's optional "Save as lead" form) —
+// every other lead comes from a CSV import.
+router.post(
+  '/',
+  asyncHandler(async (req, res) => {
+    const { name, phone, email, address, brokerage, state } = req.body;
+    const lead = await leadQueue.create({ name, phone, email, address, brokerage, state });
+    res.status(201).json({ lead });
+  })
+);
+
 router.get(
   '/:id',
   asyncHandler(async (req, res) => {
@@ -41,10 +74,92 @@ router.get(
   })
 );
 
+router.get(
+  '/:id/timeline',
+  asyncHandler(async (req, res) => {
+    const timeline = await smsService.getTimeline(req.params.id);
+    res.json(timeline);
+  })
+);
+
+router.get(
+  '/:id/history',
+  asyncHandler(async (req, res) => {
+    const history = await leadQueue.getHistory(req.params.id);
+    res.json({ history });
+  })
+);
+
+// Tags and notes are both call-screen actions: they have to work mid-call
+// without submitting a disposition, so neither goes through leadLifecycle.
+router.post(
+  '/:id/tags',
+  asyncHandler(async (req, res) => {
+    const lead = await leadQueue.addTag(req.params.id, req.body.tag);
+    res.status(201).json({ lead });
+  })
+);
+
+router.delete(
+  '/:id/tags/:tag',
+  asyncHandler(async (req, res) => {
+    const lead = await leadQueue.removeTag(req.params.id, req.params.tag);
+    res.json({ lead });
+  })
+);
+
+router.get(
+  '/:id/notes',
+  asyncHandler(async (req, res) => {
+    const notes = await leadQueue.listNotes(req.params.id);
+    res.json({ notes });
+  })
+);
+
+router.post(
+  '/:id/notes',
+  asyncHandler(async (req, res) => {
+    const note = await leadQueue.addNote({
+      leadId: req.params.id,
+      callId: req.body.callId || null,
+      userId: req.user.sub,
+      body: req.body.body,
+    });
+    res.status(201).json({ note });
+  })
+);
+
+router.post(
+  '/:id/callback',
+  asyncHandler(async (req, res) => {
+    const lead = await leadQueue.scheduleCallback(req.params.id, req.body.scheduledAt);
+    res.json({ lead });
+  })
+);
+
 router.post(
   '/:id/snooze',
   asyncHandler(async (req, res) => {
     const lead = await leadLifecycle.snooze({ leadId: req.params.id });
+    res.json({ lead });
+  })
+);
+
+// Inline edit from the lead detail slide-in panel.
+router.put(
+  '/:id',
+  asyncHandler(async (req, res) => {
+    const { name, phone, email, address, brokerage, state } = req.body;
+    const lead = await leadQueue.updateFields(req.params.id, { name, phone, email, address, brokerage, state });
+    res.json({ lead });
+  })
+);
+
+// "Delete lead" button — soft delete, never shown again.
+router.delete(
+  '/:id',
+  asyncHandler(async (req, res) => {
+    const lead = await leadQueue.softDelete(req.params.id);
     res.json({ lead });
   })
 );

@@ -4,8 +4,8 @@ export default function NeuButton({ children, className = '', active = false, di
       type="button"
       disabled={disabled}
       className={`
-        rounded-input px-4 py-2 text-text-primary font-medium
-        transition-shadow duration-150
+        ripple rounded-input px-4 py-2 text-text-primary font-medium
+        transition-all duration-200
         ${active ? 'shadow-neu-pressed' : 'shadow-neu-sm hover:shadow-neu active:shadow-neu-pressed'}
         ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}
         ${className}

@@ -1,6 +1,7 @@
 const db = require('../db');
 const { ApiError } = require('../middleware/errorHandler');
 const dncCheck = require('./dncCheck');
+const dialingSession = require('./dialingSession');
 
 const UNDO_WINDOW_SECONDS = 10;
 const REQUEUE_HOURS = 4;
@@ -143,15 +144,28 @@ async function applyDisposition({ callHistoryId, disposition, note, scheduledAt 
       cascadedLeadIds = siblings.map((r) => r.id);
     }
 
+    // Recording eligibility: only a real conversation ('contacted') is ever
+    // recorded — voicemail/no_answer/busy/no_contact_*/dnc never are.
+    // recording_url stays null; Phase 2 fills it via Twilio's webhook.
+    const wasRecorded = disposition === 'contacted';
+
     await client.query(
       `UPDATE call_history
        SET disposition = $2, note = $3, ended_at = $4, duration_seconds = $5,
-           pre_disposition_snapshot = $6, disposition_at = $7
+           pre_disposition_snapshot = $6, disposition_at = $7, was_recorded = $8
        WHERE id = $1`,
-      [callHistoryId, disposition, note || null, endedAt, durationSeconds, JSON.stringify(snapshot), now]
+      [callHistoryId, disposition, note || null, endedAt, durationSeconds, JSON.stringify(snapshot), now, wasRecorded]
     );
 
     await client.query('COMMIT');
+
+    // Best-effort — a dialing session may not be active (e.g. a lead dialed
+    // directly from the table rather than via Start Dialing).
+    if (call.session_id) {
+      const statColumn = dialingSession.DISPOSITION_TO_STAT[disposition];
+      if (statColumn) await dialingSession.incrementStat(call.session_id, statColumn);
+    }
+
     return {
       lead: updatedLead,
       cascadedLeadIds,
@@ -259,7 +273,7 @@ async function hangup({ callHistoryId }) {
     if (!call.ended_at) {
       const durationSeconds = Math.max(0, Math.round((now - new Date(call.started_at)) / 1000));
       await client.query(
-        'UPDATE call_history SET ended_at = $2, duration_seconds = $3 WHERE id = $1',
+        'UPDATE call_history SET ended_at = $2, duration_seconds = $3, was_abandoned = true WHERE id = $1',
         [callHistoryId, now, durationSeconds]
       );
     }
