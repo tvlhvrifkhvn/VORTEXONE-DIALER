@@ -2,6 +2,7 @@ import NeuCard from '../ui/NeuCard';
 import NeuButton from '../ui/NeuButton';
 import ActionButton from '../ui/ActionButton';
 import DispositionPanel from './DispositionPanel';
+import BriefCard from './BriefCard';
 import { formatPhone } from '../../lib/format';
 
 // One accent per line so a rep can tell them apart at a glance while several
@@ -105,6 +106,8 @@ function CompactLineCard({ line, onDrop }) {
 
       {line.status === 'loading' ? <LoadingSkeleton /> : <LeadIdentity line={line} compact />}
 
+      {line.lead && line.brief && !isFinished && <BriefCard brief={line.brief} collapsed className="!p-2" />}
+
       {isHeld && (
         <p className="rounded-input bg-action-warn/10 px-2 py-1 text-[11px] font-medium text-action-warn">
           Live caller holding — up next when you finish
@@ -181,6 +184,9 @@ export default function MultilinePanel({
             </div>
 
             <LeadIdentity line={activeLine} />
+
+            {/* Prefetched while this line was dialing, so it's ready on answer. */}
+            {activeLine.brief && <BriefCard brief={activeLine.brief} collapsed />}
 
             <DispositionPanel
               lead={activeLine.lead}

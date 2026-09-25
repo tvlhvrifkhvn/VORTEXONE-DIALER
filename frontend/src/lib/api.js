@@ -142,6 +142,8 @@ export const removeLeadTag = (id, tag) =>
 export const getLeadNotes = (id) => request(`/leads/${id}/notes`);
 // Other agents at the same office — social proof for the call opener.
 export const getLeadColleagues = (id) => request(`/leads/${id}/colleagues`);
+// Pre-call brief. withAi=false never waits on Groq (instant line + any cached AI line).
+export const getLeadBrief = (id, { withAi = true } = {}) => request(`/leads/${id}/brief${withAi ? '' : '?ai=0'}`);
 export const scheduleCallback = (id, scheduledAt) =>
   request(`/leads/${id}/callback`, { method: 'POST', body: { scheduledAt } });
 export const addLeadNote = (id, body, callId) =>
