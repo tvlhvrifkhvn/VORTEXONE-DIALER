@@ -290,3 +290,6 @@ export const getRebuttalSuggestions = (typeId) => request(`/objections/types/${t
 export const regenerateRebuttals = (typeId) =>
   request(`/objections/types/${typeId}/suggestions/regenerate`, { method: 'POST' });
 export const getObjectionHints = () => request('/objections/hints');
+export const listPendingSuggestions = () => request('/objections/suggestions/pending');
+export const reviewSuggestion = (id, status) =>
+  request(`/objections/suggestions/${id}`, { method: 'PUT', body: { status } });

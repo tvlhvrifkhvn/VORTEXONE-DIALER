@@ -71,6 +71,24 @@ router.post(
   })
 );
 
+// New suggestions wait here until a person approves or rejects them; only
+// approved ones reach the call screen.
+router.get(
+  '/suggestions/pending',
+  asyncHandler(async (req, res) => {
+    const suggestions = await rebuttalCoach.listPending();
+    res.json({ suggestions });
+  })
+);
+
+router.put(
+  '/suggestions/:id',
+  asyncHandler(async (req, res) => {
+    const suggestion = await rebuttalCoach.reviewSuggestion(req.params.id, req.body.status);
+    res.json({ suggestion });
+  })
+);
+
 // --- per-call logging (call screen) ---------------------------------------
 // Works mid-call without a disposition, so nothing here goes through
 // leadLifecycle.
