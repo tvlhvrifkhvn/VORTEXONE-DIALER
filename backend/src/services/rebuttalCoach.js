@@ -270,7 +270,8 @@ async function regenerate(objectionTypeId) {
   }
 
   // One statement, so every row of the batch shares the same generated_at.
-  const values = suggestions.map((_, i) => `($1, $${i + 3}, $2)`).join(', ');
+  // Column order: objection_type_id ($1), based_on_count ($2), suggestion ($3+).
+  const values = suggestions.map((_, i) => `($1, $2, $${i + 3})`).join(', ');
   await db.query(
     `INSERT INTO rebuttal_suggestions (objection_type_id, based_on_count, suggestion) VALUES ${values}`,
     [objectionTypeId, instances.length, ...suggestions]
