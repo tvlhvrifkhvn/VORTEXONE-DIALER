@@ -2,6 +2,7 @@ const db = require('../db');
 const { ApiError } = require('../middleware/errorHandler');
 const dncCheck = require('./dncCheck');
 const dialingSession = require('./dialingSession');
+const callLifecycle = require('./callLifecycle');
 
 const UNDO_WINDOW_SECONDS = 10;
 const REQUEUE_HOURS = 4;
@@ -41,7 +42,7 @@ function snapshotOf(lead) {
  * rules in CLAUDE.md. Stores a snapshot of the lead's pre-disposition state
  * so undoDisposition() can restore it within the 10s undo window.
  */
-async function applyDisposition({ callHistoryId, disposition, note, scheduledAt }) {
+async function applyDisposition({ callHistoryId, disposition, note, scheduledAt, user }) {
   if (!DISPOSITIONS.includes(disposition)) {
     throw new ApiError(400, `Unknown disposition: ${disposition}`);
   }
@@ -59,11 +60,13 @@ async function applyDisposition({ callHistoryId, disposition, note, scheduledAt 
     );
     const call = callRows[0];
     if (!call) throw new ApiError(404, 'Call not found');
+    callLifecycle.assertCanActOn(call, user);
     if (call.disposition) throw new ApiError(409, 'Call already has a disposition');
 
     const { rows: leadRows } = await client.query('SELECT * FROM leads WHERE id = $1 FOR UPDATE', [call.lead_id]);
     const lead = leadRows[0];
     if (!lead) throw new ApiError(404, 'Lead not found');
+    callLifecycle.assertLeadNotTaken(call, lead);
 
     const snapshot = snapshotOf(lead);
     const now = new Date();
@@ -185,7 +188,7 @@ async function applyDisposition({ callHistoryId, disposition, note, scheduledAt 
  * call_history row so a new disposition can be submitted. Does not reverse
  * a no_contact_person cascade to sibling leads.
  */
-async function undoDisposition({ callHistoryId }) {
+async function undoDisposition({ callHistoryId, user }) {
   const client = await db.getClient();
   try {
     await client.query('BEGIN');
@@ -196,6 +199,7 @@ async function undoDisposition({ callHistoryId }) {
     );
     const call = callRows[0];
     if (!call) throw new ApiError(404, 'Call not found');
+    callLifecycle.assertCanActOn(call, user);
     if (!call.disposition || !call.pre_disposition_snapshot || !call.disposition_at) {
       throw new ApiError(409, 'Nothing to undo for this call');
     }
@@ -204,6 +208,9 @@ async function undoDisposition({ callHistoryId }) {
     if (ageSeconds > UNDO_WINDOW_SECONDS) {
       throw new ApiError(410, 'Undo window has expired');
     }
+
+    const { rows: currentLead } = await client.query('SELECT * FROM leads WHERE id = $1 FOR UPDATE', [call.lead_id]);
+    callLifecycle.assertLeadNotTaken(call, currentLead[0]);
 
     const snapshot = call.pre_disposition_snapshot;
 
@@ -262,7 +269,7 @@ async function undoDisposition({ callHistoryId }) {
  * leadQueue.releaseStaleLocks() will return it to in_queue once locked_at is
  * older than HANGUP_GRACE_SECONDS.
  */
-async function hangup({ callHistoryId }) {
+async function hangup({ callHistoryId, user }) {
   const client = await db.getClient();
   try {
     await client.query('BEGIN');
@@ -273,7 +280,11 @@ async function hangup({ callHistoryId }) {
     );
     const call = callRows[0];
     if (!call) throw new ApiError(404, 'Call not found');
+    callLifecycle.assertCanActOn(call, user);
     if (call.disposition) throw new ApiError(409, 'Call already has a disposition');
+
+    const { rows: leadRows } = await client.query('SELECT * FROM leads WHERE id = $1 FOR UPDATE', [call.lead_id]);
+    callLifecycle.assertLeadNotTaken(call, leadRows[0]);
 
     const now = new Date();
     if (!call.ended_at) {
@@ -285,8 +296,8 @@ async function hangup({ callHistoryId }) {
     }
 
     await client.query(
-      `UPDATE leads SET locked_at = $2, updated_at = $2 WHERE id = $1 AND status = 'in_progress'`,
-      [call.lead_id, now]
+      `UPDATE leads SET locked_at = $2, updated_at = $2 WHERE id = $1 AND status = 'in_progress' AND locked_by = $3`,
+      [call.lead_id, now, call.user_id]
     );
 
     await client.query('COMMIT');

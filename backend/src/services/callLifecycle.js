@@ -1,4 +1,5 @@
 const db = require('../db');
+const { ApiError } = require('../middleware/errorHandler');
 
 /**
  * The telephony adapter reported { type: 'ended', duration } — the network
@@ -45,4 +46,31 @@ async function markEnded(callHistoryId, durationSeconds) {
   );
 }
 
-module.exports = { markEnded };
+/**
+ * Who may disposition, undo or hang up a call: the rep who placed it (for a
+ * multi-line slot, the session owner — slot calls carry the session's
+ * user_id) or a supervisor. `user` is the JWT payload ({ sub, email, role }).
+ * Internal callers that act for the session itself (multi-line releaseSlot)
+ * pass no user and skip the check. 403 otherwise.
+ */
+function assertCanActOn(call, user) {
+  if (!user) return;
+  if (user.role === 'supervisor') return;
+  if (Number(call.user_id) !== Number(user.sub)) {
+    throw new ApiError(403, 'This call belongs to another rep.');
+  }
+}
+
+/**
+ * The lead moved on to someone else after this call (e.g. its lock expired
+ * and another rep dialed it): an action on the old call must not change the
+ * lead under the new rep. A lead with no lock (locked_by NULL) is allowed,
+ * as before. 409 otherwise.
+ */
+function assertLeadNotTaken(call, lead) {
+  if (lead && lead.locked_by != null && Number(lead.locked_by) !== Number(call.user_id)) {
+    throw new ApiError(409, 'This lead is now with another rep.');
+  }
+}
+
+module.exports = { markEnded, assertCanActOn, assertLeadNotTaken };

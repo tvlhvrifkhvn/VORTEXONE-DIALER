@@ -183,11 +183,23 @@ export function useCall(leadId) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [leadId]);
 
+  // A refused hangup/disposition (403 another rep's call, 409 the lead moved
+  // on) is shown by the caller via err.message; resume live progress so the
+  // screen doesn't sit frozen on the last polled state.
+  const resumePolling = useCallback(() => {
+    if (call && call.telephony_state !== 'ended') pollCall(call.id);
+  }, [call, pollCall]);
+
   const hangup = useCallback(async () => {
     if (!call) return;
     stopPolling();
-    await api.hangupCall(call.id);
-  }, [call, stopPolling]);
+    try {
+      await api.hangupCall(call.id);
+    } catch (err) {
+      resumePolling();
+      throw err;
+    }
+  }, [call, stopPolling, resumePolling]);
 
   /** Redials the same lead immediately, before any disposition has been
    * submitted on the previous attempt (backend allows re-locking a lead
@@ -202,7 +214,13 @@ export function useCall(leadId) {
     async ({ disposition, note, scheduledAt }) => {
       if (!call) return null;
       stopPolling();
-      const result = await api.submitDisposition({ callId: call.id, disposition, note, scheduledAt });
+      let result;
+      try {
+        result = await api.submitDisposition({ callId: call.id, disposition, note, scheduledAt });
+      } catch (err) {
+        resumePolling();
+        throw err;
+      }
       setLead(result.lead);
 
       const callId = call.id;
@@ -230,7 +248,7 @@ export function useCall(leadId) {
 
       return result;
     },
-    [call, stopPolling, navigate]
+    [call, stopPolling, resumePolling, navigate]
   );
 
   const undo = useCallback(async () => {

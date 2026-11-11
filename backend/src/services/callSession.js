@@ -115,9 +115,10 @@ async function startManual({ userId, toNumberRaw }) {
 
 /** Ends a manual call — no lead to release, no disposition, just close out
  * the call_history row (mirrors leadLifecycle.hangup's timing logic). */
-async function endManualCall(callHistoryId) {
+async function endManualCall(callHistoryId, user) {
   const call = await get(callHistoryId);
   if (!call) throw new ApiError(404, 'Call not found');
+  callLifecycle.assertCanActOn(call, user);
 
   if (!call.ended_at) {
     const now = new Date();
