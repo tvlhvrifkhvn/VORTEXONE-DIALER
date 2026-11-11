@@ -221,8 +221,10 @@ async function undoDisposition({ callHistoryId, user }) {
       );
     }
     if (call.disposition === 'callback_scheduled') {
+      // Postgres DELETE takes no ORDER BY / LIMIT: pick the newest open row first.
       await client.query(
-        'DELETE FROM callbacks WHERE lead_id = $1 AND done = false ORDER BY created_at DESC LIMIT 1',
+        `DELETE FROM callbacks
+         WHERE id = (SELECT id FROM callbacks WHERE lead_id = $1 AND done = false ORDER BY created_at DESC LIMIT 1)`,
         [call.lead_id]
       );
     }
@@ -254,6 +256,13 @@ async function undoDisposition({ callHistoryId, user }) {
 
     const { rows: leadRows } = await client.query('SELECT * FROM leads WHERE id = $1', [call.lead_id]);
     await client.query('COMMIT');
+
+    // Best-effort, mirroring applyDisposition: take back the session stat the
+    // disposition counted.
+    if (call.session_id) {
+      const statColumn = dialingSession.DISPOSITION_TO_STAT[call.disposition];
+      if (statColumn) await dialingSession.decrementStat(call.session_id, statColumn);
+    }
     return leadRows[0];
   } catch (err) {
     await client.query('ROLLBACK');
