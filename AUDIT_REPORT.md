@@ -388,6 +388,63 @@ Findings are numbered in the order found; §2 lists them by severity.
   ```
 - **Suggested fix:** await the refresh when the cache is stale, or have the settings `PUT` invalidate the cache directly.
 
+### F-27 · Critical · Multi-line · In a single rep's session, several lines dial the same lead at once
+- **Where:** `backend/src/services/callSession.js`. `releaseSlot` → `dialIntoSlot` → `reserveSlot` → `leadQueue.lockNext()` runs concurrently for every line that frees up at the same moment. The code's own comment at `reserveSlot` says: *"Callers must await these one at a time … three concurrent calls all read before any of them write and every line ends up on the same lead."* Only `startMultilineSession` serialises; the refill path does not. The root cause is F-14.
+- **Evidence** (`audit/logs/05-sessions.txt` §5.4, mock outcome forced to `no_answer` so all lines end together):
+  ```
+   id  | lead_id | user_id | session_id | slot_number |   started    | disposition
+   123 |      30 |       1 |          7 |           1 | 11:06:19.578 | no_answer
+   124 |      30 |       1 |          7 |           3 | 11:06:19.578 | no_answer
+   125 |      30 |       1 |          7 |           2 | 11:06:19.582 | no_answer
+   126 |      31 |       2 |          6 |           1 | 11:06:19.590 | no_answer
+   127 |      31 |       2 |          6 |           2 | 11:06:19.595 | no_answer
+   128 |      31 |       2 |          6 |           3 | 11:06:19.600 | no_answer
+  ```
+  23 overlapping same-lead call pairs in a 15 s run. Leads 27–29 and 41 were also dialed by both users.
+- **Repro:** `node audit/scripts/sse-session.js $SCRATCH/token 3 15 '[]'` with `echo no_answer > /var/tmp/audit-scratch/force-outcome`, then query `call_history` for the same `lead_id` and `session_id` across slots.
+- **Expected:** each line dials a different lead.
+- **Actual:** one person gets 3 simultaneous calls from one rep, and the attempt counter and disposition each apply 3 times. With real telephony, lines end at nearly the same time often (busy signals, carrier no-answer timeouts).
+- **Suggested fix:** fix F-14 (atomic `SKIP LOCKED` claim) and/or serialise refills per session with a promise chain (`session.refill = session.refill.then(() => dialIntoSlot(...))`).
+
+### F-28 · High · Multi-line · A session keeps dialing after the rep's browser disconnects
+- **Where:** `backend/src/routes/calls.js` `GET /stream`: `req.on('close')` only removes the event listener. `callSession.js` multi-line sessions live in `multilineSessions` until `/multiline/stop`.
+- **Evidence** (§5.3, SSE closed at t=4 s):
+  ```
+  calls placed by the session: at t~5s=6, 20s after the listener left=27
+  stop: {"abandonedCount":3}   calls after stop: 30 -> 8s later 30
+  ```
+- **Expected:** closing the tab, a laptop sleeping or a network drop stops (or pauses) the dialer.
+- **Actual:** it keeps placing about one call per line every 3 s with nobody listening. With real telephony, answered calls would reach a person with no rep, which are abandoned calls (see §7 of this report on abandonment rules).
+- **Suggested fix:** on SSE `close`, if it was the user's last stream, call `stopMultilineSession(userId)` after a short grace period (for example 10 s, to survive reconnects).
+
+### F-29 · Medium · Multi-line · Stop (or a crash) orphans answered and held calls: leads stay `in_progress`, calls stay open, session never ends
+- **Where:**
+  - `callSession.js` `stopMultilineSession`: slots in `LIVE_CALL_STATUSES` (`answered`, `active_disposition`, `held`) are removed from the session but neither abandoned nor dispositioned.
+  - After a restart, `multilineSessions` (in-memory) is empty and `dialing_sessions.ended_at` stays NULL.
+- **Evidence:**
+  - §5.2: after stop, call 74 (held), lead 9 = `in_progress` / `was_abandoned f`; call 72 (promoted), lead 7 = `in_progress`.
+  - §5.5: after kill + restart, `in_progress = 3`. The leads were freed only by the lazy sweep about 31 s later. Calls 147–149 stayed `answered … open t`, and `dialing_sessions … id=8 ended_at=NULL`.
+- **Expected:** a held caller is either kept and surfaced to the rep, or ended and recorded as abandoned. The session is closed.
+- **Actual:** the held person is silently dropped from the UI. The lead returns to the queue with an attempt used and an open call row. Session stats never close.
+- **Suggested fix:** in `stopMultilineSession`, return held slots to the client (or abandon them with `was_abandoned=true`). On startup, close `dialing_sessions` with `ended_at IS NULL` and end open calls.
+
+### F-30 · Medium · Telephony · A telephony failure leaves the lead locked, an attempt used and a phantom "ringing" call
+- **Where:** `callSession.js` `start` (`:37-60`) inserts `call_history`, increments `attempts`, then calls `telephony.placeCall`. There is no try/catch or rollback when the adapter throws.
+- **Evidence** (§5.7):
+  ```
+  TELEPHONY_PROVIDER=twilio  POST /api/calls {leadId:50} -> 500 "twilioAdapter is not implemented yet — set TELEPHONY_PROVIDER=mock"
+  lead 50 after: status=in_progress attempts=1 locked_by=1; call rows: 1 (telephony_state ringing)
+  ```
+  The same happens with `TELEPHONY_PROVIDER=bogus`.
+- **Expected:** a failed dial doesn't count as an attempt and doesn't hold the lead.
+- **Actual:** in Phase 2 every Twilio error (bad number, auth, rate limit) will burn an attempt and hold the lead for 30 s. The call log shows calls that never happened.
+- **Suggested fix:** call `placeCall` inside try/catch. On failure, delete or mark the call row `failed`, decrement or skip the attempt, and release the lock.
+
+### F-31 · Low · Config · Invalid provider names are accepted at startup and only fail per request
+- **Where:** `telephony/index.js` `getAdapter`, `telephony/smsIndex.js` and `telephony/emailIndex.js` resolve the adapter lazily.
+- **Evidence:** `TELEPHONY_PROVIDER=bogus` gives "server STARTED", then the first call returns `500 Unknown TELEPHONY_PROVIDER: "bogus"`. `SMS_PROVIDER=bogus` gives `500 Unknown SMS_PROVIDER`.
+- **Suggested fix:** validate all three providers in `config/index.js` at boot, the way the missing-table check does.
+
 ## 4. Verified working
 
 ### §1 Static checks (`audit/logs/01-static.txt`)
@@ -503,6 +560,27 @@ Notes on test validity, all logged: four of my own harness mistakes produced inv
 - `utcFor()` returning `null` in the first 4.10 run.
 
 Each was re-run correctly, and only the re-runs are cited.
+
+### §5 Dialing sessions and telephony (`audit/logs/05-sessions.txt`)
+
+All sessions ran over the real endpoints (`/api/sessions/start`, `/api/calls/multiline/*`), with events read from the real SSE stream by `audit/scripts/sse-session.js`. Mock call outcomes were **forced** per step with `audit/stubs/force-outcome.js` (labelled stub), so every branch could be hit on purpose.
+
+| Check | Result | Evidence |
+|---|---|---|
+| Single line: SSE events, auto-resolve, auto-advance | **Pass** | `voicemail lead=1` → next `dialing lead=2` → `busy lead=2` → `dialing lead=3` → … → `no_answer lead=5` → `answered lead=6`. Rep dispositioned `contacted` (200), `release` dialed `lead=7`, then `stop` gave `dropped`. DB: voicemail → `voicemail`, busy → `no_answer`, no-answer → `no_answer`/`cold` at cap, answered → `contacted`, dropped → `in_queue` (`was_abandoned t`) |
+| 3 lines, double/triple answer → held, not dropped | **Pass** | `slot 2 answered`, `slot 1 held`, `slot 3 held`. After disposition + `release`: `slot 1 answered (promoted from hold)`, `{"promoted":1}` |
+| Never more live lines than configured | **Pass** | `maxConcurrentLiveSlots=1 (lineCount=1)`, `=3 (lineCount=3)`, `=2 (lineCount=2)` |
+| No duplicate lead across lines | **Fail** | F-27 |
+| DNC skip in multi-line | **Pass** | Lead 11 (DNC) was skipped: slot refilled lead 10, then lead 12 (§5.2). `reserveSlot` checks `dnc_list` |
+| Stop mid-dial | **Pass** for ringing lines / **Fail** for held | `{"abandonedCount":1}`, `slot 2 dropped`, lead back to `in_queue`. Held/answered lines: F-29 |
+| SSE disconnect | **Fail** | F-28 |
+| Same user starts a 2nd session | **Pass** (documented behaviour) | The first session's lines get `dropped` (it is stopped), and only the second session dials |
+| Two users concurrently | **Fail** | Duplicate leads across users (F-27 / F-14) |
+| Backend restart mid-session | **Partial** | Leads recovered: `in_progress = 3` → one list read about 31 s later → `0`. Calls stay open and the session never ends (F-29) |
+| Empty queue / only phoneless / only out-of-hours | **Pass** | Each line gets `idle msg=No dialable leads in queue right now`. Phoneless-only selection gives `{"lineCount":2,"slots":[]}`. Out-of-hours gives `404 "No dialable leads in queue right now"` (§4.11; see F-20 for starvation) |
+| Adapter selection by env | **Pass** | `listening on port 4000 (telephony: twilio)` |
+| Invalid `TELEPHONY_PROVIDER` fails clearly | **Partial** | A clear message, but only at call time (F-31) and it leaves a phantom call (F-30) |
+| `twilioAdapter.js` fails loudly | **Pass** | `500 "twilioAdapter is not implemented yet — set TELEPHONY_PROVIDER=mock"`; it does not pretend to succeed |
 
 ## 5. Can't verify
 *pending*
