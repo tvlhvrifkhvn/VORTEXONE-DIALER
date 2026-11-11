@@ -243,6 +243,14 @@ async function addNote({ leadId, callId = null, userId = null, body }) {
   );
   if (!leadRows[0]) throw new ApiError(404, 'Lead not found');
 
+  // A note may point at a call only if that call was made to this lead.
+  if (callId) {
+    const { rows: callRows } = await db.query('SELECT lead_id FROM call_history WHERE id = $1', [callId]);
+    if (!callRows[0] || Number(callRows[0].lead_id) !== Number(leadId)) {
+      throw new ApiError(400, "That call isn't one of this lead's calls");
+    }
+  }
+
   const { rows } = await db.query(
     `INSERT INTO lead_notes (lead_id, call_id, user_id, body)
      VALUES ($1, $2, $3, $4)
