@@ -557,6 +557,28 @@ Findings are numbered in the order found; §2 lists them by severity.
 - **Evidence:** `missing subject: … "subject":"" … "status":"sent" [HTTP 201]`; `mockEmailAdapter.js has no console output` (the SMS mock does log media).
 - **Suggested fix:** require a subject (or default one). Log `[mockEmailAdapter] would send to …` like the SMS mock.
 
+### F-42 · Low · Coaching · Pre-call brief says "A few agents … have already been interested" when there is exactly one
+- **Where:** `backend/src/services/preCallBrief.js`, the instant opener built from the `colleagues` summary.
+- **Evidence** (`audit/logs/08-objections-ai.txt` §8.8): a colleague summary of `"interested":1` gives the opener `A few agents at Compass · Miami, FL have already been interested in what we do.`
+- **Expected:** plain, accurate coaching for newer callers (handoff §1), e.g. "Another agent at …".
+- **Actual:** it overstates the evidence. A rep repeating it to the lead would be saying something untrue.
+- **Suggested fix:** branch on the count (1 → "Another agent", 2+ → "{n} agents").
+
+### F-43 · Low · Rebuttal coach · Flagged suggestions can be approved with no warning, then become top few-shot examples and the call-screen hint
+- **Where:** `rebuttalCoach.reviewSuggestion` (no check on `review_note`). `fewShotExamples` puts approved ones first. `getHints` shows the newest approved.
+- **Evidence** (§8.4–8.5):
+  - Approving #8 ("needs manual rewrite: used 'innovative', 'optimize'") returned `"status":"approved" [HTTP 200]`.
+  - The hint became `{"text":"Our innovative solution will optimize your day.","source":"ai"}`.
+  - The next prompt's `Example 1 (approved by the team): "Our innovative solution will optimize your day."`.
+- **Expected:** a suggestion that failed the banned-phrase or length check can't be approved unedited, or the reviewer gets an explicit warning.
+- **Actual:** the feedback loop can teach the model the exact phrases the prompt bans.
+- **Suggested fix:** in `reviewSuggestion`, reject approval while `review_note` starts with "needs manual rewrite" unless the text was edited. Re-run `describeViolations` on approval.
+
+### F-44 · Low · Rebuttal coach · Each "Regenerate" adds another pending batch and the list shows all of them
+- **Where:** `rebuttalCoach.js`, the list query (`:255-258`, `status IN ('approved','pending') ORDER BY … generated_at DESC`). Its comment says "then the newest pending batch", but it returns every pending row.
+- **Evidence:** after 4 regenerations the response held 12 suggestions, including the earlier batches and the flagged ones. `pending queue (reviewer view): 12 pending`.
+- **Suggested fix:** return only the latest `generated_at` batch of pending rows, or expire older pending batches on regenerate.
+
 ## 4. Verified working
 
 ### §1 Static checks (`audit/logs/01-static.txt`)
@@ -737,6 +759,46 @@ The code defines **7** dispositions, not CLAUDE.md's "six": the six buttons plus
 | Email compose and validation | **Pass** | Valid send gives `201 … "body":"Hi Ben Brooks"` (merge works). Missing body: 400. No email on file: 400. Unknown lead: 404. Empty subject: F-41 |
 | Email to a DNC lead | **Info** | `201 sent` to lead 11 (DNC). DNC is a phone-call list, so this is legally distinct, but it needs a decision (§7 of this report) |
 | SMS quiet hours | **Fail** | F-39 |
+
+### §8 Objections, rebuttal coach, pre-call brief, colleague intel (`audit/logs/08-objections-ai.txt`)
+
+**Every AI call in this section went to the local Groq stub (`GROQ_BASE_URL` → `audit/stubs/groq-stub-server.js`), so results are stubbed.** They prove prompt assembly, validation, retry, fallback, storage and gating. Real output quality is *Can't verify* (§5 of this report).
+
+| Check | Result | Evidence |
+|---|---|---|
+| Objection logging and report | **Pass** | Logged on real calls via `POST /api/objections/calls/:callId`, with rebuttal text via `PUT`. Report gave `{"count":9,"dispositioned":9,"positive":2,"positiveRate":22}`, equal to SQL `count=9 dispositioned=9 positive=2` (the 10th harness dial did not start; noted). Duplicate log: 201 (idempotent via the unique index). Delete: 200. Re-add: 201 |
+| Objection types CRUD | **Pass** | Create gives 201; duplicate label gives `409 "An objection with that label already exists"`; deactivate gives `is_active:false`, hidden by default and shown with `includeInactive=1`. A bogus id in reorder is ignored (200) |
+| Coach config (from code) | **Info** | `MODEL=openai/gpt-oss-20b` (Groq, the free option of the two the handoff weighs), `TEMPERATURE=0.7`, `MIN_INSTANCES=10`, `MIN_POSITIVE=2`, 3 suggestions, `MAX_WORDS=30`, `MAX_SENTENCES=2`, `MAX_EXAMPLES=5`, timeout 20 s, `maxRetries 1`. **33 banned phrases**, all listed in the log |
+| Threshold | **Pass** | 9 instances gave `{"source":"insufficient","eligible":false,…"instanceCount":9,"positiveCount":2}`. At 10/3 it generates |
+| Prompt assembly | **Pass** | The captured system prompt contains the 5 hard rules, the full banned list, the self-check instruction and a JSON-only output contract. The user message has `Objection the agent raised: "Too expensive"` plus 3 `(worked on a real call)` examples. The stub received `model=openai/gpt-oss-20b temperature=0.7` |
+| Banned phrase → retry | **Pass** (stubbed) | 2 Groq requests. The retry has roles `system,user,assistant,user`; the final user message reads `Your previous draft #1 used 'synergy', 'leverage', 'seamless', 'unlock'. … Rewrite all 3 without any banned phrase…` |
+| Still failing after retry | **Pass** (stubbed) | Stored as `pending` with `review_note` set to `needs manual rewrite: used 'win-win', 'circle back'` or `was 33 words (over 30)` |
+| Malformed JSON / HTTP 500 | **Pass** (stubbed) | Falls back to `"source":"logged"` with the 3 real logged rebuttals and `"AI suggestions are unavailable right now — showing rebuttals that worked on past calls instead."` |
+| Storage columns | **Pass** | `rebuttal_suggestions` rows: `objection_type_id=2 based_on_count=10 status=pending suggestion="Totally fair…" review_note=-`. The text is in `suggestion` and the note in `review_note`, so the earlier wrong-column bug is fixed |
+| Unapproved never on the call screen | **Pass** | `ObjectionPanel.jsx` calls `getObjectionHints()`. Before approval, hints = only the `"source":"logged"` rebuttal, with 12 pending present. After approving #2/#8, hints show the approved AI text. `preCallBrief` uses the same `getHints()` |
+| Approvals fed back as few-shot | **Pass** | After approval the next prompt has `Example 1 (approved by the team): …`, `Example 2 (approved by the team): …`, then `(worked on a real call)` examples. See F-43 |
+| Review status validation | **Pass** | `status:"gold"` gives `400 "status must be 'approved' or 'rejected'"` |
+| Brief: empty states | **Pass** | A lead with no brokerage, address or history gives `"headline":"First call · local time 6:13am"`, `colleagues:null`, `objections:[]`, `ai:null` (AI is skipped on a first call by design). Unknown or deleted lead: 404 |
+| Brief: AI failure / timeout | **Pass** (stubbed) | Stub 500 gives `ai=null`. Stub 5 s delay gives `ai=null` after **3.1 s**, with the instant brief intact. AI results are cached 30 min per lead (`preCallBrief.js:23`) |
+| Brief: colleague section | **Pass** (wording issue F-42) | Shows the colleague count and an opener |
+| Colleague matching | **Pass** for spelling variants / **Partial** overall | `Keller Williams`, `KW`, `keller williams`, `  KELLER WILLIAMS  `, `Keller Williams Realty` and `Keller-Williams` all give `keller williams\|dallas\|TX`; `RE/MAX` and `Remax` give `re max\|dallas\|TX`. **Not merged:** `kw.com` (F-10's fallback brokerage) and `Keller Williams Dallas` (brokerage containing the city) |
+| Current lead excluded | **Pass** | `self appears in its own list? 0` |
+| What other agents' data is exposed | **Pass** | Summary counts plus `recentPositive[{leadId,name,outcome,date}]`. No phone, notes or call notes |
+| N+1 at scale | **Pass** | 2 queries per request (self + one `LATERAL` join). A 5,000-lead office: `/colleagues` 0.038 s, `/brief?ai=0` 0.033 s. `Bitmap Index Scan on idx_leads_office_key … Execution Time: 0.942 ms` |
+
+**Handoff "Not added" items: true status on `latest`** (grep over `backend/src` and `frontend/src`, plus the behaviour above):
+
+| Item | Status | Evidence |
+|---|---|---|
+| Colleague mode (office social proof) | **Working** | `services/colleagueIntel.js`, `ColleagueCard.jsx`, call screen + lead page + brief, tested above |
+| Voicemail-to-text follow-up | **Missing** | `NO MATCHES` |
+| Review gate (pending/approved) | **Working** | Migration `022_rebuttal_review.sql`; gate proven above |
+| "Why this works" line | **Missing** | `NO MATCHES` |
+| Gold-example tagging | **Missing** | `rebuttalCoach.js:133` comment: "is_gold_example rebuttals — no such column exists yet, so skipped" |
+| "I used this" tracking | **Missing** | `NO MATCHES` (only the free-text `rebuttal_used` per call) |
+| Low-performance flag | **Missing** | `NO MATCHES` |
+| Rebuttal voice/quality prompt | **Working** (stubbed; quality unverified) | Above |
+| Monthly review banner | **Partial** | `ObjectionReport.jsx:123` shows "It's been a month — worth skimming recently approved rebuttals…". It rendered on the Reports page (§10) with the review data a few minutes old, so the trigger condition was not verified as "a month" |
 
 ## 5. Can't verify
 *pending*
