@@ -798,7 +798,7 @@ The code defines **7** dispositions, not CLAUDE.md's "six": the six buttons plus
 | "I used this" tracking | **Missing** | `NO MATCHES` (only the free-text `rebuttal_used` per call) |
 | Low-performance flag | **Missing** | `NO MATCHES` |
 | Rebuttal voice/quality prompt | **Working** (stubbed; quality unverified) | Above |
-| Monthly review banner | **Partial** | `ObjectionReport.jsx:123` shows "It's been a month — worth skimming recently approved rebuttals…". It rendered on the Reports page (§10) with the review data a few minutes old, so the trigger condition was not verified as "a month" |
+| Monthly review banner | **Partial** | `ObjectionReport.jsx:101-114` `RecalibrationBanner` shows "It's been a month — worth skimming recently approved rebuttals…" whenever the setting `rebuttal-recalibration-dismissed-month` ≠ the current calendar month, i.e. **once per calendar month until dismissed**, not a month after the last review. On the first Reports visit of any month it claims "it's been a month" even if rebuttals were approved the day before. Rendering is checked in §10 |
 
 ## 5. Can't verify
 *pending*
