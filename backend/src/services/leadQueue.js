@@ -457,6 +457,10 @@ async function updateFields(leadId, fields) {
   const keys = EDITABLE_FIELDS.filter((f) => fields[f] !== undefined);
   if (keys.length === 0) throw new ApiError(400, 'No editable fields provided');
 
+  const { rows: currentRows } = await db.query('SELECT * FROM leads WHERE id = $1 AND deleted_at IS NULL', [leadId]);
+  const current = currentRows[0];
+  if (!current) throw new ApiError(404, 'Lead not found');
+
   // Same rules as create() for the fields being edited: name, E.164 phone
   // (never a DNC-listed number — that was how a DNC'd number got dialed),
   // US state, email. address/brokerage are stored as given, as before.
@@ -475,9 +479,15 @@ async function updateFields(leadId, fields) {
   }
   if (!rows[0]) throw new ApiError(404, 'Lead not found');
 
+  // A new number can take a lead out of a phone-related dead end; that
+  // status change belongs to leadLifecycle, not to this plain field edit.
+  let updated = rows[0];
+  if (updated.phone !== current.phone) {
+    updated = (await leadLifecycle.phoneNumberChanged(leadId)) || updated;
+  }
+
   // Editing brokerage/address/state changes which office this lead belongs
   // to, so the stored key would otherwise go stale.
-  const updated = rows[0];
   const nextKey = buildOfficeKey({
     brokerage: updated.brokerage,
     address: updated.address,

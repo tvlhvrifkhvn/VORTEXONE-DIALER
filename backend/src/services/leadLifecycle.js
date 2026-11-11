@@ -340,6 +340,42 @@ async function snooze({ leadId }) {
   return rows[0];
 }
 
+/**
+ * The lead's phone number was just changed (leadQueue.updateFields calls this
+ * after saving the new number). A lead parked as no_contact_number because
+ * its number was bad goes back to in_queue: attempts are kept, next_action_at
+ * is cleared, and a timeline note records why. Any other status is left as
+ * it is. Returns the lead as it now stands.
+ */
+async function phoneNumberChanged(leadId) {
+  const client = await db.getClient();
+  try {
+    await client.query('BEGIN');
+    const { rows } = await client.query('SELECT * FROM leads WHERE id = $1 FOR UPDATE', [leadId]);
+    let lead = rows[0];
+    if (lead && lead.status === 'no_contact_number' && lead.phone) {
+      ({ rows: [lead] } = await client.query(
+        `UPDATE leads
+         SET status = 'in_queue', next_action_at = NULL, notes_count = notes_count + 1, updated_at = now()
+         WHERE id = $1
+         RETURNING *`,
+        [leadId]
+      ));
+      await client.query('INSERT INTO lead_notes (lead_id, body) VALUES ($1, $2)', [
+        leadId,
+        'Number changed, back in queue',
+      ]);
+    }
+    await client.query('COMMIT');
+    return lead || null;
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
 /** The queue picked a lead whose number is already on the DNC list (added
  * after import, or by another lead): park it as dnc so it is never served
  * again. Mirrors what multi-line reserveSlot does on the same hit. */
@@ -364,4 +400,5 @@ module.exports = {
   hangup,
   snooze,
   markDncFromQueue,
+  phoneNumberChanged,
 };
