@@ -454,6 +454,7 @@ const EDITABLE_FIELDS = ['name', 'phone', 'email', 'address', 'brokerage', 'stat
  * plain contact fields are editable this way — lifecycle fields (status,
  * attempts, etc.) go through leadLifecycle instead. */
 async function updateFields(leadId, fields) {
+  const requested = EDITABLE_FIELDS.some((f) => fields[f] !== undefined);
   const { rows: currentRows } = await db.query('SELECT * FROM leads WHERE id = $1 AND deleted_at IS NULL', [leadId]);
   const current = currentRows[0];
   if (!current) throw new ApiError(404, 'Lead not found');
@@ -463,9 +464,22 @@ async function updateFields(leadId, fields) {
   if (current.phone == null && fields.phone !== undefined && String(fields.phone ?? '').trim() === '') {
     fields = { ...fields, phone: undefined };
   }
+  // Likewise the number the lead already has is not a change.
+  if (fields.phone !== undefined && current.phone && normalizePhone(fields.phone) === current.phone) {
+    fields = { ...fields, phone: undefined };
+  }
+  // A DNC lead's number is fixed: changing it would let the person be
+  // dialed under a "new" number. Other fields stay editable.
+  if (fields.phone !== undefined && (current.dnc_flag || current.status === 'dnc')) {
+    throw new ApiError(409, "This lead is on the DNC list; its number can't be changed");
+  }
 
   const keys = EDITABLE_FIELDS.filter((f) => fields[f] !== undefined);
-  if (keys.length === 0) throw new ApiError(400, 'No editable fields provided');
+  if (keys.length === 0) {
+    // Only an unchanged phone was sent: nothing to save.
+    if (requested) return current;
+    throw new ApiError(400, 'No editable fields provided');
+  }
 
   // Same rules as create() for the fields being edited: name, E.164 phone
   // (never a DNC-listed number — that was how a DNC'd number got dialed),
