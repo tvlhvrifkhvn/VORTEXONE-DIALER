@@ -301,6 +301,45 @@ async function list({ search, status, dateFrom, dateTo, state, page = 1, pageSiz
   };
 }
 
+const MAX_NAME_LENGTH = 200;
+
+/**
+ * The one set of lead field rules, shared by create() and updateFields():
+ * name required (trimmed, max MAX_NAME_LENGTH), phone normalised to E.164,
+ * state a US code (trimmed, upper-cased), email as create() always stored it,
+ * and a phone on the DNC list is refused. With { partial: true } (an edit),
+ * only the fields actually present are checked. Returns the cleaned values.
+ */
+async function validateLeadInput(input, { partial = false } = {}) {
+  const present = (key) => !partial || input[key] !== undefined;
+  const clean = {};
+
+  if (present('name')) {
+    const name = typeof input.name === 'string' ? input.name.trim() : '';
+    if (!name) throw new ApiError(400, 'Name is required');
+    if (name.length > MAX_NAME_LENGTH) {
+      throw new ApiError(400, `Name is too long (${MAX_NAME_LENGTH} characters max)`);
+    }
+    clean.name = name;
+  }
+  if (present('phone')) {
+    const normalizedPhone = normalizePhone(input.phone);
+    if (!normalizedPhone) throw new ApiError(400, 'Enter a valid 10-digit US phone number');
+    clean.phone = normalizedPhone;
+  }
+  if (present('state')) {
+    const normalizedState = String(input.state || '').trim().toUpperCase();
+    if (!US_STATES.includes(normalizedState)) throw new ApiError(400, 'Enter a valid US state');
+    clean.state = normalizedState;
+  }
+  if (present('email')) clean.email = input.email || null;
+
+  if (clean.phone && (await dncCheck.isOnDncList(clean.phone))) {
+    throw new ApiError(409, 'This number is on the DNC list and cannot be added as a lead');
+  }
+  return clean;
+}
+
 /**
  * Creates a new lead directly — the manual dial pad's optional "Save as
  * lead" form (see AppShell.jsx / DialPad.jsx) is the one hand-entry path in
@@ -308,17 +347,9 @@ async function list({ search, status, dateFrom, dateTo, state, page = 1, pageSiz
  * same phone validation and DNC block CLAUDE.md requires of imports.
  */
 async function create({ name, phone, state, email = null, address = null, brokerage = null }) {
-  if (!name || !name.trim()) throw new ApiError(400, 'Name is required');
-
-  const normalizedPhone = normalizePhone(phone);
-  if (!normalizedPhone) throw new ApiError(400, 'Enter a valid 10-digit US phone number');
-
-  const normalizedState = String(state || '').trim().toUpperCase();
-  if (!US_STATES.includes(normalizedState)) throw new ApiError(400, 'Enter a valid US state');
-
-  if (await dncCheck.isOnDncList(normalizedPhone)) {
-    throw new ApiError(409, 'This number is on the DNC list and cannot be added as a lead');
-  }
+  const valid = await validateLeadInput({ name, phone, state, email });
+  const normalizedPhone = valid.phone;
+  const normalizedState = valid.state;
 
   try {
     const { rows } = await db.query(
@@ -326,9 +357,9 @@ async function create({ name, phone, state, email = null, address = null, broker
        VALUES ($1, $2, $3, $4, $5, $6, 'new', $7)
        RETURNING *`,
       [
-        name.trim(),
+        valid.name,
         normalizedPhone,
-        email || null,
+        valid.email,
         address || null,
         brokerage || null,
         normalizedState,
@@ -351,17 +382,10 @@ async function updateFields(leadId, fields) {
   const keys = EDITABLE_FIELDS.filter((f) => fields[f] !== undefined);
   if (keys.length === 0) throw new ApiError(400, 'No editable fields provided');
 
-  // Same phone rules as create(): store E.164 only, and never let an edit put
-  // a DNC-listed number back on a lead (that was how a DNC'd number got dialed).
-  const values = { ...fields };
-  if (values.phone !== undefined) {
-    const normalizedPhone = normalizePhone(values.phone);
-    if (!normalizedPhone) throw new ApiError(400, 'Enter a valid 10-digit US phone number');
-    if (await dncCheck.isOnDncList(normalizedPhone)) {
-      throw new ApiError(409, 'This number is on the DNC list and cannot be added as a lead');
-    }
-    values.phone = normalizedPhone;
-  }
+  // Same rules as create() for the fields being edited: name, E.164 phone
+  // (never a DNC-listed number — that was how a DNC'd number got dialed),
+  // US state, email. address/brokerage are stored as given, as before.
+  const values = { ...fields, ...(await validateLeadInput(fields, { partial: true })) };
 
   const setSql = keys.map((key, i) => `${key} = $${i + 2}`).join(', ');
   let rows;

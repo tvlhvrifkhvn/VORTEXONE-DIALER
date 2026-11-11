@@ -121,3 +121,64 @@ audit/scripts/../lib/env.sh: line 25: $3: unbound variable
 [post-fix]   dial deleted lead by id -> [HTTP 404] Lead not found
 [post-fix]   deleted lead made the top queue candidate by DIRECT SQL; POST /api/calls {} served lead=4 (X=26)
 [post-fix] control: non-deleted lead Y=27 dial by id -> [HTTP 201]
+
+## F-52 PRE-FIX (updateFields has no name/state validation)
+[pre-fix] lead X=28
+[pre-fix] PUT state "ZZ"            -> [HTTP 200] undefined  stored state=ZZ
+[pre-fix] PUT name null             -> [HTTP 500] null value in column "name" of relation "leads" violates not-null constraint
+[pre-fix] PUT name 10,000 chars     -> [HTTP 200] undefined  stored length=10000
+[pre-fix] PUT name "   "             -> [HTTP 200] undefined  stored name="   "
+[pre-fix] PUT name 200 chars (limit) -> [HTTP 200] undefined
+[pre-fix] PUT name 201 chars        -> [HTTP 200] undefined
+[pre-fix] POST state ZZ             -> [HTTP 400] Enter a valid US state
+[pre-fix] POST name null            -> [HTTP 400] Name is required
+[pre-fix] POST name 10,000 chars    -> [HTTP 201] undefined
+[pre-fix] POST name "   "            -> [HTTP 400] Name is required
+[pre-fix] valid edits:
+[pre-fix]   PUT name="Seg1 Renamed 9765" -> [HTTP 200] undefined  stored name=Seg1 Renamed 9765
+[pre-fix]   PUT phone="(817) 555-9768" -> [HTTP 200] undefined  stored phone=+18175559768
+[pre-fix]   PUT email="seg1-9765@example.com" -> [HTTP 200] undefined  stored email=seg1-9765@example.com
+[pre-fix]   PUT address="1 Main St, Fort Worth" -> [HTTP 200] undefined  stored address=1 Main St, Fort Worth
+[pre-fix]   PUT brokerage="Seg1 Realty" -> [HTTP 200] undefined  stored brokerage=Seg1 Realty
+[pre-fix]   PUT state="OK" -> [HTTP 200] undefined  stored state=OK
+[pre-fix] lowercase state: PUT {"state":"ca"} -> [HTTP 200] undefined stored=ca   | POST state "ca" -> CA
+
+## F-52 POST-FIX (validateLeadInput shared by create + updateFields, MAX_NAME_LENGTH=200)
+[post-fix] lead X=31
+[post-fix] PUT state "ZZ"            -> [HTTP 400] Enter a valid US state  stored state=TX
+[post-fix] PUT name null             -> [HTTP 400] Name is required
+[post-fix] PUT name 10,000 chars     -> [HTTP 400] Name is too long (200 characters max)  stored length=15
+[post-fix] PUT name "   "             -> [HTTP 400] Name is required  stored name="Seg1 Edit 28989"
+[post-fix] PUT name 200 chars (limit) -> [HTTP 200] undefined
+[post-fix] PUT name 201 chars        -> [HTTP 400] Name is too long (200 characters max)
+[post-fix] POST state ZZ             -> [HTTP 400] Enter a valid US state
+[post-fix] POST name null            -> [HTTP 400] Name is required
+[post-fix] POST name 10,000 chars    -> [HTTP 400] Name is too long (200 characters max)
+[post-fix] POST name "   "            -> [HTTP 400] Name is required
+[post-fix] valid edits:
+[post-fix]   PUT name="Seg1 Renamed 28989" -> [HTTP 200] undefined  stored name=Seg1 Renamed 28989
+[post-fix]   PUT phone="(817) 555-8992" -> [HTTP 200] undefined  stored phone=+18175558992
+[post-fix]   PUT email="seg1-28989@example.com" -> [HTTP 200] undefined  stored email=seg1-28989@example.com
+[post-fix]   PUT address="1 Main St, Fort Worth" -> [HTTP 200] undefined  stored address=1 Main St, Fort Worth
+[post-fix]   PUT brokerage="Seg1 Realty" -> [HTTP 200] undefined  stored brokerage=Seg1 Realty
+[post-fix]   PUT state="OK" -> [HTTP 200] undefined  stored state=OK
+[post-fix] lowercase state: PUT {"state":"ca"} -> [HTTP 200] undefined stored=CA   | POST state "ca" -> CA
+
+## F-16 re-run after F-52 refactor (phone rules now live in validateLeadInput)
+[post-f52] lead A=33 (214) 555-1547 dialed (call 21), disposition dnc: [HTTP 200]
+[post-f52]   dnc_list has +12145551547: 1
+[post-f52]   PUT A phone -> (214) 555-1548 (moves A off the number): [HTTP 200]
+[post-f52] lead B=34
+[post-f52]   PUT B phone="(214) 555-1547" -> [HTTP 409] This number is on the DNC list and cannot be added as a lead stored=+12145551549
+[post-f52]   PUT B phone="214-555-1547" -> [HTTP 409] This number is on the DNC list and cannot be added as a lead stored=+12145551549
+[post-f52]   PUT B phone="+1 214 555 1547" -> [HTTP 409] This number is on the DNC list and cannot be added as a lead stored=+12145551549
+[post-f52]   POST /api/calls {leadId:B} -> [HTTP 201] undefined | dialed number: +12145551549
+[post-f52] invalid phone: PUT B phone="abc" -> [HTTP 400] Enter a valid 10-digit US phone number
+[post-f52] number held by lead 35: PUT B -> [HTTP 409] A lead with this phone number already exists
+[post-f52] clean new number "214 555 1551": PUT B -> [HTTP 200] stored=+12145551551
+[post-f52] lead D=36: number put on dnc_list by DIRECT SQL, dnc_flag=f
+[post-f52]   by-id dial D -> [HTTP 409] This number is on the DNC list and cannot be dialed
+[post-f52]   D made the top queue candidate by DIRECT SQL (callback due a day ago)
+[post-f52]   POST /api/calls {} -> [HTTP 201] served lead=1 (D=36)
+[post-f52]   D afterwards: status=dnc dnc_flag=true locked_by=null
+[post-f52] manual dial pad to the DNC'd number (214) 555-1547 -> [HTTP 409] This number is on the DNC list and cannot be dialed
