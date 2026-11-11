@@ -4,3 +4,106 @@ Vortex Dialer API listening on port 4000 (telephony: mock)
 [brief] lead 91: first call — skipping AI
 [brief] lead 92: first call — skipping AI
 [brief] lead 92: first call — skipping AI
+error: invalid input syntax for type bigint: "NaN"
+    at /home/user/vortexone-dialer/backend/node_modules/pg-pool/index.js:45:11
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async Object.list (/home/user/vortexone-dialer/backend/src/services/leadQueue.js:257:20)
+    at async /home/user/vortexone-dialer/backend/src/routes/leads.js:17:20 {
+  length: 145,
+  severity: 'ERROR',
+  code: '22P02',
+  detail: undefined,
+  hint: undefined,
+  position: undefined,
+  internalPosition: undefined,
+  internalQuery: undefined,
+  where: "unnamed portal parameter $2 = '...'",
+  schema: undefined,
+  table: undefined,
+  column: undefined,
+  dataType: undefined,
+  constraint: undefined,
+  file: 'numutils.c',
+  line: '879',
+  routine: 'pg_strtoint64_safe'
+}
+error: invalid input syntax for type timestamp with time zone: "notadate"
+    at /home/user/vortexone-dialer/backend/node_modules/pg-pool/index.js:45:11
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async Object.list (/home/user/vortexone-dialer/backend/src/services/leadQueue.js:257:20)
+    at async /home/user/vortexone-dialer/backend/src/routes/leads.js:17:20 {
+  length: 169,
+  severity: 'ERROR',
+  code: '22007',
+  detail: undefined,
+  hint: undefined,
+  position: undefined,
+  internalPosition: undefined,
+  internalQuery: undefined,
+  where: "unnamed portal parameter $1 = '...'",
+  schema: undefined,
+  table: undefined,
+  column: undefined,
+  dataType: undefined,
+  constraint: undefined,
+  file: 'datetime.c',
+  line: '4026',
+  routine: 'DateTimeParseError'
+}
+error: LIMIT must not be negative
+    at /home/user/vortexone-dialer/backend/node_modules/pg-pool/index.js:45:11
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async Object.list (/home/user/vortexone-dialer/backend/src/services/leadQueue.js:257:20)
+    at async /home/user/vortexone-dialer/backend/src/routes/leads.js:17:20 {
+  length: 90,
+  severity: 'ERROR',
+  code: '2201W',
+  detail: undefined,
+  hint: undefined,
+  position: undefined,
+  internalPosition: undefined,
+  internalQuery: undefined,
+  where: undefined,
+  schema: undefined,
+  table: undefined,
+  column: undefined,
+  dataType: undefined,
+  constraint: undefined,
+  file: 'nodeLimit.c',
+  line: '398',
+  routine: 'recompute_limits'
+}
+TypeError: Cannot destructure property 'name' of 'req.body' as it is undefined.
+    at /home/user/vortexone-dialer/backend/src/routes/leads.js:64:13
+    at wrapped (/home/user/vortexone-dialer/backend/src/middleware/asyncHandler.js:5:21)
+    at Layer.handleRequest (/home/user/vortexone-dialer/backend/node_modules/router/lib/layer.js:152:17)
+    at next (/home/user/vortexone-dialer/backend/node_modules/router/lib/route.js:157:13)
+    at Route.dispatch (/home/user/vortexone-dialer/backend/node_modules/router/lib/route.js:117:3)
+    at handle (/home/user/vortexone-dialer/backend/node_modules/router/index.js:435:11)
+    at Layer.handleRequest (/home/user/vortexone-dialer/backend/node_modules/router/lib/layer.js:152:17)
+    at /home/user/vortexone-dialer/backend/node_modules/router/index.js:295:15
+    at processParams (/home/user/vortexone-dialer/backend/node_modules/router/index.js:582:12)
+    at next (/home/user/vortexone-dialer/backend/node_modules/router/index.js:291:5)
+error: null value in column "name" of relation "leads" violates not-null constraint
+    at /home/user/vortexone-dialer/backend/node_modules/pg-pool/index.js:45:11
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async Object.updateFields (/home/user/vortexone-dialer/backend/src/services/leadQueue.js:342:20)
+    at async /home/user/vortexone-dialer/backend/src/routes/leads.js:175:18 {
+  length: 364,
+  severity: 'ERROR',
+  code: '23502',
+  detail: 'Failing row contains (15118, null, +12145553103, null, null, null, ZZ, new, 0, 5, null, 0, null, null, f, null, null, 2026-11-11 11:25:17.365609+00, 2026-11-11 11:25:17.451478+00, null, f, f, {}, null).',
+  hint: undefined,
+  position: undefined,
+  internalPosition: undefined,
+  internalQuery: undefined,
+  where: undefined,
+  schema: 'public',
+  table: 'leads',
+  column: 'name',
+  dataType: undefined,
+  constraint: undefined,
+  file: 'execMain.c',
+  line: '2057',
+  routine: 'ExecConstraints'
+}

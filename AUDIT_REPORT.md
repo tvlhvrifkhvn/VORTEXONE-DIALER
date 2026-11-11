@@ -661,6 +661,42 @@ Findings are numbered in the order found; §2 lists them by severity.
 - **Actual:** in development the same agent is dialed twice, `attempts` double-counts, and the UI never shows "Connected". The owner runs `npm run dev` in Codespaces daily (handoff §2), so this affects real use until there is a production deployment. This is the same race as F-14.
 - **Suggested fix:** guard the start with a ref (`if (startedRef.current === leadId) return`) or an idempotency key on `POST /api/calls`. Fixing F-14 also blocks the second lock.
 
+### F-52 · Medium · Data · Lead edit accepts an invalid state (it then falls back to the New York time zone for calling hours) and crashes on a null name
+- **Where:** `backend/src/services/leadQueue.js` `updateFields` (`PUT /api/leads/:id`). There is no validation of `state` or `name`; compare `createLead`, which checks `US_STATES.includes(state)` and requires a name. `callingHours.timezoneForState` returns `America/New_York` for any unknown code (§4.10).
+- **Evidence** (`audit/logs/11-robustness.txt` §11.2):
+  ```
+  POST /api/leads {"state":"ZZ"}  -> 400 "Enter a valid US state"       (create validates)
+  PUT  /api/leads/15118 {"state":"ZZ"} -> "state":"ZZ" [HTTP 200]       (edit does not)
+  PUT  {"name":null} -> {"error":"null value in column \"…"} [HTTP 500]
+  PUT  {"name":"<10,000 chars>"} -> 200, stored length=10000
+  ```
+- **Expected:** edit enforces the same rules as create (CLAUDE.md principle 4, "Every lead is tagged with a US state").
+- **Actual:** a typo in the state field silently moves the lead to Eastern-time calling hours and out of every state filter. Bad input gives 500s.
+- **Suggested fix:** share one validator between `createLead` and `updateFields` covering name (required, max length), phone (F-16), state (`US_STATES`) and email.
+
+### F-53 · Low · API · Query/body validation gaps give 500s with raw Postgres messages, an unbounded page size, and unescaped LIKE wildcards
+- **Where:**
+  - `routes/leads.js:16-26` passes `Number(page)` and `Number(limit)` and `dateFrom`/`dateTo` straight to `leadQueue.list`.
+  - `errorHandler` returns `err.message` for 500s.
+  - `ILIKE` patterns don't escape `%`/`_` (`leadQueue.js:228`, `:384`).
+  - `POST /api/leads` destructures `req.body` without a guard.
+- **Evidence** (§11.1–11.2):
+  ```
+  page=abc          -> 500 invalid input syntax for type bigint: "NaN"
+  dateFrom=notadate -> 500 invalid input syntax for type timestamp with time zone: "notadate"
+  limit=-1          -> 500 LIMIT must not be negative
+  limit=999999      -> 200 returned=15054   (entire table in one response)
+  search=% / _      -> total=15054          (wildcard matches everything)
+  POST /api/leads (no body) -> 500 "Cannot destructure property 'name' of 'req.body' as it is undefined."
+  ```
+  SQL injection is **not** possible: every probe (`' OR '1'='1`, `'; select 1;--`, `Robert'); DROP TABLE leads;--`, `status=' OR 1=1--`) returned 200 with 0 rows, and the table was intact (all values are bound parameters).
+- **Suggested fix:** validate and clamp `page ≥ 1` and `1 ≤ limit ≤ 200`, and parse dates (400 on invalid). Escape `%`/`_`/`\` in search terms. Return a generic message for 500s and log the detail.
+
+### F-54 · Low · UI · No name-length limit; a very long name breaks the dashboard layout
+- **Where:** `leadQueue.createLead` / `updateFields` (no max length) and `components/leads/LeadRow.jsx` (no truncation).
+- **Evidence** (§11.3): a 10,000-character name gives `page scrollWidth=79849 viewport=1280 (horizontal overflow=true)`. Screenshot: `audit/screenshots/11-long-name.png`.
+- **Suggested fix:** cap names at around 200 characters on create/edit/import and `truncate` the table cell.
+
 ## 4. Verified working
 
 ### §1 Static checks (`audit/logs/01-static.txt`)
@@ -922,6 +958,23 @@ The headless browser was the pre-installed Playwright Chromium. `npx playwright 
 | Rate limit on a long call | **Fail** | F-50 |
 | Dev-mode StrictMode | **Fail** | F-51 |
 | API base URL | **Pass** (with a note) | `api.js detectApiUrl()`: on `*.app.github.dev` / `*.github.dev` it derives the backend URL from the page host; otherwise `import.meta.env.VITE_API_URL`; otherwise the hardcoded `http://localhost:4000/api` (`api.js:30`). The fallback is fine for local dev, but a production build without `VITE_API_URL` points browsers at their own machine |
+
+### §11 Robustness and security (`audit/logs/11-robustness.txt`)
+
+| Check | Result | Evidence |
+|---|---|---|
+| SQL injection via search/filter params | **Pass** | `' OR '1'='1`, `'; select 1;--`, `Robert'); DROP TABLE leads;--`, `status=' OR 1=1--`, `state=TX' --` all gave **200 with 0 rows**; `leads table still there: 15055`. All queries use bound parameters |
+| LIKE wildcards / bad params | **Fail** (Low) | F-53 |
+| XSS: `<script>` / `<img onerror>` names | **Pass** | Dashboard table, navbar search dropdown, lead page: `dialogs=0 injected={"scripts":0,"imgsWithOnerror":0,"boldFromData":0}` and the literal text is visible. React escapes. The PDF printed `<script>alert(1)</script>` literally (§9) |
+| Emoji / Urdu / Unicode | **Pass** in API and UI / **Fail** in the PDF (F-46) | `😀 احمد علی Ünïcödé` was stored and rendered on the lead page (`urdu visible=true`) |
+| Very long strings | **Fail** (Low) | F-54 |
+| Null / empty fields on create | **Pass** | `name:null` and `"   "` give `400 "Name is required"`. Phone with letters gives `400 "Enter a valid 10-digit US phone number"`. `ZZ` gives `400 "Enter a valid US state"` |
+| Null / invalid fields on edit | **Fail** | F-52 (and F-16 for phone) |
+| Upload limits | **Reported** | Imports: multer `fileSize` 15 MB (oversize → 500, F-13); `xlsx@0.18.5` (F-02, advisories not exploited). MMS: 5 MB, no type filter (F-40) |
+| Timestamps timezone-aware | **Pass** | All 31 timestamp columns are `timestamp with time zone` (`0` without). The frontend sends `new Date(when).toISOString()` (`CallControls.jsx:13`, `LeadDetail.jsx:28`), so the browser's zone is honoured. An offsetless API value is read as server-local (UTC): `"2026-11-12T10:00"` gave `10:00Z`, while `-05:00` gave `15:00Z` |
+| Scale (15,059 leads, 681 calls) | **Pass** | List 30–41 ms, state filter 19–23 ms, status filter 33–41 ms, list search 38 ms, navbar search 15 ms, state-counts 5 ms, per-state 5 ms, next lead 24 ms |
+| Indexes on status / state / next_action_at | **Pass** | `idx_leads_status`, `idx_leads_state`, `idx_leads_next_action_at` (plus `deleted_at`, partial `missing_phone`, `office_key`, gin `tags`, unique `phone`) |
+| Query plans | **Info** | The queue candidates query uses a `Seq Scan` + top-N heapsort, `Execution Time: 14.381 ms`. The ILIKE search is a `Seq Scan`, 14.7 ms. Fine at 15k; a trigram index would be needed around 100k+. Every `GET /api/leads` also runs `releaseStaleLocks()` (an UPDATE) and `peekNext()`, and the dashboard polls it every 5 s |
 
 ## 5. Can't verify
 *pending*
