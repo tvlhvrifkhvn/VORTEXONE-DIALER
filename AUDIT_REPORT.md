@@ -632,6 +632,35 @@ Findings are numbered in the order found; §2 lists them by severity.
 - **Evidence:** the extracted text shows `+121455510` / `50` on two lines for every row (§9.1).
 - **Suggested fix:** widen the Phone column and format it `(214) 555-1050`. "Duration" also wraps to `Durati`/`on` in the header.
 
+### F-50 · High · Call screen · On a live call the screen's own polling hits the API rate limit: status updates stop at ~55 s and a disposition clicked then is lost (429)
+- **Where:**
+  - `frontend/src/hooks/useCall.js:5` `POLL_MS = 600` (≈100 `GET /api/calls/:id` a minute). On any error the poll calls `stopPolling()` and never restarts.
+  - `backend/src/middleware/rateLimit.js` `apiLimiter`: `windowMs: 60 * 1000, max: 100` per user, across all endpoints.
+- **Evidence** (`audit/logs/10-frontend.txt` §10.3/10.3b; production build, mock forced *answered*):
+  ```
+  API calls by endpoint: … "GET /api/calls/:n":89 …   first 429 at 55s (GET /api/calls/:n)
+  click "Spoke / Interested" at ~57s -> POST /api/dispositions 429 {"error":"Too many requests — slow down and try again shortly."}
+  DB after the click: call 679 disposition=NULL
+  ```
+  A click at ~77 s (after the window reset) succeeded (`200`, `Logged as Spoke / Interested.`). Screenshot: `audit/screenshots/10-call-screen-429-disposition.png`.
+- **Repro:** `echo answered > /var/tmp/audit-scratch/force-outcome`, then `node audit/scripts/ui-ratelimit-window.js http://localhost:5173 <leadId>` with `WAIT_MS=50500`.
+- **Expected:** a rep can talk for as long as needed and then log the outcome.
+- **Actual:** after about 55 s on a live call (the calls that matter most), the status display freezes. Any click in the rest of that minute (disposition, note, SMS, objection) fails with 429. The outcome is lost unless the rep notices and retries later.
+- **Suggested fix:** stop polling once `answered`, or poll every 3–5 s, or use the existing SSE stream. Exempt `GET /api/calls/:id` from `apiLimiter`, or raise the per-user limit. Restart polling after a transient error.
+
+### F-51 · High · Call screen (dev) · Under `vite dev`, opening the call screen places two calls to the same lead and freezes on "Ringing…"
+- **Where:** `frontend/src/main.jsx:8` `<React.StrictMode>` double-runs effects in development. The `useCall.js` effect (`useEffect(() => { … startCallFor(targetId) … }, [leadId])`) starts a call each time; its cleanup can't cancel an in-flight `POST`. The first response's `cancelled` branch then calls `stopPolling()`, which can kill the second call's poll.
+- **Evidence** (§10.4):
+  ```
+  POST /api/calls requests sent by one visit to /call/92: 2 ["{\"leadId\":\"92\"}","{\"leadId\":\"92\"}"]
+  status shown at 7s: Ringing…
+  DB: calls created for lead 92: 2 -> 681:answered, 680:answered ; attempts=2
+  ```
+  The production build sends one request (§10.3: `"POST /api/calls":1`).
+- **Expected:** one call per visit.
+- **Actual:** in development the same agent is dialed twice, `attempts` double-counts, and the UI never shows "Connected". The owner runs `npm run dev` in Codespaces daily (handoff §2), so this affects real use until there is a production deployment. This is the same race as F-14.
+- **Suggested fix:** guard the start with a ref (`if (startedRef.current === leadId) return`) or an idempotency key on `POST /api/calls`. Fixing F-14 also blocks the second lock.
+
 ## 4. Verified working
 
 ### §1 Static checks (`audit/logs/01-static.txt`)
@@ -868,6 +897,31 @@ The code defines **7** dispositions, not CLAUDE.md's "six": the six buttons plus
 | GET settings returns the full key | **Fail** | F-47 (returned to a `rep`) |
 | Plain-text storage | **Confirmed** | `text` column, value readable in `psql` (F-47; the handoff already notes it) |
 | Dark mode persists | See §10 | |
+
+### §10 Frontend (`audit/logs/10-frontend.txt`, screenshots `audit/screenshots/10-*.png`)
+
+The headless browser was the pre-installed Playwright Chromium. `npx playwright install` was not run because this environment forbids it. Pages were tested against a production build (`vite build` + `vite preview` on :5173); the StrictMode check used `vite dev`.
+
+| Check | Result | Evidence |
+|---|---|---|
+| Console errors / 4xx–5xx on every page | **Pass** | `audit/scripts/ui-smoke.js`, 12 views: `console=0 http=0` for unauth-root, dashboard, lead-detail, inbox, sms-templates, import, reports, settings, dialer, manual-dial, call-screen and unknown-route |
+| Unauthenticated redirect | **Pass** | `/` gives `final URL /login` |
+| Unknown route | **Pass** | `/this-does-not-exist` gives `final URL /` (redirects to the dashboard) |
+| Login | **Pass** | Login form submits and lands on `/` |
+| Dashboard: clock | **Pass** | `EST 6:18am · CST 5:18am · MST 4:18am · PST 3:18am` |
+| Dashboard: state sidebar | **Pass** | Clicking TX shows `3014 leads` |
+| Dashboard: checkboxes | **Pass** | 51 checkboxes (50 rows + select-all); select-all gives `checked=51` and a "selected" banner |
+| Dashboard: pagination | **Pass** | `Showing 1-50 of 15054` → Next → `Showing 51-100 of 15054` |
+| Dashboard: global search | **Pass** | "Lia Lane" appears in the navbar dropdown |
+| Dark mode persists | **Pass** | `toggled=true after reload dark=true localStorage=dark` |
+| Lead detail | **Pass** | Renders status, colleagues card ("2 colleagues · 1 interested"), Call / Send SMS / Send Email, timeline |
+| Inbox, SMS templates, Import, Reports, Settings, Dialer | **Pass** (render) | Reports shows the monthly banner (`monthly banner shown: true`, see §8). SMS templates lists the leaking template from F-38 |
+| Dial pad paste | **Pass** | Pasting `+1 (305) 555-0138` gives `3055550138` |
+| Call screen action grid | **Pass** (rendered) | Add tag / Add note / Open lead / Quick SMS / Mute (phase-2 placeholder) / Hold (phase-2 placeholder) / Objection / End call / ✨ Expand / 6 disposition buttons / Previous Notes / Pitch script / Schedule callback / Redial |
+| Keyboard shortcut | **Pass** | Pressing `n` gives DB `call 677 … disposition no_answer` at 11:18:36. Shortcuts are ignored while typing in INPUT/TEXTAREA (`DispositionPanel.jsx:166-168`, `CallScreen.jsx:146`) |
+| Rate limit on a long call | **Fail** | F-50 |
+| Dev-mode StrictMode | **Fail** | F-51 |
+| API base URL | **Pass** (with a note) | `api.js detectApiUrl()`: on `*.app.github.dev` / `*.github.dev` it derives the backend URL from the page host; otherwise `import.meta.env.VITE_API_URL`; otherwise the hardcoded `http://localhost:4000/api` (`api.js:30`). The fallback is fine for local dev, but a production build without `VITE_API_URL` points browsers at their own machine |
 
 ## 5. Can't verify
 *pending*

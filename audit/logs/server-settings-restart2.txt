@@ -1,1 +1,6 @@
 Vortex Dialer API listening on port 4000 (telephony: mock)
+[brief] lead 89: first call — skipping AI
+[brief] lead 90: first call — skipping AI
+[brief] lead 91: first call — skipping AI
+[brief] lead 92: first call — skipping AI
+[brief] lead 92: first call — skipping AI
