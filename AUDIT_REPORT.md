@@ -127,6 +127,18 @@ Findings are numbered in the order found; §2 lists them by severity.
 - **Actual:** if the owner's real instance was seeded and the password never changed, anyone can log in; the CORS/Codespaces ports are public.
 - **Suggested fix:** require `SEED_USER_PASSWORD` from the environment, or print a random one on seed.
 
+### F-07 · Low · Server · Disallowed CORS origin returns HTTP 500 with a stack trace in the log
+- **Where:** `backend/src/index.js:39`, `corsOriginCheck` → `callback(new Error(...))` → `errorHandler`.
+- **Evidence** (`audit/logs/02-auth.txt`):
+  ```
+  curl $API/api/leads -H 'Origin: https://evil.example.com'
+  {"error":"Not allowed by CORS: https://evil.example.com"} [HTTP 500]
+  ```
+  The server log shows `Error: Not allowed by CORS … at corsOriginCheck (src/index.js:39:19)`. The preflight also returns `HTTP/1.1 500 Internal Server Error`.
+- **Expected:** a non-error rejection, i.e. no `Access-Control-Allow-Origin` header, status 403 or a plain 204 without CORS headers. Not a 500 that counts as a server error and logs a stack on every request.
+- **Actual:** HTTP 500. The browser still blocks the request, so this is not a security hole, but it pollutes the error logs and server-error metrics.
+- **Suggested fix:** `return callback(null, false)` for disallowed origins.
+
 ## 4. Verified working
 
 ### §1 Static checks (`audit/logs/01-static.txt`)
@@ -146,6 +158,22 @@ Findings are numbered in the order found; §2 lists them by severity.
 | `placeCall(fromNumber, toNumber, onEvent) → callId` | **Pass (signature)** | `telephony/index.js:38` is unchanged. Event set widened: see F-05 |
 | Route coverage | **Pass** | `audit/scripts/routes.js`: 77 routes, all under `requireAuth` except `POST /api/auth/login`, `GET /api/calls/stream` (own `?token=` check, tested in §2) and `GET /health`. `audit/scripts/apijs-calls.js`: all 76 calls in `frontend/src/lib/api.js` match a real route. `frontend calls with no backend route: 0`; the only uncalled route is `/health`. No `fetch`/`EventSource` outside `api.js`. The first run showed 5 false "MISSING" from nested `${qs}` templates; the parser was fixed and re-run, and both outputs are in the log |
 | Committed `.env` | **Pass** | `git ls-files` shows `none tracked` |
+
+### §2 Auth and server basics (`audit/logs/02-auth.txt`)
+
+| Check | Result | Evidence |
+|---|---|---|
+| Login with the seeded user | **Pass** | `{"token":"<jwt>","user":{"id":1,…,"role":"supervisor"}} [HTTP 200]` |
+| Wrong password / unknown user | **Pass** | Both return `{"error":"Invalid email or password"} [HTTP 401]` (same message, so no user enumeration) |
+| Empty body | **Pass** | `{"error":"email and password are required"} [HTTP 400]` |
+| Login brute-force limiter | **Pass** | 7 rapid bad logins: attempts 1–5 got `401`, attempts 6–7 got `429` (`loginLimiter` max 5/min/IP) |
+| Every protected route rejects bad tokens | **Pass** | `audit/scripts/auth-matrix.js`: **75 protected routes + SSE**, each hit with no token, `Bearer garbage`, a correctly-signed **expired** JWT, and a JWT signed with the **wrong secret**. Result: `routes not returning 401 for every bad token: 0`. SSE `?token=` returned `401 \| 401 \| 401 \| 401`. Full table in the log. The first unpaced run hit the 100/min API limiter (`429` on 53 routes) before auth; the run was paced at 670 ms/request and repeated. Both runs are logged |
+| Startup without `JWT_SECRET` | **Pass** | `Error: Missing required environment variable: JWT_SECRET`, exit 1 |
+| Startup without `DATABASE_URL` | **Pass** | `Error: Missing required environment variable: DATABASE_URL`, exit 1 |
+| Startup with a bad DB password | **Pass** | `Could not verify the database schema on startup: password authentication failed for user "vortex"`, exit 1. On `latest` this fails fast at startup; on `main` it only surfaced at login, which is the error the owner hit in Codespaces |
+| CORS allowed origin | **Pass** | `http://localhost:5173` gets `204` + `Access-Control-Allow-Origin: http://localhost:5173` |
+| CORS `*.app.github.dev`, dev only | **Pass** | `https://glorious-fiesta-x-5173.app.github.dev` is allowed with `NODE_ENV=development` and refused with `NODE_ENV=production`. Look-alikes `https://evil.app.github.dev.attacker.com` and `http://x.app.github.dev` are refused in both modes. Refusals are an HTTP 500 (F-07) |
+| Unreachable API message | **Pass** | Production build with the backend stopped: `Couldn't reach the server — check that the backend is running and the app's URL is up to date`, after `POST http://localhost:4000/api/auth/login -> net::ERR_CONNECTION_REFUSED`. Screenshot: `audit/screenshots/02-login-backend-down.png` |
 
 ## 5. Can't verify
 *pending*
