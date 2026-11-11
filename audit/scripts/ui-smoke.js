@@ -31,7 +31,7 @@ const shots = path.resolve(__dirname, '../screenshots');
   // login
   current = 'login';
   await page.fill('input[type=email]', 'vortexoneagency@gmail.com');
-  await page.fill('input[type=password]', 'ChangeMe123!');
+  await page.fill('input[type=password]', process.env.AUDIT_PASSWORD);
   await page.click('button[type=submit]');
   await page.waitForTimeout(2500);
   out(`\n### login -> ${page.url().replace(base, '')}`);

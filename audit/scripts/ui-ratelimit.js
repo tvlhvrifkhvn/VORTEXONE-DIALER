@@ -21,7 +21,7 @@ const [base, leadId, shot] = process.argv.slice(2);
   });
   await p.goto(base + '/login');
   await p.fill('input[type=email]', 'vortexoneagency@gmail.com');
-  await p.fill('input[type=password]', 'ChangeMe123!');
+  await p.fill('input[type=password]', process.env.AUDIT_PASSWORD);
   await p.click('button[type=submit]');
   await p.waitForTimeout(1500);
   await p.goto(`${base}/call/${leadId}`);

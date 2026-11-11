@@ -308,6 +308,21 @@ async function snooze({ leadId }) {
   return rows[0];
 }
 
+/** The queue picked a lead whose number is already on the DNC list (added
+ * after import, or by another lead): park it as dnc so it is never served
+ * again. Mirrors what multi-line reserveSlot does on the same hit. */
+async function markDncFromQueue(leadId) {
+  const { rows } = await db.query(
+    `UPDATE leads
+     SET status = 'dnc', dnc_flag = true, next_action_at = NULL,
+         locked_by = NULL, locked_at = NULL, updated_at = now()
+     WHERE id = $1
+     RETURNING *`,
+    [leadId]
+  );
+  return rows[0] || null;
+}
+
 module.exports = {
   DISPOSITIONS,
   UNDO_WINDOW_SECONDS,
@@ -315,4 +330,5 @@ module.exports = {
   undoDisposition,
   hangup,
   snooze,
+  markDncFromQueue,
 };

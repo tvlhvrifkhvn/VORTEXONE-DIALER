@@ -14,7 +14,7 @@ sqlt() { psql -h localhost -U vortex -d "${DB:-vortex_dialer}" -c "$1"; }
 
 # login [email] [password] -> stores token in $SCRATCH/token[-suffix]
 login() {
-  local email="${1:-vortexoneagency@gmail.com}" pw="${2:-ChangeMe123!}" out="${3:-token}"
+  local email="${1:-vortexoneagency@gmail.com}" pw="${2:-${AUDIT_PASSWORD:?set AUDIT_PASSWORD to the seed password}}" out="${3:-token}"
   curl -s -X POST "$API/api/auth/login" -H 'content-type: application/json' \
     -d "{\"email\":\"$email\",\"password\":\"$pw\"}" |
     node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{const j=JSON.parse(s);if(!j.token){console.error("login failed:",s);process.exit(1)}process.stdout.write(j.token)})' > "$SCRATCH/$out"
@@ -22,7 +22,7 @@ login() {
 
 # api METHOD PATH [json] [tokenfile]  -> prints body then " [HTTP nnn]"
 api() {
-  local m="$1" p="$2" d="$3" tf="${4:-token}" tok=""
+  local m="$1" p="$2" d="${3:-}" tf="${4:-token}" tok=""
   [ -f "$SCRATCH/$tf" ] && tok="$(cat "$SCRATCH/$tf")"
   if [ -n "$d" ]; then
     curl -s -w ' [HTTP %{http_code}]\n' -X "$m" "$API$p" -H "authorization: Bearer $tok" -H 'content-type: application/json' -d "$d"

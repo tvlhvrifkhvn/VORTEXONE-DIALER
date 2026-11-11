@@ -2,6 +2,7 @@ const db = require('../db');
 const { ApiError } = require('../middleware/errorHandler');
 const callingHours = require('./callingHours');
 const dncCheck = require('./dncCheck');
+const leadLifecycle = require('./leadLifecycle');
 const { normalizePhone } = require('../utils/phoneNormalize');
 const { buildOfficeKey } = require('../utils/officeKey');
 const { US_STATES } = require('../utils/usStates');
@@ -67,13 +68,18 @@ async function lockNext({ userId, leadId = null }) {
 
   let lead;
   if (leadId) {
-    const { rows } = await db.query('SELECT * FROM leads WHERE id = $1', [leadId]);
+    // deleted_at IS NULL: same filter candidates() uses — a soft-deleted lead is never dialed.
+    const { rows } = await db.query('SELECT * FROM leads WHERE id = $1 AND deleted_at IS NULL', [leadId]);
     lead = rows[0];
     if (!lead) throw new ApiError(404, 'Lead not found');
     // This by-id path bypasses candidates() entirely, so it needs its own
     // phoneless guard — otherwise a flagged lead clicked from the table dials.
     if (lead.missing_phone || !lead.phone) {
       throw new ApiError(409, 'This lead has no phone number yet — add one before calling.');
+    }
+    // Same guard and message as the manual dial pad (callSession.startManual).
+    if (await dncCheck.isOnDncList(normalizePhone(lead.phone) || lead.phone)) {
+      throw new ApiError(409, 'This number is on the DNC list and cannot be dialed');
     }
     if (lead.dnc_flag || !DIALABLE_STATUSES.includes(lead.status)) {
       throw new ApiError(409, `Lead is not dialable (status: ${lead.status})`);
@@ -84,6 +90,13 @@ async function lockNext({ userId, leadId = null }) {
   } else {
     lead = await peekNext();
     if (!lead) throw new ApiError(404, 'No dialable leads in queue right now');
+    // A queued lead whose number is on the DNC list (e.g. added after import)
+    // is marked dnc — the same outcome as multi-line reserveSlot — and the
+    // next lead is tried. Bounded: each hit removes one lead from the queue.
+    if (await dncCheck.isOnDncList(normalizePhone(lead.phone) || lead.phone)) {
+      await leadLifecycle.markDncFromQueue(lead.id);
+      return lockNext({ userId });
+    }
   }
 
   callingHours.assertCallingHours(lead.state);
@@ -288,6 +301,45 @@ async function list({ search, status, dateFrom, dateTo, state, page = 1, pageSiz
   };
 }
 
+const MAX_NAME_LENGTH = 200;
+
+/**
+ * The one set of lead field rules, shared by create() and updateFields():
+ * name required (trimmed, max MAX_NAME_LENGTH), phone normalised to E.164,
+ * state a US code (trimmed, upper-cased), email as create() always stored it,
+ * and a phone on the DNC list is refused. With { partial: true } (an edit),
+ * only the fields actually present are checked. Returns the cleaned values.
+ */
+async function validateLeadInput(input, { partial = false } = {}) {
+  const present = (key) => !partial || input[key] !== undefined;
+  const clean = {};
+
+  if (present('name')) {
+    const name = typeof input.name === 'string' ? input.name.trim() : '';
+    if (!name) throw new ApiError(400, 'Name is required');
+    if (name.length > MAX_NAME_LENGTH) {
+      throw new ApiError(400, `Name is too long (${MAX_NAME_LENGTH} characters max)`);
+    }
+    clean.name = name;
+  }
+  if (present('phone')) {
+    const normalizedPhone = normalizePhone(input.phone);
+    if (!normalizedPhone) throw new ApiError(400, 'Enter a valid 10-digit US phone number');
+    clean.phone = normalizedPhone;
+  }
+  if (present('state')) {
+    const normalizedState = String(input.state || '').trim().toUpperCase();
+    if (!US_STATES.includes(normalizedState)) throw new ApiError(400, 'Enter a valid US state');
+    clean.state = normalizedState;
+  }
+  if (present('email')) clean.email = input.email || null;
+
+  if (clean.phone && (await dncCheck.isOnDncList(clean.phone))) {
+    throw new ApiError(409, 'This number is on the DNC list and cannot be added as a lead');
+  }
+  return clean;
+}
+
 /**
  * Creates a new lead directly — the manual dial pad's optional "Save as
  * lead" form (see AppShell.jsx / DialPad.jsx) is the one hand-entry path in
@@ -295,17 +347,9 @@ async function list({ search, status, dateFrom, dateTo, state, page = 1, pageSiz
  * same phone validation and DNC block CLAUDE.md requires of imports.
  */
 async function create({ name, phone, state, email = null, address = null, brokerage = null }) {
-  if (!name || !name.trim()) throw new ApiError(400, 'Name is required');
-
-  const normalizedPhone = normalizePhone(phone);
-  if (!normalizedPhone) throw new ApiError(400, 'Enter a valid 10-digit US phone number');
-
-  const normalizedState = String(state || '').trim().toUpperCase();
-  if (!US_STATES.includes(normalizedState)) throw new ApiError(400, 'Enter a valid US state');
-
-  if (await dncCheck.isOnDncList(normalizedPhone)) {
-    throw new ApiError(409, 'This number is on the DNC list and cannot be added as a lead');
-  }
+  const valid = await validateLeadInput({ name, phone, state, email });
+  const normalizedPhone = valid.phone;
+  const normalizedState = valid.state;
 
   try {
     const { rows } = await db.query(
@@ -313,9 +357,9 @@ async function create({ name, phone, state, email = null, address = null, broker
        VALUES ($1, $2, $3, $4, $5, $6, 'new', $7)
        RETURNING *`,
       [
-        name.trim(),
+        valid.name,
         normalizedPhone,
-        email || null,
+        valid.email,
         address || null,
         brokerage || null,
         normalizedState,
@@ -338,11 +382,22 @@ async function updateFields(leadId, fields) {
   const keys = EDITABLE_FIELDS.filter((f) => fields[f] !== undefined);
   if (keys.length === 0) throw new ApiError(400, 'No editable fields provided');
 
+  // Same rules as create() for the fields being edited: name, E.164 phone
+  // (never a DNC-listed number — that was how a DNC'd number got dialed),
+  // US state, email. address/brokerage are stored as given, as before.
+  const values = { ...fields, ...(await validateLeadInput(fields, { partial: true })) };
+
   const setSql = keys.map((key, i) => `${key} = $${i + 2}`).join(', ');
-  const { rows } = await db.query(
-    `UPDATE leads SET ${setSql}, updated_at = now() WHERE id = $1 AND deleted_at IS NULL RETURNING *`,
-    [leadId, ...keys.map((k) => fields[k])]
-  );
+  let rows;
+  try {
+    ({ rows } = await db.query(
+      `UPDATE leads SET ${setSql}, updated_at = now() WHERE id = $1 AND deleted_at IS NULL RETURNING *`,
+      [leadId, ...keys.map((k) => values[k])]
+    ));
+  } catch (err) {
+    if (err.code === '23505') throw new ApiError(409, 'A lead with this phone number already exists');
+    throw err;
+  }
   if (!rows[0]) throw new ApiError(404, 'Lead not found');
 
   // Editing brokerage/address/state changes which office this lead belongs

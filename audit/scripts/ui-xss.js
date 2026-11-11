@@ -6,7 +6,7 @@ const { chromium } = require('playwright');
   const [base, ...ids] = process.argv.slice(2);
   const b = await chromium.launch(); const p = await (await b.newContext()).newPage();
   const dialogs = []; p.on('dialog', (d) => { dialogs.push(d.message()); d.dismiss(); });
-  await p.goto(base + '/login'); await p.fill('input[type=email]', 'vortexoneagency@gmail.com'); await p.fill('input[type=password]', 'ChangeMe123!'); await p.click('button[type=submit]'); await p.waitForTimeout(2000);
+  await p.goto(base + '/login'); await p.fill('input[type=email]', 'vortexoneagency@gmail.com'); await p.fill('input[type=password]', process.env.AUDIT_PASSWORD); await p.click('button[type=submit]'); await p.waitForTimeout(2000);
   const check = async (label) => {
     const injected = await p.evaluate(() => ({ scripts: [...document.querySelectorAll('main script, table script')].length, imgsWithOnerror: [...document.querySelectorAll('img[onerror]')].length, boldFromData: [...document.querySelectorAll('td b, main b')].filter((x) => x.textContent === 'KW').length }));
     const text = await p.innerText('body');

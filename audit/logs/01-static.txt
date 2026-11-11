@@ -621,4 +621,4 @@ GROQ_API_KEY blank -> config.groqApiKey = gsk_****(len 56)
 none tracked
 ## seed credentials in public repo
 4:const SEED_EMAIL = process.env.SEED_USER_EMAIL || 'vortexoneagency@gmail.com';
-5:const SEED_PASSWORD = process.env.SEED_USER_PASSWORD || 'ChangeMe123!';
+5:const SEED_PASSWORD = process.env.SEED_USER_PASSWORD || '[seed-password]';
