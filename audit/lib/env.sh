@@ -22,7 +22,7 @@ login() {
 
 # api METHOD PATH [json] [tokenfile]  -> prints body then " [HTTP nnn]"
 api() {
-  local m="$1" p="$2" d="$3" tf="${4:-token}" tok=""
+  local m="$1" p="$2" d="${3:-}" tf="${4:-token}" tok=""
   [ -f "$SCRATCH/$tf" ] && tok="$(cat "$SCRATCH/$tf")"
   if [ -n "$d" ]; then
     curl -s -w ' [HTTP %{http_code}]\n' -X "$m" "$API$p" -H "authorization: Bearer $tok" -H 'content-type: application/json' -d "$d"

@@ -100,3 +100,24 @@ Migrations up to date.
 [post-fix] selected-leads mode: leadIds=[20 (dnc_list only), 21 (clean)]
 [post-fix]   multiline/start -> 201 {"lineCount":2,"slots":[{"slotNumber":1,"leadId":21,"leadName":"Seg1 ML ok 4614","status":"ringing"}]}
 [post-fix]   calls placed to lead 20: 0   lead 20 now: new dnc_flag=false   calls to clean lead 21: 1
+
+## F-22 PRE-FIX (lockNext by-id SELECT has no deleted_at filter)
+audit/scripts/../lib/env.sh: line 25: $3: unbound variable
+[pre-fix] lead X=22 created; DELETE /api/leads/22 ->   deleted_at set=f
+[pre-fix]   dial deleted lead by id -> [HTTP 201] undefined
+[pre-fix]   deleted lead made the top queue candidate by DIRECT SQL; POST /api/calls {} served lead=22 (X=22)
+[pre-fix] control: non-deleted lead Y=23 dial by id -> [HTTP 201]
+  schema: 4:ALTER TABLE leads ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
+  schema: 6:CREATE INDEX IF NOT EXISTS idx_leads_deleted_at ON leads(deleted_at);
+(the F-22 pre-fix run above is INVALID: audit/lib/env.sh api() read $3 unguarded under set -u, so DELETE never ran — deleted_at set=f. Helper fixed to ${3:-}; re-run below.)
+## F-22 PRE-FIX re-run
+[pre-fix] lead X=24 created; DELETE /api/leads/24 -> [HTTP 200]  deleted_at set=t
+[pre-fix]   dial deleted lead by id -> [HTTP 201] undefined
+[pre-fix]   deleted lead made the top queue candidate by DIRECT SQL; POST /api/calls {} served lead=1 (X=24)
+[pre-fix] control: non-deleted lead Y=25 dial by id -> [HTTP 201]
+
+## F-22 POST-FIX
+[post-fix] lead X=26 created; DELETE /api/leads/26 -> [HTTP 200]  deleted_at set=t
+[post-fix]   dial deleted lead by id -> [HTTP 404] Lead not found
+[post-fix]   deleted lead made the top queue candidate by DIRECT SQL; POST /api/calls {} served lead=4 (X=26)
+[post-fix] control: non-deleted lead Y=27 dial by id -> [HTTP 201]

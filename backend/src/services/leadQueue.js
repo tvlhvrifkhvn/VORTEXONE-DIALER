@@ -68,7 +68,8 @@ async function lockNext({ userId, leadId = null }) {
 
   let lead;
   if (leadId) {
-    const { rows } = await db.query('SELECT * FROM leads WHERE id = $1', [leadId]);
+    // deleted_at IS NULL: same filter candidates() uses — a soft-deleted lead is never dialed.
+    const { rows } = await db.query('SELECT * FROM leads WHERE id = $1 AND deleted_at IS NULL', [leadId]);
     lead = rows[0];
     if (!lead) throw new ApiError(404, 'Lead not found');
     // This by-id path bypasses candidates() entirely, so it needs its own
