@@ -267,7 +267,7 @@ async function releaseSlot(session, slot, disposition) {
 
   if (session.stopped) return;
   session.slots.delete(slot.slotNumber);
-  await dialIntoSlot(session, slot.slotNumber);
+  await queueRefill(session, slot.slotNumber);
 }
 
 /**
@@ -299,7 +299,7 @@ async function releaseActiveSlot(userId, slotNumber) {
 
   // Refill the slot the rep just finished with.
   if (finished && !session.stopped) {
-    await dialIntoSlot(session, finished.slotNumber);
+    await queueRefill(session, finished.slotNumber);
   }
 
   return { promoted: held ? held.slotNumber : null };
@@ -439,6 +439,21 @@ async function dialIntoSlot(session, slotNumber) {
 }
 
 /**
+ * Every refill of a session goes through one promise chain, so refills run
+ * one at a time even when several lines free up in the same instant (the
+ * "await these one at a time" rule from reserveSlot). A failed refill is
+ * logged and never breaks the chain for the refills queued after it.
+ */
+function queueRefill(session, slotNumber) {
+  session.refillChain = session.refillChain
+    .then(() => dialIntoSlot(session, slotNumber))
+    .catch((err) => {
+      console.error(`Multi-line refill of slot ${slotNumber} failed:`, err.message);
+    });
+  return session.refillChain;
+}
+
+/**
  * Opens `lineCount` lines at once for a rep (1-3, chosen on the dashboard).
  * Returns immediately after the dials are placed — progress arrives over
  * callEvents (SSE), not as a response body.
@@ -470,6 +485,7 @@ async function startMultilineSession(userId, sessionId, lineCount = MULTILINE_SL
     dncSkipped: 0,
     lineCount: lines,
     leadIds: orderedLeadIds,
+    refillChain: Promise.resolve(), // see queueRefill
   };
   multilineSessions.set(userId, session);
 
@@ -503,7 +519,7 @@ async function dropMultilineSlot(userId, slotNumber) {
 
   session.slots.delete(slot.slotNumber);
   if (slot.callId) await abandonSlotCall(session, slot);
-  await dialIntoSlot(session, slot.slotNumber);
+  await queueRefill(session, slot.slotNumber);
   return { dropped: true };
 }
 

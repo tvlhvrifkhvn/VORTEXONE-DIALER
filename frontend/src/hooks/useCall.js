@@ -131,39 +131,52 @@ export function useCall(leadId) {
     [stopPolling]
   );
 
+  // isCurrent() lets the caller drop a response that arrives after this
+  // screen moved on (real unmount or a different lead), so a stale start can
+  // neither overwrite the new call nor stop its polling.
   const startCallFor = useCallback(
-    (id) => {
+    (id, opts = {}, isCurrent = () => true) => {
       setStarting(true);
       setError(null);
       setUndoInfo(null);
       return api
-        .startCall(id, getActiveSessionId())
+        .startCall(id, getActiveSessionId(), opts)
         .then(({ call: newCall, lead: newLead }) => {
+          if (!isCurrent()) return;
           setCall(newCall);
           setLead(newLead);
           pollCall(newCall.id);
         })
         .catch((err) => {
-          setError(err.message);
+          if (isCurrent()) setError(err.message);
         })
         .finally(() => {
-          setStarting(false);
+          if (isCurrent()) setStarting(false);
         });
     },
     [pollCall]
   );
 
+  // One call per visit. React StrictMode (dev) runs this effect, its cleanup,
+  // then the effect again on the SAME mounted instance; refs survive that, so
+  // startedForRef makes the second run a no-op instead of a second POST, and
+  // activeRef tells a real unmount / lead change apart from that simulated one.
+  const startedForRef = useRef(null);
+  const activeRef = useRef(null);
+
   useEffect(() => {
-    let cancelled = false;
-    // "/call/next" (no explicit leadId): if a selected-leads queue is active,
-    // it drives which lead comes up next instead of the regular in_queue pick.
-    const targetId = leadId || shiftSelectedQueue() || undefined;
-    startCallFor(targetId).then(() => {
-      if (cancelled) stopPolling();
-    });
+    const key = leadId ?? 'next';
+    activeRef.current = key;
+    if (startedForRef.current !== key) {
+      startedForRef.current = key;
+      // "/call/next" (no explicit leadId): if a selected-leads queue is active,
+      // it drives which lead comes up next instead of the regular in_queue pick.
+      const targetId = leadId || shiftSelectedQueue() || undefined;
+      startCallFor(targetId, {}, () => activeRef.current === key);
+    }
 
     return () => {
-      cancelled = true;
+      activeRef.current = null;
       stopPolling();
       clearTimeout(undoTimeoutRef.current);
     };
@@ -181,7 +194,8 @@ export function useCall(leadId) {
    * that's already in_progress and locked to this same user). */
   const redial = useCallback(() => {
     if (!lead) return Promise.resolve();
-    return startCallFor(lead.id);
+    const key = activeRef.current;
+    return startCallFor(lead.id, { redial: true }, () => activeRef.current === key);
   }, [lead, startCallFor]);
 
   const submitDisposition = useCallback(

@@ -170,10 +170,12 @@ export const optOutSms = (leadId) => request(`/sms/opt-out/${leadId}`, { method:
 export const sendEmail = (payload) => request('/email/send', { method: 'POST', body: payload });
 
 // calls
-export const startCall = (leadId, sessionId) =>
+// { redial: true } only from the call screen's Redial button: the backend
+// re-dials a lead already locked to this user only when asked explicitly.
+export const startCall = (leadId, sessionId, { redial = false } = {}) =>
   request('/calls', {
     method: 'POST',
-    body: { ...(leadId ? { leadId } : {}), ...(sessionId ? { sessionId } : {}) },
+    body: { ...(leadId ? { leadId } : {}), ...(sessionId ? { sessionId } : {}), ...(redial ? { redial: true } : {}) },
   });
 export const getCall = (id) => request(`/calls/${id}`);
 export const hangupCall = (id) => request(`/calls/${id}/hangup`, { method: 'POST' });

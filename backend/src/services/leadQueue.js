@@ -88,27 +88,62 @@ async function lockNext({ userId, leadId = null }) {
       throw new ApiError(409, `Lead is not due yet (next action at ${lead.next_action_at})`);
     }
   } else {
-    lead = await peekNext();
-    if (!lead) throw new ApiError(404, 'No dialable leads in queue right now');
-    // A queued lead whose number is on the DNC list (e.g. added after import)
-    // is marked dnc — the same outcome as multi-line reserveSlot — and the
-    // next lead is tried. Bounded: each hit removes one lead from the queue.
-    if (await dncCheck.isOnDncList(normalizePhone(lead.phone) || lead.phone)) {
-      await leadLifecycle.markDncFromQueue(lead.id);
-      return lockNext({ userId });
+    // "Next lead": the same candidates, in the same order, with the same
+    // calling-hours filter peekNext() applies — but each one is claimed
+    // atomically, so a candidate another request just took is skipped
+    // instead of being locked a second time. Bounded: CLAIM_ROUNDS re-queries.
+    for (let round = 0; round < CLAIM_ROUNDS; round++) {
+      const inHours = (await candidates()).filter((c) => callingHours.isWithinCallingHours(c.state));
+      if (inHours.length === 0) break;
+      for (const candidate of inHours) {
+        // A queued lead whose number is on the DNC list (e.g. added after
+        // import) is marked dnc — the same outcome as multi-line reserveSlot.
+        if (await dncCheck.isOnDncList(normalizePhone(candidate.phone) || candidate.phone)) {
+          await leadLifecycle.markDncFromQueue(candidate.id);
+          continue;
+        }
+        const claimed = await claimLead(candidate.id, userId);
+        if (claimed) return claimed;
+      }
     }
+    throw new ApiError(404, 'No dialable leads in queue right now');
   }
 
   callingHours.assertCallingHours(lead.state);
 
+  const claimed = await claimLead(lead.id, userId);
+  if (!claimed) {
+    // Lost the race: another request locked (or changed) this lead between
+    // the checks above and the claim. Never a second lock.
+    const { rows: current } = await db.query('SELECT status FROM leads WHERE id = $1 AND deleted_at IS NULL', [lead.id]);
+    if (!current[0]) throw new ApiError(404, 'Lead not found');
+    throw new ApiError(409, `Lead is not dialable (status: ${current[0].status})`);
+  }
+  return claimed;
+}
+
+const CLAIM_ROUNDS = 3;
+
+/**
+ * Atomic compare-and-set lock: sets in_progress only if the lead is STILL
+ * dialable at this instant. Under concurrency Postgres re-checks the WHERE
+ * after the row-lock wait, so exactly one caller gets the row back and every
+ * other caller gets null. Used only by lockNext().
+ */
+async function claimLead(leadId, userId) {
   const { rows } = await db.query(
     `UPDATE leads
      SET status = 'in_progress', locked_by = $1, locked_at = now(), updated_at = now()
      WHERE id = $2
+       AND status = ANY($3)
+       AND deleted_at IS NULL
+       AND dnc_flag = false
+       AND missing_phone = false
+       AND (next_action_at IS NULL OR next_action_at <= now())
      RETURNING *`,
-    [userId, lead.id]
+    [userId, leadId, DIALABLE_STATUSES]
   );
-  return rows[0];
+  return rows[0] || null;
 }
 
 async function getById(leadId) {

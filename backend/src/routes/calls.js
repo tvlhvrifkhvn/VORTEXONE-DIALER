@@ -56,14 +56,17 @@ router.use(requireAuth);
 // already locked to this same user (in_progress) — the Redial case, before
 // any disposition has been submitted on the previous attempt — re-dial it
 // directly instead of going through lockNext, which would otherwise reject
-// an in_progress lead as undialable.
+// an in_progress lead as undialable. Only an explicit Redial ({ redial: true },
+// sent by the call screen's Redial button) takes that branch — any other
+// request for an already-locked lead goes through lockNext and gets a 409,
+// so a duplicate/parallel start can never become a second call.
 router.post(
   '/',
   asyncHandler(async (req, res) => {
-    const { leadId, sessionId } = req.body;
+    const { leadId, sessionId, redial } = req.body;
 
     let lead;
-    if (leadId) {
+    if (leadId && redial === true) {
       const { rows } = await db.query(
         'SELECT * FROM leads WHERE id = $1 AND status = $2 AND locked_by = $3 AND missing_phone = false',
         [leadId, 'in_progress', req.user.sub]
