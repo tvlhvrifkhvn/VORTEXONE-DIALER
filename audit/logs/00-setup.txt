@@ -1,0 +1,86 @@
+## git rev-parse origin/latest
+1a3ff4a0f5e5d4ccb6a5dd30296e4f829339ccfd
+## branches NOT in base
+IN     origin/claude/colleague-intel
+NOT IN origin/claude/devcontainer-postgres-setup
+IN     origin/claude/frontend-visual-polish
+NOT IN origin/claude/full-feature-batch
+NOT IN origin/claude/handoff-audit
+IN     origin/claude/objection-tracker
+IN     origin/claude/pre-call-brief
+IN     origin/claude/rebuttal-coach-v2
+NOT IN origin/claude/remove-zip-verify-login
+IN     origin/claude/tender-gauss-t4mh6m
+IN     origin/claude/vite-host-fix
+IN     origin/latest
+IN     origin/main
+NOT IN origin/tvlhvrifkhvn-patch-1
+## full-feature-batch unique commits
+0fe67f8 Build in Groq API key
+## diff config/index.js latest vs full-feature-batch (empty = covered)
+(end diff)
+ 32 files changed, 29 insertions(+), 2839 deletions(-)
+## versions
+v22.23.4
+10.9.9
+postgres (PostgreSQL) 16.15 (Ubuntu 16.15-0ubuntu0.24.04.1)
+## postgres cluster
+CREATE ROLE
+CREATE DATABASE
+CREATE DATABASE
+connected as vortex over TCP with scram: PostgreSQL 16.15 (Ubuntu 16.15-0ubuntu0.24.04.1) on x86_64-pc-linux-gnu, compiled by gcc (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0, 64-bit
+## backend/.env (JWT_SECRET masked)
+PORT=4000
+NODE_ENV=development
+DATABASE_URL=postgres://vortex:vortex@localhost:5432/vortex_dialer
+JWT_SECRET=<random 64 hex, masked>
+JWT_EXPIRES_IN=12h
+TELEPHONY_PROVIDER=mock
+SMS_PROVIDER=mock
+EMAIL_PROVIDER=mock
+TWILIO_ACCOUNT_SID=
+TWILIO_AUTH_TOKEN=
+CORS_ORIGIN=http://localhost:5173
+GROQ_API_KEY=audit-dummy-not-real
+## git check-ignore
+.gitignore:5:.env	backend/.env
+## backend npm ci
+a different dependency.
+
+Run `npm audit` for details.
+## frontend npm ci
+  npm audit fix
+
+Run `npm audit` for details.
+## npm run migrate
+> node src/db/migrate.js
+
+Applied migration: 001_create_users.sql
+Applied migration: 002_create_leads.sql
+Applied migration: 003_create_call_history.sql
+Applied migration: 004_create_dnc_list.sql
+Applied migration: 005_create_callbacks.sql
+Applied migration: 006_create_phone_numbers.sql
+Applied migration: 007_add_leads_deleted_at.sql
+Applied migration: 008_dialing_sessions.sql
+Applied migration: 009_import_history.sql
+Applied migration: 010_settings.sql
+Applied migration: 011_import_jobs.sql
+Applied migration: 012_call_history_busy_state.sql
+Applied migration: 013_manual_calls.sql
+Applied migration: 014_call_recording.sql
+Applied migration: 015_sms.sql
+Applied migration: 016_sms_media.sql
+Applied migration: 017_import_fixes.sql
+Applied migration: 018_tags_and_lead_notes.sql
+Applied migration: 019_email.sql
+Applied migration: 020_office_key.sql
+Applied migration: 021_objections.sql
+Applied migration: 022_rebuttal_review.sql
+Migrations up to date.
+## npm run seed
+
+Seed complete. Login with vortexoneagency@gmail.com / ChangeMe123!
+## git status --porcelain (tracked changes)
+?? audit/
+(end)
