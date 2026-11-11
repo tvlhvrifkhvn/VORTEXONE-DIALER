@@ -47,9 +47,17 @@ async function incrementStat(sessionId, statName) {
   await db.query(`UPDATE dialing_sessions SET ${statName} = ${statName} + 1 WHERE id = $1`, [sessionId]);
 }
 
+/** Reverses incrementStat (used when a disposition is undone). Never below 0. */
+async function decrementStat(sessionId, statName) {
+  if (!STAT_COLUMNS.includes(statName)) {
+    throw new ApiError(400, `Unknown dialing session stat: ${statName}`);
+  }
+  await db.query(`UPDATE dialing_sessions SET ${statName} = GREATEST(0, ${statName} - 1) WHERE id = $1`, [sessionId]);
+}
+
 async function getSessionStats(sessionId) {
   const { rows } = await db.query('SELECT * FROM dialing_sessions WHERE id = $1', [sessionId]);
   return rows[0] || null;
 }
 
-module.exports = { STAT_COLUMNS, DISPOSITION_TO_STAT, startSession, endSession, incrementStat, getSessionStats };
+module.exports = { STAT_COLUMNS, DISPOSITION_TO_STAT, startSession, endSession, incrementStat, decrementStat, getSessionStats };

@@ -22,6 +22,20 @@ const DISPOSITIONS = [
   'callback_scheduled',
 ];
 
+// Clock-skew allowance for "is this callback time in the past?".
+const CALLBACK_PAST_TOLERANCE_MS = 60 * 1000;
+
+/** Parses a callback time; 400 with a plain message when it isn't a real
+ * date and time. Shared by the disposition path (applyDisposition) and the
+ * lead page's callback route (leadQueue.scheduleCallback). */
+function parseCallbackTime(scheduledAt) {
+  const when = new Date(scheduledAt);
+  if (!scheduledAt || Number.isNaN(when.getTime())) {
+    throw new ApiError(400, 'A valid callback date and time is required');
+  }
+  return when;
+}
+
 function snapshotOf(lead) {
   return {
     status: lead.status,
@@ -46,8 +60,12 @@ async function applyDisposition({ callHistoryId, disposition, note, scheduledAt,
   if (!DISPOSITIONS.includes(disposition)) {
     throw new ApiError(400, `Unknown disposition: ${disposition}`);
   }
-  if (disposition === 'callback_scheduled' && !scheduledAt) {
-    throw new ApiError(400, 'scheduledAt is required for callback_scheduled');
+  let callbackAt = null;
+  if (disposition === 'callback_scheduled') {
+    callbackAt = parseCallbackTime(scheduledAt);
+    if (callbackAt.getTime() < Date.now() - CALLBACK_PAST_TOLERANCE_MS) {
+      throw new ApiError(400, 'That callback time is in the past — pick a time from now on');
+    }
   }
 
   const client = await db.getClient();
@@ -102,7 +120,7 @@ async function applyDisposition({ callHistoryId, disposition, note, scheduledAt,
       Object.assign(updates, { status: 'dnc', dnc_flag: true, next_action_at: null, locked_by: null, locked_at: null });
     } else if (disposition === 'callback_scheduled') {
       Object.assign(updates, {
-        status: 'callback_scheduled', next_action_at: new Date(scheduledAt),
+        status: 'callback_scheduled', next_action_at: callbackAt,
         locked_by: null, locked_at: null,
       });
     }
@@ -126,26 +144,14 @@ async function applyDisposition({ callHistoryId, disposition, note, scheduledAt,
     if (disposition === 'callback_scheduled') {
       await client.query(
         'INSERT INTO callbacks (lead_id, scheduled_at, note) VALUES ($1, $2, $3)',
-        [lead.id, scheduledAt, note || null]
+        [lead.id, callbackAt, note || null]
       );
     }
 
-    let cascadedLeadIds = [];
-    if (disposition === 'no_contact_person') {
-      // Best-effort match on the same person across separate lead rows —
-      // phase 1 has no explicit person entity, so this matches by name only.
-      // Undo does not reverse this cascade (see undoDisposition).
-      const { rows: siblings } = await client.query(
-        `UPDATE leads
-         SET status = 'cold', cold_at = $2, cold_reason = 'no_contact_person', next_action_at = NULL, updated_at = $2
-         WHERE id != $1
-           AND lower(trim(name)) = lower(trim($3))
-           AND status NOT IN ('dnc', 'cold')
-         RETURNING id`,
-        [lead.id, now, lead.name]
-      );
-      cascadedLeadIds = siblings.map((r) => r.id);
-    }
+    // no_contact_person parks this lead only. A lead has one phone, and
+    // CLAUDE.md scopes the rule to "that lead" — there is no cascade to other
+    // leads with the same name (removed: it parked different people in other
+    // states, and undo could not reverse it).
 
     // Recording eligibility: only a real conversation ('contacted') is ever
     // recorded — voicemail/no_answer/busy/no_contact_*/dnc never are.
@@ -171,7 +177,6 @@ async function applyDisposition({ callHistoryId, disposition, note, scheduledAt,
 
     return {
       lead: updatedLead,
-      cascadedLeadIds,
       undoExpiresAt: new Date(now.getTime() + UNDO_WINDOW_SECONDS * 1000),
     };
   } catch (err) {
@@ -185,8 +190,9 @@ async function applyDisposition({ callHistoryId, disposition, note, scheduledAt,
 /**
  * Reverts the most recent disposition on a call within the 10s undo window,
  * restoring the lead to its pre-disposition state and reopening the same
- * call_history row so a new disposition can be submitted. Does not reverse
- * a no_contact_person cascade to sibling leads.
+ * call_history row so a new disposition can be submitted. Every disposition
+ * changes only its own lead, so restoring that lead (plus the callback /
+ * DNC-list row it created) undoes it completely.
  */
 async function undoDisposition({ callHistoryId, user }) {
   const client = await db.getClient();
@@ -221,8 +227,10 @@ async function undoDisposition({ callHistoryId, user }) {
       );
     }
     if (call.disposition === 'callback_scheduled') {
+      // Postgres DELETE takes no ORDER BY / LIMIT: pick the newest open row first.
       await client.query(
-        'DELETE FROM callbacks WHERE lead_id = $1 AND done = false ORDER BY created_at DESC LIMIT 1',
+        `DELETE FROM callbacks
+         WHERE id = (SELECT id FROM callbacks WHERE lead_id = $1 AND done = false ORDER BY created_at DESC LIMIT 1)`,
         [call.lead_id]
       );
     }
@@ -254,6 +262,13 @@ async function undoDisposition({ callHistoryId, user }) {
 
     const { rows: leadRows } = await client.query('SELECT * FROM leads WHERE id = $1', [call.lead_id]);
     await client.query('COMMIT');
+
+    // Best-effort, mirroring applyDisposition: take back the session stat the
+    // disposition counted.
+    if (call.session_id) {
+      const statColumn = dialingSession.DISPOSITION_TO_STAT[call.disposition];
+      if (statColumn) await dialingSession.decrementStat(call.session_id, statColumn);
+    }
     return leadRows[0];
   } catch (err) {
     await client.query('ROLLBACK');
@@ -325,6 +340,57 @@ async function snooze({ leadId }) {
   return rows[0];
 }
 
+/**
+ * The lead's phone number was just changed (leadQueue.updateFields calls this
+ * after saving the new number). A lead parked as no_contact_number because
+ * its number was bad goes back to in_queue: attempts are kept, next_action_at
+ * is cleared, and a timeline note records why. A lead imported without a
+ * number (missing_phone) becomes dialable: the flag is cleared, its status
+ * stays as it was (normally 'new'), and a note records it. Any other status
+ * is left as it is. Returns the lead as it now stands.
+ */
+async function phoneNumberChanged(leadId) {
+  const client = await db.getClient();
+  try {
+    await client.query('BEGIN');
+    const { rows } = await client.query('SELECT * FROM leads WHERE id = $1 FOR UPDATE', [leadId]);
+    let lead = rows[0];
+    if (lead && lead.status === 'no_contact_number' && lead.phone) {
+      ({ rows: [lead] } = await client.query(
+        `UPDATE leads
+         SET status = 'in_queue', next_action_at = NULL, notes_count = notes_count + 1, updated_at = now()
+         WHERE id = $1
+         RETURNING *`,
+        [leadId]
+      ));
+      await client.query('INSERT INTO lead_notes (lead_id, body) VALUES ($1, $2)', [
+        leadId,
+        'Number changed, back in queue',
+      ]);
+    }
+    if (lead && lead.missing_phone && lead.phone) {
+      ({ rows: [lead] } = await client.query(
+        `UPDATE leads
+         SET missing_phone = false, notes_count = notes_count + 1, updated_at = now()
+         WHERE id = $1
+         RETURNING *`,
+        [leadId]
+      ));
+      await client.query('INSERT INTO lead_notes (lead_id, body) VALUES ($1, $2)', [
+        leadId,
+        'Number added, lead is now dialable',
+      ]);
+    }
+    await client.query('COMMIT');
+    return lead || null;
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
 /** The queue picked a lead whose number is already on the DNC list (added
  * after import, or by another lead): park it as dnc so it is never served
  * again. Mirrors what multi-line reserveSlot does on the same hit. */
@@ -342,10 +408,12 @@ async function markDncFromQueue(leadId) {
 
 module.exports = {
   DISPOSITIONS,
+  parseCallbackTime,
   UNDO_WINDOW_SECONDS,
   applyDisposition,
   undoDisposition,
   hangup,
   snooze,
   markDncFromQueue,
+  phoneNumberChanged,
 };

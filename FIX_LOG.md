@@ -73,6 +73,59 @@ Known limitations (not fixed here):
 - **Roles:** only `rep` and `supervisor` exist. The seed user is a supervisor; there is no UI or endpoint to change a role, and a role change takes effect at the next login (it's in the JWT).
 - **Redial without a fresh lock time:** Redial reuses the existing lock and doesn't refresh `locked_at`. Any redial that actually starts a call is protected by the open-call rule. Not seen in testing.
 
+## Segment 4 — branch `claude/fix-seg4-lifecycle` (base `origin/claude/fix-seg3-lock-ownership` @ `8b89b7f`, since PR #17 is not merged yet)
+
+| Finding | Status | Commit | File:function | Test that proves it | Notes |
+|---|---|---|---|---|---|
+| F-21 Undo after "Callback scheduled" crashes | **Fixed** (+1 more undo failure found) | `e869879` | `backend/src/services/leadLifecycle.js` `undoDisposition`; `backend/src/services/dialingSession.js` `decrementStat` (new) | `fix-seg4.sh` part `undo`: all 8 dispositions (contacted, voicemail, no_answer, callback_scheduled, no_contact_number, no_contact_person, dnc, cold at max attempts), each applied with a note in a dialing session and then undone. The lead (status, attempts, next_action_at, notes_count, cold, dnc_flag, locked_by), open callbacks, the dnc_list and the session stats are compared before and after. Pre-fix: **2 PASS / 6 FAIL**. callback_scheduled undo → 500 `syntax error at or near "ORDER"` (lead stays callback_scheduled, callback row kept); 5 more failed because the session stat wasn't taken back. Post-fix, **3 runs: 8/8 PASS**, 0 server errors | The undo matrix found the second failure: undo never reversed the dialing-session stat (`total_contacts` etc.). `dialingSession.js` is an extra file for that |
+| F-17 no_contact_person cascades by name | **Fixed** (cascade removed, owner decision) | `b900117` | `leadLifecycle.js` `applyDisposition` (block removed, response no longer has `cascadedLeadIds`), `undoDisposition` comment | `fix-seg4.sh` part `cascade`: three "Sam Same" leads in TX / FL / AZ (AZ a scheduled callback), no_contact_person on TX. Pre-fix: `cascadedLeadIds [FL, AZ]`, both cold/no_contact_person, still cold after undo. Post-fix, **3 runs**: only TX cold; FL stays in_queue, AZ stays callback_scheduled with its callback; undo restores TX | Old victims are not changed; a read-only query to find them is in the PR. No frontend text mentioned the cascade |
+| F-35 Callback time not validated | **Fixed** | `14ee003` | `leadLifecycle.js` `parseCallbackTime` (new, shared), `applyDisposition`; `leadQueue.js` `scheduleCallback` uses the shared parser | `fix-seg4.sh` part `callback`. Pre-fix: "next tuesday" → **500** raw Postgres error; 2020-01-01 → 200. Post-fix, **3 runs**: "next tuesday" → 400 "A valid callback date and time is required"; 2020-01-01 → 400 "That callback time is in the past"; now−30 s → 200; +3 days → 200 | Past = more than 1 minute before now (owner decision). The lead-page callback route keeps its behaviour (same parser, no past-time rule) |
+| F-36 Note linked to another lead's call | **Fixed** | `b64ba7e` | `leadQueue.js` `addNote` | `fix-seg4.sh` part `note`, plus the exact audit repro on a clone of the audit DB (`seg4-f36-audit`). Pre-fix: lead 69 + call 154 (lead 249's) → **201**; unknown call id → 500 (foreign key). Post-fix, **3 runs**: 400 "That call isn't one of this lead's calls" for both; own call → 201; no callId → 201; lead 249 + call 154 → 201 | — |
+| F-23 no_contact_number is a dead end | **Fixed** | `30ceef4` | `leadLifecycle.js` `phoneNumberChanged` (new); `leadQueue.js` `updateFields` calls it after a real phone change | `fix-seg4.sh` part `ncn`. Pre-fix: new valid phone → status stays no_contact_number, dial → 409. Post-fix, **3 runs**: "abc" → 400 and DNC-listed number → 409 (status unchanged), valid new number → `in_queue`, attempts kept (1), `next_action_at` NULL, timeline note "Number changed, back in queue", dial → 201 | Multiple numbers per lead not added (schema change, later phase) |
+| F-55 missing_phone lead stays undialable | **Fixed** | `b1870dc` | `leadLifecycle.js` `phoneNumberChanged`; `leadQueue.js` `updateFields` (blank phone on a phoneless lead = unchanged) | `fix-seg4.sh` part `missing` = the FIX_LOG Segment 1 repro (phoneless lead by DIRECT SQL as csvImport inserts it). Pre-fix: dial → 409; the edit form (sends phone "") → **400**; PUT phone → 200 but `missing_phone` stays true, dial → 409. Post-fix, **3 runs**: edit form → 200; PUT phone → `missing_phone=false`, status stays `new`, note "Number added, lead is now dialable", dial → 201 | — |
+| DNC lead's phone editable | **Fixed** (owner decision, no override) | `373e2ff` | `leadQueue.js` `updateFields` | `fix-seg4.sh` part `dncedit`. Pre-fix: new phone on a dnc lead → **200** (number replaced). The full edit form with the lead's own number → 409 (its own number is on the DNC list), so a DNC lead's name couldn't be edited from the form. Post-fix, **3 runs**: new phone → 409 "This lead is on the DNC list; its number can't be changed", phone unchanged; name only → 200; only its current phone → 200 (no-op); full form, phone unchanged → 200 | Sending the number a lead already has now counts as no change, for every lead |
+
+UI (`fix-seg4-ui.sh`, vite dev):
+- Pre-fix on base:
+  - past callback accepted (call finalized);
+  - Undo of that callback shows `syntax error at or near "ORDER"` (500);
+  - DNC lead phone saved (200), then the form's name save → 409;
+  - phoneless lead: the form shows "Enter a valid 10-digit…" on a brokerage edit; adding a phone saves, but `missing_phone` stays true;
+  - no_contact_number lead stays no_contact_number.
+- Post-fix, **3 runs**:
+  - "That callback time is in the past" shown, buttons usable; a valid callback then Undo → lead back to in_progress, callback removed, no error;
+  - DNC lead: the 409 message shown, phone unchanged, name saved;
+  - phoneless lead saves and becomes dialable;
+  - "abc" shows the 400 message;
+  - the no_contact_number lead goes to in_queue;
+  - 0 page errors.
+- No frontend file needed a change: the existing error lines (`setActionError`, `setError`) show the server's message.
+
+Test shortcuts (labelled in the scripts): mock outcome forced to answered; synthetic same-name leads, a phoneless lead, a dnc_list entry and "one attempt left" set by DIRECT SQL. Logs: `audit/logs/fix-seg4.txt`, `audit/logs/fix-seg4-regression.txt`.
+
+Regression (`audit/logs/fix-seg4-regression.txt`):
+- Segment 1 repros (`fix-seg1-f06`, `f16`, `f16-multiline`, `f22`, `f52`) pass. Expected change: `fix-seg1-f16`'s setup step that moves the number off a DNC lead now gets 409 (the new DNC phone rule); every Segment 1 assertion after it is unchanged.
+- Segment 2 repros pass:
+  - `fix-seg2-f14`: 20 calls on 20 leads; 1×201 + 9×409; same queue order.
+  - `fix-seg2-f27`: 15/15 and 30/30; held → promoted.
+  - `fix-seg2-redial`: unchanged.
+  - `fix-seg2-f51` (dev): 1 POST, "Connected".
+- Segment 3 repros pass (`fix-seg3.sh`, all parts):
+  - live-call lock, hung-up/no-call release, ceiling, undo, F-25, F-24 (35 s);
+  - F-32: 403 ×3 and the late-disposition 409;
+  - `fix-seg3-ui.sh`: the 403/409 messages on the call screen.
+- 77 routes identical to base; schema-check 0 problems.
+- Auth matrix identical to base (75 + SSE all 401, paced). calling-hours results identical (only the DB toggle's starting value differs).
+- Invariants unchanged from Segment 3: I1, I3, I4, I5, I7 = 0. I6 lead 4 and I8 = 1 are the same Segment 1 test-setup rows.
+- Frontend build passes. The production ui-smoke has 0 console errors and 0 4xx/5xx on all 12 views.
+- Server logs: 0 errors or warnings in every Segment 4 run.
+
+Known limitations (not fixed here):
+- One phone per lead. no_contact_number now recovers when the number is fixed, but there are no "other numbers on the lead" (CLAUDE.md). That needs a schema change.
+- Old cascade victims are left as they are; the owner reviews them with the query in the PR.
+- The lead-page callback route (`POST /api/leads/:id/callback`) still accepts past times. The owner's past-time rule was set for the disposition path; say if it should apply there too.
+- `leadQueue.scheduleCallback` (lead-page route) still sets the status itself rather than through `leadLifecycle.js`. This is existing code, unchanged apart from the shared time parser.
+
 Still open (later segments):
 - **F-01** Groq key, deferred by the owner to the last segment.
 - **F-20** queue starvation under calling hours (Segment 6).
@@ -82,4 +135,4 @@ Still open (later segments):
 
 | ID | Found in | Description | Planned |
 |---|---|---|---|
-| F-55 | Segment 1 | A phoneless lead (`missing_phone = true`, e.g. from an import) that gets a number through `PUT /api/leads/:id` stores the number but keeps `missing_phone = true`, so it still cannot be dialed ("This lead has no phone number yet"). Evidence: `audit/logs/fix-seg1-regression.txt` | Segment 4 |
+| F-55 | Segment 1 | A phoneless lead (`missing_phone = true`, e.g. from an import) that gets a number through `PUT /api/leads/:id` stores the number but keeps `missing_phone = true`, so it still cannot be dialed ("This lead has no phone number yet"). Evidence: `audit/logs/fix-seg1-regression.txt` | **Fixed in Segment 4** (`b1870dc`) |

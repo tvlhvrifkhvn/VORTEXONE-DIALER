@@ -1,0 +1,71 @@
+Vortex Dialer API listening on port 4000 (telephony: mock)
+error: syntax error at or near "ORDER"
+    at /home/user/vortexone-dialer/backend/node_modules/pg/lib/client.js:694:17
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async Object.undoDisposition (/home/user/vortexone-dialer/backend/src/services/leadLifecycle.js:224:7)
+    at async /home/user/vortexone-dialer/backend/src/routes/dispositions.js:26:18 {
+  length: 94,
+  severity: 'ERROR',
+  code: '42601',
+  detail: undefined,
+  hint: undefined,
+  position: '59',
+  internalPosition: undefined,
+  internalQuery: undefined,
+  where: undefined,
+  schema: undefined,
+  table: undefined,
+  column: undefined,
+  dataType: undefined,
+  constraint: undefined,
+  file: 'scan.l',
+  line: '1244',
+  routine: 'scanner_yyerror'
+}
+error: invalid input syntax for type timestamp with time zone: "0NaN-NaN-NaNTNaN:NaN:NaN.NaN+NaN:NaN"
+    at /home/user/vortexone-dialer/backend/node_modules/pg/lib/client.js:694:17
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async Object.applyDisposition (/home/user/vortexone-dialer/backend/src/services/leadLifecycle.js:116:35)
+    at async /home/user/vortexone-dialer/backend/src/routes/dispositions.js:16:20 {
+  length: 197,
+  severity: 'ERROR',
+  code: '22007',
+  detail: undefined,
+  hint: undefined,
+  position: undefined,
+  internalPosition: undefined,
+  internalQuery: undefined,
+  where: "unnamed portal parameter $4 = '...'",
+  schema: undefined,
+  table: undefined,
+  column: undefined,
+  dataType: undefined,
+  constraint: undefined,
+  file: 'datetime.c',
+  line: '4026',
+  routine: 'DateTimeParseError'
+}
+error: insert or update on table "lead_notes" violates foreign key constraint "lead_notes_call_id_fkey"
+    at /home/user/vortexone-dialer/backend/node_modules/pg-pool/index.js:45:11
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async Object.addNote (/home/user/vortexone-dialer/backend/src/services/leadQueue.js:246:20)
+    at async /home/user/vortexone-dialer/backend/src/routes/leads.js:144:18 {
+  length: 276,
+  severity: 'ERROR',
+  code: '23503',
+  detail: 'Key (call_id)=(99999999) is not present in table "call_history".',
+  hint: undefined,
+  position: undefined,
+  internalPosition: undefined,
+  internalQuery: undefined,
+  where: undefined,
+  schema: 'public',
+  table: 'lead_notes',
+  column: undefined,
+  dataType: undefined,
+  constraint: 'lead_notes_call_id_fkey',
+  file: 'ri_triggers.c',
+  line: '2608',
+  routine: 'ri_ReportViolation'
+}
+SIGTERM received — stale-lock sweep stopped, shutting down

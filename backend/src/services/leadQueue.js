@@ -243,6 +243,14 @@ async function addNote({ leadId, callId = null, userId = null, body }) {
   );
   if (!leadRows[0]) throw new ApiError(404, 'Lead not found');
 
+  // A note may point at a call only if that call was made to this lead.
+  if (callId) {
+    const { rows: callRows } = await db.query('SELECT lead_id FROM call_history WHERE id = $1', [callId]);
+    if (!callRows[0] || Number(callRows[0].lead_id) !== Number(leadId)) {
+      throw new ApiError(400, "That call isn't one of this lead's calls");
+    }
+  }
+
   const { rows } = await db.query(
     `INSERT INTO lead_notes (lead_id, call_id, user_id, body)
      VALUES ($1, $2, $3, $4)
@@ -261,10 +269,7 @@ async function addNote({ leadId, callId = null, userId = null, body }) {
  * paths leave identical state behind.
  */
 async function scheduleCallback(leadId, scheduledAt) {
-  const when = new Date(scheduledAt);
-  if (!scheduledAt || Number.isNaN(when.getTime())) {
-    throw new ApiError(400, 'A valid callback date and time is required');
-  }
+  const when = leadLifecycle.parseCallbackTime(scheduledAt);
 
   const { rows } = await db.query(
     `UPDATE leads
@@ -449,8 +454,32 @@ const EDITABLE_FIELDS = ['name', 'phone', 'email', 'address', 'brokerage', 'stat
  * plain contact fields are editable this way — lifecycle fields (status,
  * attempts, etc.) go through leadLifecycle instead. */
 async function updateFields(leadId, fields) {
+  const requested = EDITABLE_FIELDS.some((f) => fields[f] !== undefined);
+  const { rows: currentRows } = await db.query('SELECT * FROM leads WHERE id = $1 AND deleted_at IS NULL', [leadId]);
+  const current = currentRows[0];
+  if (!current) throw new ApiError(404, 'Lead not found');
+
+  // The edit form sends every field. A blank phone on a lead that has no
+  // number yet (imported without one) means "no change", not "invalid".
+  if (current.phone == null && fields.phone !== undefined && String(fields.phone ?? '').trim() === '') {
+    fields = { ...fields, phone: undefined };
+  }
+  // Likewise the number the lead already has is not a change.
+  if (fields.phone !== undefined && current.phone && normalizePhone(fields.phone) === current.phone) {
+    fields = { ...fields, phone: undefined };
+  }
+  // A DNC lead's number is fixed: changing it would let the person be
+  // dialed under a "new" number. Other fields stay editable.
+  if (fields.phone !== undefined && (current.dnc_flag || current.status === 'dnc')) {
+    throw new ApiError(409, "This lead is on the DNC list; its number can't be changed");
+  }
+
   const keys = EDITABLE_FIELDS.filter((f) => fields[f] !== undefined);
-  if (keys.length === 0) throw new ApiError(400, 'No editable fields provided');
+  if (keys.length === 0) {
+    // Only an unchanged phone was sent: nothing to save.
+    if (requested) return current;
+    throw new ApiError(400, 'No editable fields provided');
+  }
 
   // Same rules as create() for the fields being edited: name, E.164 phone
   // (never a DNC-listed number — that was how a DNC'd number got dialed),
@@ -470,9 +499,15 @@ async function updateFields(leadId, fields) {
   }
   if (!rows[0]) throw new ApiError(404, 'Lead not found');
 
+  // A new number can take a lead out of a phone-related dead end; that
+  // status change belongs to leadLifecycle, not to this plain field edit.
+  let updated = rows[0];
+  if (updated.phone !== current.phone) {
+    updated = (await leadLifecycle.phoneNumberChanged(leadId)) || updated;
+  }
+
   // Editing brokerage/address/state changes which office this lead belongs
   // to, so the stored key would otherwise go stale.
-  const updated = rows[0];
   const nextKey = buildOfficeKey({
     brokerage: updated.brokerage,
     address: updated.address,
