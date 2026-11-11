@@ -1,1 +1,24 @@
 Vortex Dialer API listening on port 4000 (telephony: mock)
+error: invalid input syntax for type timestamp with time zone: "0NaN-NaN-NaNTNaN:NaN:NaN.NaN+NaN:NaN"
+    at /home/user/vortexone-dialer/backend/node_modules/pg/lib/client.js:694:17
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async Object.applyDisposition (/home/user/vortexone-dialer/backend/src/services/leadLifecycle.js:113:35)
+    at async /home/user/vortexone-dialer/backend/src/routes/dispositions.js:16:20 {
+  length: 197,
+  severity: 'ERROR',
+  code: '22007',
+  detail: undefined,
+  hint: undefined,
+  position: undefined,
+  internalPosition: undefined,
+  internalQuery: undefined,
+  where: "unnamed portal parameter $4 = '...'",
+  schema: undefined,
+  table: undefined,
+  column: undefined,
+  dataType: undefined,
+  constraint: undefined,
+  file: 'datetime.c',
+  line: '4026',
+  routine: 'DateTimeParseError'
+}

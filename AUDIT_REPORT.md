@@ -445,6 +445,62 @@ Findings are numbered in the order found; §2 lists them by severity.
 - **Evidence:** `TELEPHONY_PROVIDER=bogus` gives "server STARTED", then the first call returns `500 Unknown TELEPHONY_PROVIDER: "bogus"`. `SMS_PROVIDER=bogus` gives `500 Unknown SMS_PROVIDER`.
 - **Suggested fix:** validate all three providers in `config/index.js` at boot, the way the missing-table check does.
 
+### F-32 · Medium · Authorization · Any logged-in rep can disposition, undo or hang up another rep's call
+- **Where:**
+  - `routes/dispositions.js` (`POST /`, `POST /:callId/undo`) and `routes/calls.js` (`POST /:id/hangup`) pass no user to `leadLifecycle.applyDisposition`, `undoDisposition` or `hangup`, and those functions never compare `call.user_id` / `lead.locked_by` with the caller.
+  - The same applies to `GET /api/calls/:id`, `/api/leads/*` and the other routes: every authenticated user sees and edits everything. That is acceptable for a single user, but the handoff says colleagues will use it.
+- **Evidence** (`audit/logs/06-dispositions.txt` §6.3):
+  ```
+  call 164 user=1 lead locked_by=1
+  user2 POST /api/dispositions dnc: "status":"dnc" [HTTP 200]
+  user2 undo: "status":"in_progress" [HTTP 200]
+  user2 hangup on user1's call: {"gracePeriodSeconds":30} [HTTP 200]
+  ```
+- **Expected:** "multi-user ready" (CLAUDE.md): a rep acts only on their own calls, or a supervisor role is required.
+- **Actual:** a mis-click or a wrong call ID from one colleague can DNC another rep's live lead. This is the second half of F-15.
+- **Suggested fix:** pass `req.user` into these services and 403 when `call.user_id !== user.sub && user.role !== 'supervisor'`.
+
+### F-33 · Medium · Call screen · "Previous Notes" never shows notes added mid-call with "Add note"
+- **Where:** `frontend/src/components/call/DispositionPanel.jsx:51` loads only `api.getLeadHistory(leadId)`, which reads `call_history.note`. The action grid's "Add note" posts to `POST /api/leads/:id/notes`, which stores rows in `lead_notes`.
+- **Evidence** (§6.2):
+  ```
+  lead 69 /history: [[153,"contacted","note for contacted on lead 69"]]
+  lead 69 /notes:   [[1,null,"standalone note on 69"]]          <- not in /history
+  lead 69 /timeline: [["note","standalone note on 69"],["call","note for contacted on lead 69"]]
+  ```
+- **Expected:** on the next call, the rep sees everything previously noted about the lead.
+- **Actual:** notes typed into the mid-call "Add note" box appear only on the lead page timeline, never in the call screen's Previous Notes. The brief (`preCallBrief`) does read the timeline.
+- **Suggested fix:** have `DispositionPanel` load `/api/leads/:id/timeline`, or merge `/notes` into `/history`.
+
+### F-34 · Medium · Reports · "Today" is UTC midnight, which splits the owner's calling shift in two
+- **Where:**
+  - `backend/src/services/reports.js:17` and `:42`: `started_at >= date_trunc('day', now())`, with the DB session timezone `Etc/UTC`.
+  - `pdfExport.buildDailyReportBuffer` uses the server-local day (§9).
+  - The frontend daily goal (`Dashboard.jsx`) reads `/api/reports/today`.
+- **Evidence:**
+  ```
+  DB session TimeZone: Etc/UTC   server process TZ: UTC
+  UTC day start=2026-11-11 00:00:00+00 | PKT day start=2026-11-10 19:00:00+00 | ET day start=2026-11-11 05:00:00+00
+  ```
+- **Expected:** "today" means the rep's working day. US calling hours (8am–9pm ET) are 18:00–07:00 in Pakistan.
+- **Actual:** the counters, daily goal and daily report reset at 05:00 Pakistan time, in the middle of every shift, so one night's work is split across two "days".
+- **Suggested fix:** make the reporting timezone a setting (default `Asia/Karachi`, or the shift start) and use `date_trunc('day', now() AT TIME ZONE $tz) AT TIME ZONE $tz`.
+
+### F-35 · Low · Dispositions · Callback time not validated: past times accepted; garbage gives a 500 with a raw Postgres error
+- **Where:** `leadLifecycle.applyDisposition` only checks `!scheduledAt`. `new Date("next tuesday")` reaches Postgres.
+- **Evidence** (§6.1):
+  ```
+  scheduledAt 2020-01-01 -> "status":"callback_scheduled" "next_action_at":"2020-01-01T00:00:00.000Z" [HTTP 200]
+  scheduledAt "next tuesday" -> {"error":"invalid input syntax for type timestamp with time zone: \"0NaN-NaN-NaNTNaN:NaN:NaN.NaN+NaN:NaN\""} [HTTP 500]
+  ```
+  `POST /api/leads/:id/callback` validates (`leadQueue.js:183` "A valid callback date and time is required"); the disposition path doesn't.
+- **Suggested fix:** reuse that validation: a 400 for invalid times, a 400 (or a warning) for past ones.
+
+### F-36 · Low · Notes · A note can be linked to a call from a different lead
+- **Where:** `leadQueue.addNote` stores `callId` without checking `call_history.lead_id = leadId`.
+- **Evidence:** `POST /api/leads/69/notes {"callId":154}` (call 154 is lead 249) gave `"lead_id":69 "call_id":154 [HTTP 201]`.
+- **Suggested fix:** verify the call belongs to the lead, or 400.
+
 ## 4. Verified working
 
 ### §1 Static checks (`audit/logs/01-static.txt`)
@@ -581,6 +637,32 @@ All sessions ran over the real endpoints (`/api/sessions/start`, `/api/calls/mul
 | Adapter selection by env | **Pass** | `listening on port 4000 (telephony: twilio)` |
 | Invalid `TELEPHONY_PROVIDER` fails clearly | **Partial** | A clear message, but only at call time (F-31) and it leaves a phantom call (F-30) |
 | `twilioAdapter.js` fails loudly | **Pass** | `500 "twilioAdapter is not implemented yet — set TELEPHONY_PROVIDER=mock"`; it does not pretend to succeed |
+
+### §6 Dispositions, notes, history, recording (`audit/logs/06-dispositions.txt`)
+
+The code defines **7** dispositions, not CLAUDE.md's "six": the six buttons plus `callback_scheduled`.
+
+| Disposition | Result | Lead after | Call row |
+|---|---|---|---|
+| contacted | **Pass** | `status=contacted attempts=1 notes_count=1` | `note="note for contacted on lead 69" disposition_at=11:08:57 ended=true was_recorded=true` |
+| voicemail | **Pass** | `voicemail`, +4 h | `was_recorded=false` |
+| no_answer | **Pass** | `no_answer`, +4 h | `was_recorded=false` |
+| no_contact_number | **Pass** (see F-23) | `no_contact_number` | `was_recorded=false` |
+| no_contact_person | **Pass** (see F-17) | `cold cold_reason=no_contact_person` | `was_recorded=false` |
+| dnc | **Pass** | `dnc dnc_flag=true` | `was_recorded=false` |
+| callback_scheduled | **Pass** (see F-35) | `callback_scheduled` | `was_recorded=false` |
+
+| Check | Result | Evidence |
+|---|---|---|
+| Bad input | **Pass** | Unknown disposition gives `400 "Unknown disposition: bogus"`. Callback without time gives `400 "scheduledAt is required…"` |
+| Double submit (2 in parallel) | **Pass** | One `[HTTP 200]`, one `409 "Call already has a disposition"`. Attempts counted once (`attempts 1`) |
+| Disposition after the session ended | **Pass** | `200`, `contacted`. Session counters updated (`contacts=1`) even though `ended_at` was set |
+| Notes scoped per lead | **Pass** | Lead 69's notes never appear on lead 249, and vice versa. `lead_notes` rows whose call belongs to another lead: 0 (before the F-36 probe) |
+| Previous notes on the call screen | **Partial** | F-33 |
+| `was_recorded` only for contacted | **Pass** | All calls: `contacted t 5`; every other disposition `f`. Rule `leadLifecycle.js:150 const wasRecorded = disposition === 'contacted'`. The lead-page badge renders on `entry.was_recorded`. The live call-screen badge renders on `state === 'answered'` (`CallHeader.jsx:53`), i.e. during any answered call, before the outcome is known (§7 of this report) |
+| Session summary vs SQL | **Pass** | Session 10: API `dials=1 contacts=1 vm=0 na=0` = SQL `dials=1 contacts=1 vm=0 na=0`. Across all sessions, stored counters vs `call_history`: **0 mismatches** |
+| `/reports/today` vs SQL | **Pass** (numbers) / **Fail** (day boundary, F-34) | API `{"dials":164,"contacts":5}` = SQL over all calls since `date_trunc('day', now())`: `dials=164`. Manual dial-pad calls are included in "dials" (163 without them) |
+| Daily goal tracker | **Info** | The goal value lives in `localStorage` only (`Dashboard.jsx:31`), the count comes from `/api/reports/today` |
 
 ## 5. Can't verify
 *pending*
