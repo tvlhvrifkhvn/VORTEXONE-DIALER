@@ -220,10 +220,13 @@ async function undoDisposition({ callHistoryId }) {
       );
     }
 
+    // A lead restored to in_progress gets a fresh locked_at: the 30 s grace
+    // for the new disposition starts now, not when the call was placed.
     await client.query(
       `UPDATE leads
        SET status = $2, attempts = $3, next_action_at = $4, notes_count = $5,
-           cold_at = $6, cold_reason = $7, dnc_flag = $8, locked_by = $9, locked_at = $10, updated_at = now()
+           cold_at = $6, cold_reason = $7, dnc_flag = $8, locked_by = $9,
+           locked_at = CASE WHEN $2 = 'in_progress' THEN now() ELSE $10::timestamptz END, updated_at = now()
        WHERE id = $1`,
       [
         call.lead_id, snapshot.status, snapshot.attempts, snapshot.next_action_at, snapshot.notes_count,
@@ -231,9 +234,12 @@ async function undoDisposition({ callHistoryId }) {
       ]
     );
 
+    // ended_at / duration_seconds stay: the call itself did end. Only the
+    // disposition is reopened — clearing ended_at would make the row look
+    // like a live call and keep the lead locked until the sweep's ceiling.
     await client.query(
       `UPDATE call_history
-       SET disposition = NULL, note = NULL, ended_at = NULL, duration_seconds = NULL,
+       SET disposition = NULL, note = NULL,
            pre_disposition_snapshot = NULL, disposition_at = NULL
        WHERE id = $1`,
       [callHistoryId]
