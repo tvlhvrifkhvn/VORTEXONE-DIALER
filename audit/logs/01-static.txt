@@ -1,0 +1,624 @@
+## frontend npm run build
+rendering chunks...
+computing gzip size...
+dist/index.html                   0.68 kB │ gzip:  0.38 kB
+dist/assets/index-8eMipBhY.css   26.03 kB │ gzip:  5.51 kB
+dist/assets/index-kz0JqVzC.js   318.51 kB │ gzip: 96.08 kB
+✓ built in 2.06s
+## lint scripts?
+no lint script in either package.json
+## node --check on every backend file
+checked=56 failed=0
+## dependency resolution (audit/scripts/deps-check.js)
+
+== frontend: 7 external packages imported
+DECLARED   @vitejs/plugin-react         ^4.7.0  installed=true  (1 file(s), e.g. frontend/vite.config.js)
+DECLARED   lucide-react                 ^0.469.0  installed=true  (10 file(s), e.g. frontend/src/components/call/BriefCard.jsx)
+DECLARED   react                        ^18.3.1  installed=true  (32 file(s), e.g. frontend/src/components/call/BriefCard.jsx)
+DECLARED   react-dom                    ^18.3.1  installed=true  (1 file(s), e.g. frontend/src/main.jsx)
+DECLARED   react-router-dom             ^7.18.3  installed=true  (15 file(s), e.g. frontend/src/App.jsx)
+DECLARED   tailwindcss                  ^3.4.13  installed=true  (1 file(s), e.g. frontend/tailwind.config.js)
+DECLARED   vite                         ^7.3.6  installed=true  (1 file(s), e.g. frontend/vite.config.js)
+declared dependencies never imported in src/: none
+
+== backend: 12 external packages imported
+DECLARED   bcrypt                       ^6.0.0  installed=true  (2 file(s), e.g. backend/src/db/seeds/run.js)
+DECLARED   cors                         ^2.8.5  installed=true  (1 file(s), e.g. backend/src/index.js)
+DECLARED   csv-parse                    ^7.0.2  installed=true  (1 file(s), e.g. backend/src/services/csvImport.js)
+DECLARED   dotenv                       ^16.4.5  installed=true  (1 file(s), e.g. backend/src/config/index.js)
+DECLARED   express                      ^5.1.0  installed=true  (14 file(s), e.g. backend/src/index.js)
+DECLARED   express-rate-limit           ^7.5.1  installed=true  (1 file(s), e.g. backend/src/middleware/rateLimit.js)
+DECLARED   groq-sdk                     ^0.5.0  installed=true  (4 file(s), e.g. backend/src/services/aiCsvMapper.js)
+DECLARED   jsonwebtoken                 ^9.0.2  installed=true  (4 file(s), e.g. backend/src/middleware/auth.js)
+DECLARED   multer                       ^2.0.0  installed=true  (2 file(s), e.g. backend/src/routes/imports.js)
+DECLARED   pdfkit                       ^0.15.0  installed=true  (1 file(s), e.g. backend/src/services/pdfExport.js)
+DECLARED   pg                           ^8.12.0  installed=true  (1 file(s), e.g. backend/src/db/index.js)
+DECLARED   xlsx                         ^0.18.5  installed=true  (1 file(s), e.g. backend/src/services/xlsxParser.js)
+declared dependencies never imported in src/: none
+
+## lucide-react declared on base?
+12:    "lucide-react": "^0.469.0",
+## when was it declared?
+088780a Frontend visual polish: dark mode, icon actions, animations, brand accents
+## repro: build with lucide-react not installed (moved aside, then restored)
+✗ Build failed in 474ms
+error during build:
+[vite]: Rollup failed to resolve import "lucide-react" from "/home/user/vortexone-dialer/frontend/src/pages/ManualCall.jsx".
+✓ built in 2.03s
+## migration files: numbers, gaps, duplicates
+last=22
+22
+## run 1 on empty DB
+Applied migration: 021_objections.sql
+Applied migration: 022_rebuttal_review.sql
+Migrations up to date.
+## run 2 (must be idempotent)
+
+Migrations up to date.
+exit=0
+## schema diff run1 vs run2 (empty = identical)
+2c2
+< \restrict lk5cNgn3HpqwpeXdsNlLEncNZnMrAchgCi8slBi9k3deWHZUnWlX7YXiefhrmkF
+---
+> \restrict AqFAnTXlteuUqU3td86cL8PApHBd9ba60O8aG06Uih4coRHzWZ7KnuNLdeh1CGZ
+931c931
+< \unrestrict lk5cNgn3HpqwpeXdsNlLEncNZnMrAchgCi8slBi9k3deWHZUnWlX7YXiefhrmkF
+---
+> \unrestrict AqFAnTXlteuUqU3td86cL8PApHBd9ba60O8aG06Uih4coRHzWZ7KnuNLdeh1CGZ
+(end diff) lines=932
+## re-applying every migration file's SQL a second time directly (tests IF NOT EXISTS guards, bypassing schema_migrations)
+(done)
+## tables after migrate
+call_history, call_objections, callbacks, dialing_sessions, dnc_list, email_messages, import_history, import_jobs, lead_notes, leads, objection_types, phone_numbers, rebuttal_suggestions, schema_migrations, settings, sms_messages, sms_templates, users
+## schema-check.js
+tables in schema: 18
+
+== INSERT statements (26) — columns vs placeholders vs params
+
+backend/src/db/migrate.js:38  INSERT INTO schema_migrations
+  cols   (1): name
+  values (1): $1   count match: true
+  params: (params not found inline)
+
+backend/src/db/seeds/run.js:25  INSERT INTO users
+  cols   (4): email, password_hash, name, role
+  values (4): $1, $2, $3, 'supervisor'   count match: true
+  params: [SEED_EMAIL, passwordHash, SEED_NAME]
+
+backend/src/db/seeds/run.js:33  INSERT INTO leads
+  cols   (6): name, phone, address, brokerage, state, status
+  values (6): $1, $2, $3, $4, $5, 'in_queue'   count match: true
+  params: [lead.name, lead.phone, lead.address, lead.brokerage, lead.state]
+
+backend/src/db/seeds/seedObjectionDemo.js:77  INSERT INTO leads
+  cols   (8): name, phone, brokerage, address, state, status, missing_phone, office_key
+  values (8): $1, NULL, $2, $3, $4, 'contacted', true, $5   count match: true
+  params: [ `${DEMO_PREFIX}${office.brokerage.split(' ')[0]} Agent ${i}`, office.brokerage, office.address, office.state, buildOfficeKey(office), ]
+
+backend/src/db/seeds/seedObjectionDemo.js:113  INSERT INTO call_history
+  cols   (9): lead_id, started_at, ended_at, duration_seconds, disposition, disposition_at, from_number, telephony_state, was_mock
+  values (2): $1, now(   count match: false
+  params: [leadId, disposition, DEMO_MARKER]
+
+backend/src/db/seeds/seedObjectionDemo.js:121  INSERT INTO call_objections
+  cols   (4): call_id, lead_id, objection_type_id, rebuttal_used
+  values (4): $1, $2, $3, $4   count match: true
+  params: [rows[0].id, leadId, typeId[label], rebuttal]
+
+backend/src/services/callSession.js:41  INSERT INTO call_history
+  cols   (6): lead_id, user_id, from_number, was_mock, telephony_state, session_id
+  values (6): $1, $2, $3, true, 'ringing', $4   count match: true
+  params: [lead.id, userId, fromNumber, sessionId]
+
+backend/src/services/callSession.js:91  INSERT INTO call_history
+  cols   (7): lead_id, user_id, from_number, to_number, is_manual, was_mock, telephony_state
+  values (7): NULL, $1, $2, $3, true, true, 'ringing'   count match: true
+  params: [userId, fromNumber, toNumber]
+
+backend/src/services/callSession.js:167  INSERT INTO call_history
+  cols   (7): lead_id, user_id, from_number, was_mock, telephony_state, session_id, slot_number
+  values (7): $1, $2, $3, true, 'ringing', $4, $5   count match: true
+  params: [lead.id, session.userId, fromNumber, session.sessionId, slotNumber]
+
+backend/src/services/csvImport.js:322  INSERT INTO leads
+  cols   (9): name, phone, email, address, brokerage, state, status, missing_phone, office_key
+  values (9): $1, $2, $3, $4, $5, $6, 'new', $7, $8   count match: true
+  params: [ name, phone, mapping.email ? cleanText(row[mapping.email]
+
+backend/src/services/csvImport.js:340  INSERT INTO import_history
+  cols   (7): user_id, filename, total_rows, imported, skipped_dnc, skipped_duplicate, skipped_invalid
+  values (7): $1, $2, $3, $4, $5, $6, $7   count match: true
+  params: [userId || null, filename || null, summary.totalRows, summary.imported, summary.skippedDnc, summary.skippedDuplicate, summary.skippedInvalid]
+
+backend/src/services/csvImport.js:526  INSERT INTO import_jobs
+  cols   (6): user_id, filename, status, total_rows, source_rows, mapping
+  values (6): $1, $2, 'pending', $3, $4, $5   count match: true
+  params: [userId || null, filename || null, totalRows, JSON.stringify(sourceRows), JSON.stringify(mapping || {})]
+
+backend/src/services/dialingSession.js:28  INSERT INTO dialing_sessions
+  cols   (2): user_id, mode
+  values (2): $1, $2   count match: true
+  params: [sessionId]
+
+backend/src/services/dncCheck.js:11  INSERT INTO dnc_list
+  cols   (3): phone, source, lead_id
+  values (3): $1, $2, $3   count match: true
+  params: [phone, source, leadId]
+
+backend/src/services/emailService.js:33  INSERT INTO email_messages
+  cols   (5): lead_id, direction, subject, body, status
+  values (5): $1, 'outbound', $2, $3, 'sent'   count match: true
+  params: [leadId, mergedSubject, mergedBody]
+
+backend/src/services/leadLifecycle.js:125  INSERT INTO callbacks
+  cols   (3): lead_id, scheduled_at, note
+  values (3): $1, $2, $3   count match: true
+  params: [lead.id, now, lead.name]
+
+backend/src/services/leadQueue.js:164  INSERT INTO lead_notes
+  cols   (4): lead_id, call_id, user_id, body
+  values (4): $1, $2, $3, $4   count match: true
+  params: [leadId, callId || null, userId || null, text]
+
+backend/src/services/leadQueue.js:195  INSERT INTO callbacks
+  cols   (2): lead_id, scheduled_at
+  values (2): $1, $2   count match: true
+  params: [DIALABLE_STATUSES]
+
+backend/src/services/leadQueue.js:312  INSERT INTO leads
+  cols   (8): name, phone, email, address, brokerage, state, status, office_key
+  values (8): $1, $2, $3, $4, $5, $6, 'new', $7   count match: true
+  params: [ name.trim(), normalizedPhone, email || null, address || null, brokerage || null, normalizedState, buildOfficeKey({ brokerage, address, state: normalizedState }), ]
+
+backend/src/services/objectionService.js:45  INSERT INTO objection_types
+  cols   (2): label, sort_order
+  values (2): $1, (SELECT COALESCE(max(sort_order   count match: true
+  params: [label]
+
+backend/src/services/objectionService.js:135  INSERT INTO call_objections
+  cols   (3): call_id, lead_id, objection_type_id
+  values (3): $1, $2, $3   count match: true
+  params: [call.id, call.lead_id, objectionTypeId]
+
+backend/src/services/rebuttalCoach.js:392  INSERT INTO rebuttal_suggestions
+  cols   (5): objection_type_id, based_on_count, suggestion, review_note, status
+  values (-): -   count match: n/a (INSERT … SELECT or multi-row)
+  params: [objectionTypeId, instanceCount, ...rows.flatMap((r) => [r.text, r.note]
+
+backend/src/services/settings.js:13  INSERT INTO settings
+  cols   (3): key, value, updated_at
+  values (3): $1, $2, now(   count match: true
+  params: [key, value]
+
+backend/src/services/smsService.js:34  INSERT INTO sms_templates
+  cols   (3): user_id, name, body
+  values (3): $1, $2, $3   count match: true
+  params: [userId, name.trim(), body]
+
+backend/src/services/smsService.js:94  INSERT INTO sms_messages
+  cols   (7): lead_id, direction, body, template_id, status, segment_count, media_url
+  values (7): $1, 'outbound', $2, $3, 'sent', $4, $5   count match: true
+  params: [leadId, merged, resolvedTemplateId, segmentCount(merged), mediaUrl || null]
+
+backend/src/services/smsService.js:130  INSERT INTO sms_messages
+  cols   (6): lead_id, direction, body, template_id, status, segment_count
+  values (6): $1, 'outbound', $2, $3, 'sent', $4   count match: true
+  params: [lead.id, merged, template.id, segmentCount(merged)]
+
+== column/table problems: 0
+## manual review of INSERTs the regex could not pair
+--- services/leadLifecycle.js:120-128
+119+1	      await dncCheck.addToDncList(lead.phone, { source: 'manual', leadId: lead.id, client });
+119+2	    }
+119+3	
+119+4	    if (disposition === 'callback_scheduled') {
+119+5	      await client.query(
+119+6	        'INSERT INTO callbacks (lead_id, scheduled_at, note) VALUES ($1, $2, $3)',
+119+7	        [lead.id, scheduledAt, note || null]
+119+8	      );
+119+9	    }
+--- services/dialingSession.js:24-34
+23+1	};
+23+2	
+23+3	async function startSession(userId, mode = 'power') {
+23+4	  const { rows } = await db.query(
+23+5	    'INSERT INTO dialing_sessions (user_id, mode) VALUES ($1, $2) RETURNING id',
+23+6	    [userId, mode]
+23+7	  );
+23+8	  return rows[0].id;
+23+9	}
+23+10	
+23+11	async function endSession(sessionId) {
+--- services/leadQueue.js:185-200
+184+1	
+184+2	  const { rows } = await db.query(
+184+3	    `UPDATE leads
+184+4	     SET status = 'callback_scheduled', next_action_at = $2, updated_at = now()
+184+5	     WHERE id = $1 AND deleted_at IS NULL
+184+6	     RETURNING *`,
+184+7	    [leadId, when]
+184+8	  );
+184+9	  if (!rows[0]) throw new ApiError(404, 'Lead not found');
+184+10	
+184+11	  await db.query('INSERT INTO callbacks (lead_id, scheduled_at) VALUES ($1, $2)', [leadId, when]);
+184+12	  return rows[0];
+184+13	}
+184+14	
+184+15	async function listNotes(leadId) {
+184+16	  const { rows } = await db.query(
+--- services/rebuttalCoach.js:380-405
+379+1	    if (problems.length) {
+379+2	      // eslint-disable-next-line no-console
+379+3	      console.warn(`[rebuttal] still failing after retry (${problems.join(', ')}) — flagged for manual rewrite`);
+379+4	    }
+379+5	    return { text, note: problems.length ? `needs manual rewrite: ${problems.join('; ')}` : null };
+379+6	  });
+379+7	
+379+8	  // One statement, so every row of the batch shares the same generated_at.
+379+9	  // Column order: objection_type_id ($1), based_on_count ($2), then pairs of
+379+10	  // (suggestion, review_note).
+379+11	  const values = rows.map((_, i) => `($1, $2, $${i * 2 + 3}, $${i * 2 + 4}, 'pending')`).join(', ');
+379+12	  await db.query(
+379+13	    `INSERT INTO rebuttal_suggestions (objection_type_id, based_on_count, suggestion, review_note, status)
+379+14	     VALUES ${values}`,
+379+15	    [objectionTypeId, instanceCount, ...rows.flatMap((r) => [r.text, r.note])]
+379+16	  );
+379+17	  return { examples, rows, retried: !!violations };
+379+18	}
+379+19	
+379+20	/** The only path that calls Groq — the Reports "Regenerate" button. */
+379+21	async function regenerate(objectionTypeId) {
+379+22	  const type = await getTypeOrThrow(objectionTypeId);
+379+23	  const counts = await countInstances(objectionTypeId);
+379+24	  if (!meetsThreshold(counts)) return insufficient(counts);
+379+25	
+379+26	  const groq = await client();
+--- db/seeds/seedObjectionDemo.js:108-120
+107+1	      const leads = leadsByOffice[office];
+107+2	      const leadId = leads[cursor[office] % leads.length];
+107+3	      cursor[office] += 1;
+107+4	
+107+5	      const { rows } = await db.query(
+107+6	        `INSERT INTO call_history (lead_id, started_at, ended_at, duration_seconds, disposition,
+107+7	                                   disposition_at, from_number, telephony_state, was_mock)
+107+8	         VALUES ($1, now() - interval '1 hour', now() - interval '55 minutes', 300, $2,
+107+9	                 now() - interval '55 minutes', $3, 'ended', true)
+107+10	         RETURNING id`,
+107+11	        [leadId, disposition, DEMO_MARKER]
+107+12	      );
+107+13	      await db.query(
+## R4: SQL / db access in route handlers
+backend/src/routes/calls.js:3:const db = require('../db');
+backend/src/routes/calls.js:67:      const { rows } = await db.query(
+backend/src/routes/imports.js:3:const db = require('../db');
+backend/src/routes/imports.js:147:    const { rows } = await db.query('SELECT source_rows FROM import_jobs WHERE id = $1 AND user_id = $2', [
+## R1: frontend touching DB (pg, postgres, DATABASE_URL in frontend/src)
+none
+## R7: hardcoded URLs / hosts / ports / secrets (secret values masked)
+backend/src/config/index.js:20:  corsOrigin: process.env.CORS_ORIGIN || 'http://localhost:5173',
+frontend/src/lib/api.js:30:  return import.meta.env.VITE_API_URL || `http://localhost:${BACKEND_PORT}/api`;
+-- secret-looking literals:
+backend/src/config/index.js:21:  groqApiKey: process.env.GROQ_API_KEY || 'gsk_****MASKED',
+frontend/src/pages/Settings.jsx:277:            placeholder={loading ? 'Loading…' : 'gsk_…'}
+## R2: placeCall interface in telephony/index.js (vs CLAUDE.md: placeCall(fromNumber, toNumber, onEvent) → callId; events ringing|answered|voicemail_detected|ended)
+backend/src/telephony/index.js:24: *   placeCall(fromNumber, toNumber, onEvent) → callId
+backend/src/telephony/index.js:28: *   { type: 'ringing' }
+backend/src/telephony/index.js:29: *   { type: 'answered' }
+backend/src/telephony/index.js:30: *   { type: 'voicemail_detected' }
+backend/src/telephony/index.js:31: *   { type: 'ended', duration: <seconds> }
+backend/src/telephony/index.js:38:function placeCall(fromNumber, toNumber, onEvent) {
+backend/src/telephony/index.js:39:  return getAdapter().placeCall(fromNumber, toNumber, onEvent);
+backend/src/telephony/mockAdapter.js:22: * A busy line emits { type: 'busy' } followed by 'ended'. Callers that don't
+backend/src/telephony/mockAdapter.js:26:function placeCall(fromNumber, toNumber, onEvent) {
+backend/src/telephony/mockAdapter.js:31:  onEvent({ type: 'ringing' });
+backend/src/telephony/mockAdapter.js:37:      onEvent({ type: 'answered' });
+backend/src/telephony/mockAdapter.js:41:      onEvent({ type: 'voicemail_detected' });
+backend/src/telephony/mockAdapter.js:43:        onEvent({ type: 'ended', duration: elapsedSeconds() });
+backend/src/telephony/mockAdapter.js:46:      onEvent({ type: 'busy' });
+backend/src/telephony/mockAdapter.js:48:        onEvent({ type: 'ended', duration: elapsedSeconds() });
+backend/src/telephony/mockAdapter.js:51:      onEvent({ type: 'ended', duration: elapsedSeconds() });
+backend/src/telephony/twilioAdapter.js:9: * only ever call telephony.placeCall(...).
+backend/src/telephony/twilioAdapter.js:11:function placeCall(fromNumber, toNumber, onEvent) {
+-- event types consumed by callers:
+      1 answered
+      1 busy
+      1 ended
+      1 ringing
+      1 voicemail_detected
+## Rule (handoff §3): status changes only in leadLifecycle.js or stale-lock sweep — every 'UPDATE leads ... status' elsewhere
+backend/src/services/leadQueue.js:32:     SET status = 'in_queue', locked_by = NULL, locked_at = NULL, updated_at = now()
+backend/src/services/leadQueue.js:33:     WHERE status = 'in_progress' AND locked_at < now() - interval '${LOCK_TIMEOUT_SECONDS} seconds'`
+backend/src/services/leadQueue.js:93:     SET status = 'in_progress', locked_by = $1, locked_at = now(), updated_at = now()
+backend/src/services/leadQueue.js:188:     SET status = 'callback_scheduled', next_action_at = $2, updated_at = now()
+backend/src/services/leadQueue.js:232:    clauses.push(`status = $${params.length}`);
+backend/src/services/leadQueue.js:264:         WHEN status = 'callback_scheduled' THEN 0
+backend/src/services/leadQueue.js:265:         WHEN status = 'new' THEN 1
+backend/src/services/leadQueue.js:266:         WHEN status = 'in_queue' THEN 2
+backend/src/services/leadQueue.js:269:       CASE WHEN status = 'callback_scheduled' THEN next_action_at END ASC,
+backend/src/services/leadQueue.js:270:       CASE WHEN status = 'in_queue' THEN updated_at END ASC,
+backend/src/services/leadQueue.js:407:         WHEN status = 'callback_scheduled' THEN 0
+backend/src/services/leadQueue.js:408:         WHEN status = 'new' THEN 1
+backend/src/services/leadQueue.js:409:         WHEN status = 'in_queue' THEN 2
+backend/src/services/leadQueue.js:412:       CASE WHEN status = 'callback_scheduled' THEN next_action_at END ASC,
+backend/src/services/leadQueue.js:413:       CASE WHEN status = 'in_queue' THEN updated_at END ASC,
+backend/src/services/rebuttalCoach.js:148:     WHERE objection_type_id = $1 AND status = 'approved'
+backend/src/services/rebuttalCoach.js:258:     ORDER BY (status = 'approved') DESC, generated_at DESC, id ASC
+backend/src/services/rebuttalCoach.js:438:     WHERE rs.status = 'pending'
+backend/src/services/rebuttalCoach.js:447:    `UPDATE rebuttal_suggestions SET status = $2, reviewed_at = now()
+backend/src/services/rebuttalCoach.js:463:     WHERE status = 'approved'
+backend/src/services/csvImport.js:470:        `UPDATE import_jobs SET status = 'cancelled', completed_at = now() WHERE id = $1`,
+backend/src/services/csvImport.js:509:       SET status = 'completed', completed_at = now(), result_summary = $2, processed_rows = $3
+backend/src/services/csvImport.js:517:        `UPDATE import_jobs SET status = 'failed', error_message = $2, completed_at = now() WHERE id = $1`,
+backend/src/services/csvImport.js:546:    `UPDATE import_jobs SET mapping = $2, source_rows = $3, total_rows = $4, status = 'processing'
+backend/src/services/callSession.js:180:  slot.status = 'dialing';
+backend/src/services/callSession.js:204:    slot.status = 'ringing';
+backend/src/services/callSession.js:218:      slot.status = 'held';
+backend/src/services/callSession.js:224:    slot.status = 'active_disposition';
+backend/src/services/callSession.js:230:    slot.status = 'voicemail';
+backend/src/services/callSession.js:239:    slot.status = 'busy';
+backend/src/services/callSession.js:250:    slot.status = 'no_answer';
+backend/src/services/callSession.js:293:    held.status = 'active_disposition';
+backend/src/services/callSession.js:346:        `UPDATE leads SET status = 'in_queue', locked_by = NULL, locked_at = NULL, updated_at = now()
+backend/src/services/callSession.js:347:         WHERE id = $1 AND status = 'in_progress'`,
+backend/src/services/callSession.js:357:    slot.status = 'dropped';
+backend/src/services/callSession.js:414:        `UPDATE leads SET status = 'dnc', dnc_flag = true, locked_by = NULL, locked_at = NULL, updated_at = now()
+backend/src/routes/calls.js:68:        'SELECT * FROM leads WHERE id = $1 AND status = $2 AND locked_by = $3 AND missing_phone = false',
+-- multi-line context:
+344-    if (abandoned) {
+345-      await db.query(
+346:        `UPDATE leads SET status = 'in_queue', locked_by = NULL, locked_at = NULL, updated_at = now()
+347-         WHERE id = $1 AND status = 'in_progress'`,
+348-        [slot.lead.id]
+--
+412-      console.log(`Multi-line: skipping lead ${lead.id} — number is on the DNC list`);
+413-      await db.query(
+414:        `UPDATE leads SET status = 'dnc', dnc_flag = true, locked_by = NULL, locked_at = NULL, updated_at = now()
+415-         WHERE id = $1`,
+416-        [lead.id]
+## STOP / inbound SMS handling
+backend/src/telephony/twilioAdapter.js:6: * webhook events into the onEvent shape defined in telephony/index.js
+backend/src/services/preCallBrief.js:93:      return `${when} · SMS ${item.direction === 'inbound' ? 'from them' : 'sent'}: "${clip(item.body, 80)}"`;
+backend/src/services/preCallBrief.js:95:      return `${when} · email ${item.direction === 'inbound' ? 'from them' : 'sent'}: ${clip(item.subject || item.body, 80)}`;
+backend/src/services/leadLifecycle.js:149:    // recording_url stays null; Phase 2 fills it via Twilio's webhook.
+backend/src/services/smsService.js:156:       WHERE direction = 'inbound' AND is_read = false
+backend/src/services/smsService.js:171:    `UPDATE sms_messages SET is_read = true WHERE lead_id = $1 AND direction = 'inbound'`,
+backend/src/db/migrations/015_sms.sql:15:  direction VARCHAR(10) NOT NULL CHECK (direction IN ('outbound','inbound')),
+backend/src/db/migrations/015_sms.sql:25:CREATE INDEX IF NOT EXISTS idx_sms_messages_unread ON sms_messages(is_read) WHERE direction = 'inbound' AND is_read = FALSE;
+backend/src/db/migrations/014_call_recording.sql:1:-- Call recording plumbing (Phase 2 fills recording_url via Twilio's webhook).
+## backend routes (audit/scripts/routes.js)
+77 routes
+POST   /api/auth/login                                  auth=NONE  routes/auth.js
+GET    /api/auth/me                                     auth=requireAuth  routes/auth.js
+PUT    /api/auth/profile                                auth=requireAuth  routes/auth.js
+GET    /api/leads                                       auth=requireAuth  routes/leads.js
+GET    /api/leads/state-counts                          auth=requireAuth  routes/leads.js
+GET    /api/leads/search                                auth=requireAuth  routes/leads.js
+POST   /api/leads/batch-queue                           auth=requireAuth  routes/leads.js
+POST   /api/leads                                       auth=requireAuth  routes/leads.js
+GET    /api/leads/:id                                   auth=requireAuth  routes/leads.js
+GET    /api/leads/:id/timeline                          auth=requireAuth  routes/leads.js
+GET    /api/leads/:id/history                           auth=requireAuth  routes/leads.js
+GET    /api/leads/:id/colleagues                        auth=requireAuth  routes/leads.js
+GET    /api/leads/:id/brief                             auth=requireAuth  routes/leads.js
+POST   /api/leads/:id/tags                              auth=requireAuth  routes/leads.js
+DELETE /api/leads/:id/tags/:tag                         auth=requireAuth  routes/leads.js
+GET    /api/leads/:id/notes                             auth=requireAuth  routes/leads.js
+POST   /api/leads/:id/notes                             auth=requireAuth  routes/leads.js
+POST   /api/leads/:id/callback                          auth=requireAuth  routes/leads.js
+POST   /api/leads/:id/snooze                            auth=requireAuth  routes/leads.js
+PUT    /api/leads/:id                                   auth=requireAuth  routes/leads.js
+DELETE /api/leads/:id                                   auth=requireAuth  routes/leads.js
+GET    /api/calls/stream                                auth=NONE  routes/calls.js
+POST   /api/calls                                       auth=requireAuth  routes/calls.js
+GET    /api/calls/:id                                   auth=requireAuth  routes/calls.js
+POST   /api/calls/:id/hangup                            auth=requireAuth  routes/calls.js
+POST   /api/calls/manual/start                          auth=requireAuth  routes/calls.js
+POST   /api/calls/multiline/start                       auth=requireAuth  routes/calls.js
+POST   /api/calls/multiline/drop                        auth=requireAuth  routes/calls.js
+POST   /api/calls/multiline/take                        auth=requireAuth  routes/calls.js
+POST   /api/calls/multiline/release                     auth=requireAuth  routes/calls.js
+POST   /api/calls/multiline/stop                        auth=requireAuth  routes/calls.js
+POST   /api/dispositions                                auth=requireAuth  routes/dispositions.js
+POST   /api/dispositions/:callId/undo                   auth=requireAuth  routes/dispositions.js
+POST   /api/imports/preview                             auth=requireAuth  routes/imports.js
+POST   /api/imports/analyze                             auth=requireAuth  routes/imports.js
+POST   /api/imports/commit                              auth=requireAuth  routes/imports.js
+POST   /api/imports/upload                              auth=requireAuth  routes/imports.js
+POST   /api/imports/process                             auth=requireAuth  routes/imports.js
+GET    /api/imports/status/:jobId                       auth=requireAuth  routes/imports.js
+POST   /api/imports/cancel/:jobId                       auth=requireAuth  routes/imports.js
+GET    /api/imports/history                             auth=requireAuth  routes/imports.js
+GET    /api/exports/daily-pdf                           auth=requireAuth  routes/exports.js
+GET    /api/reports/today                               auth=requireAuth  routes/reports.js
+GET    /api/reports/per-state                           auth=requireAuth  routes/reports.js
+GET    /api/reports/manual-today                        auth=requireAuth  routes/reports.js
+POST   /api/ai/expand-note                              auth=requireAuth  routes/ai.js
+POST   /api/sessions/start                              auth=requireAuth  routes/sessions.js
+POST   /api/sessions/end                                auth=requireAuth  routes/sessions.js
+GET    /api/settings/:key                               auth=requireAuth  routes/settings.js
+PUT    /api/settings/:key                               auth=requireAuth  routes/settings.js
+POST   /api/sms/upload-media                            auth=requireAuth  routes/sms.js
+GET    /api/sms/templates                               auth=requireAuth  routes/sms.js
+POST   /api/sms/templates                               auth=requireAuth  routes/sms.js
+PUT    /api/sms/templates/:id                           auth=requireAuth  routes/sms.js
+DELETE /api/sms/templates/:id                           auth=requireAuth  routes/sms.js
+POST   /api/sms/send                                    auth=requireAuth  routes/sms.js
+POST   /api/sms/bulk-send                               auth=requireAuth  routes/sms.js
+GET    /api/sms/inbox                                   auth=requireAuth  routes/sms.js
+POST   /api/sms/mark-read/:leadId                       auth=requireAuth  routes/sms.js
+POST   /api/sms/opt-out/:leadId                         auth=requireAuth  routes/sms.js
+POST   /api/email/send                                  auth=requireAuth  routes/email.js
+GET    /api/objections/types                            auth=requireAuth  routes/objections.js
+POST   /api/objections/types                            auth=requireAuth  routes/objections.js
+POST   /api/objections/types/reorder                    auth=requireAuth  routes/objections.js
+PUT    /api/objections/types/:id                        auth=requireAuth  routes/objections.js
+GET    /api/objections/hints                            auth=requireAuth  routes/objections.js
+GET    /api/objections/types/:id/suggestions            auth=requireAuth  routes/objections.js
+POST   /api/objections/types/:id/suggestions/regenerate auth=requireAuth  routes/objections.js
+GET    /api/objections/suggestions/pending              auth=requireAuth  routes/objections.js
+PUT    /api/objections/suggestions/:id                  auth=requireAuth  routes/objections.js
+GET    /api/objections/calls/:callId                    auth=requireAuth  routes/objections.js
+POST   /api/objections/calls/:callId                    auth=requireAuth  routes/objections.js
+PUT    /api/objections/calls/:callId/:objectionTypeId   auth=requireAuth  routes/objections.js
+DELETE /api/objections/calls/:callId/:objectionTypeId   auth=requireAuth  routes/objections.js
+GET    /api/objections/report                           auth=requireAuth  routes/objections.js
+GET    /api/objections/offices                          auth=requireAuth  routes/objections.js
+GET    /health                                          auth=NONE  index.js
+## frontend api.js calls vs routes (audit/scripts/apijs-calls.js)
+76 API calls found in frontend/src/lib/api.js
+
+OK      POST   /api/auth/login                                  onUnauthorized()  -> POST /api/auth/login
+OK      GET    /api/auth/me                                     onUnauthorized()  -> GET /api/auth/me
+OK      PUT    /api/auth/profile                                onUnauthorized()  -> PUT /api/auth/profile
+MISSING GET    /api/leads${qs                                   onUnauthorized()
+OK      POST   /api/leads                                       onUnauthorized()  -> POST /api/leads
+OK      GET    /api/leads/:param                                onUnauthorized()  -> GET /api/leads/:id
+OK      GET    /api/leads/state-counts                          onUnauthorized()  -> GET /api/leads/state-counts
+OK      POST   /api/leads/:param/snooze                         onUnauthorized()  -> POST /api/leads/:id/snooze
+OK      GET    /api/leads/:param/history                        onUnauthorized()  -> GET /api/leads/:id/history
+OK      GET    /api/leads/search                                onUnauthorized()  -> GET /api/leads/search
+OK      POST   /api/leads/batch-queue                           onUnauthorized()  -> POST /api/leads/batch-queue
+OK      PUT    /api/leads/:param                                onUnauthorized()  -> PUT /api/leads/:id
+OK      DELETE /api/leads/:param                                onUnauthorized()  -> DELETE /api/leads/:id
+OK      GET    /api/leads/:param/timeline                       onUnauthorized()  -> GET /api/leads/:id/timeline
+OK      POST   /api/leads/:param/tags                           onUnauthorized()  -> POST /api/leads/:id/tags
+OK      DELETE /api/leads/:param/tags/:param                    onUnauthorized()  -> DELETE /api/leads/:id/tags/:tag
+OK      GET    /api/leads/:param/notes                          onUnauthorized()  -> GET /api/leads/:id/notes
+OK      GET    /api/leads/:param/colleagues                     onUnauthorized()  -> GET /api/leads/:id/colleagues
+MISSING GET    /api/leads/:param/brief${withAi                  onUnauthorized()
+OK      POST   /api/leads/:param/callback                       onUnauthorized()  -> POST /api/leads/:id/callback
+OK      POST   /api/leads/:param/notes                          onUnauthorized()  -> POST /api/leads/:id/notes
+OK      GET    /api/sms/templates                               onUnauthorized()  -> GET /api/sms/templates
+OK      POST   /api/sms/templates                               onUnauthorized()  -> POST /api/sms/templates
+OK      PUT    /api/sms/templates/:param                        onUnauthorized()  -> PUT /api/sms/templates/:id
+OK      DELETE /api/sms/templates/:param                        onUnauthorized()  -> DELETE /api/sms/templates/:id
+OK      POST   /api/sms/send                                    onUnauthorized()  -> POST /api/sms/send
+OK      POST   /api/sms/upload-media                            onUnauthorized()  -> POST /api/sms/upload-media
+OK      POST   /api/sms/bulk-send                               onUnauthorized()  -> POST /api/sms/bulk-send
+OK      GET    /api/sms/inbox                                   onUnauthorized()  -> GET /api/sms/inbox
+OK      POST   /api/sms/mark-read/:param                        onUnauthorized()  -> POST /api/sms/mark-read/:leadId
+OK      POST   /api/sms/opt-out/:param                          onUnauthorized()  -> POST /api/sms/opt-out/:leadId
+OK      POST   /api/email/send                                  onUnauthorized()  -> POST /api/email/send
+OK      POST   /api/calls                                       onUnauthorized()  -> POST /api/calls
+OK      GET    /api/calls/:param                                onUnauthorized()  -> GET /api/calls/:id
+OK      POST   /api/calls/:param/hangup                         onUnauthorized()  -> POST /api/calls/:id/hangup
+OK      POST   /api/calls/manual/start                          onUnauthorized()  -> POST /api/calls/manual/start
+OK      POST   /api/calls/multiline/start                       openCallStream()  -> POST /api/calls/multiline/start
+OK      POST   /api/calls/multiline/release                     openCallStream()  -> POST /api/calls/multiline/release
+OK      POST   /api/calls/multiline/drop                        openCallStream()  -> POST /api/calls/multiline/drop
+OK      POST   /api/calls/multiline/take                        openCallStream()  -> POST /api/calls/multiline/take
+OK      POST   /api/calls/multiline/stop                        openCallStream()  -> POST /api/calls/multiline/stop
+OK      POST   /api/dispositions                                openCallStream()  -> POST /api/dispositions
+OK      POST   /api/dispositions/:param/undo                    openCallStream()  -> POST /api/dispositions/:callId/undo
+OK      POST   /api/imports/preview                             openCallStream()  -> POST /api/imports/preview
+OK      POST   /api/imports/commit                              openCallStream()  -> POST /api/imports/commit
+OK      POST   /api/imports/analyze                             openCallStream()  -> POST /api/imports/analyze
+OK      GET    /api/imports/history                             openCallStream()  -> GET /api/imports/history
+OK      POST   /api/imports/upload                              openCallStream()  -> POST /api/imports/upload
+OK      POST   /api/imports/process                             openCallStream()  -> POST /api/imports/process
+OK      GET    /api/imports/status/:param                       openCallStream()  -> GET /api/imports/status/:jobId
+OK      POST   /api/imports/cancel/:param                       openCallStream()  -> POST /api/imports/cancel/:jobId
+OK      POST   /api/ai/expand-note                              openCallStream()  -> POST /api/ai/expand-note
+OK      GET    /api/reports/today                               openCallStream()  -> GET /api/reports/today
+OK      GET    /api/reports/per-state                           openCallStream()  -> GET /api/reports/per-state
+OK      GET    /api/reports/manual-today                        openCallStream()  -> GET /api/reports/manual-today
+OK      GET    /api/settings/:param                             openCallStream()  -> GET /api/settings/:key
+OK      PUT    /api/settings/:param                             openCallStream()  -> PUT /api/settings/:key
+OK      POST   /api/sessions/start                              openCallStream()  -> POST /api/sessions/start
+OK      POST   /api/sessions/end                                openCallStream()  -> POST /api/sessions/end
+MISSING GET    /api/exports/daily-pdf${date                     downloadDailyPdf()
+MISSING GET    /api/objections/types${includeInactive           downloadDailyPdf()
+OK      POST   /api/objections/types                            downloadDailyPdf()  -> POST /api/objections/types
+OK      PUT    /api/objections/types/:param                     downloadDailyPdf()  -> PUT /api/objections/types/:id
+OK      POST   /api/objections/types/reorder                    downloadDailyPdf()  -> POST /api/objections/types/reorder
+OK      GET    /api/objections/calls/:param                     downloadDailyPdf()  -> GET /api/objections/calls/:callId
+OK      POST   /api/objections/calls/:param                     downloadDailyPdf()  -> POST /api/objections/calls/:callId
+OK      DELETE /api/objections/calls/:param/:param              downloadDailyPdf()  -> DELETE /api/objections/calls/:callId/:objectionTypeId
+OK      PUT    /api/objections/calls/:param/:param              downloadDailyPdf()  -> PUT /api/objections/calls/:callId/:objectionTypeId
+MISSING GET    /api/objections/report${qs                       downloadDailyPdf()
+OK      GET    /api/objections/offices                          downloadDailyPdf()  -> GET /api/objections/offices
+OK      GET    /api/objections/types/:param/suggestions         downloadDailyPdf()  -> GET /api/objections/types/:id/suggestions
+OK      POST   /api/objections/types/:param/suggestions/regenerate downloadDailyPdf()  -> POST /api/objections/types/:id/suggestions/regenerate
+OK      GET    /api/objections/hints                            downloadDailyPdf()  -> GET /api/objections/hints
+OK      GET    /api/objections/suggestions/pending              downloadDailyPdf()  -> GET /api/objections/suggestions/pending
+OK      PUT    /api/objections/suggestions/:param               downloadDailyPdf()  -> PUT /api/objections/suggestions/:id
+OK      GET    /api/calls/stream                                openCallStream()  -> GET /api/calls/stream
+
+== frontend calls with no backend route: 5
+  GET /api/leads${qs  (onUnauthorized)
+  GET /api/leads/:param/brief${withAi  (onUnauthorized)
+  GET /api/exports/daily-pdf${date  (downloadDailyPdf)
+  GET /api/objections/types${includeInactive  (downloadDailyPdf)
+  GET /api/objections/report${qs  (downloadDailyPdf)
+
+== backend routes no api.js function calls: 6
+  GET /api/leads
+  GET /api/leads/:id/brief
+  GET /api/exports/daily-pdf
+  GET /api/objections/types
+  GET /api/objections/report
+  GET /health
+
+== fetch/EventSource outside lib/api.js: none
+## frontend api.js calls vs routes — re-run after fixing the parser for nested query-string templates
+76 API calls found in frontend/src/lib/api.js
+
+
+== frontend calls with no backend route: 0
+
+== backend routes no api.js function calls: 1
+  GET /health
+
+== fetch/EventSource outside lib/api.js: none
+## npm audit (backend) — no fix run
+totals: {"info":0,"low":0,"moderate":1,"high":3,"critical":1,"total":5}
+  high     body-parser@2.0.0 - 2.3.0  direct=false fix=true
+           body-parser vulnerable to Denial of Service via trailing bytes after a compressed request body (https://github.com/advisories/GHSA-27r3-jxmh-p828)
+  high     multer@2.0.0 - 2.4.0  direct=true fix=true
+           multer vulnerable to Denial of Service via orphaned disk writes on aborted uploads (https://github.com/advisories/GHSA-3pph-fpjx-jg34)
+           multer vulnerable to Denial of Service via a pending asynchronous fileFilter after request teardown (https://github.com/advisories/GHSA-q7qp-rjg7-q26m)
+  critical proxy-addr@1.1.0 - 2.0.7  direct=false fix=true
+           proxy-addr vulnerable to IP spoofing via IPv4-mapped IPv6 trust subnet (https://github.com/advisories/GHSA-jqcg-44mw-7w3h)
+  moderate qs@6.7.0 - 6.16.0  direct=false fix=true
+           qs : qs.stringify with arrayFormat 'comma' throws an uncaught TypeError on array elements carrying a non-callable own toString (DoS) (https://github.com/advisories/GHSA-6pq8-jhm2-2vcw)
+  high     xlsx@*  direct=true fix=false
+           Prototype Pollution in sheetJS (https://github.com/advisories/GHSA-4r6h-8v6p-xvw6)
+           SheetJS Regular Expression Denial of Service (ReDoS) (https://github.com/advisories/GHSA-5pgg-2g8v-p4x9)
+## npm audit (frontend) — no fix run
+totals: {"info":0,"low":0,"moderate":1,"high":2,"critical":0,"total":3}
+  moderate postcss-selector-parser@<6.1.5  direct=false fix=true
+           PostCSS: Quadratic complexity in flat selector parsing allows CPU exhaustion (https://github.com/advisories/GHSA-rj75-hqrm-r3gf)
+  high     source-map-js@1.0.0 - 1.2.1  direct=false fix=true
+           source-map-js allows event-loop denial of service through indexed source-map section offsets (https://github.com/advisories/GHSA-68fv-2mgg-jv7q)
+  high     vite@7.0.0 - 7.3.6  direct=true fix=true
+           launch-editor: escapeCmdArgs() omits % escaping on Windows (https://github.com/advisories/GHSA-698v-4r3x-3vcv)
+           launch-editor: Editor CLI flag misinterpretation causing arbitrary command execution for some editors (https://github.com/advisories/GHSA-r825-w8mm-5pxw)
+           launch-editor: `fs.existsSync()` existence check can be bypassed on Windows (https://github.com/advisories/GHSA-587h-7wmj-h5pm)
+           Vite: Cross origin script execution through Vite custom middleware (https://github.com/advisories/GHSA-9jrq-w75r-8gcw)
+           Vite: Files outside `server.fs.allow` could be served when project paths match system paths on non-Windows machine (https://github.com/advisories/GHSA-rq7h-c2jc-7f22)
+## secrets: where API keys live
+backend/src/config/index.js:21:  groqApiKey: process.env.GROQ_API_KEY || 'gsk_****MASKED',
+backend/src/services/preCallBrief.js:42:  const stored = await settingsStore.getSetting('groq-key');
+backend/src/services/preCallBrief.js:43:  return stored || config.groqApiKey || null;
+backend/src/services/noteExpander.js:11:if (!process.env.GROQ_API_KEY) {
+backend/src/services/noteExpander.js:13:  console.warn('GROQ_API_KEY not set — AI note expansion will be unavailable');
+backend/src/services/noteExpander.js:19:  const stored = await settingsStore.getSetting('groq-key');
+backend/src/services/noteExpander.js:20:  return stored || config.groqApiKey || null;
+backend/src/services/rebuttalCoach.js:13:if (!process.env.GROQ_API_KEY) {
+backend/src/services/rebuttalCoach.js:15:  console.warn('GROQ_API_KEY not set — AI rebuttal suggestions will be unavailable');
+backend/src/services/rebuttalCoach.js:29:  const stored = await settingsStore.getSetting('groq-key');
+backend/src/services/rebuttalCoach.js:30:  return stored || config.groqApiKey || null;
+backend/src/services/aiCsvMapper.js:26:if (!process.env.GROQ_API_KEY) {
+backend/src/services/aiCsvMapper.js:28:  console.warn('GROQ_API_KEY not set — AI CSV mapping will be unavailable');
+backend/src/services/aiCsvMapper.js:35:  const stored = await settingsStore.getSetting('groq-key');
+backend/src/services/aiCsvMapper.js:36:  return stored || config.groqApiKey || null;
+## committed secret history (git log -S gsk_ --all), values masked
+4673858 Build in Groq API key
+0fe67f8 Build in Groq API key
+## is the hardcoded key used when GROQ_API_KEY is blank? (node, value masked)
+GROQ_API_KEY blank -> config.groqApiKey = gsk_****(len 56)
+## committed .env files?
+none tracked
+## seed credentials in public repo
+4:const SEED_EMAIL = process.env.SEED_USER_EMAIL || 'vortexoneagency@gmail.com';
+5:const SEED_PASSWORD = process.env.SEED_USER_PASSWORD || 'ChangeMe123!';

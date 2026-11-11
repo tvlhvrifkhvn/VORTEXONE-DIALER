@@ -1,0 +1,717 @@
+## 10.1 production build (vite build + vite preview :5173, VITE_API_URL unset -> api.js fallback http://localhost:4000/api), backend :4000
+
+### unauth-root (/) -> final URL /login
+  text: Vortex Outreach Sign in to start dialing Sign in
+
+### login -> /
+
+### dashboard (/) -> final URL /
+  text: Vortex Outreach Dashboard Dialer Inbox 1 Import Reports Settings EST 6:18am · CST 5:18am · MST 4:18am · PST 3:18am Talha Arif Log out DIALS TODAY 175 CONTACTS TODAY 8 CONNECT RATE 5% DAILY GOAL ✏️ 175 / 100 dials today Start dialing session Export PDF Lines 1 
+  inputs: Search all leads… | Search name, phone, brokerage…
+  checkboxes: 51  clock: true
+  pagination buttons: 2
+  after select-all: checked=51 body mentions selected: true
+  pagination: before="Showing 50 of 15054 leads
+Select all 15054 leads
+	LEAD	PHONE	STATE	ATTEMPTS	STATUS	ADDED
+	
+Bulk Agent 16
+Office 16
+	
+(212) 555-1001
+	NY	1/5	Callback scheduled	Nov 11, 2026, 10:49 AM
+	
+Bulk Agent 205
+Office 20
+	
+(415) 555-1020
+	CA	1/5	Callback scheduled	Nov 11, 2026, 10:49 AM
+	
+Office A
+Compass
+	
+(305) 555-8801
+	FL	0/5	New	Nov 11, 2026, 11:14 AM
+	
+Brief Empty
+—
+	
+(617) 555-0777
+	MA	0/5	New	Nov 11, 2026, 11:13 AM
+	
+Late Cancel Agent 4999
+Office 4
+	
+(617) 558-1499
+	MA	0/5	New	Nov 11, 2026, 10:49 AM
+	
+Late Cancel Agent 4998
+Office 3
+	
+(404) 558-1499
+	GA	0/5	New	Nov 11, 2026, 10:49 AM
+	
+Late Cancel Agent 4997
+Office 2
+	
+(312) 558-1499
+	IL	0/5	New	Nov 11, 2026, 10:49 AM
+	
+Late Cancel Agent 4996
+Office 1
+	
+(212) 558-1499
+	NY	0/5	New	Nov 11, 2026, 10:49 AM
+	
+Late Cancel Agent 4995
+Office 0
+	
+(415) 558-1499
+	CA	0/5	New	Nov 11, 2026, 10:49 AM
+	
+Late Cancel Agent 4994
+Office 36
+	
+(303) 558-1499
+	CO	0/5	New	Nov 11, 2026, 10:49 AM
+	
+Late Cancel Agent 4993
+Office 35
+	
+(602) 558-1499
+	AZ	0/5	New	Nov 11, 2026, 10:49 AM
+	
+Late Cancel Agent 4992
+Office 34
+	
+(305) 558-1499
+	FL	0/5	New	Nov 11, 2026, 10:49 AM
+	
+Late Cancel Agent 4991
+Office 33
+	
+(713) 558-1499
+	TX	0/5	New	Nov 11, 2026, 10:49 AM
+	
+Late Cancel Agent 4990
+Office 32
+	
+(214) 558-1499
+	TX	0/5	New	Nov 11, 2026, 10:49 AM
+	
+Late Cancel Agent 4989
+Office 31
+	
+(617) 558-1498
+	MA	0/5	New	Nov 11, 2026, 10:49 AM
+	
+Late Cancel Agent 4988
+Office 30
+	
+(404) 558-1498
+	GA	0/5	New	Nov 11, 2026, 10:49 AM
+	
+Late Cancel Agent 4987
+Office 29
+	
+(312) 558-1498
+	IL	0/5	New	Nov 11, 2026, 10:49 AM
+	
+Late Cancel Agent 4986
+Office 28
+	
+(212) 558-1498
+	NY	0/5	New	Nov 11, 2026, 10:49 AM
+	
+Late Cancel Agent 4985
+Office 27
+	
+(415) 558-1498
+	CA	0/5	New	Nov 11, 2026, 10:49 AM
+	
+Late Cancel Agent 4984
+Office 26
+	
+(303) 558-1498
+	CO	0/5	New	Nov 11, 2026, 10:49 AM
+	
+Late Cancel Agent 4983
+Office 25
+	
+(602) 558-1498
+	AZ	0/5	New	Nov 11, 2026, 10:49 AM
+	
+Late Cancel Agent 4982
+Office 24
+	
+(305) 558-1498
+	FL	0/5	New	Nov 11, 2026, 10:49 AM
+	
+Late Cancel Agent 4981
+Office 23
+	
+(713) 558-1498
+	TX	0/5	New	Nov 11, 2026, 10:49 AM
+	
+Late Cancel Agent 4980
+Office 22
+	
+(214) 558-1498
+	TX	0/5	New	Nov 11, 2026, 10:49 AM
+	
+Late Cancel Agent 4979
+Office 21
+	
+(617) 558-1497
+	MA	0/5	New	Nov 11, 2026, 10:49 AM
+	
+Late Cancel Agent 4978
+Office 20
+	
+(404) 558-1497
+	GA	0/5	New	Nov 11, 2026, 10:49 AM
+	
+Late Cancel Agent 4977
+Office 19
+	
+(312) 558-1497
+	IL	0/5	New	Nov 11, 2026, 10:49 AM
+	
+Late Cancel Agent 4976
+Office 18
+	
+(212) 558-1497
+	NY	0/5	New	Nov 11, 2026, 10:49 AM
+	
+Late Cancel Agent 4975
+Office 17
+	
+(415) 558-1497
+	CA	0/5	New	Nov 11, 2026, 10:49 AM
+	
+Late Cancel Agent 4974
+Office 16
+	
+(303) 558-1497
+	CO	0/5	New	Nov 11, 2026, 10:49 AM
+	
+Late Cancel Agent 4973
+Office 15
+	
+(602) 558-1497
+	AZ	0/5	New	Nov 11, 2026, 10:49 AM
+	
+Late Cancel Agent 4972
+Office 14
+	
+(305) 558-1497
+	FL	0/5	New	Nov 11, 2026, 10:49 AM
+	
+Late Cancel Agent 4971
+Office 13
+	
+(713) 558-1497
+	TX	0/5	New	Nov 11, 2026, 10:49 AM
+	
+Late Cancel Agent 4970
+Office 12
+	
+(214) 558-1497
+	TX	0/5	New	Nov 11, 2026, 10:49 AM
+	
+Late Cancel Agent 4969
+Office 11
+	
+(617) 558-1496
+	MA	0/5	New	Nov 11, 2026, 10:49 AM
+	
+Late Cancel Agent 4968
+Office 10
+	
+(404) 558-1496
+	GA	0/5	New	Nov 11, 2026, 10:49 AM
+	
+Late Cancel Agent 4967
+Office 9
+	
+(312) 558-1496
+	IL	0/5	New	Nov 11, 2026, 10:49 AM
+	
+Late Cancel Agent 4966
+Office 8
+	
+(212) 558-1496
+	NY	0/5	New	Nov 11, 2026, 10:49 AM
+	
+Late Cancel Agent 4965
+Office 7
+	
+(415) 558-1496
+	CA	0/5	New	Nov 11, 2026, 10:49 AM
+	
+Late Cancel Agent 4964
+Office 6
+	
+(303) 558-1496
+	CO	0/5	New	Nov 11, 2026, 10:49 AM
+	
+Late Cancel Agent 4963
+Office 5
+	
+(602) 558-1496
+	AZ	0/5	New	Nov 11, 2026, 10:49 AM
+	
+Late Cancel Agent 4962
+Office 4
+	
+(305) 558-1496
+	FL	0/5	New	Nov 11, 2026, 10:49 AM
+	
+Late Cancel Agent 4961
+Office 3
+	
+(713) 558-1496
+	TX	0/5	New	Nov 11, 2026, 10:49 AM
+	
+Late Cancel Agent 4960
+Office 2
+	
+(214) 558-1496
+	TX	0/5	New	Nov 11, 2026, 10:49 AM
+	
+Late Cancel Agent 4959
+Office 1
+	
+(617) 558-1495
+	MA	0/5	New	Nov 11, 2026, 10:49 AM
+	
+Late Cancel Agent 4958
+Office 0
+	
+(404) 558-1495
+	GA	0/5	New	Nov 11, 2026, 10:49 AM
+	
+Late Cancel Agent 4957
+Office 36
+	
+(312) 558-1495
+	IL	0/5	New	Nov 11, 2026, 10:49 AM
+	
+Late Cancel Agent 4956
+Office 35
+	
+(212) 558-1495
+	NY	0/5	New	Nov 11, 2026, 10:49 AM
+	
+Late Cancel Agent 4955
+Office 34
+	
+(415) 558-1495
+	CA	0/5	New	Nov 11, 2026, 10:49 AM
+	
+Late Cancel Agent 4954
+Office 33
+	
+(303) 558-1495
+	CO	0/5	New	Nov 11, 2026, 10:49 AM
+Showing 1-50 of 15054 leads
+Previous
+Next" after="Showing 50 of 15054 leads
+Select all 15054 leads
+	LEAD	PHONE	STATE	ATTEMPTS	STATUS	ADDED
+	
+Late Cancel Agent 4953
+Office 32
+	
+(602) 558-1495
+	AZ	0/5	New	Nov 11, 2026, 10:49 AM
+	
+Late Cancel Agent 4952
+Office 31
+	
+(305) 558-1495
+	FL	0/5	New	Nov 11, 2026, 10:49 AM
+	
+Late Cancel Agent 4951
+Office 30
+	
+(713) 558-1495
+	TX	0/5	New	Nov 11, 2026, 10:49 AM
+	
+Late Cancel Agent 4950
+Office 29
+	
+(214) 558-1495
+	TX	0/5	New	Nov 11, 2026, 10:49 AM
+	
+Late Cancel Agent 4949
+Office 28
+	
+(617) 558-1494
+	MA	0/5	New	Nov 11, 2026, 10:49 AM
+	
+Late Cancel Agent 4948
+Office 27
+	
+(404) 558-1494
+	GA	0/5	New	Nov 11, 2026, 10:49 AM
+	
+Late Cancel Agent 4947
+Office 26
+	
+(312) 558-1494
+	IL	0/5	New	Nov 11, 2026, 10:49 AM
+	
+Late Cancel Agent 4946
+Office 25
+	
+(212) 558-1494
+	NY	0/5	New	Nov 11, 2026, 10:49 AM
+	
+Late Cancel Agent 4945
+Office 24
+	
+(415) 558-1494
+	CA	0/5	New	Nov 11, 2026, 10:49 AM
+	
+Late Cancel Agent 4944
+Office 23
+	
+(303) 558-1494
+	CO	0/5	New	Nov 11, 2026, 10:49 AM
+	
+Late Cancel Agent 4943
+Office 22
+	
+(602) 558-1494
+	AZ	0/5	New	Nov 11, 2026, 10:49 AM
+	
+Late Cancel Agent 4942
+Office 21
+	
+(305) 558-1494
+	FL	0/5	New	Nov 11, 2026, 10:49 AM
+	
+Late Cancel Agent 4941
+Office 20
+	
+(713) 558-1494
+	TX	0/5	New	Nov 11, 2026, 10:49 AM
+	
+Late Cancel Agent 4940
+Office 19
+	
+(214) 558-1494
+	TX	0/5	New	Nov 11, 2026, 10:49 AM
+	
+Late Cancel Agent 4939
+Office 18
+	
+(617) 558-1493
+	MA	0/5	New	Nov 11, 2026, 10:49 AM
+	
+Late Cancel Agent 4938
+Office 17
+	
+(404) 558-1493
+	GA	0/5	New	Nov 11, 2026, 10:49 AM
+	
+Late Cancel Agent 4937
+Office 16
+	
+(312) 558-1493
+	IL	0/5	New	Nov 11, 2026, 10:49 AM
+	
+Late Cancel Agent 4936
+Office 15
+	
+(212) 558-1493
+	NY	0/5	New	Nov 11, 2026, 10:49 AM
+	
+Late Cancel Agent 4935
+Office 14
+	
+(415) 558-1493
+	CA	0/5	New	Nov 11, 2026, 10:49 AM
+	
+Late Cancel Agent 4934
+Office 13
+	
+(303) 558-1493
+	CO	0/5	New	Nov 11, 2026, 10:49 AM
+	
+Late Cancel Agent 4933
+Office 12
+	
+(602) 558-1493
+	AZ	0/5	New	Nov 11, 2026, 10:49 AM
+	
+Late Cancel Agent 4932
+Office 11
+	
+(305) 558-1493
+	FL	0/5	New	Nov 11, 2026, 10:49 AM
+	
+Late Cancel Agent 4931
+Office 10
+	
+(713) 558-1493
+	TX	0/5	New	Nov 11, 2026, 10:49 AM
+	
+Late Cancel Agent 4930
+Office 9
+	
+(214) 558-1493
+	TX	0/5	New	Nov 11, 2026, 10:49 AM
+	
+Late Cancel Agent 4929
+Office 8
+	
+(617) 558-1492
+	MA	0/5	New	Nov 11, 2026, 10:49 AM
+	
+Late Cancel Agent 4928
+Office 7
+	
+(404) 558-1492
+	GA	0/5	New	Nov 11, 2026, 10:49 AM
+	
+Late Cancel Agent 4927
+Office 6
+	
+(312) 558-1492
+	IL	0/5	New	Nov 11, 2026, 10:49 AM
+	
+Late Cancel Agent 4926
+Office 5
+	
+(212) 558-1492
+	NY	0/5	New	Nov 11, 2026, 10:49 AM
+	
+Late Cancel Agent 4925
+Office 4
+	
+(415) 558-1492
+	CA	0/5	New	Nov 11, 2026, 10:49 AM
+	
+Late Cancel Agent 4924
+Office 3
+	
+(303) 558-1492
+	CO	0/5	New	Nov 11, 2026, 10:49 AM
+	
+Late Cancel Agent 4923
+Office 2
+	
+(602) 558-1492
+	AZ	0/5	New	Nov 11, 2026, 10:49 AM
+	
+Late Cancel Agent 4922
+Office 1
+	
+(305) 558-1492
+	FL	0/5	New	Nov 11, 2026, 10:49 AM
+	
+Late Cancel Agent 4921
+Office 0
+	
+(713) 558-1492
+	TX	0/5	New	Nov 11, 2026, 10:49 AM
+	
+Late Cancel Agent 4920
+Office 36
+	
+(214) 558-1492
+	TX	0/5	New	Nov 11, 2026, 10:49 AM
+	
+Late Cancel Agent 4919
+Office 35
+	
+(617) 558-1491
+	MA	0/5	New	Nov 11, 2026, 10:49 AM
+	
+Late Cancel Agent 4918
+Office 34
+	
+(404) 558-1491
+	GA	0/5	New	Nov 11, 2026, 10:49 AM
+	
+Late Cancel Agent 4917
+Office 33
+	
+(312) 558-1491
+	IL	0/5	New	Nov 11, 2026, 10:49 AM
+	
+Late Cancel Agent 4916
+Office 32
+	
+(212) 558-1491
+	NY	0/5	New	Nov 11, 2026, 10:49 AM
+	
+Late Cancel Agent 4915
+Office 31
+	
+(415) 558-1491
+	CA	0/5	New	Nov 11, 2026, 10:49 AM
+	
+Late Cancel Agent 4914
+Office 30
+	
+(303) 558-1491
+	CO	0/5	New	Nov 11, 2026, 10:49 AM
+	
+Late Cancel Agent 4913
+Office 29
+	
+(602) 558-1491
+	AZ	0/5	New	Nov 11, 2026, 10:49 AM
+	
+Late Cancel Agent 4912
+Office 28
+	
+(305) 558-1491
+	FL	0/5	New	Nov 11, 2026, 10:49 AM
+	
+Late Cancel Agent 4911
+Office 27
+	
+(713) 558-1491
+	TX	0/5	New	Nov 11, 2026, 10:49 AM
+	
+Late Cancel Agent 4910
+Office 26
+	
+(214) 558-1491
+	TX	0/5	New	Nov 11, 2026, 10:49 AM
+	
+Late Cancel Agent 4909
+Office 25
+	
+(617) 558-1490
+	MA	0/5	New	Nov 11, 2026, 10:49 AM
+	
+Late Cancel Agent 4908
+Office 24
+	
+(404) 558-1490
+	GA	0/5	New	Nov 11, 2026, 10:49 AM
+	
+Late Cancel Agent 4907
+Office 23
+	
+(312) 558-1490
+	IL	0/5	New	Nov 11, 2026, 10:49 AM
+	
+Late Cancel Agent 4906
+Office 22
+	
+(212) 558-1490
+	NY	0/5	New	Nov 11, 2026, 10:49 AM
+	
+Late Cancel Agent 4905
+Office 21
+	
+(415) 558-1490
+	CA	0/5	New	Nov 11, 2026, 10:49 AM
+	
+Late Cancel Agent 4904
+Office 20
+	
+(303) 558-1490
+	CO	0/5	New	Nov 11, 2026, 10:49 AM
+Showing 51-100 of 15054 leads
+Previous
+Next"
+  state sidebar TX click: "3014 leads"
+  global search 'Lia Lane' dropdown shows it: true
+  dark mode: toggled=true after reload dark=true localStorage=dark
+
+### lead-detail (/leads/22) -> final URL /leads/22
+  text: Vortex Outreach Dashboard Dialer Inbox 1 Import Reports Settings EST 6:18am · CST 5:18am · MST 4:18am · PST 3:18am Talha Arif Log out Back Lia Lane Cold Compass Compass · Miami, FL 2 colleagues · 0 contacted · 1 interested · 0 clients Office B — interested, No
+
+### inbox (/inbox) -> final URL /inbox
+  text: Vortex Outreach Dashboard Dialer Inbox 1 Import Reports Settings EST 6:18am · CST 5:18am · MST 4:18am · PST 3:18am Talha Arif Log out Inbox Manage templates B2 Bulk Agent 25 Office 25 · Hi Bulk Agent 25 at Office 25 in CA! 7 minutes ago Mark interested Mark op
+
+### sms-templates (/sms/templates) -> final URL /sms/templates
+  text: Vortex Outreach Dashboard Dialer Inbox 1 Import Reports Settings EST 6:18am · CST 5:18am · MST 4:18am · PST 3:18am Talha Arif Log out SMS templates New template unsupported Hi {first_name}, {{first_name}} — {{ name }} / {{Name}} / {{ Edit Delete all fields Hi 
+
+### import (/import) -> final URL /import
+  text: Vortex Outreach Dashboard Dialer Inbox 1 Import Reports Settings EST 6:18am · CST 5:18am · MST 4:18am · PST 3:18am Talha Arif Log out Import leads Upload a CSV or Excel file with lead name, phone, and state at minimum. We'll use AI to detect which columns map 
+
+### reports (/reports) -> final URL /reports
+  text: Vortex Outreach Dashboard Dialer Inbox 1 Import Reports Settings EST 6:18am · CST 5:18am · MST 4:18am · PST 3:18am Talha Arif Log out Reports DIALS TODAY 175 CONTACTS TODAY 8 CONNECT RATE TODAY 5% Per-state performance Dials Contacts AZ 0% 73d / 0c CA 79% 63d 
+  monthly banner shown: true
+
+### settings (/settings) -> final URL /settings
+  text: Vortex Outreach Dashboard Dialer Inbox 1 Import Reports Settings EST 6:18am · CST 5:18am · MST 4:18am · PST 3:18am Talha Arif Log out Settings Profile Display name Email Save profile Dialing defaults Default max attempts per lead (1–10) Default daily goal Defa
+
+### dialer (/dialer) -> final URL /dialer
+  text: Vortex Outreach Dashboard Dialer Inbox 1 Import Reports Settings EST 6:18am · CST 5:18am · MST 4:18am · PST 3:18am Talha Arif Log out No dialing session running Select leads and a line count on the dashboard, then start a dialing session to see it here. Go to 
+
+### manual-dial (/call/manual) -> final URL /call/manual
+  text: Vortex Outreach Dashboard Dialer Inbox 1 Import Reports Settings EST 6:18am · CST 5:18am · MST 4:18am · PST 3:18am Talha Arif Log out Back Dial pad 1 2 3 4 5 6 7 8 9 * 0 # Backspace Clear Call
+  dial pad after paste "+1 (305) 555-0138": "3055550138"
+
+### call-screen (/call/89) -> final URL /call/89
+  text: Vortex Outreach Dashboard Dialer Inbox 1 Import Reports Settings EST 6:18am · CST 5:18am · MST 4:18am · PST 3:18am Talha Arif Log out BRIEF First call · local time 5:18am · 1 colleague interested at this office BA Bulk Agent 40 Office 3 (214) 555-1004 TX Attem
+  buttons: Dial a number / Switch to dark mode / Log out / BRIEF
+First call · local time 5:18am · 1 colleague interested at this office / Add tag / Add note / Open this lead in a new tab / Quick SMS / Mute (audio muting arrives with Twilio in phase 2) / Hold (real hold arrives with Twilio in phase 2) / Objection / End call / ✨ Expand / Spoke / Interested / Voicemail / No Answer / No Contact — Number / No Contact — Person / DNC / Previous Notes
+▶ / Pitch script
+▶ / Schedule callback / Redial
+  after pressing 'n': No Answer
+No Contact — Number
+No Contact — Person
+
+### unknown-route (/this-does-not-exist) -> final URL /
+  text: Vortex Outreach Dashboard Dialer Inbox 1 Import Reports Settings EST 6:18am · CST 5:18am · MST 4:18am · PST 3:18am Talha Arif Log out DIALS TODAY 176 CONTACTS TODAY 8 CONNECT RATE 5% DAILY GOAL ✏️ 176 / 100 dials today Start dialing session Export PDF Lines 1 
+
+===== console errors and 4xx/5xx per page =====
+unauth-root: console=0 http=0
+dashboard: console=0 http=0
+lead-detail: console=0 http=0
+inbox: console=0 http=0
+sms-templates: console=0 http=0
+import: console=0 http=0
+reports: console=0 http=0
+settings: console=0 http=0
+dialer: console=0 http=0
+manual-dial: console=0 http=0
+call-screen: console=0 http=0
+unknown-route: console=0 http=0
+
+## 10.2 did pressing 'n' on the call screen disposition the call? DB for lead 89:
+ id  | telephony_state | disposition |    at    
+-----+-----------------+-------------+----------
+ 677 | ended           | no_answer   | 11:18:36
+(1 row)
+
+shortcut handler:
+frontend/src/pages/CallScreen.jsx:148:      if (e.key === 'Escape') {
+frontend/src/pages/CallScreen.jsx:154:      if (e.key === 'm' || e.key === 'M') setMuted((m) => !m);
+frontend/src/components/call/CallActionGrid.jsx:183:              onKeyDown={(e) => e.key === 'Enter' && handleAddTag()}
+frontend/src/components/call/DispositionPanel.jsx:171:      if (e.key === 'v' || e.key === 'V') handleSelect('voicemail');
+frontend/src/components/call/DispositionPanel.jsx:172:      else if (e.key === 'n' || e.key === 'N') handleSelect('no_answer');
+frontend/src/components/call/DispositionPanel.jsx:173:      else if (e.key === 'd' || e.key === 'D') {
+frontend/src/components/call/ObjectionPanel.jsx:113:              onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
+
+## 10.3 call screen rate limit — production build, mock outcome FORCED to answered (stub), rep stays on the call ~75s then clicks a disposition
+POLL_MS in useCall.js: 5:const POLL_MS = 600;  apiLimiter: windowMs: 60 * 1000 max: 100 
+state at 6s: Connected
+API responses by status over ~77s: {"200":101,"201":1,"429":1} | first 429 at 55s (GET /api/calls/:n)
+API calls by endpoint: {"POST /api/auth/login":1,"GET /api/sms/inbox":4,"GET /api/reports/today":1,"GET /api/leads/state-counts":1,"GET /api/leads":2,"GET /api/auth/me":1,"POST /api/calls":1,"GET /api/leads/:n/brief":2,"GET /api/leads/:n/colleagues":1,"GET /api/calls/:n":89}
+click "Spoke / Interested" -> POST /api/dispositions 200 {"lead":{"id":90,"name":"Bulk Agent 41","phone":"+17135551004","email":null,"address":"City 1","brokerage":"Office 4","s
+visible after click: Logged as Spoke / Interested.
+DB after the click: call 678 disposition=contacted telephony_state=answered
+
+## 10.3b same, but the rep clicks the disposition at ~57s (inside the throttled window, after the poll's 429)
+state at 6s: Connected
+API responses by status over ~77s: {"200":100,"201":1,"429":1} | first 429 at 55s (GET /api/calls/:n)
+API calls by endpoint: {"POST /api/auth/login":1,"GET /api/sms/inbox":3,"GET /api/reports/today":1,"GET /api/leads/state-counts":1,"GET /api/leads":2,"GET /api/auth/me":1,"POST /api/calls":1,"GET /api/leads/:n/brief":2,"GET /api/leads/:n/colleagues":1,"GET /api/calls/:n":89}
+click "Spoke / Interested" -> POST /api/dispositions 429 {"error":"Too many requests — slow down and try again shortly."}
+visible after click: Too many requests — slow down and try again shortly.
+DB after the click: call 679 disposition=NULL
+
+## 10.4 dev mode (vite dev, React.StrictMode in main.jsx:8) — one visit to the call screen, outcome forced answered
+POST /api/calls requests sent by one visit to /call/92: 2 ["{\"leadId\":\"92\"}","{\"leadId\":\"92\"}"]
+status shown at 7s: Ringing…
+DB: calls created for lead 92: 2 -> 681:answered, 680:answered ; attempts=2

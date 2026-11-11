@@ -1,0 +1,254 @@
+## baseline
+10
+## (a) clean CSV with the REAL Groq path unreachable (dummy key, no stub) — measures fallback behaviour
+upload a_clean.csv: [HTTP 201] mapping={"name":"name","phone":"phone","email":"email","state":"state","city":"city","source":"source"} error=undefined
+process: {"status":"processing","jobId":1,"totalRows":10} [HTTP 200]
+  t=1.4s progress 0/10 (0%) status=processing
+  t=12.0s progress 10/10 (100%) status=completed
+final: status=completed error=null elapsed=12.2s
+resultSummary: {"imported":9,"aiSkipped":0,"totalRows":10,"skippedDnc":0,"originalNames":{},"skippedDetails":[{"row":"Gia Grant","reason":"Lead with this phone number already exists: +12125550107"}],"skippedInvalid":0,"mergedDuplicates":0,"skippedDuplicate":1,"needsManualReview":10,"importedWithoutPhone":0}
+server log "Import chunk failed" lines: 1
+     name     |    phone     |       email       |  brokerage  | state | status | missing_phone 
+--------------+--------------+-------------------+-------------+-------+--------+---------------
+ Alice Archer | +12145550101 | alice@example.com | kw.com      | TX    | new    | f
+ Ben Brooks   | +17135550102 | ben@example.com   | remax.com   | TX    | new    | f
+ Cara Cole    | +13055550103 | cara@example.com  | compass.com | FL    | new    | f
+ Dan Diaz     | +16025550104 | dan@example.com   | exp.com     | AZ    | new    | f
+ Eve Evans    | +13035550105 | eve@example.com   | cb.com      | CO    | new    | f
+ Finn Ford    | +14155550106 | finn@example.com  | redfin.com  | CA    | new    | f
+ Hal Hayes    | +18085550108 | hal@example.com   | ir.com      | HI    | new    | f
+ Ivy Irwin    | +18505550109 | ivy@example.com   | ph.com      | FL    | new    | f
+ Jay Jones    | +19155550110 | jay@example.com   | sc.com      | TX    | new    | f
+(9 rows)
+
+
+######## From here: backend started with GROQ_BASE_URL=http://127.0.0.1:4999 (audit/stubs/groq-stub-server.js) — AI mapping/cleaning is STUBBED
+
+## (b_scrape)
+upload b_scrape.csv: [HTTP 201] mapping={"name":"name","phone":"phone","email":"email","address":null,"brokerage":"office","state":"state","city":"city","source":"source"} error=undefined
+process: {"status":"processing","jobId":2,"totalRows":4} [HTTP 200]
+  t=0.2s progress 4/4 (100%) status=processing
+final: status=completed error=null elapsed=0.9s
+resultSummary: {"imported":2,"aiSkipped":0,"totalRows":4,"skippedDnc":0,"originalNames":{"0":"Joshua Barkes License #: 0123456","2":"Kara Knox License # 999"},"skippedDetails":[{"row":"Joshua Barkes","reason":"Could not determine a US state for this lead"}],"skippedInvalid":1,"mergedDuplicates":1,"skippedDuplicate":0,"needsManualReview":0,"importedWithoutPhone":0}
+ id |     name      |    phone     |      email       |    brokerage    | address | state | status | missing_phone 
+----+---------------+--------------+------------------+-----------------+---------+-------+--------+---------------
+ 20 | Joshua Barkes | +12145550201 | josh@example.com | Keller Williams | Dallas  | TX    | new    | f
+ 21 | Kara Knox     | +12145550202 | kara@example.com | Keller Williams | Dallas  | TX    | new    | f
+(2 rows)
+
+
+## (c_source)
+upload c_source.csv: [HTTP 201] mapping={"name":"name","phone":"phone","email":"email","address":null,"brokerage":"office","state":"state","city":"city","source":"source"} error=undefined
+process: {"status":"processing","jobId":3,"totalRows":2} [HTTP 200]
+  t=0.2s progress 2/2 (100%) status=completed
+final: status=completed error=null elapsed=0.3s
+resultSummary: {"imported":2,"aiSkipped":0,"totalRows":2,"skippedDnc":0,"originalNames":{},"skippedDetails":[],"skippedInvalid":0,"mergedDuplicates":0,"skippedDuplicate":0,"needsManualReview":0,"importedWithoutPhone":0}
+ id |   name    |    phone     | email |    brokerage    | address | state | status | missing_phone 
+----+-----------+--------------+-------+-----------------+---------+-------+--------+---------------
+ 22 | Lia Lane  | +13055550301 |       | Compass         | Miami   | FL    | new    | f
+ 23 | Max Moore | +13055550302 |       | Douglas Elliman | Miami   | FL    | new    | f
+(2 rows)
+
+
+## (d_nophone)
+upload d_nophone.csv: [HTTP 201] mapping={"name":"name","phone":"phone","email":"email","address":null,"brokerage":"office","state":"state","city":"city","source":"source"} error=undefined
+process: {"status":"processing","jobId":4,"totalRows":2} [HTTP 200]
+  t=0.2s progress 2/2 (100%) status=completed
+final: status=completed error=null elapsed=0.3s
+resultSummary: {"imported":2,"aiSkipped":0,"totalRows":2,"skippedDnc":0,"originalNames":{},"skippedDetails":[],"skippedInvalid":0,"mergedDuplicates":0,"skippedDuplicate":0,"needsManualReview":0,"importedWithoutPhone":2}
+ id |   name    | phone |      email      | brokerage | address | state | status | missing_phone 
+----+-----------+-------+-----------------+-----------+---------+-------+--------+---------------
+ 24 | Nia Noble | NULL  | nia@example.com | Coldwell  | Boise   | ID    | new    | t
+ 25 | Oto Orr   | NULL  |                 | Coldwell  | Boise   | ID    | new    | t
+(2 rows)
+
+
+## (e_merge)
+upload e_merge.csv: [HTTP 201] mapping={"name":"name","phone":"phone","email":"email","address":null,"brokerage":"office","state":"state","city":"city","source":"source"} error=undefined
+process: {"status":"processing","jobId":5,"totalRows":4} [HTTP 200]
+  t=0.2s progress 4/4 (100%) status=processing
+final: status=completed error=null elapsed=0.9s
+resultSummary: {"imported":3,"aiSkipped":0,"totalRows":4,"skippedDnc":0,"originalNames":{},"skippedDetails":[],"skippedInvalid":0,"mergedDuplicates":1,"skippedDuplicate":0,"needsManualReview":0,"importedWithoutPhone":0}
+ id |    name     |    phone     |       email       |    brokerage    | address | state | status | missing_phone 
+----+-------------+--------------+-------------------+-----------------+---------+-------+--------+---------------
+ 26 | Pat Price   | +15125550501 |                   | Keller Williams | Austin  | TX    | new    | f
+ 27 | Pat Price   | +17135550502 |                   | RE/MAX          | Houston | TX    | new    | f
+ 28 | Quinn Quade | +15125550503 | quinn@example.com | Keller Williams | Austin  | TX    | new    | f
+(3 rows)
+
+
+## (f_phones)
+upload f_phones.csv: [HTTP 201] mapping={"name":"name","phone":"phone","email":"email","address":null,"brokerage":"office","state":"state","city":"city","source":"source"} error=undefined
+process: {"status":"processing","jobId":6,"totalRows":10} [HTTP 200]
+  t=0.2s progress 10/10 (100%) status=processing
+final: status=completed error=null elapsed=0.9s
+resultSummary: {"imported":10,"aiSkipped":0,"totalRows":10,"skippedDnc":0,"originalNames":{},"skippedDetails":[],"skippedInvalid":0,"mergedDuplicates":0,"skippedDuplicate":0,"needsManualReview":0,"importedWithoutPhone":5}
+ id |         name         |    phone     | email | brokerage | address | state | status | missing_phone 
+----+----------------------+--------------+-------+-----------+---------+-------+--------+---------------
+ 29 | Phone Plus One       | +16025550601 |       | X         | Phoenix | AZ    | new    | f
+ 30 | Phone Parens         | +16025550602 |       | X         | Phoenix | AZ    | new    | f
+ 31 | Phone Dashes         | +16025550603 |       | X         | Phoenix | AZ    | new    | f
+ 32 | Phone TenDigit       | +16025550604 |       | X         | Phoenix | AZ    | new    | f
+ 33 | Phone Extension      | NULL         |       | X         | Phoenix | AZ    | new    | t
+ 34 | Phone Letters        | NULL         |       | X         | Phoenix | AZ    | new    | t
+ 35 | Phone Junk           | NULL         |       | X         | Phoenix | AZ    | new    | t
+ 36 | Phone Short          | NULL         |       | X         | Phoenix | AZ    | new    | t
+ 37 | Phone Eleven No Plus | +16025550609 |       | X         | Phoenix | AZ    | new    | f
+ 38 | Phone Intl           | NULL         |       | X         | Phoenix | AZ    | new    | t
+(10 rows)
+
+
+## (g_state)
+upload g_state.csv: [HTTP 201] mapping={"name":"name","phone":"phone","email":"email","address":null,"brokerage":"office","state":"state","city":"city","source":"source"} error=undefined
+process: {"status":"processing","jobId":7,"totalRows":6} [HTTP 200]
+  t=0.2s progress 6/6 (100%) status=processing
+final: status=completed error=null elapsed=0.9s
+resultSummary: {"imported":6,"aiSkipped":0,"totalRows":6,"skippedDnc":0,"originalNames":{},"skippedDetails":[],"skippedInvalid":0,"mergedDuplicates":0,"skippedDuplicate":0,"needsManualReview":0,"importedWithoutPhone":0}
+ id |         name         |    phone     | email | brokerage | address | state | status | missing_phone 
+----+----------------------+--------------+-------+-----------+---------+-------+--------+---------------
+ 39 | State Given          | +13055550701 |       | X         | Miami   | FL    | new    | f
+ 40 | State Lowercase      | +13055550702 |       | X         | Miami   | FL    | new    | f
+ 41 | State Full Name      | +13055550703 |       | X         | Miami   | FL    | new    | f
+ 42 | State From Area Code | +18085550704 |       | X         |         | HI    | new    | f
+ 43 | State Invalid        | +18085550705 |       | X         |         | HI    | new    | f
+ 44 | State Mismatch       | +18085550706 |       | X         | Dallas  | TX    | new    | f
+(6 rows)
+
+
+## (h) DNC: put Alice Archer (+12145550101) on DNC via a real call + DNC disposition, then import h_dnc.csv
+call 1 on lead 11
+"status":"dnc" [HTTP 200] 
++12145550101|manual|11
+upload h_dnc.csv: [HTTP 201] mapping={"name":"name","phone":"phone","email":"email","address":null,"brokerage":"office","state":"state","city":"city","source":"source"} error=undefined
+process: {"status":"processing","jobId":8,"totalRows":2} [HTTP 200]
+  t=0.2s progress 2/2 (100%) status=completed
+final: status=completed error=null elapsed=0.4s
+resultSummary: {"imported":1,"aiSkipped":0,"totalRows":2,"skippedDnc":1,"originalNames":{},"skippedDetails":[{"row":"Dnc Again","reason":"Phone number is on the DNC list: +12145550101"}],"skippedInvalid":0,"mergedDuplicates":0,"skippedDuplicate":0,"needsManualReview":0,"importedWithoutPhone":0}
+ id |  name   |    phone     
+----+---------+--------------
+ 45 | Not Dnc | +12145550801
+(1 row)
+
+
+## (h2) DNC number in a different format ((214) 555-0101 vs 214.555.0101 vs +1 214 555 0101) — normalisation before the DNC check
+resultSummary: {"imported":0,"aiSkipped":0,"totalRows":2,"skippedDnc":1,"originalNames":{},"skippedDetails":[{"row":"Dnc Fmt One","reason":"Phone number is on the DNC list: +12145550101"}],"skippedInvalid":0,"mergedDuplicates":1,"skippedDuplicate":0,"needsManualReview":0,"importedWithoutPhone":0}
+
+## (i) multi-sheet xlsx (3 sheets: Phoenix, Denver [columns reordered], Empty)
+upload i_multisheet.xlsx: [HTTP 201] mapping={"name":"name","phone":"phone","email":null,"address":null,"brokerage":null,"state":"state","city":null,"source":null} error=undefined
+process: {"status":"processing","jobId":10,"totalRows":3} [HTTP 200]
+  t=0.2s progress 3/3 (100%) status=completed
+final: status=completed error=null elapsed=0.4s
+resultSummary: {"imported":3,"aiSkipped":0,"totalRows":3,"skippedDnc":0,"originalNames":{},"skippedDetails":[],"skippedInvalid":0,"mergedDuplicates":0,"skippedDuplicate":0,"needsManualReview":0,"importedWithoutPhone":0}
+ id |    name     |    phone     | state 
+----+-------------+--------------+-------
+ 46 | Sheet Two A | +13035550903 | CO
+ 47 | Sheet One A | +16025550901 | AZ
+ 48 | Sheet One B | +16025550902 | AZ
+(3 rows)
+
+
+## (l) a_clean.csv imported a second time
+final: status=completed error=null elapsed=0.3s
+resultSummary: {"imported":0,"aiSkipped":0,"totalRows":10,"skippedDnc":1,"originalNames":{},"skippedDetails":[{"row":"Alice Archer","reason":"Phone number is on the DNC list: +12145550101"},{"row":"Ben Brooks","reason":"Lead with this phone number already exists: +17135550102"},{"row":"Cara Cole","reason":"Lead with this phone number already exists: +13055550103"},{"row":"Dan Diaz","reason":"Lead with this phone number already exists: +16025550104"},{"row":"Eve Evans","reason":"Lead with this phone number already exists: +13035550105"},{"row":"Finn Ford","reason":"Lead with this phone number already exists: +14155550106"},{"row":"Gia Grant","reason":"Lead with this phone number already exists: +12125550107"},{"row":"Hal Hayes","reason":"Lead with this phone number already exists: +18085550108"},{"row":"Ivy Irwin","reason":"Lead with this phone number already exists: +18505550109"},{"row":"Jay Jones","reason":"Lead with this phone number already exists: +19155550110"}],"skippedInvalid":0,"mergedDuplicates":0,"skippedDuplicate":9,"needsManualReview":0,"importedWithoutPhone":0}
+lead count before=48 after=48
+
+## (l2) phoneless file imported a second time (dedup on name+state)
+resultSummary: {"imported":0,"aiSkipped":0,"totalRows":2,"skippedDnc":0,"originalNames":{},"skippedDetails":[{"row":"Nia Noble","reason":"Lead without a phone number already exists: Nia Noble (ID)"},{"row":"Oto Orr","reason":"Lead without a phone number already exists: Oto Orr (ID)"}],"skippedInvalid":0,"mergedDuplicates":0,"skippedDuplicate":2,"needsManualReview":0,"importedWithoutPhone":0}
+lead count before=48 after=48
+
+## missing_phone leads vs the queue
+POST /api/calls {leadId:24}: {"error":"This lead has no phone number yet — add one before calling."} [HTTP 409]
+POST /api/calls {leadId:25}: {"error":"This lead has no phone number yet — add one before calling."} [HTTP 409]
+POST /api/leads/batch-queue with phoneless ids: {"leads":[]} [HTTP 200]
+candidates() query view: phoneless leads that peekNext could return:
+7
+
+## (j) 5,000-row CSV, stub delay 150ms per AI call to make progress observable (stubbed)
+upload j_5000.csv: [HTTP 201] mapping={"name":"name","phone":"phone","email":"email","address":null,"brokerage":"office","state":"state","city":"city","source":"source"} error=undefined
+process: {"status":"processing","jobId":13,"totalRows":5000} [HTTP 200]
+  t=0.4s progress 0/5000 (0%) status=processing
+  t=1.6s progress 420/5000 (8%) status=processing
+  t=2.7s progress 840/5000 (17%) status=processing
+  t=3.8s progress 1320/5000 (26%) status=processing
+  t=8.4s progress 3060/5000 (61%) status=processing
+final: status=completed error=null elapsed=16.4s
+resultSummary: {"imported":5000,"aiSkipped":0,"totalRows":5000,"skippedDnc":0,"originalNames":{},"skippedDetails":[],"skippedInvalid":0,"mergedDuplicates":0,"skippedDuplicate":0,"needsManualReview":0,"importedWithoutPhone":0}
+lead count before=48 after=5048 delta=5000
+import_jobs row:
+ERROR:  syntax error at end of input
+LINE 1: ...l_rows,processed_rows,failed_rows from import_jobs where id=
+                                                                       ^
+
+## (j-cancel) same 5,000 rows (renamed phones) — cancel after ~2s
+{"status":"processing","jobId":14,"totalRows":5000} [HTTP 200]
+status before cancel: {"jobId":14,"filename":"j_cancel.csv","status":"processing","processedRows":780,"totalRows":5000,"failedRows":0,"percent
+cancel: {"cancelled":true,"jobId":14} [HTTP 200]
+status after cancel: {"jobId":14,"filename":"j_cancel.csv","status":"cancelled","processedRows":840,"totalRows":5000,"failedRows":0,"percentage":17,"resultSummary":null,"errorMessag
+leads written by cancelled job (Cancel Agent%): 0  lead delta=0
+5s later still: cancelled|840 leads=0
+
+## (j2) progress-accuracy re-run: 5,000 new rows, every poll printed with the live DB lead count
+t= 0.0s  1%  status=processing  leads_written=0
+t= 0.7s  100%  status=processing  leads_written=1215
+t= 1.3s  100%  status=processing  leads_written=2749
+t= 1.9s  100%  status=processing  leads_written=4190
+t= 2.5s  100%  status=completed  leads_written=5000
+import_jobs row:
+15|completed|5000|5000|0
+
+## (j3) cancel while progress shows 100% but rows are still being written
+at cancel: 100% status=processing leads_written=393
+cancel -> {"cancelled":true,"jobId":16} [HTTP 200]
+after: job=completed cancelled_flag=true leads_written=5000
+UI-visible status: {"jobId":16,"filename":"j_late.csv","status":"completed","processedRows":5000,"totalRows":5000,"failedRows":0,"percentage":100,"resultSummar
+
+## (k) bad files — POST /api/imports/upload (new path) and /api/imports/preview (legacy CSV path)
+upload    k_empty.csv (0B)       -> {"error":"That file has no rows."} [HTTP 400]
+preview   k_empty.csv (0B)       -> {"error":"Uploaded file must be a .csv file"} [HTTP 400]
+upload    k_header_only.csv (42B) -> {"error":"That file has no rows."} [HTTP 400]
+preview   k_header_only.csv (42B) -> {"error":"Uploaded file must be a .csv file"} [HTTP 400]
+upload    k_wrong_ext.txt (779B) -> {"jobId":17,"sheetNames":["Sheet1"],"totalRows":10,"sheetRowCounts":{"Sheet1":10},"headers":["name","phone","email","office","source","city","state"],"fields":["name","phone","email","address","brokerage","state"],"sampleRows":[{"
+preview   k_wrong_ext.txt (779B) -> {"error":"Uploaded file must be a .csv file"} [HTTP 400]
+upload    k_fake.pdf (26B)       -> {"jobId":18,"sheetNames":["Sheet1"],"totalRows":1,"sheetRowCounts":{"Sheet1":1},"headers":["%PDF-1.4"],"fields":["name","phone","email","address","brokerage","state"],"sampleRows":[{"%PDF-1.4":"not really a pdf"}],"mapping":{"name
+preview   k_fake.pdf (26B)       -> {"error":"Uploaded file must be a .csv file"} [HTTP 400]
+upload    k_malformed.csv (125B) -> {"error":"Could not parse CSV: Quote Not Closed: the parsing is finished with an opening quote at line 3"} [HTTP 400]
+preview   k_malformed.csv (125B) -> {"error":"Uploaded file must be a .csv file"} [HTTP 400]
+upload    k_oversized.csv (16500017B) -> {"error":"File too large"} [HTTP 500]
+preview   k_oversized.csv (16500017B) -> {"error":"File too large"} [HTTP 500]
+-- no file field:
+{"error":"No file uploaded (expected multipart field \"file\")"} [HTTP 400]
+-- process unknown job:
+{"error":"Import job not found"} [HTTP 404]
+-- commit with no mapping:
+{"error":"mapping must include at least name and phone"} [HTTP 400]
+-- server alive after all of the above: {"status":"ok"}
+-- any stack trace leaked in a response? (grep 'at ' frames in bodies above)
+(see bodies above: none contain stack frames)
+-- malformed CSV via the job path: what got imported?
+upload k_malformed.csv: [HTTP 400] mapping=undefined error=Could not parse CSV: Quote Not Closed: the parsing is finished with an opening quote at line 3
+ id | name | phone 
+----+------+-------
+(0 rows)
+
+
+## legacy /preview requireCsvFile: the same valid CSV with different Content-Types
+a_clean.csv;(curl default)           -> {"error":"Uploaded file must be a .csv file"} [HTTP 400]
+a_clean.csv;type=text/csv            -> {"headers":["name","phone","email","office","source","city","state"],"rows":[{"name":"Alic
+a_clean.csv;type=application/vnd.ms-excel -> {"headers":["name","phone","email","office","source","city","state"],"rows":[{"name":"Alic
+a_clean.csv;type=application/octet-stream -> {"error":"Uploaded file must be a .csv file"} [HTTP 400]
+-- curl's default part type for .csv:
+0067: Content-Type: multipart/form-data; boundary=--------------------
+0077: Content-Type: application/octet-stream
+-- which path does the UI use? (frontend/src/pages/Import.jsx api calls)
+frontend/src/pages/Import.jsx:98:      const data = await api.uploadImportFile(file);
+frontend/src/pages/Import.jsx:128:      await api.processImportJob(jobId, selectedSheets, mapping);
+frontend/src/hooks/useImportJob.js:44:    const job = await api.getImportJobStatus(jobId);
+frontend/src/hooks/useImportJob.js:97:      await api.cancelImportJob(jobId);
+-- orphaned import_jobs left by uploads that were never processed:
+completed|15
+pending|2
+cancelled|1
+
+## lead count baseline at end of §3 (used by §4-§6 invariants)
+15048
+15048|15048

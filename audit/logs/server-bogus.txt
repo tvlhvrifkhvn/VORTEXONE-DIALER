@@ -1,0 +1,7 @@
+Vortex Dialer API listening on port 4000 (telephony: bogus)
+Error: Unknown TELEPHONY_PROVIDER: "bogus". Expected one of: mock, twilio
+    at getAdapter (/home/user/vortexone-dialer/backend/src/telephony/index.js:13:11)
+    at Object.placeCall (/home/user/vortexone-dialer/backend/src/telephony/index.js:39:10)
+    at Object.start (/home/user/vortexone-dialer/backend/src/services/callSession.js:50:37)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async /home/user/vortexone-dialer/backend/src/routes/calls.js:77:18

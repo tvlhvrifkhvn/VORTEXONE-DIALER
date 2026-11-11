@@ -1,0 +1,11 @@
+name,phone,email,office,source,city,state
+Alice Archer,(214) 555-0101,alice@example.com,Keller Williams,kw.com,Dallas,TX
+Ben Brooks,713-555-0102,ben@example.com,RE/MAX,remax.com,Houston,TX
+Cara Cole,+1 305 555 0103,cara@example.com,Compass,compass.com,Miami,FL
+Dan Diaz,6025550104,dan@example.com,eXp Realty,exp.com,Phoenix,AZ
+Eve Evans,+13035550105,eve@example.com,Coldwell Banker,cb.com,Denver,CO
+Finn Ford,(415) 555-0106,finn@example.com,Redfin,redfin.com,San Francisco,CA
+Gia Grant,212.555.0107,gia@example.com,Douglas Elliman,elliman.com,New York,NY
+Hal Hayes,808-555-0108,hal@example.com,Island Realty,ir.com,Honolulu,HI
+Ivy Irwin,(850) 555-0109,ivy@example.com,Panhandle Homes,ph.com,Pensacola,FL
+Jay Jones,(915) 555-0110,jay@example.com,Sun City Realty,sc.com,El Paso,TX
