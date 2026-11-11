@@ -3,6 +3,7 @@ const db = require('../db');
 const telephony = require('../telephony');
 const leadQueue = require('./leadQueue');
 const leadLifecycle = require('./leadLifecycle');
+const callLifecycle = require('./callLifecycle');
 const dialingSession = require('./dialingSession');
 const dncCheck = require('./dncCheck');
 const { ApiError } = require('../middleware/errorHandler');
@@ -49,7 +50,10 @@ async function start({ lead, userId, sessionId = null }) {
 
   const telephonyCallId = telephony.placeCall(fromNumber, lead.phone, (event) => {
     const nextState = event.type; // 'ringing' | 'answered' | 'voicemail_detected' | 'ended'
-    db.query('UPDATE call_history SET telephony_state = $2 WHERE id = $1', [call.id, nextState]).catch((err) => {
+    const write = nextState === 'ended'
+      ? callLifecycle.markEnded(call.id, event.duration)
+      : db.query('UPDATE call_history SET telephony_state = $2 WHERE id = $1', [call.id, nextState]);
+    write.catch((err) => {
       console.error(`Failed to record telephony event "${event.type}" for call ${call.id}:`, err.message);
     });
   });
@@ -96,7 +100,10 @@ async function startManual({ userId, toNumberRaw }) {
   const call = rows[0];
 
   const telephonyCallId = telephony.placeCall(fromNumber, toNumber, (event) => {
-    db.query('UPDATE call_history SET telephony_state = $2 WHERE id = $1', [call.id, event.type]).catch((err) => {
+    const write = event.type === 'ended'
+      ? callLifecycle.markEnded(call.id, event.duration)
+      : db.query('UPDATE call_history SET telephony_state = $2 WHERE id = $1', [call.id, event.type]);
+    write.catch((err) => {
       console.error(`Failed to record telephony event "${event.type}" for manual call ${call.id}:`, err.message);
     });
   });
@@ -187,7 +194,10 @@ async function placeSlotCall(session, slot) {
     const current = session.slots.get(slotNumber);
     if (session.stopped || !current || current.callId !== call.id) return;
 
-    db.query('UPDATE call_history SET telephony_state = $2 WHERE id = $1', [call.id, event.type]).catch((err) => {
+    const write = event.type === 'ended'
+      ? callLifecycle.markEnded(call.id, event.duration)
+      : db.query('UPDATE call_history SET telephony_state = $2 WHERE id = $1', [call.id, event.type]);
+    write.catch((err) => {
       console.error(`Failed to record telephony event "${event.type}" for call ${call.id}:`, err.message);
     });
 
