@@ -1,0 +1,245 @@
+# Segment 3 regression — branch HEAD 66ff793 vs base e99d97f
+
+## Segment 1 repros on Segment 3 code
+### fix-seg1-f16.sh
+[seg3-regr] lead A=5020 (214) 555-9922 dialed (call 1), disposition dnc: [HTTP 200]
+[seg3-regr]   dnc_list has +12145559922: 1
+[seg3-regr]   PUT A phone -> (214) 555-9923 (moves A off the number): [HTTP 200]
+[seg3-regr] lead B=5021
+[seg3-regr]   PUT B phone="(214) 555-9922" -> [HTTP 409] This number is on the DNC list and cannot be added as a lead stored=+12145559924
+[seg3-regr]   PUT B phone="214-555-9922" -> [HTTP 409] This number is on the DNC list and cannot be added as a lead stored=+12145559924
+[seg3-regr]   PUT B phone="+1 214 555 9922" -> [HTTP 409] This number is on the DNC list and cannot be added as a lead stored=+12145559924
+[seg3-regr]   POST /api/calls {leadId:B} -> [HTTP 201] undefined | dialed number: +12145559924
+[seg3-regr] invalid phone: PUT B phone="abc" -> [HTTP 400] Enter a valid 10-digit US phone number
+[seg3-regr] number held by lead 5022: PUT B -> [HTTP 409] A lead with this phone number already exists
+[seg3-regr] clean new number "214 555 9926": PUT B -> [HTTP 200] stored=+12145559926
+[seg3-regr] lead D=5023: number put on dnc_list by DIRECT SQL, dnc_flag=f
+[seg3-regr]   by-id dial D -> [HTTP 409] This number is on the DNC list and cannot be dialed
+[seg3-regr]   D made the top queue candidate by DIRECT SQL (callback due a day ago)
+[seg3-regr]   POST /api/calls {} -> [HTTP 201] served lead=1 (D=5023)
+[seg3-regr]   D afterwards: status=dnc dnc_flag=true locked_by=null
+[seg3-regr] manual dial pad to the DNC'd number (214) 555-9922 -> [HTTP 409] This number is on the DNC list and cannot be dialed
+### fix-seg1-f16-multiline.sh
+[seg3-regr] queue mode: lead 5024 (dnc_list only) is the top candidate
+[seg3-regr]   calls placed to lead 5024: 0   lead 5024 now: dnc dnc_flag=true   other calls placed: 4
+[seg3-regr] selected-leads mode: leadIds=[5025 (dnc_list only), 5026 (clean)]
+[seg3-regr]   multiline/start -> 201 {"lineCount":2,"slots":[{"slotNumber":1,"leadId":5026,"leadName":"Seg1 ML ok 3117","status":"ringing"}]}
+[seg3-regr]   calls placed to lead 5025: 0   lead 5025 now: new dnc_flag=false   calls to clean lead 5026: 1
+### fix-seg1-f22.sh
+[seg3-regr] lead X=5027 created; DELETE /api/leads/5027 -> [HTTP 200]  deleted_at set=t
+[seg3-regr]   dial deleted lead by id -> [HTTP 404] Lead not found
+[seg3-regr]   deleted lead made the top queue candidate by DIRECT SQL; POST /api/calls {} served lead=4 (X=5027)
+[seg3-regr] control: non-deleted lead Y=5028 dial by id -> [HTTP 201]
+### fix-seg1-f52.sh
+[seg3-regr] lead X=5029
+[seg3-regr] PUT state "ZZ"            -> [HTTP 400] Enter a valid US state  stored state=TX
+[seg3-regr] PUT name null             -> [HTTP 400] Name is required
+[seg3-regr] PUT name 10,000 chars     -> [HTTP 400] Name is too long (200 characters max)  stored length=14
+[seg3-regr] PUT name "   "             -> [HTTP 400] Name is required  stored name="Seg1 Edit 2761"
+[seg3-regr] PUT name 200 chars (limit) -> [HTTP 200] undefined
+[seg3-regr] PUT name 201 chars        -> [HTTP 400] Name is too long (200 characters max)
+[seg3-regr] POST state ZZ             -> [HTTP 400] Enter a valid US state
+[seg3-regr] POST name null            -> [HTTP 400] Name is required
+[seg3-regr] POST name 10,000 chars    -> [HTTP 400] Name is too long (200 characters max)
+[seg3-regr] POST name "   "            -> [HTTP 400] Name is required
+[seg3-regr] valid edits:
+[seg3-regr]   PUT name="Seg1 Renamed 2761" -> [HTTP 200] undefined  stored name=Seg1 Renamed 2761
+[seg3-regr]   PUT phone="(817) 555-2764" -> [HTTP 200] undefined  stored phone=+18175552764
+[seg3-regr]   PUT email="seg1-2761@example.com" -> [HTTP 200] undefined  stored email=seg1-2761@example.com
+[seg3-regr]   PUT address="1 Main St, Fort Worth" -> [HTTP 200] undefined  stored address=1 Main St, Fort Worth
+[seg3-regr]   PUT brokerage="Seg1 Realty" -> [HTTP 200] undefined  stored brokerage=Seg1 Realty
+[seg3-regr]   PUT state="OK" -> [HTTP 200] undefined  stored state=OK
+[seg3-regr] lowercase state: PUT {"state":"ca"} -> [HTTP 200] undefined stored=CA   | POST state "ca" -> CA
+### fix-seg2-redial.sh
+login failed: {"error":"Too many login attempts — try again in a minute."}
+[seg3-regr] lead 26: first dial -> [HTTP 201]  attempts=1
+[seg3-regr]   same user, plain repeat {leadId}            -> [HTTP 409] Lead is not dialable (status: in_progress)
+[seg3-regr]   same user, Redial button {leadId,redial:true} -> [HTTP 201]  attempts=2
+[seg3-regr]   OTHER user with redial:true                 -> [HTTP 401] Missing or malformed Authorization header
+[seg3-regr]   calls on lead 26: 2
+### calling-hours.js (after vs base)
+calling-hours output lines: base 34, after 34, diff lines: 8
+### invariants.sql on the regression DB
+-- I1 every lead has exactly one status from the allowed list (violations):
+ status | count 
+--------+-------
+(0 rows)
+
+-- I2 leads in_progress, and whether each has an open (undispositioned) call:
+  id  | locked_by | lock_age_s | open_calls 
+------+-----------+------------+------------
+    1 |         1 |         34 |          1
+    4 |         1 |         24 |          2
+   26 |         1 |         25 |          2
+ 5021 |         1 |         34 |          1
+ 5028 |         1 |         20 |          1
+(5 rows)
+
+-- I3 in_progress with lock older than 30s (should be swept on next queue read):
+ stale_locks 
+-------------
+           2
+(1 row)
+
+-- I4 orphan call rows (lead_id not in leads; manual calls have NULL lead_id by design):
+ orphan_calls 
+--------------
+            0
+(1 row)
+
+-- I5 calls never dispositioned and never ended, older than 5 minutes:
+ dangling_calls 
+----------------
+              0
+(1 row)
+
+-- I6 leads with more open (undispositioned) calls than one:
+ lead_id | open_calls 
+---------+------------
+       4 |          2
+      26 |          2
+(2 rows)
+
+-- I7 attempts above max_attempts:
+ id | attempts | max_attempts | status 
+----+----------+--------------+--------
+(0 rows)
+
+-- I8 dnc consistency: dnc_flag vs status vs dnc_list
+                      kind                       | count 
+-------------------------------------------------+-------
+ flag without status                             |     0
+ status without flag                             |     0
+ lead whose phone is on dnc_list but not flagged |     1
+ phones not in E.164 (+1 and 10 digits)          |     0
+(4 rows)
+
+-- I9 lead counts:
+ total | soft_deleted 
+-------+--------------
+  5030 |            1
+(1 row)
+
+### server log (regression backend): 0 error/warn lines
+
+### fix-seg1-f06.sh (fresh DB vortex_seg3_f06, SEED_USER_PASSWORD unset)
+--- [seg3-regr] seed output on vortex_seg3_f06 (passwords masked):
+    Seed complete.
+    
+    ==== SEED LOGIN (shown once — store it now, it is not saved anywhere) ====
+      email:    vortexoneagency@gmail.com
+      password: 10_p****(len 24)
+    =========================================================================
+--- [seg3-regr] users row: vortexoneagency@gmail.com role=supervisor
+--- [seg3-regr] login with the password the seed printed (10_p****(len 24)): HTTP 200
+--- [seg3-regr] login with the OLD committed default (Chan****(len 12)): HTTP 401
+
+## Segment 2 repros on Segment 3 code
+### fix-seg2-f14.sh
+[seg3-regr] (d) sequential order: first 10 leads served by 10 sequential POST /api/calls {} on fresh data
+[seg3-regr]   order: BA777 Karen_Mitchell David_Chen Melissa_Ortiz James_Whitfield Angela_Rossi Brian_Kowalski Patricia_Nguyen Robert_Hayes Susan_Delgado   (Bulk Agent 777 was made a due callback, so it must be first)
+[seg3-regr]   dial→disposition→dial: dispose call 10 no_answer -> [HTTP 200]; next dial -> [HTTP 201]
+[seg3-regr]   calls from (d) left open after dispositioning them: 0
+[seg3-regr] (a) 20 parallel POST /api/calls {} — one user
+[seg3-regr]   statuses: 20×201 
+[seg3-regr]   calls created: 20   distinct leads: 20   responses' distinct lead ids: 20
+[seg3-regr]   leads with >1 open call (ended_at IS NULL): none
+[seg3-regr]   attempts > max_attempts (I7): 0
+[seg3-regr] (b) 10 parallel POST /api/calls {leadId:60} — one user, one lead (attempts before=0)
+[seg3-regr]   statuses: 1×201 9×409   calls on lead 60: 1  attempts after=1 (delta 1)
+[seg3-regr]   409 messages:       9 "error":"Lead is not dialable (status: in_progress)" 
+[seg3-regr] (c) two users, 10 parallel next-lead requests each, at the same time
+[seg3-regr]   user1 statuses: 10×201   user2 statuses: 10×201 
+[seg3-regr]   leads served to BOTH users: none   calls: 20 on 20 leads
+[seg3-regr] (e) invariants after the run
+[seg3-regr]   I7 attempts > max_attempts: 0   I2 in_progress leads without an open call: 0   leads with >1 open call: 0
+[seg3-regr]   server log: 500-class errors=0  (lines: )
+### fix-seg2-f27.sh
+[seg3-regr] (a) one user, 3 lines, forced no_answer, 15 s
+[seg3-regr]   SUMMARY sessionId=1 events=60 byStatus={"loading":15,"dialing":15,"ringing":15,"no_answer":12,"dropped":3} maxConcurrentLiveSlots=3 (lineCount=3)
+[seg3-regr]   calls: 15 on 15 distinct leads
+[seg3-regr]   same lead dialed twice in the same second within one session: none
+[seg3-regr]   sample (first 6 calls): 1:slot1:lead1@47.735  2:slot2:lead2@47.735  3:slot3:lead3@47.741  4:slot1:lead4@50.751  5:slot2:lead5@50.761  6:slot3:lead6@50.773
+[seg3-regr] (b) two users, two sessions at once, 3 lines each, forced no_answer, 15 s
+[seg3-regr]   calls: 30 on 30 leads; sessions: 2,3
+[seg3-regr]   same lead in BOTH sessions with overlapping calls (started < 6 s apart): none
+[seg3-regr]   same-second duplicates within a session: none
+[seg3-regr] (c) audit §5.2: 3 lines all answered -> held; dispose+release active -> promoted; stop
+[seg3-regr]     3.1s slot 2 answered  
+[seg3-regr]     3.1s slot 1 held      
+[seg3-regr]     3.1s slot 3 held      
+[seg3-regr]     7.7s slot 1 answered   (promoted from hold)
+[seg3-regr]     7.7s POST /api/calls/multiline/release {"slotNumber":2} -> 200 {"promoted":1}
+[seg3-regr]   SUMMARY sessionId=4 events=21 byStatus={"loading":5,"dialing":5,"ringing":5,"answered":2,"held":2,"no_answer":1,"dropped":1} maxConcurrentLiveSlots=3 (lineCount=3)
+[seg3-regr] (d) selected-leads session with 5 chosen ids: 1 soft-deleted (API DELETE), 1 DNC-listed (direct SQL), 3 normal
+[seg3-regr]   ids=[50,51,52,53,54] deleted=51 dnc_listed=53
+[seg3-regr]   multiline/start -> 201 {"lineCount":3,"slots":[{"slotNumber":1,"leadId":54,"status":"ringing"},{"slotNumber":2,"leadId":52,"status":"ringing"},{"slotNumber":3,"leadId":50,"status":"ringing"}]}
+[seg3-regr]   multiline/stop -> 200 {"abandonedCount":0}
+[seg3-regr]   calls per chosen lead: 50=1 51=0 52=1 53=0 54=1
+[seg3-regr]   status of chosen leads: 50:no_answer 51:new(deleted) 52:no_answer 53:new 54:no_answer
+[seg3-regr]   leads left in_progress after stop: 0
+[seg3-regr] server log errors: 0  lines: 
+
+### I6 follow-up (regression DB)
+lead 4: same as the Segment 2 regression — call 6 is the multi-line row that fix-seg1-f16-multiline abandoned (ended_at set, was_abandoned=t, no disposition) and call 9 is fix-seg1-f22's queue dial after DIRECT SQL made lead 4 the top candidate; both are ended. I6 counts calls without a disposition, ended or not.
+lead 26: the Redial path (fix-seg2-redial.sh). The first call was answered and the mock never ends an answered call, so Redial leaves two open calls. Identical on base:
+
+### fix-seg2-redial.sh rerun, base vs HEAD (the first run above hit the 5/min login limiter for the OTHER user)
+### fix-seg2-redial.sh on base
+[seg3-redial-base] lead 26: first dial -> [HTTP 201]  attempts=1
+[seg3-redial-base]   same user, plain repeat {leadId}            -> [HTTP 409] Lead is not dialable (status: in_progress)
+[seg3-redial-base]   same user, Redial button {leadId,redial:true} -> [HTTP 201]  attempts=2
+[seg3-redial-base]   OTHER user with redial:true                 -> [HTTP 409] Lead is not dialable (status: in_progress)
+[seg3-redial-base]   calls on lead 26: 2
+  leads with >1 undispositioned call: 26 x2
+### fix-seg2-redial.sh on after
+[seg3-redial-after] lead 80: first dial -> [HTTP 201]  attempts=1
+[seg3-redial-after]   same user, plain repeat {leadId}            -> [HTTP 409] Lead is not dialable (status: in_progress)
+[seg3-redial-after]   same user, Redial button {leadId,redial:true} -> [HTTP 201]  attempts=2
+[seg3-redial-after]   OTHER user with redial:true                 -> [HTTP 409] Lead is not dialable (status: in_progress)
+[seg3-redial-after]   calls on lead 80: 2
+  leads with >1 undispositioned call: 26 x2, 80 x2
+
+### calling-hours.js: the only differing lines are the DB toggle's starting value (left by the previous run); all 32 result lines identical
+1c1
+< toggle ON (was null); enforced=true
+---
+> toggle ON (was true); enforced=true
+34c34
+< toggle restored to false
+---
+> toggle restored to true
+
+### routes.js: base 78 lines (77 routes + header), HEAD 78 lines, diff: 0 lines
+### schema-check.js: base '== column/table problems: 0', HEAD '== column/table problems: 0'
+### auth-matrix.js (PACE_MS=650): HEAD: protected routes tested: 75 (+ SSE); routes not returning 401 for every bad token: 0; diff vs base: 0 lines
+### frontend build (vite build):
+dist/index.html                   0.68 kB │ gzip:  0.38 kB
+dist/assets/index-8eMipBhY.css   26.03 kB │ gzip:  5.51 kB
+dist/assets/index-CcmhVPI7.js   318.91 kB │ gzip: 96.21 kB
+✓ built in 1.88s
+
+### F-51 under vite dev (fix-seg2-f51.sh dev) on HEAD
+[seg3-dev] visit /call/90: POST /api/calls sent=1
+[seg3-dev]    201 body={"leadId":"90"} -> lead 90
+[seg3-dev]    UI state at 8s: Connected
+[seg3-dev] page errors: none
+[seg3-dev] DB lead 90: calls=1 (1:answered) attempts 0 -> 1
+
+### production build ui-smoke.js on HEAD
+===== console errors and 4xx/5xx per page =====
+unauth-root: console=0 http=0
+dashboard: console=0 http=0
+lead-detail: console=0 http=0
+inbox: console=0 http=0
+sms-templates: console=0 http=0
+import: console=0 http=0
+reports: console=0 http=0
+settings: console=0 http=0
+dialer: console=0 http=0
+manual-dial: console=0 http=0
+call-screen: console=0 http=0
+unknown-route: console=0 http=0
+backend log error/warn lines: 0
+
+### server logs: every Segment 3 run (pre-fix, after-each, 3 post-fix runs, UI, regression) had 0 error/warn lines — see the 'server log' lines in fix-seg3.txt

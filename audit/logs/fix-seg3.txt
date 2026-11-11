@@ -1,0 +1,323 @@
+# Segment 3 — F-25, F-15, F-24, F-32 (branch claude/fix-seg3-lock-ownership, base origin/latest e99d97f)
+# Script: audit/scripts/fix-seg3.sh (fresh clone of vortex_seg3_tpl per run; outcomes forced by audit/stubs/force-outcome.js;
+# locked_at / started_at backdated in SQL where a part says so). U1=rep2 (rep), U2=rep3 (rep), SUP=seed user (supervisor).
+
+## PRE-FIX (base e99d97f)
+[pre-fix] == F-15 live call: U1 on an answered call, locked_at backdated 60 s ==
+[pre-fix]   U1 dial lead 21 -> 201, call 1 telephony_state=answered
+[pre-fix]   after lazy sweep (GET /api/leads): in_queue locked_by=-
+[pre-fix]   after 12 s more (timer, if any): in_queue locked_by=-
+[pre-fix]   U2 dial the same lead -> 201 
+[pre-fix]   open calls on lead 21: 2
+[pre-fix] == F-15 hung-up call: released 30 s after hangup ==
+[pre-fix]   U1 dial lead 35, hangup -> 200
+[pre-fix]   25 s after hangup: in_progress locked_by=2
+[pre-fix]   32 s after hangup: in_queue locked_by=-
+[pre-fix] == F-15 lead locked with no call row at all ==
+[pre-fix]   locked 25 s ago: in_progress locked_by=2
+[pre-fix]   locked 31 s ago: in_queue locked_by=-
+[pre-fix] == F-15 safety ceiling: open call older than MAX_LIVE_CALL_MINUTES (default 240) ==
+[pre-fix]   open call started 239 min ago: in_queue locked_by=-, call ended_at null=t
+[pre-fix]   open call started 241 min ago: in_queue locked_by=-, call ended_at set=f, disposition=null
+[pre-fix] == F-25 network ended: ended_at / duration_seconds / locked_at ==
+[pre-fix]   no_answer call 5: state=ended ended_at_set=false duration=null locked_at_after_end=n/a
+[pre-fix]   voicemail call hung up at 4.5 s, network ended at ~7 s: hangup wrote [20:29:43.926 d=5], row now [20:29:43.926 d=5 state=ended]
+[pre-fix]   voicemail call dispositioned at 4.5 s, network ended at ~7 s: disposition wrote [20:29:52.576 d=5], row now [20:29:52.576 d=5 disp=voicemail]
+[pre-fix]   I5-style: calls this run with telephony_state=ended but ended_at null: 1
+[pre-fix] == F-24 no queue reads after hangup: when does the lead return to in_queue? ==
+[pre-fix]   (DB polled directly, no API reads) lead 115: still in_progress after 60 s
+[pre-fix] == F-32 another rep acts on U1's call ==
+[pre-fix]   U1 dial lead 127 -> 201 (call 9)
+[pre-fix]   U2 dnc on U1's call     -> 200  | lead dnc locked_by=-, on dnc_list=1
+[pre-fix]   U2 hangup U1's call     -> 409 Call already has a disposition | ended_at set=t
+[pre-fix]   U1 no_answer own call   -> 409 Call already has a disposition
+[pre-fix]   U2 undo U1's call       -> 200 
+[pre-fix]   U1 undo own call        -> 409 Nothing to undo for this call
+[pre-fix]   SUP contacted U1's call -> 200  | lead contacted locked_by=-
+[pre-fix]   SUP hangup U1's call    -> 200 
+[pre-fix]   U2 hangup U1's manual call -> 200 
+[pre-fix]   U1 hangup own manual call  -> 200 
+[pre-fix] == F-32 late disposition after the lead moved to another rep ==
+[pre-fix]   U1 dialed lead 155, hung up, grace expired: in_queue locked_by=-
+[pre-fix]   U2 dial lead 155 -> 201: in_progress locked_by=3
+[pre-fix]   U1 late no_answer on old call -> 200  | lead no_answer locked_by=-
+[pre-fix]   U2 hangup own call -> 200
+[pre-fix] == multi-line regression: one user, 3 lines, forced no_answer, 15 s ==
+[pre-fix]   SUMMARY sessionId=1 events=60 byStatus={"loading":15,"dialing":15,"ringing":15,"no_answer":12,"dropped":3} maxConcurrentLiveSlots=3 (lineCount=3)
+[pre-fix]   calls: 15 on 15 leads; ended_at null: 0
+[pre-fix]   I6 leads with >1 open call: 0
+[pre-fix] server log: 0 error/warn lines
+
+## After F-25 only (2592d76)
+[after-f25] == F-25 network ended: ended_at / duration_seconds / locked_at ==
+[after-f25]   no_answer call 1: state=ended ended_at_set=true duration=3 locked_at_after_end=true
+[after-f25]   voicemail call hung up at 4.5 s, network ended at ~7 s: hangup wrote [20:31:47.723 d=5], row now [20:31:47.723 d=5 state=ended]
+[after-f25]   voicemail call dispositioned at 4.5 s, network ended at ~7 s: disposition wrote [20:31:56.376 d=5], row now [20:31:56.376 d=5 disp=voicemail]
+[after-f25]   I5-style: calls this run with telephony_state=ended but ended_at null: 0
+[after-f25] == multi-line regression: one user, 3 lines, forced no_answer, 15 s ==
+[after-f25]   SUMMARY sessionId=1 events=60 byStatus={"loading":15,"dialing":15,"ringing":15,"no_answer":12,"dropped":3} maxConcurrentLiveSlots=3 (lineCount=3)
+[after-f25]   calls: 15 on 15 leads; ended_at null: 0
+[after-f25]   I6 leads with >1 open call: 0
+[after-f25] server log: 0 error/warn lines
+
+## After F-15 (936a382) — and the undo part with/without the undoDisposition change
+[after-f15] == F-15 live call: U1 on an answered call, locked_at backdated 60 s ==
+[after-f15]   U1 dial lead 21 -> 201, call 1 telephony_state=answered
+[after-f15]   after lazy sweep (GET /api/leads): in_progress locked_by=2
+[after-f15]   after 12 s more (timer, if any): in_progress locked_by=2
+[after-f15]   U2 dial the same lead -> 409 Lead is not dialable (status: in_progress)
+[after-f15]   open calls on lead 21: 1
+[after-f15] == F-15 hung-up call: released 30 s after hangup ==
+[after-f15]   U1 dial lead 35, hangup -> 200
+[after-f15]   25 s after hangup: in_progress locked_by=2
+[after-f15]   32 s after hangup: in_queue locked_by=-
+[after-f15] == F-15 lead locked with no call row at all ==
+[after-f15]   locked 25 s ago: in_progress locked_by=2
+[after-f15]   locked 31 s ago: in_queue locked_by=-
+[after-f15] == F-15 safety ceiling: open call older than MAX_LIVE_CALL_MINUTES (default 240) ==
+[after-f15]   open call started 239 min ago: in_progress locked_by=2, call ended_at null=t
+[after-f15]   open call started 241 min ago: in_queue locked_by=-, call ended_at set=t, disposition=null
+[after-f15] server log: 0 error/warn lines
+[after-f15] == undo after a hangup: the lead must not stay locked by a reopened call ==
+[after-f15]   U1 hangup, no_answer, undo -> 200 | lead in_progress locked_by=2 | call ended_at set=t
+[after-f15]   31 s after undo with no new disposition: in_queue locked_by=-
+[after-f15] server log: 0 error/warn lines
+[f15-sweep-without-undo-change] == undo after a hangup: the lead must not stay locked by a reopened call ==
+[f15-sweep-without-undo-change]   U1 hangup, no_answer, undo -> 200 | lead in_progress locked_by=2 | call ended_at set=f
+[f15-sweep-without-undo-change]   31 s after undo with no new disposition: in_progress locked_by=2
+[f15-sweep-without-undo-change] server log: 0 error/warn lines
+[f25-only-undo] == undo after a hangup: the lead must not stay locked by a reopened call ==
+[f25-only-undo]   U1 hangup, no_answer, undo -> 200 | lead in_progress locked_by=2 | call ended_at set=f
+[f25-only-undo]   31 s after undo with no new disposition: in_queue locked_by=-
+[f25-only-undo] server log: 0 error/warn lines
+
+## After F-24 (e6e2f80)
+[after-f24] == F-24 no queue reads after hangup: when does the lead return to in_queue? ==
+[after-f24]   (DB polled directly, no API reads) lead 21: in_queue after 36 s
+[after-f24] server log: 0 error/warn lines
+[after-f24] shutdown (SIGTERM): process gone after 512 ms; log: SIGTERM received — stale-lock sweep stopped, shutting down
+[after-f24-sweep-off] == F-24 no queue reads after hangup: when does the lead return to in_queue? ==
+[after-f24-sweep-off]   (DB polled directly, no API reads) lead 21: still in_progress after 60 s
+[after-f24-sweep-off] server log: 0 error/warn lines
+[after-f24-sweep-off] shutdown (SIGTERM): process gone after 512 ms; log: SIGTERM received — stale-lock sweep stopped, shutting down
+[after-f24] required (not entry point): 10 s sweep intervals started = 0  (node -e "require('./src/index.js')" with setInterval counted)
+
+## After F-32 (66ff793)
+[after-f32] == F-32 another rep acts on U1's call ==
+[after-f32]   U1 dial lead 21 -> 201 (call 1)
+[after-f32]   U2 dnc on U1's call     -> 403 This call belongs to another rep. | lead in_progress locked_by=2, on dnc_list=0
+[after-f32]   U2 hangup U1's call     -> 403 This call belongs to another rep. | ended_at set=f
+[after-f32]   U1 no_answer own call   -> 200 
+[after-f32]   U2 undo U1's call       -> 403 This call belongs to another rep.
+[after-f32]   U1 undo own call        -> 200 
+[after-f32]   SUP contacted U1's call -> 200  | lead contacted locked_by=-
+[after-f32]   SUP hangup U1's call    -> 200 
+[after-f32]   U2 hangup U1's manual call -> 403 This call belongs to another rep.
+[after-f32]   U1 hangup own manual call  -> 200 
+[after-f32] == F-32 late disposition after the lead moved to another rep ==
+[after-f32]   U1 dialed lead 47, hung up, grace expired: in_queue locked_by=-
+[after-f32]   U2 dial lead 47 -> 201: in_progress locked_by=3
+[after-f32]   U1 late no_answer on old call -> 409 This lead is now with another rep. | lead in_progress locked_by=3
+[after-f32]   U2 hangup own call -> 200
+[after-f32] server log: 0 error/warn lines
+[after-f32] shutdown (SIGTERM): process gone after 514 ms; log: SIGTERM received — stale-lock sweep stopped, shutting down
+
+## POST-FIX, 3 consecutive runs of every part on HEAD
+[post-fix-1] == F-15 live call: U1 on an answered call, locked_at backdated 60 s ==
+[post-fix-1]   U1 dial lead 21 -> 201, call 1 telephony_state=answered
+[post-fix-1]   after lazy sweep (GET /api/leads): in_progress locked_by=2
+[post-fix-1]   after 12 s more (timer, if any): in_progress locked_by=2
+[post-fix-1]   U2 dial the same lead -> 409 Lead is not dialable (status: in_progress)
+[post-fix-1]   open calls on lead 21: 1
+[post-fix-1] == F-15 hung-up call: released 30 s after hangup ==
+[post-fix-1]   U1 dial lead 35, hangup -> 200
+[post-fix-1]   25 s after hangup: in_progress locked_by=2
+[post-fix-1]   32 s after hangup: in_queue locked_by=-
+[post-fix-1] == F-15 lead locked with no call row at all ==
+[post-fix-1]   locked 25 s ago: in_progress locked_by=2
+[post-fix-1]   locked 31 s ago: in_queue locked_by=-
+[post-fix-1] == F-15 safety ceiling: open call older than MAX_LIVE_CALL_MINUTES (default 240) ==
+[post-fix-1]   open call started 239 min ago: in_progress locked_by=2, call ended_at null=t
+[post-fix-1]   open call started 241 min ago: in_queue locked_by=-, call ended_at set=t, disposition=null
+[post-fix-1] == undo after a hangup: the lead must not stay locked by a reopened call ==
+[post-fix-1]   U1 hangup, no_answer, undo -> 200 | lead in_progress locked_by=2 | call ended_at set=t
+[post-fix-1]   31 s after undo with no new disposition: in_queue locked_by=-
+[post-fix-1] == F-25 network ended: ended_at / duration_seconds / locked_at ==
+[post-fix-1]   no_answer call 5: state=ended ended_at_set=true duration=3 locked_at_after_end=true
+[post-fix-1]   voicemail call hung up at 4.5 s, network ended at ~7 s: hangup wrote [20:46:12.301 d=5], row now [20:46:12.301 d=5 state=ended]
+[post-fix-1]   voicemail call dispositioned at 4.5 s, network ended at ~7 s: disposition wrote [20:46:20.945 d=5], row now [20:46:20.945 d=5 disp=voicemail]
+[post-fix-1]   I5-style: calls this run with telephony_state=ended but ended_at null: 0
+[post-fix-1] == F-24 no queue reads after hangup: when does the lead return to in_queue? ==
+[post-fix-1]   (DB polled directly, no API reads) lead 127: in_queue after 35 s
+[post-fix-1] == F-32 another rep acts on U1's call ==
+[post-fix-1]   U1 dial lead 141 -> 201 (call 9)
+[post-fix-1]   U2 dnc on U1's call     -> 403 This call belongs to another rep. | lead in_progress locked_by=2, on dnc_list=0
+[post-fix-1]   U2 hangup U1's call     -> 403 This call belongs to another rep. | ended_at set=f
+[post-fix-1]   U1 no_answer own call   -> 200 
+[post-fix-1]   U2 undo U1's call       -> 403 This call belongs to another rep.
+[post-fix-1]   U1 undo own call        -> 200 
+[post-fix-1]   SUP contacted U1's call -> 200  | lead contacted locked_by=-
+[post-fix-1]   SUP hangup U1's call    -> 200 
+[post-fix-1]   U2 hangup U1's manual call -> 403 This call belongs to another rep.
+[post-fix-1]   U1 hangup own manual call  -> 200 
+[post-fix-1] == F-32 late disposition after the lead moved to another rep ==
+[post-fix-1]   U1 dialed lead 167, hung up, grace expired: in_queue locked_by=-
+[post-fix-1]   U2 dial lead 167 -> 201: in_progress locked_by=3
+[post-fix-1]   U1 late no_answer on old call -> 409 This lead is now with another rep. | lead in_progress locked_by=3
+[post-fix-1]   U2 hangup own call -> 200
+[post-fix-1] == multi-line regression: one user, 3 lines, forced no_answer, 15 s ==
+[post-fix-1]   SUMMARY sessionId=1 events=60 byStatus={"loading":15,"dialing":15,"ringing":15,"no_answer":12,"dropped":3} maxConcurrentLiveSlots=3 (lineCount=3)
+[post-fix-1]   calls: 15 on 15 leads; ended_at null: 0
+[post-fix-1]   I6 leads with >1 open call: 0
+[post-fix-1] server log: 0 error/warn lines
+[post-fix-1] shutdown (SIGTERM): process gone after 511 ms; log: SIGTERM received — stale-lock sweep stopped, shutting down
+[post-fix-2] == F-15 live call: U1 on an answered call, locked_at backdated 60 s ==
+[post-fix-2]   U1 dial lead 21 -> 201, call 1 telephony_state=answered
+[post-fix-2]   after lazy sweep (GET /api/leads): in_progress locked_by=2
+[post-fix-2]   after 12 s more (timer, if any): in_progress locked_by=2
+[post-fix-2]   U2 dial the same lead -> 409 Lead is not dialable (status: in_progress)
+[post-fix-2]   open calls on lead 21: 1
+[post-fix-2] == F-15 hung-up call: released 30 s after hangup ==
+[post-fix-2]   U1 dial lead 35, hangup -> 200
+[post-fix-2]   25 s after hangup: in_progress locked_by=2
+[post-fix-2]   32 s after hangup: in_queue locked_by=-
+[post-fix-2] == F-15 lead locked with no call row at all ==
+[post-fix-2]   locked 25 s ago: in_progress locked_by=2
+[post-fix-2]   locked 31 s ago: in_queue locked_by=-
+[post-fix-2] == F-15 safety ceiling: open call older than MAX_LIVE_CALL_MINUTES (default 240) ==
+[post-fix-2]   open call started 239 min ago: in_progress locked_by=2, call ended_at null=t
+[post-fix-2]   open call started 241 min ago: in_queue locked_by=-, call ended_at set=t, disposition=null
+[post-fix-2] == undo after a hangup: the lead must not stay locked by a reopened call ==
+[post-fix-2]   U1 hangup, no_answer, undo -> 200 | lead in_progress locked_by=2 | call ended_at set=t
+[post-fix-2]   31 s after undo with no new disposition: in_queue locked_by=-
+[post-fix-2] == F-25 network ended: ended_at / duration_seconds / locked_at ==
+[post-fix-2]   no_answer call 5: state=ended ended_at_set=true duration=3 locked_at_after_end=true
+[post-fix-2]   voicemail call hung up at 4.5 s, network ended at ~7 s: hangup wrote [20:48:53.623 d=5], row now [20:48:53.623 d=5 state=ended]
+[post-fix-2]   voicemail call dispositioned at 4.5 s, network ended at ~7 s: disposition wrote [20:49:02.276 d=5], row now [20:49:02.276 d=5 disp=voicemail]
+[post-fix-2]   I5-style: calls this run with telephony_state=ended but ended_at null: 0
+[post-fix-2] == F-24 no queue reads after hangup: when does the lead return to in_queue? ==
+[post-fix-2]   (DB polled directly, no API reads) lead 127: in_queue after 35 s
+[post-fix-2] == F-32 another rep acts on U1's call ==
+[post-fix-2]   U1 dial lead 141 -> 201 (call 9)
+[post-fix-2]   U2 dnc on U1's call     -> 403 This call belongs to another rep. | lead in_progress locked_by=2, on dnc_list=0
+[post-fix-2]   U2 hangup U1's call     -> 403 This call belongs to another rep. | ended_at set=f
+[post-fix-2]   U1 no_answer own call   -> 200 
+[post-fix-2]   U2 undo U1's call       -> 403 This call belongs to another rep.
+[post-fix-2]   U1 undo own call        -> 200 
+[post-fix-2]   SUP contacted U1's call -> 200  | lead contacted locked_by=-
+[post-fix-2]   SUP hangup U1's call    -> 200 
+[post-fix-2]   U2 hangup U1's manual call -> 403 This call belongs to another rep.
+[post-fix-2]   U1 hangup own manual call  -> 200 
+[post-fix-2] == F-32 late disposition after the lead moved to another rep ==
+[post-fix-2]   U1 dialed lead 167, hung up, grace expired: in_queue locked_by=-
+[post-fix-2]   U2 dial lead 167 -> 201: in_progress locked_by=3
+[post-fix-2]   U1 late no_answer on old call -> 409 This lead is now with another rep. | lead in_progress locked_by=3
+[post-fix-2]   U2 hangup own call -> 200
+[post-fix-2] == multi-line regression: one user, 3 lines, forced no_answer, 15 s ==
+[post-fix-2]   SUMMARY sessionId=1 events=60 byStatus={"loading":15,"dialing":15,"ringing":15,"no_answer":12,"dropped":3} maxConcurrentLiveSlots=3 (lineCount=3)
+[post-fix-2]   calls: 15 on 15 leads; ended_at null: 0
+[post-fix-2]   I6 leads with >1 open call: 0
+[post-fix-2] server log: 0 error/warn lines
+[post-fix-2] shutdown (SIGTERM): process gone after 514 ms; log: SIGTERM received — stale-lock sweep stopped, shutting down
+[post-fix-3] == F-15 live call: U1 on an answered call, locked_at backdated 60 s ==
+[post-fix-3]   U1 dial lead 21 -> 201, call 1 telephony_state=answered
+[post-fix-3]   after lazy sweep (GET /api/leads): in_progress locked_by=2
+[post-fix-3]   after 12 s more (timer, if any): in_progress locked_by=2
+[post-fix-3]   U2 dial the same lead -> 409 Lead is not dialable (status: in_progress)
+[post-fix-3]   open calls on lead 21: 1
+[post-fix-3] == F-15 hung-up call: released 30 s after hangup ==
+[post-fix-3]   U1 dial lead 35, hangup -> 200
+[post-fix-3]   25 s after hangup: in_progress locked_by=2
+[post-fix-3]   32 s after hangup: in_queue locked_by=-
+[post-fix-3] == F-15 lead locked with no call row at all ==
+[post-fix-3]   locked 25 s ago: in_progress locked_by=2
+[post-fix-3]   locked 31 s ago: in_queue locked_by=-
+[post-fix-3] == F-15 safety ceiling: open call older than MAX_LIVE_CALL_MINUTES (default 240) ==
+[post-fix-3]   open call started 239 min ago: in_progress locked_by=2, call ended_at null=t
+[post-fix-3]   open call started 241 min ago: in_queue locked_by=-, call ended_at set=t, disposition=null
+[post-fix-3] == undo after a hangup: the lead must not stay locked by a reopened call ==
+[post-fix-3]   U1 hangup, no_answer, undo -> 200 | lead in_progress locked_by=2 | call ended_at set=t
+[post-fix-3]   31 s after undo with no new disposition: in_queue locked_by=-
+[post-fix-3] == F-25 network ended: ended_at / duration_seconds / locked_at ==
+[post-fix-3]   no_answer call 5: state=ended ended_at_set=true duration=3 locked_at_after_end=true
+[post-fix-3]   voicemail call hung up at 4.5 s, network ended at ~7 s: hangup wrote [20:51:34.985 d=5], row now [20:51:34.985 d=5 state=ended]
+[post-fix-3]   voicemail call dispositioned at 4.5 s, network ended at ~7 s: disposition wrote [20:51:43.643 d=5], row now [20:51:43.643 d=5 disp=voicemail]
+[post-fix-3]   I5-style: calls this run with telephony_state=ended but ended_at null: 0
+[post-fix-3] == F-24 no queue reads after hangup: when does the lead return to in_queue? ==
+[post-fix-3]   (DB polled directly, no API reads) lead 127: in_queue after 36 s
+[post-fix-3] == F-32 another rep acts on U1's call ==
+[post-fix-3]   U1 dial lead 141 -> 201 (call 9)
+[post-fix-3]   U2 dnc on U1's call     -> 403 This call belongs to another rep. | lead in_progress locked_by=2, on dnc_list=0
+[post-fix-3]   U2 hangup U1's call     -> 403 This call belongs to another rep. | ended_at set=f
+[post-fix-3]   U1 no_answer own call   -> 200 
+[post-fix-3]   U2 undo U1's call       -> 403 This call belongs to another rep.
+[post-fix-3]   U1 undo own call        -> 200 
+[post-fix-3]   SUP contacted U1's call -> 200  | lead contacted locked_by=-
+[post-fix-3]   SUP hangup U1's call    -> 200 
+[post-fix-3]   U2 hangup U1's manual call -> 403 This call belongs to another rep.
+[post-fix-3]   U1 hangup own manual call  -> 200 
+[post-fix-3] == F-32 late disposition after the lead moved to another rep ==
+[post-fix-3]   U1 dialed lead 167, hung up, grace expired: in_queue locked_by=-
+[post-fix-3]   U2 dial lead 167 -> 201: in_progress locked_by=3
+[post-fix-3]   U1 late no_answer on old call -> 409 This lead is now with another rep. | lead in_progress locked_by=3
+[post-fix-3]   U2 hangup own call -> 200
+[post-fix-3] == multi-line regression: one user, 3 lines, forced no_answer, 15 s ==
+[post-fix-3]   SUMMARY sessionId=1 events=60 byStatus={"loading":15,"dialing":15,"ringing":15,"no_answer":12,"dropped":3} maxConcurrentLiveSlots=3 (lineCount=3)
+[post-fix-3]   calls: 15 on 15 leads; ended_at null: 0
+[post-fix-3]   I6 leads with >1 open call: 0
+[post-fix-3] server log: 0 error/warn lines
+[post-fix-3] shutdown (SIGTERM): process gone after 512 ms; log: SIGTERM received — stale-lock sweep stopped, shutting down
+
+## UI (audit/scripts/fix-seg3-ui.sh, vite dev / StrictMode)
+### base e99d97f
+FAILED: locator.click: Timeout 30000ms exceeded.
+[2m  - waiting for getByRole('button', { name: 'End call' })[22m
+[2m    - locator resolved to <button disabled type="button" class="↵        ripple bg-action-hangup hover:bg-red-600 text-white font-semibold rounded-input↵        px-4 py-3 shadow-md transition-colors duration-200↵        disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-none↵        w-full py-3 text-base↵      ">End call</button>[22m
+[pre-fix] 409 case, lead 19: UI state before = Connected
+[pre-fix]    U2 dials lead 19 via API -> 201
+[pre-fix]    after clicking No Answer: message "This lead is now with another rep." shown = false
+[pre-fix]    No Answer button enabled again = false
+[pre-fix]    lead 19 after: no_answer locked_by=null (U2 = 3)
+[pre-fix] 403 case, lead 31: UI state before = Connected
+[pre-fix]    after clicking No Answer: message "This call belongs to another rep." shown = false
+[pre-fix] backend log error/warn lines: 0
+(base: the script stops at the second End call — the call was already dispositioned, because base accepted the other rep's disposition)
+### HEAD run 1
+[after-f32] 409 case, lead 19: UI state before = Connected
+[after-f32]    U2 dials lead 19 via API -> 201
+[after-f32]    after clicking No Answer: message "This lead is now with another rep." shown = true
+[after-f32]    No Answer button enabled again = true
+[after-f32]    lead 19 after: in_progress locked_by=3 (U2 = 3)
+[after-f32] 403 case, lead 31: UI state before = Connected
+[after-f32]    after clicking No Answer: message "This call belongs to another rep." shown = true
+[after-f32]    after Hang up: 403 message shown = true, UI state = Connected (still polling: live state kept)
+[after-f32]    No Answer button enabled again = true
+[after-f32] requests: POST /api/calls/1/hangup -> 200 | POST /api/dispositions -> 409 | POST /api/dispositions -> 403 | POST /api/calls/3/hangup -> 403
+[after-f32] page errors: none
+[after-f32] backend log error/warn lines: 0
+
+### HEAD runs 2 and 3
+[after-f32-run2] 409 case, lead 19: UI state before = Connected
+[after-f32-run2]    U2 dials lead 19 via API -> 201
+[after-f32-run2]    after clicking No Answer: message "This lead is now with another rep." shown = true
+[after-f32-run2]    No Answer button enabled again = true
+[after-f32-run2]    lead 19 after: in_progress locked_by=3 (U2 = 3)
+[after-f32-run2] 403 case, lead 31: UI state before = Connected
+[after-f32-run2]    after clicking No Answer: message "This call belongs to another rep." shown = true
+[after-f32-run2]    after Hang up: 403 message shown = true, UI state = Connected (still polling: live state kept)
+[after-f32-run2]    No Answer button enabled again = true
+[after-f32-run2] requests: POST /api/calls/1/hangup -> 200 | POST /api/dispositions -> 409 | POST /api/dispositions -> 403 | POST /api/calls/3/hangup -> 403
+[after-f32-run2] page errors: none
+[after-f32-run2] backend log error/warn lines: 0
+[after-f32-run3] 409 case, lead 19: UI state before = Connected
+[after-f32-run3]    U2 dials lead 19 via API -> 201
+[after-f32-run3]    after clicking No Answer: message "This lead is now with another rep." shown = true
+[after-f32-run3]    No Answer button enabled again = true
+[after-f32-run3]    lead 19 after: in_progress locked_by=3 (U2 = 3)
+[after-f32-run3] 403 case, lead 31: UI state before = Connected
+[after-f32-run3]    after clicking No Answer: message "This call belongs to another rep." shown = true
+[after-f32-run3]    after Hang up: 403 message shown = true, UI state = Connected (still polling: live state kept)
+[after-f32-run3]    No Answer button enabled again = true
+[after-f32-run3] requests: POST /api/calls/1/hangup -> 200 | POST /api/dispositions -> 409 | POST /api/dispositions -> 403 | POST /api/calls/3/hangup -> 403
+[after-f32-run3] page errors: none
+[after-f32-run3] backend log error/warn lines: 0
