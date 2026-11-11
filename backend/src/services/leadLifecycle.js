@@ -22,6 +22,20 @@ const DISPOSITIONS = [
   'callback_scheduled',
 ];
 
+// Clock-skew allowance for "is this callback time in the past?".
+const CALLBACK_PAST_TOLERANCE_MS = 60 * 1000;
+
+/** Parses a callback time; 400 with a plain message when it isn't a real
+ * date and time. Shared by the disposition path (applyDisposition) and the
+ * lead page's callback route (leadQueue.scheduleCallback). */
+function parseCallbackTime(scheduledAt) {
+  const when = new Date(scheduledAt);
+  if (!scheduledAt || Number.isNaN(when.getTime())) {
+    throw new ApiError(400, 'A valid callback date and time is required');
+  }
+  return when;
+}
+
 function snapshotOf(lead) {
   return {
     status: lead.status,
@@ -46,8 +60,12 @@ async function applyDisposition({ callHistoryId, disposition, note, scheduledAt,
   if (!DISPOSITIONS.includes(disposition)) {
     throw new ApiError(400, `Unknown disposition: ${disposition}`);
   }
-  if (disposition === 'callback_scheduled' && !scheduledAt) {
-    throw new ApiError(400, 'scheduledAt is required for callback_scheduled');
+  let callbackAt = null;
+  if (disposition === 'callback_scheduled') {
+    callbackAt = parseCallbackTime(scheduledAt);
+    if (callbackAt.getTime() < Date.now() - CALLBACK_PAST_TOLERANCE_MS) {
+      throw new ApiError(400, 'That callback time is in the past — pick a time from now on');
+    }
   }
 
   const client = await db.getClient();
@@ -102,7 +120,7 @@ async function applyDisposition({ callHistoryId, disposition, note, scheduledAt,
       Object.assign(updates, { status: 'dnc', dnc_flag: true, next_action_at: null, locked_by: null, locked_at: null });
     } else if (disposition === 'callback_scheduled') {
       Object.assign(updates, {
-        status: 'callback_scheduled', next_action_at: new Date(scheduledAt),
+        status: 'callback_scheduled', next_action_at: callbackAt,
         locked_by: null, locked_at: null,
       });
     }
@@ -126,7 +144,7 @@ async function applyDisposition({ callHistoryId, disposition, note, scheduledAt,
     if (disposition === 'callback_scheduled') {
       await client.query(
         'INSERT INTO callbacks (lead_id, scheduled_at, note) VALUES ($1, $2, $3)',
-        [lead.id, scheduledAt, note || null]
+        [lead.id, callbackAt, note || null]
       );
     }
 
@@ -339,6 +357,7 @@ async function markDncFromQueue(leadId) {
 
 module.exports = {
   DISPOSITIONS,
+  parseCallbackTime,
   UNDO_WINDOW_SECONDS,
   applyDisposition,
   undoDisposition,

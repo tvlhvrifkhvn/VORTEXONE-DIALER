@@ -261,10 +261,7 @@ async function addNote({ leadId, callId = null, userId = null, body }) {
  * paths leave identical state behind.
  */
 async function scheduleCallback(leadId, scheduledAt) {
-  const when = new Date(scheduledAt);
-  if (!scheduledAt || Number.isNaN(when.getTime())) {
-    throw new ApiError(400, 'A valid callback date and time is required');
-  }
+  const when = leadLifecycle.parseCallbackTime(scheduledAt);
 
   const { rows } = await db.query(
     `UPDATE leads
