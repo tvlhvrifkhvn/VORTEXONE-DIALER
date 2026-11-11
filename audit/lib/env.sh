@@ -8,7 +8,7 @@ mkdir -p "$SCRATCH"
 export PGPASSWORD=vortex
 
 # sql "<query>"  -> unaligned output against the audit DB
-sql() { psql -h localhost -U vortex -d "${DB:-vortex_dialer}" -AtF'|' -c "$1"; }
+sql() { psql -q -h localhost -U vortex -d "${DB:-vortex_dialer}" -AtF'|' -c "$1"; }
 # sqlt "<query>" -> aligned table output (for pasting into the report)
 sqlt() { psql -h localhost -U vortex -d "${DB:-vortex_dialer}" -c "$1"; }
 

@@ -213,6 +213,181 @@ Findings are numbered in the order found; §2 lists them by severity.
 - **Actual:** as above. No crash, and the server stayed up (`/health` ok).
 - **Suggested fix:** check the extension on `/upload`. Map `err.code === 'LIMIT_FILE_SIZE'` to 413 in `errorHandler`. Delete pending jobs older than a day.
 
+### F-14 · Critical · Lifecycle · Locking race: one lead is handed to many simultaneous dials, and attempts blow past `max_attempts`
+- **Where:** `backend/src/services/leadQueue.js` `lockNext` (`:62-99`). It reads the candidate (`peekNext`, or `SELECT … WHERE id=$1`), then runs `UPDATE leads SET status='in_progress' … WHERE id = $2` with **no status guard and no row lock** (`FOR UPDATE SKIP LOCKED`). `callSession.start` then increments `attempts` once per call.
+- **Evidence** (`audit/logs/04-lifecycle.txt` §4.1; status codes mis-printed by my `xargs -I%`, but all 20 calls were created):
+  ```
+  20 parallel POST /api/calls {}  ->  calls created: 20   distinct leads: 4
+   lead_id | calls | call_ids
+         4 |    10 | {6,7,8,9,10,11,12,13,14,15}
+         5 |     7 | {16,…,22}
+   4 | James Whitfield | attempts 10 | in_progress
+  10 parallel POST /api/calls {leadId:98} -> calls on lead 98: 10  attempts now: 10
+  ```
+  The end-of-§4 invariant I7 still shows `attempts > max_attempts` for leads 4 (11/5), 98 (10/5) and 5 (7/5).
+- **Repro:**
+  ```
+  seq 1 20 | xargs -P20 -I% curl -s -X POST $API/api/calls -H "authorization: Bearer $T" -H 'content-type: application/json' -d '{}'
+  ```
+  Then `select lead_id, count(*) from call_history group by 1 having count(*)>1`.
+- **Expected:** each lead is locked by exactly one request. The rest get the next lead or 409.
+- **Actual:** the same agent is phoned up to 10 times at once, and the retry cap is meaningless. This triggers in real use whenever two reps start dialing together, a double-click happens, or the dev-mode StrictMode double start fires (§10).
+- **Suggested fix:** do it in one statement: `UPDATE leads SET … WHERE id = (SELECT id … FOR UPDATE SKIP LOCKED LIMIT 1) RETURNING *` for "next". For by-id: `… WHERE id=$2 AND status = ANY(dialable) RETURNING *` and 409 if no row.
+
+### F-15 · Critical · Lifecycle · The 30 s stale-lock sweep releases leads that are still on a live call; a second rep dials the same person, and dispositions have no ownership check
+- **Where:**
+  - `leadQueue.js` `releaseStaleLocks` (`:29-35`) releases **every** `in_progress` lead whose `locked_at` is over 30 s old. `locked_at` is only set at lock time and at hangup; nothing refreshes it during a live call.
+  - `leadLifecycle.js` `applyDisposition` never checks `call.user_id` or `lead.locked_by` against the caller (the route passes no user).
+- **Evidence** (§4.3 third run, forced *answered* outcome, two real users):
+  ```
+  user1 starts call 40 on lead 57, no hangup
+  t=33s call 40 telephony_state=answered
+  after one dashboard read: lead 57 = in_queue locked_by=null
+  user2 dials the same lead: "call":{"id":41 [HTTP 201]
+   40 | 57 | user 1 | answered |
+   41 | 57 | user 2 | answered |
+  user1 dispositions the original call while user2 is on the lead: "status":"voicemail" [HTTP 200]
+   57 | voicemail | locked_by NULL
+  ```
+- **Repro:** start a call; keep it answered for more than 30 s (a normal conversation); load the dashboard (any `GET /api/leads`); dial the same lead from another account.
+- **Expected:** a lead on a live call stays locked to its rep until hangup or disposition (CLAUDE.md: return to the queue "after 30 seconds" only "if they hang up without submitting a disposition").
+- **Actual:** after about 30 s any queue read frees it. Another rep or a multi-line slot can call the same person mid-conversation. Either rep can then disposition the other's call and unlock the lead from under them.
+- **Suggested fix:** sweep only leads whose latest call has `ended_at IS NOT NULL` (hung up), or heartbeat `locked_at` from the call screen. In `applyDisposition`, require `call.user_id = req.user.sub` (or a supervisor).
+
+### F-16 · Critical · DNC / Data · Editing a lead's phone stores it un-normalised, which bypasses the DNC list and dedup; a DNC'd number was dialed using only the API
+- **Where:**
+  - `backend/src/services/leadQueue.js` `updateFields` (`:337-345`) writes `fields.phone` verbatim; `createLead` normalises, `updateFields` doesn't.
+  - The single-line dial path, `lockNext` (`leadQueue.js:62-99`), checks only `lead.dnc_flag`, never `dnc_list`. The multi-line `reserveSlot` and the manual dial pad do check `dnc_list`.
+- **Evidence** (§4.8h–i, no SQL used):
+  ```
+  1. PUT /api/leads/11 {"phone":"(214) 555-0199"}  -> 200   (DNC lead's number edited away)
+  2. PUT /api/leads/63 {"phone":"(214) 555-0101"}  -> 200, dnc_flag false   (the DNC'd number)
+     dnc_list still has +12145550101: 1
+  3. POST /api/calls {leadId:63} -> "call":{"id":55 [HTTP 201]      <- DNC'd person dialed
+   11 | Alice Archer  | (214) 555-0199 | dnc_flag t
+   63 | Bulk Agent 14 | (214) 555-0102 |            <- stored raw, not +1…
+  duplicate person: 14 | Dan Diaz | +16025550104   and   63 | Bulk Agent 14 | +1 (602) 555-0104
+  ```
+  `POST /api/leads` with the same number is correctly refused (`409 "This number is on the DNC list…"`), so only the edit path is open. Invariant I8 shows `phones not in E.164: 3`.
+- **Expected:** a number on the DNC list is never dialed by any path (CLAUDE.md "dnc — legally protected, never dial again"), and phones are stored normalised so the unique constraint and DNC lookups work.
+- **Actual:** an edit plus a single-line dial reaches a DNC'd number. Duplicates of the same person also become possible.
+- **Suggested fix:** normalise and validate `phone` (and `state`) in `updateFields` the way `createLead` does, and reject DNC'd numbers there. Add `dncCheck.isOnDncList(lead.phone)` to `lockNext`. Optionally add a DB `CHECK (phone ~ '^\+1[2-9]\d{9}$')`.
+
+### F-17 · High · Lifecycle · `no_contact_person` cascades by name alone to other people in other states; Undo does not reverse it
+- **Where:** `leadLifecycle.js` `applyDisposition`, the cascade block (`:130-142`): `WHERE id != $1 AND lower(trim(name)) = lower(trim($3)) AND status NOT IN ('dnc','cold')`. `undoDisposition` restores only the one lead (documented in a code comment).
+- **Evidence** (§4.7; three synthetic SQL leads named "Sam Same" in TX, FL and AZ, the AZ one `callback_scheduled`):
+  ```
+  dispo no_contact_person on 15049 (TX): "cascadedLeadIds":[15050,15051]
+   15050 | FL | cold | no_contact_person
+   15051 | AZ | cold | no_contact_person     <- had a scheduled callback
+  undo -> 15049 back to in_progress; 15050 and 15051 stay cold
+  ```
+- **Expected:** "no_contact_person locks all numbers for **that lead**" (CLAUDE.md).
+- **Actual:** every lead in the database with the same name, in any state, is parked, including a different person's scheduled callback. Undo leaves them parked. With scraped lists, common names collide.
+- **Suggested fix:** remove the name cascade, since a lead has one phone, or scope it to the same name + office/state and include those leads in the undo snapshot.
+
+### F-18 · High · Legal · Calling hours use one time zone per state, so multi-zone states are dialed outside 8am–9pm local
+- **Where:** `backend/src/services/callingHours.js` `STATE_TIMEZONES` / `timezoneForState`. The code comment calls this "a documented phase-1 simplification".
+- **Evidence** (§4.10 re-run, controlled clock, toggle ON):
+  ```
+  TX El Paso      mapped America/Chicago     allowed from … = 7:00 AM MST in El Paso
+  FL Pensacola    mapped America/New_York    allowed from … = 7:00 AM CST in Pensacola
+  KY Bowling Green / IN Gary                 allowed from 7:00 AM local
+  OR Ontario / TN Knoxville                  last allowed … = 9:59 PM local
+  unknown/invalid state code falls back to America/New_York (PR, GU too)
+  ```
+- **Expected:** refuse outside 8am–9pm **local time of the lead** (CLAUDE.md, TCPA).
+- **Actual:** calls are allowed one hour early or one hour late for leads in the Mountain/Central parts of TX, FL, KY, IN, TN, ID and OR. Single-zone states are correct at every boundary (07:59 block, 08:00 allow, 20:59 allow, 21:00 block for FL, AZ, HI, CA, TX, NY and AK), and DST is handled.
+- **Suggested fix:** derive the zone from the phone's area code (more precise) or the city, or use the *intersection*: allow only when every zone in the state is within hours.
+
+### F-19 · High · Legal · The manual dial pad ignores calling hours
+- **Where:** `backend/src/services/callSession.js` `startManual` (`:76-110`). It checks the DNC list (`:84`) but has no `callingHours` call.
+- **Evidence** (§4.11, real clock 11:00Z = 06:00 ET, toggle ON):
+  ```
+  POST /api/calls {leadId: TX lead}            -> 422 "Outside calling hours for TX (8am-9pm local time)…"
+  POST /api/calls/manual/start (713) 555-4242  -> "id":58 [HTTP 201]      <- dialed at 5 AM Central
+  ```
+- **Expected:** the same 8am–9pm guard on every outbound path.
+- **Actual:** the dial pad bypasses it.
+- **Suggested fix:** in `startManual`, infer the state from the area code (`utils/stateFromAreaCode`) and call `assertCallingHours`.
+
+### F-20 · High · Queue · Queue starvation: 50 out-of-hours leads at the front hide every in-hours lead
+- **Where:** `leadQueue.js` `peekNext`: `rows = await candidates()` (`LIMIT 50`), then `rows.find(isWithinCallingHours)`.
+- **Evidence** (§4.12, controlled clock 15:30Z, toggle ON, 60 synthetic CA callbacks due):
+  ```
+  control: next lead … TX
+  Dialable in-hours (ET/CT) leads still in queue: 10518
+  POST /api/calls {} : {"error":"No dialable leads in queue right now"} [HTTP 404]
+  after cleanup: TX
+  ```
+- **Expected:** the next in-hours lead is served.
+- **Actual:** "No dialable leads" whenever 50+ higher-priority leads (callbacks, older requeues) are in states that are currently closed. This is the normal situation each morning, when West Coast callbacks are due before the West Coast opens.
+- **Suggested fix:** filter by hours in SQL (compute the allowed states for "now" and add `AND state = ANY($allowed)`), or page through candidates until one matches.
+
+### F-21 · High · Lifecycle · Undo after "Callback scheduled" crashes with HTTP 500 (Postgres syntax error)
+- **Where:** `backend/src/services/leadLifecycle.js:218`, `undoDisposition`:
+  `'DELETE FROM callbacks WHERE lead_id = $1 AND done = false ORDER BY created_at DESC LIMIT 1'`. Postgres `DELETE` accepts neither `ORDER BY` nor `LIMIT`.
+- **Evidence** (§4.9):
+  ```
+  undo: {"error":"syntax error at or near \"ORDER\""} [HTTP 500]
+  lead after failed undo: callback_scheduled ; callbacks rows: 1
+  ```
+  Server log: `error: syntax error at or near "ORDER"`.
+- **Repro:** dial, disposition `callback_scheduled` with `scheduledAt`, then `POST /api/dispositions/:callId/undo` within 10 s.
+- **Expected:** the lead is restored and the callback row is removed.
+- **Actual:** 500 and the whole transaction rolls back. The UI's Undo button fails for callbacks. The same line is on `main`.
+- **Suggested fix:** `DELETE FROM callbacks WHERE id = (SELECT id FROM callbacks WHERE lead_id=$1 AND done=false ORDER BY created_at DESC LIMIT 1)`.
+
+### F-22 · Medium · Lifecycle · A soft-deleted lead can still be dialed by id
+- **Where:** `leadQueue.js` `lockNext`, by-id branch (`:65-80`). It has no `deleted_at IS NULL` check, while `candidates()` has one.
+- **Evidence** (§4.8g):
+  ```
+  delete: [HTTP 200]  deleted_at set=t
+  dial by id: "call":{"id":54 [HTTP 201]
+  ```
+- **Expected:** 404 or 409. **Actual:** the deleted lead is dialed.
+- **Suggested fix:** add `AND deleted_at IS NULL` to the by-id `SELECT`.
+
+### F-23 · Medium · Lifecycle · `no_contact_number` is a dead end: one phone per lead, no recovery, no "next" rule
+- **Where:** the schema has a single `leads.phone` (`phone_numbers` holds caller IDs, not lead numbers). `applyDisposition` sets `status='no_contact_number', next_action_at=NULL`. `updateFields` never changes status.
+- **Evidence** (§4.6):
+  ```
+  60 | no_contact_number | +17135551001 | next_action_at NULL
+  re-dial: {"error":"Lead is not dialable (status: no_contact_number)"} [HTTP 409]
+  PUT /api/leads/60 {"phone":"(713) 555-7777"} -> status still no_contact_number; re-dial -> 409
+  ```
+  No code path moves a lead out of `no_contact_number` (grep).
+- **Expected:** CLAUDE.md says "other numbers on the lead stay dialable", and every status needs "an explicit rule for what happens next".
+- **Actual:** there are no other numbers. Fixing the number doesn't requeue the lead, so it is parked forever.
+- **Suggested fix:** when `phone` changes on a `no_contact_number` lead, move it to `in_queue`. Longer term, support multiple numbers per lead as the spec describes.
+
+### F-24 · Low · Lifecycle · The stale-lock sweep only runs on some reads; nothing runs it on a timer
+- **Where:** `leadQueue.releaseStaleLocks` is called from `candidates`, `lockNext`, `countsByState` and `list` only. Not from `search`, not on a schedule.
+- **Evidence** (§4.2):
+  ```
+  (a) without any queue read: DB status after 40s -> status=in_progress locked_at age=40s
+  (b) one GET /api/leads/state-counts -> status=in_queue
+  (c) polling GET /api/leads/search only: lead 53 still in_progress after 60s
+  (c2) polling GET /api/leads?pageSize=1 -> back to in_queue after 31s
+  ```
+- **Expected:** back in the queue about 30 s after hangup. **Actual:** correct when the dashboard is open; otherwise a lead stays `in_progress` until the next queue read. It isn't lost, but reports show it as in progress.
+- **Suggested fix:** a `setInterval(releaseStaleLocks, 10_000)` in `index.js`, or keep it lazy and document it.
+
+### F-25 · Low · Lifecycle · Calls that end without a disposition never get `ended_at`, so they stay open forever
+- **Where:** `callSession.js:52`, `:99` and `:190`. The adapter's `ended` event only does `UPDATE call_history SET telephony_state = $2`; `ended_at` and `duration_seconds` are set only by hangup or disposition.
+- **Evidence:** invariant I5, `dangling_calls: 35` (never dispositioned, never ended, older than 5 min). I6 shows leads with up to 11 open calls.
+- **Expected:** a call the network ended is closed with its duration.
+- **Actual:** the rows stay open. They feed duration and connect-rate maths and confuse "open call" checks.
+- **Suggested fix:** on `ended`, also set `ended_at = now()` and `duration_seconds = event.duration` when `ended_at IS NULL`.
+
+### F-26 · Low · Lifecycle · Turning the calling-hours toggle off takes ~13–15 s, not the documented 5 s
+- **Where:** `callingHours.js` `refreshEnforcedCache` / `isCallingHoursEnforced`. The first read after the cache expires returns the stale value and only *starts* the refresh.
+- **Evidence** (§4.11):
+  ```
+  immediately after OFF -> 422;  6s after OFF -> 422;  13 s after the settings row changed -> 201
+  ```
+- **Suggested fix:** await the refresh when the cache is stale, or have the settings `PUT` invalidate the cache directly.
+
 ## 4. Verified working
 
 ### §1 Static checks (`audit/logs/01-static.txt`)
@@ -293,6 +468,41 @@ All imports used the real background-job path: `POST /api/imports/upload`, then 
 | Real-Groq-unreachable fallback (a) | **Pass** (behaviour) | A 10-row file took 12.2 s (SDK retries plus the app's 2 s and 4 s back-off), `needsManualReview:10`, and the rows were still imported uncleaned |
 
 Lead-count baseline at the end of §3: **15,048** leads (`select count(*) from leads`). §4–§6 invariants compare against it.
+
+### §4 Lead lifecycle (`audit/logs/04-lifecycle.txt`)
+
+| Rule | Result | Evidence |
+|---|---|---|
+| new → in_progress on dial | **Pass** | `before dial: status=new attempts=0` → `after dial: status=in_progress attempts=1` |
+| One lead per "next lead" request | **Fail** | F-14 |
+| Hangup → in_queue after ~30 s | **Pass** (when a queue read happens) | `lead 54 back to in_queue after 31s (target 30s)`. Lazy-sweep caveat in F-24. The lead was never lost: attempts stayed 1 and status ended `in_queue` |
+| Live call stays locked | **Fail** | F-15 |
+| Voicemail/no_answer → +4 h, attempts increment | **Pass** | `status=voicemail attempts=1/5 … next_action_in=4.00h`. Immediate re-dial gave `409 "Lead is not due yet…"` |
+| `max_attempts` boundary | **Pass** (no off-by-one) | Dials 2–4 gave `no_answer attempts=n/5`; dial 5 gave `status=cold attempts=5/5 cold_reason=max_attempts`; dial 6 gave `409 "Lead is not dialable (status: cold)"`. The 4 h wait was simulated by moving `next_action_at` into the past via SQL (labelled in the log) |
+| Where `max_attempts` is configured | **Info** | DB column default `5` (`002_create_leads.sql:14`). The Settings page value is only written to `localStorage` (`Settings.jsx:104`) and never sent to the API (§9) |
+| Callback resurfaces at its due time, with priority | **Pass** | Callback due in 8 s: before due, next lead served = 1; after due, next lead served = 59 (the callback). `CANDIDATE_ORDER_SQL` puts `callback_scheduled` first |
+| no_contact_number | **Partial** | F-23 |
+| no_contact_person | **Pass** for the lead itself / **Fail** for the cascade | `15049 \| cold \| no_contact_person`; cascade in F-17 |
+| DNC: list row, queue, by-id, manual pad, re-import | **Pass** | `dnc_list: +12145550101\|manual\|11`. Queue candidates containing DNC leads = 0. By-id: `409 "Lead is not dialable (status: dnc)"`. Manual pad: `409 "This number is on the DNC list and cannot be dialed"`. Re-import blocked (§3). **Except** the edit path (F-16) |
+| Undo a DNC (within 10 s) | **Works as coded, needs a decision** | `after undo: lead=in_progress/dnc_flag=false dnc_list rows for +13055551001 = 0`. Undo deletes the DNC list entry (§7 of this report) |
+| Undo: reverts, refused after the window, safe twice | **Pass** | Undo #1 gave `status=in_progress attempts=1`, history `dispo=null note=null`. Undo #2 gave `409 "Nothing to undo for this call"`. After 11 s: `410 "Undo window has expired"` |
+| Undo after callback | **Fail** | F-21 |
+| Calling hours: boundaries in 7 states | **Pass** | Controlled clock (`audit/scripts/calling-hours.js`), toggle ON: FL, AZ, HI, CA, TX, NY and AK each give `07:59=block 08:00=ALLOW 20:59=ALLOW 21:00=block` |
+| Calling hours: DST | **Pass** | NY `8:00 AM EST ALLOW` (2026-03-07 13:00Z) becomes `9:00 AM EDT` (03-08). After fall-back, `7:30 AM EST block`. AZ stays MST throughout. The spring-forward gap goes 1:59 to 3:00 |
+| Calling hours: multi-zone states | **Fail** | F-18 |
+| Calling hours: refused call doesn't leave a stuck lead | **Pass** | Before `status=new attempts=0`, then `422 "Outside calling hours for TX…"`, after `status=new attempts=0 locked_by=null`. `assertCallingHours` runs before the lock UPDATE |
+| Calling hours: toggle OFF → calls go through | **Pass** (after a delay, F-26) | Calls 59–62 got 201 once the cache refreshed |
+| Manual pad respects calling hours | **Fail** | F-19 |
+| Queue under calling hours | **Fail** | F-20 |
+| Invariants (`audit/scripts/invariants.sql`) | Run | I1 bad statuses: **0 rows**. I4 orphan calls: **0**. I3 stale locks: **0**. I5 dangling calls: **35** (F-25). I6 multi-open-call leads: 8 (F-14). I7 attempts > max: 3 (F-14). I8: 1 lead on `dnc_list` but unflagged (synthetic row 15052, F-16); 3 non-E.164 phones (F-16) |
+| Lead count conserved | **Pass** | `total 15052` = §3 baseline 15,048 + 4 synthetic SQL rows (3 "Sam Same" + 1 "Pre Listed"). 60 synthetic starvation rows were inserted and deleted. 1 lead soft-deleted via the API (still counted) |
+
+Notes on test validity, all logged: four of my own harness mistakes produced invalid runs, which are kept in the log and marked as such.
+- The `xargs -I{}` brace clash.
+- Two misplaced token-file arguments in 4.3.
+- `utcFor()` returning `null` in the first 4.10 run.
+
+Each was re-run correctly, and only the re-runs are cited.
 
 ## 5. Can't verify
 *pending*
