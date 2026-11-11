@@ -209,3 +209,106 @@ NOTICE:  database "vortex_seg2_run" does not exist, skipping
 [post-fix]   same user, Redial button {leadId,redial:true} -> [HTTP 201]  attempts=2
 [post-fix]   OTHER user with redial:true                 -> [HTTP 409] Lead is not dialable (status: in_progress)
 [post-fix]   calls on lead 26: 2
+
+## F-27 with ONLY the F-14 fix (callSession.js unchanged) — informational
+[after-f14-only] (a) one user, 3 lines, forced no_answer, 15 s
+[after-f14-only]   SUMMARY sessionId=1 events=60 byStatus={"loading":15,"dialing":15,"ringing":15,"no_answer":12,"dropped":3} maxConcurrentLiveSlots=3 (lineCount=3)
+[after-f14-only]   calls: 15 on 15 distinct leads
+[after-f14-only]   same lead dialed twice in the same second within one session: none
+[after-f14-only]   sample (first 6 calls): 1:slot1:lead1@36.061  2:slot2:lead2@36.062  3:slot3:lead3@36.070  4:slot1:lead4@39.081  5:slot2:lead5@39.082  6:slot3:lead6@39.092
+[after-f14-only] (b) two users, two sessions at once, 3 lines each, forced no_answer, 15 s
+[after-f14-only]   calls: 30 on 30 leads; sessions: 2,3
+[after-f14-only]   same lead in BOTH sessions with overlapping calls (started < 6 s apart): none
+[after-f14-only]   same-second duplicates within a session: none
+[after-f14-only] (c) audit §5.2: 3 lines all answered -> held; dispose+release active -> promoted; stop
+[after-f14-only]     3.1s slot 1 answered  
+[after-f14-only]     3.1s slot 2 held      
+[after-f14-only]     3.1s slot 3 held      
+[after-f14-only]     7.7s slot 2 answered   (promoted from hold)
+[after-f14-only]     7.7s POST /api/calls/multiline/release {"slotNumber":1} -> 200 {"promoted":2}
+[after-f14-only]   SUMMARY sessionId=4 events=21 byStatus={"loading":5,"dialing":5,"ringing":5,"answered":2,"held":2,"no_answer":1,"dropped":1} maxConcurrentLiveSlots=3 (lineCount=3)
+[after-f14-only] (d) selected-leads session with 5 chosen ids: 1 soft-deleted (API DELETE), 1 DNC-listed (direct SQL), 3 normal
+[after-f14-only]   ids=[50,51,52,53,54] deleted=51 dnc_listed=53
+[after-f14-only]   multiline/start -> 201 {"lineCount":3,"slots":[{"slotNumber":1,"leadId":54,"status":"ringing"},{"slotNumber":2,"leadId":52,"status":"ringing"},{"slotNumber":3,"leadId":50,"status":"ringing"}]}
+[after-f14-only]   multiline/stop -> 200 {"abandonedCount":0}
+[after-f14-only]   calls per chosen lead: 50=1 51=0 52=1 53=0 54=1
+[after-f14-only]   status of chosen leads: 50:no_answer 51:new(deleted) 52:no_answer 53:new 54:no_answer
+[after-f14-only]   leads left in_progress after stop: 0
+[after-f14-only] server log errors: 0  lines: 
+
+## F-27 POST-FIX (F-14 + serialized refills via callSession.queueRefill) — 3 consecutive runs
+### run 1
+[post-fix-1] (a) one user, 3 lines, forced no_answer, 15 s
+[post-fix-1]   SUMMARY sessionId=1 events=60 byStatus={"loading":15,"dialing":15,"ringing":15,"no_answer":12,"dropped":3} maxConcurrentLiveSlots=3 (lineCount=3)
+[post-fix-1]   calls: 15 on 15 distinct leads
+[post-fix-1]   same lead dialed twice in the same second within one session: none
+[post-fix-1]   sample (first 6 calls): 1:slot2:lead2@56.247  2:slot1:lead1@56.248  3:slot3:lead3@56.254  4:slot1:lead4@59.263  5:slot2:lead5@59.273  6:slot3:lead6@59.281
+[post-fix-1] (b) two users, two sessions at once, 3 lines each, forced no_answer, 15 s
+[post-fix-1]   calls: 30 on 30 leads; sessions: 2,3
+[post-fix-1]   same lead in BOTH sessions with overlapping calls (started < 6 s apart): none
+[post-fix-1]   same-second duplicates within a session: none
+[post-fix-1] (c) audit §5.2: 3 lines all answered -> held; dispose+release active -> promoted; stop
+[post-fix-1]     3.1s slot 1 answered  
+[post-fix-1]     3.1s slot 2 held      
+[post-fix-1]     3.1s slot 3 held      
+[post-fix-1]     7.5s slot 2 answered   (promoted from hold)
+[post-fix-1]     7.5s POST /api/calls/multiline/release {"slotNumber":1} -> 200 {"promoted":2}
+[post-fix-1]   SUMMARY sessionId=4 events=21 byStatus={"loading":5,"dialing":5,"ringing":5,"answered":2,"held":2,"no_answer":1,"dropped":1} maxConcurrentLiveSlots=3 (lineCount=3)
+[post-fix-1] (d) selected-leads session with 5 chosen ids: 1 soft-deleted (API DELETE), 1 DNC-listed (direct SQL), 3 normal
+[post-fix-1]   ids=[50,51,52,53,54] deleted=51 dnc_listed=53
+[post-fix-1]   multiline/start -> 201 {"lineCount":3,"slots":[{"slotNumber":1,"leadId":54,"status":"ringing"},{"slotNumber":2,"leadId":52,"status":"ringing"},{"slotNumber":3,"leadId":50,"status":"ringing"}]}
+[post-fix-1]   multiline/stop -> 200 {"abandonedCount":0}
+[post-fix-1]   calls per chosen lead: 50=1 51=0 52=1 53=0 54=1
+[post-fix-1]   status of chosen leads: 50:no_answer 51:new(deleted) 52:no_answer 53:new 54:no_answer
+[post-fix-1]   leads left in_progress after stop: 0
+[post-fix-1] server log errors: 0  lines: 
+### run 2
+[post-fix-2] (a) one user, 3 lines, forced no_answer, 15 s
+[post-fix-2]   SUMMARY sessionId=1 events=60 byStatus={"loading":15,"dialing":15,"ringing":15,"no_answer":12,"dropped":3} maxConcurrentLiveSlots=3 (lineCount=3)
+[post-fix-2]   calls: 15 on 15 distinct leads
+[post-fix-2]   same lead dialed twice in the same second within one session: none
+[post-fix-2]   sample (first 6 calls): 1:slot1:lead1@50.179  2:slot2:lead2@50.179  3:slot3:lead3@50.187  4:slot1:lead4@53.197  5:slot2:lead5@53.215  6:slot3:lead6@53.224
+[post-fix-2] (b) two users, two sessions at once, 3 lines each, forced no_answer, 15 s
+[post-fix-2]   calls: 30 on 30 leads; sessions: 2,3
+[post-fix-2]   same lead in BOTH sessions with overlapping calls (started < 6 s apart): none
+[post-fix-2]   same-second duplicates within a session: none
+[post-fix-2] (c) audit §5.2: 3 lines all answered -> held; dispose+release active -> promoted; stop
+[post-fix-2]     3.1s slot 1 answered  
+[post-fix-2]     3.1s slot 2 held      
+[post-fix-2]     3.1s slot 3 held      
+[post-fix-2]     7.5s slot 2 answered   (promoted from hold)
+[post-fix-2]     7.5s POST /api/calls/multiline/release {"slotNumber":1} -> 200 {"promoted":2}
+[post-fix-2]   SUMMARY sessionId=4 events=21 byStatus={"loading":5,"dialing":5,"ringing":5,"answered":2,"held":2,"no_answer":1,"dropped":1} maxConcurrentLiveSlots=3 (lineCount=3)
+[post-fix-2] (d) selected-leads session with 5 chosen ids: 1 soft-deleted (API DELETE), 1 DNC-listed (direct SQL), 3 normal
+[post-fix-2]   ids=[50,51,52,53,54] deleted=51 dnc_listed=53
+[post-fix-2]   multiline/start -> 201 {"lineCount":3,"slots":[{"slotNumber":1,"leadId":54,"status":"ringing"},{"slotNumber":2,"leadId":52,"status":"ringing"},{"slotNumber":3,"leadId":50,"status":"ringing"}]}
+[post-fix-2]   multiline/stop -> 200 {"abandonedCount":0}
+[post-fix-2]   calls per chosen lead: 50=1 51=0 52=1 53=0 54=1
+[post-fix-2]   status of chosen leads: 50:no_answer 51:new(deleted) 52:no_answer 53:new 54:no_answer
+[post-fix-2]   leads left in_progress after stop: 0
+[post-fix-2] server log errors: 0  lines: 
+### run 3
+[post-fix-3] (a) one user, 3 lines, forced no_answer, 15 s
+[post-fix-3]   SUMMARY sessionId=1 events=60 byStatus={"loading":15,"dialing":15,"ringing":15,"no_answer":12,"dropped":3} maxConcurrentLiveSlots=3 (lineCount=3)
+[post-fix-3]   calls: 15 on 15 distinct leads
+[post-fix-3]   same lead dialed twice in the same second within one session: none
+[post-fix-3]   sample (first 6 calls): 1:slot1:lead1@44.176  2:slot2:lead2@44.176  3:slot3:lead3@44.183  4:slot2:lead4@47.208  5:slot1:lead5@47.217  6:slot3:lead6@47.231
+[post-fix-3] (b) two users, two sessions at once, 3 lines each, forced no_answer, 15 s
+[post-fix-3]   calls: 30 on 30 leads; sessions: 2,3
+[post-fix-3]   same lead in BOTH sessions with overlapping calls (started < 6 s apart): none
+[post-fix-3]   same-second duplicates within a session: none
+[post-fix-3] (c) audit §5.2: 3 lines all answered -> held; dispose+release active -> promoted; stop
+[post-fix-3]     3.1s slot 1 answered  
+[post-fix-3]     3.1s slot 2 held      
+[post-fix-3]     3.1s slot 3 held      
+[post-fix-3]     7.5s slot 2 answered   (promoted from hold)
+[post-fix-3]     7.5s POST /api/calls/multiline/release {"slotNumber":1} -> 200 {"promoted":2}
+[post-fix-3]   SUMMARY sessionId=4 events=21 byStatus={"loading":5,"dialing":5,"ringing":5,"answered":2,"held":2,"no_answer":1,"dropped":1} maxConcurrentLiveSlots=3 (lineCount=3)
+[post-fix-3] (d) selected-leads session with 5 chosen ids: 1 soft-deleted (API DELETE), 1 DNC-listed (direct SQL), 3 normal
+[post-fix-3]   ids=[50,51,52,53,54] deleted=51 dnc_listed=53
+[post-fix-3]   multiline/start -> 201 {"lineCount":3,"slots":[{"slotNumber":1,"leadId":54,"status":"ringing"},{"slotNumber":2,"leadId":52,"status":"ringing"},{"slotNumber":3,"leadId":50,"status":"ringing"}]}
+[post-fix-3]   multiline/stop -> 200 {"abandonedCount":0}
+[post-fix-3]   calls per chosen lead: 50=1 51=0 52=1 53=0 54=1
+[post-fix-3]   status of chosen leads: 50:no_answer 51:new(deleted) 52:no_answer 53:new 54:no_answer
+[post-fix-3]   leads left in_progress after stop: 0
+[post-fix-3] server log errors: 0  lines: 
