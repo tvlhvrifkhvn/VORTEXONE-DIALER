@@ -22,3 +22,4 @@ error: invalid input syntax for type timestamp with time zone: "0NaN-NaN-NaNTNaN
   line: '4026',
   routine: 'DateTimeParseError'
 }
+[mockSmsAdapter] would attach media: https://evil.example.com/x.png

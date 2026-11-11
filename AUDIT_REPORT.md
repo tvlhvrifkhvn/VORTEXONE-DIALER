@@ -501,6 +501,62 @@ Findings are numbered in the order found; §2 lists them by severity.
 - **Evidence:** `POST /api/leads/69/notes {"callId":154}` (call 154 is lead 249) gave `"lead_id":69 "call_id":154 [HTTP 201]`.
 - **Suggested fix:** verify the call belongs to the lead, or 400.
 
+### F-37 · High · SMS / Legal · No inbound SMS path: STOP replies can't be processed, the inbox can never fill, there's no opt-back-in
+- **Where:** no route accepts an inbound message (route list: only `send`, `bulk-send`, `inbox`, `mark-read`, `opt-out`, templates and `upload-media` under `/api/sms`). `telephony/mockSmsAdapter.js` is send-only. Nothing parses keywords. `smsService.getInbox` (`:156`) only reads `direction='inbound'` rows, which no code path creates.
+- **Evidence** (`audit/logs/07-sms-email.txt` §7.3–7.5):
+  ```
+  => every STOP variant (STOP, stop, "Stop.", UNSUBSCRIBE, QUIT, CANCEL, END, START/UNSTOP): MISSING
+  (DB-seeded inbound row 'STOP' for lead 22)  ->  lead 22 sms_opt_out after an inbound 'STOP' row exists: f
+  is there a way to undo an opt-out (START)? routes: 0 matching
+  ```
+  With inbound rows inserted by SQL, the inbox, unread count, mark-read and timeline all render correctly, so the read side works.
+- **Expected** (handoff §4/§3): "SMS … opt-out, inbox", and "A STOP text sets `sms_opt_out` only".
+- **Actual:** opt-out is only possible by a rep clicking a button. On real SMS (Phase 2), a recipient's STOP would be ignored and they'd keep getting bulk texts. That is a carrier and TCPA compliance problem.
+- **Suggested fix:** add `POST /api/sms/inbound` (provider webhook shape, mock-callable). Store the row; if the normalised body matches `STOP|STOPALL|UNSUBSCRIBE|CANCEL|END|QUIT`, set `sms_opt_out` only (never DNC); `START|UNSTOP` clears it.
+
+### F-38 · Medium · SMS · Unsupported template placeholders are sent to the lead literally
+- **Where:** `backend/src/services/smsService.js:9` `mergeFields`. It replaces only `{{name}}`, `{{brokerage}}` and `{{state}}`, does no unknown-placeholder check, and template save doesn't validate either.
+- **Evidence** (§7.1):
+  ```
+  template 2 -> lead 22: Hi {first_name}, {{first_name}} — {{ name }} / {{Name}} / {{city}}
+  template 1 -> lead 15050 (no brokerage): Hi Sam Same at in FL!
+  ```
+- **Expected:** a missing or unknown field never leaks a placeholder into a sent message.
+- **Actual:** the literal braces reach the recipient (stored as sent: `status 'sent'`). An empty field leaves "at in".
+- **Suggested fix:** reject templates containing `{…}` tokens other than the supported list at save time, and refuse to send if any `{{…}}` remains after merging. Support `{{first_name}}`.
+
+### F-39 · Medium · SMS / Legal · Texts ignore calling hours
+- **Where:** `smsService.sendSms` / `sendBulkSms` never call `callingHours`.
+- **Evidence** (§7.4, 06:11 ET, `calling_hours_enforced=true`):
+  ```
+  call to a TX lead: "error":"Outside calling hours for TX (8am-9pm local time)…" [HTTP 422]
+  SMS to lead 22 (FL): "status":"sent" [HTTP 201]
+  ```
+- **Expected:** marketing texts follow the same 8am–9pm local window as calls (TCPA quiet hours apply to texts; some states are stricter).
+- **Actual:** texts go out at any hour. This needs a decision (§7 of this report) but is currently unenforced.
+- **Suggested fix:** call `assertCallingHours(lead.state)` in `sendSms` and filter bulk recipients by it.
+
+### F-40 · Medium · Security · Uploaded media is public, any file type is accepted, and HTML is served as a page
+- **Where:**
+  - `backend/src/index.js` `app.use('/uploads', express.static(UPLOADS_DIR))`: no auth.
+  - `routes/sms.js` `uploadMedia`: multer with `limits.fileSize` 5 MB and **no `fileFilter`**; the original extension is kept.
+  - `smsService.sendSms` stores any `mediaUrl`.
+- **Evidence** (§7.6):
+  ```
+  page.html -> {"url":"/uploads/…a818b5b0e797.html"}   GET it WITHOUT any token -> 200 content-type=text/html
+  tool.exe  -> {"url":"/uploads/…cfa597d7d65d.exe"}    GET … -> 200 content-type=application/x-msdos-program
+  big.png (6000000B) -> {"error":"File is too large — the limit is 5MB"} [HTTP 400]     (limit works)
+  mediaUrl "https://evil.example.com/x.png" -> stored and "sent" [HTTP 201]
+  ```
+- **Expected:** MMS media limited to image types, served only to the app or to the carrier via a signed URL.
+- **Actual:** an authenticated user can host arbitrary files (HTML/JS, executables) on the API origin, readable by anyone who has the URL.
+- **Suggested fix:** add a `fileFilter` allowing `image/jpeg|png|gif`, serve with `Content-Disposition: attachment` / `X-Content-Type-Options: nosniff`, and validate that `mediaUrl` starts with `/uploads/`.
+
+### F-41 · Low · Email · Empty subject accepted; mock send leaves no trace in the server log
+- **Where:** `services/emailService.js` (requires the body only); `telephony/mockEmailAdapter.js` (no output).
+- **Evidence:** `missing subject: … "subject":"" … "status":"sent" [HTTP 201]`; `mockEmailAdapter.js has no console output` (the SMS mock does log media).
+- **Suggested fix:** require a subject (or default one). Log `[mockEmailAdapter] would send to …` like the SMS mock.
+
 ## 4. Verified working
 
 ### §1 Static checks (`audit/logs/01-static.txt`)
@@ -663,6 +719,24 @@ The code defines **7** dispositions, not CLAUDE.md's "six": the six buttons plus
 | Session summary vs SQL | **Pass** | Session 10: API `dials=1 contacts=1 vm=0 na=0` = SQL `dials=1 contacts=1 vm=0 na=0`. Across all sessions, stored counters vs `call_history`: **0 mismatches** |
 | `/reports/today` vs SQL | **Pass** (numbers) / **Fail** (day boundary, F-34) | API `{"dials":164,"contacts":5}` = SQL over all calls since `date_trunc('day', now())`: `dials=164`. Manual dial-pad calls are included in "dials" (163 without them) |
 | Daily goal tracker | **Info** | The goal value lives in `localStorage` only (`Dashboard.jsx:31`), the count comes from `/api/reports/today` |
+
+### §7 SMS and email (`audit/logs/07-sms-email.txt`)
+
+| Check | Result | Evidence |
+|---|---|---|
+| Supported merge fields | **Pass** | `Hi {{name}} at {{brokerage}} in {{state}}!` gave `Hi Lia Lane at Compass in FL!` |
+| Unsupported or missing fields | **Fail** | F-38 |
+| Bulk send skips opted-out and DNC | **Pass** | 5 leads gave `{"sent":3,"skipped_opt_out":1,"skipped_dnc":1,"failed":0}` |
+| Bulk throttle | **Pass** | `sent_at` gaps of 1.89 s and 2.25 s between the 3 sends (`BULK_DELAY_MS = 1500` plus the mock's 300–800 ms). Cap of 50: 51 leads gave `400 "Too many leads selected — split into batches of 50…"`. Bulk runs inside the HTTP request (4.5 s for 3; about 75 s+ for 50) |
+| Bulk / single send to a DNC lead | **Pass** | Bulk counted it under `skipped_dnc`. Single send: `400 "This lead is on the Do Not Call list"`. Opted out: `400 "This lead has opted out of SMS"` |
+| Manual opt-out sets `sms_opt_out` only, never DNC | **Pass** | Before `sms_opt_out=false dnc_flag=false status=new dnc_list=0`; after `sms_opt_out=true dnc_flag=false status=new dnc_list=0`. The lead is still callable (`call 165 [HTTP 201]`) |
+| STOP variants (STOP, stop, "Stop.", UNSUBSCRIBE, QUIT, CANCEL, END, START/UNSTOP) | **Missing** | F-37: no inbound path, so none could be sent. Each variant is unprocessed by construction |
+| Inbox, unread count, mark-read | **Pass** (with DB-seeded inbound rows) | `{"leadId":22,…,"unreadCount":2}`; mark-read leaves `unread left: 0` |
+| Unified timeline ordering | **Pass** | Notes, SMS (in and out) and calls interleave, `sorted newest-first: true` across 11 items |
+| MMS plumbing | **Pass** (works) / **Fail** (hardening) | Upload returns `/uploads/…png`, 5 MB limit works, `media_url` is stored. F-40 |
+| Email compose and validation | **Pass** | Valid send gives `201 … "body":"Hi Ben Brooks"` (merge works). Missing body: 400. No email on file: 400. Unknown lead: 404. Empty subject: F-41 |
+| Email to a DNC lead | **Info** | `201 sent` to lead 11 (DNC). DNC is a phone-call list, so this is legally distinct, but it needs a decision (§7 of this report) |
+| SMS quiet hours | **Fail** | F-39 |
 
 ## 5. Can't verify
 *pending*
