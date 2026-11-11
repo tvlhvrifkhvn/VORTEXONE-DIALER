@@ -4,6 +4,7 @@ const fs = require('fs');
 const path = require('path');
 const config = require('./config');
 const db = require('./db');
+const leadQueue = require('./services/leadQueue');
 const { errorHandler, notFound } = require('./middleware/errorHandler');
 const { apiLimiter } = require('./middleware/rateLimit');
 
@@ -111,11 +112,39 @@ async function assertSchemaIsMigrated() {
   }
 }
 
+// Background stale-lock sweep (leadQueue.releaseStaleLocks). Queue reads
+// still run it lazily; this makes a hung-up lead return to in_queue even when
+// nobody reads the queue. Started once the server listens, and only when this
+// file is the entry point (not when it's merely required); off with
+// STALE_LOCK_SWEEP=off. unref() so it never keeps the process alive.
+const STALE_LOCK_SWEEP_MS = 10_000;
+let staleLockTimer = null;
+
+function startStaleLockSweep() {
+  if (require.main !== module || process.env.STALE_LOCK_SWEEP === 'off') return;
+  staleLockTimer = setInterval(() => {
+    leadQueue.releaseStaleLocks().catch((err) => {
+      console.error('Stale-lock sweep failed:', err.message);
+    });
+  }, STALE_LOCK_SWEEP_MS);
+  staleLockTimer.unref();
+}
+
+function shutdown(signal) {
+  clearInterval(staleLockTimer);
+  staleLockTimer = null;
+  console.log(`${signal} received — stale-lock sweep stopped, shutting down`);
+  process.exit(0);
+}
+
 assertSchemaIsMigrated()
   .then(() => {
     app.listen(config.port, () => {
       console.log(`Vortex Dialer API listening on port ${config.port} (telephony: ${config.telephonyProvider})`);
+      startStaleLockSweep();
     });
+    process.once('SIGTERM', shutdown);
+    process.once('SIGINT', shutdown);
   })
   .catch((err) => {
     console.error('Could not verify the database schema on startup:', err.message);
