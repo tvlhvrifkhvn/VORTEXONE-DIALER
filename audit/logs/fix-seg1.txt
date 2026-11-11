@@ -55,3 +55,48 @@ Migrations up to date.
 ## F-06 grep after masking audit/: files containing the old default password
   ./AUDIT_REPORT.md (agreed exception: report not edited)
 ## F-06 change-password endpoint/script? none (authService exports login, getById, updateProfile; no password_hash UPDATE anywhere outside seeds)
+
+## F-16 PRE-FIX (leadQueue.js unchanged from base) — backend on fresh DB vortex_seg1
+[pre-fix] lead A=11 (214) 555-1205 dialed (call 1), disposition dnc: [HTTP 200]
+[pre-fix]   dnc_list has +12145551205: 1
+[pre-fix]   PUT A phone -> (214) 555-1206 (moves A off the number): [HTTP 200]
+[pre-fix] lead B=12
+[pre-fix]   PUT B phone="(214) 555-1205" -> [HTTP 200] undefined stored=(214) 555-1205
+[pre-fix]   PUT B phone="214-555-1205" -> [HTTP 200] undefined stored=214-555-1205
+[pre-fix]   PUT B phone="+1 214 555 1205" -> [HTTP 200] undefined stored=+1 214 555 1205
+[pre-fix]   POST /api/calls {leadId:B} -> [HTTP 201] undefined | dialed number: +1 214 555 1205
+[pre-fix] invalid phone: PUT B phone="abc" -> [HTTP 200] undefined
+[pre-fix] number held by lead 13: PUT B -> [HTTP 200] undefined
+[pre-fix] clean new number "214 555 1209": PUT B -> [HTTP 200] stored=214 555 1209
+[pre-fix] lead D=14: number put on dnc_list by DIRECT SQL, dnc_flag=f
+[pre-fix]   by-id dial D -> [HTTP 201] undefined
+[pre-fix]   D made the top queue candidate by DIRECT SQL (callback due a day ago)
+[pre-fix]   POST /api/calls {} -> [HTTP 201] served lead=14 (D=14)
+[pre-fix]   D afterwards: status=in_progress dnc_flag=false locked_by=1
+[pre-fix] manual dial pad to the DNC'd number (214) 555-1205 -> [HTTP 409] This number is on the DNC list and cannot be dialed
+
+## F-16 POST-FIX (updateFields phone rules + lockNext dnc_list checks + leadLifecycle.markDncFromQueue)
+[post-fix] lead A=15 (214) 555-5155 dialed (call 5), disposition dnc: [HTTP 200]
+[post-fix]   dnc_list has +12145555155: 1
+[post-fix]   PUT A phone -> (214) 555-5156 (moves A off the number): [HTTP 200]
+[post-fix] lead B=16
+[post-fix]   PUT B phone="(214) 555-5155" -> [HTTP 409] This number is on the DNC list and cannot be added as a lead stored=+12145555157
+[post-fix]   PUT B phone="214-555-5155" -> [HTTP 409] This number is on the DNC list and cannot be added as a lead stored=+12145555157
+[post-fix]   PUT B phone="+1 214 555 5155" -> [HTTP 409] This number is on the DNC list and cannot be added as a lead stored=+12145555157
+[post-fix]   POST /api/calls {leadId:B} -> [HTTP 201] undefined | dialed number: +12145555157
+[post-fix] invalid phone: PUT B phone="abc" -> [HTTP 400] Enter a valid 10-digit US phone number
+[post-fix] number held by lead 17: PUT B -> [HTTP 409] A lead with this phone number already exists
+[post-fix] clean new number "214 555 5159": PUT B -> [HTTP 200] stored=+12145555159
+[post-fix] lead D=18: number put on dnc_list by DIRECT SQL, dnc_flag=f
+[post-fix]   by-id dial D -> [HTTP 409] This number is on the DNC list and cannot be dialed
+[post-fix]   D made the top queue candidate by DIRECT SQL (callback due a day ago)
+[post-fix]   POST /api/calls {} -> [HTTP 201] served lead=1 (D=18)
+[post-fix]   D afterwards: status=dnc dnc_flag=true locked_by=null
+[post-fix] manual dial pad to the DNC'd number (214) 555-5155 -> [HTTP 409] This number is on the DNC list and cannot be dialed
+
+## F-16 multi-line regression (POST-FIX code)
+[post-fix] queue mode: lead 19 (dnc_list only) is the top candidate
+[post-fix]   calls placed to lead 19: 0   lead 19 now: dnc dnc_flag=true   other calls placed: 4
+[post-fix] selected-leads mode: leadIds=[20 (dnc_list only), 21 (clean)]
+[post-fix]   multiline/start -> 201 {"lineCount":2,"slots":[{"slotNumber":1,"leadId":21,"leadName":"Seg1 ML ok 4614","status":"ringing"}]}
+[post-fix]   calls placed to lead 20: 0   lead 20 now: new dnc_flag=false   calls to clean lead 21: 1

@@ -2,6 +2,7 @@ const db = require('../db');
 const { ApiError } = require('../middleware/errorHandler');
 const callingHours = require('./callingHours');
 const dncCheck = require('./dncCheck');
+const leadLifecycle = require('./leadLifecycle');
 const { normalizePhone } = require('../utils/phoneNormalize');
 const { buildOfficeKey } = require('../utils/officeKey');
 const { US_STATES } = require('../utils/usStates');
@@ -75,6 +76,10 @@ async function lockNext({ userId, leadId = null }) {
     if (lead.missing_phone || !lead.phone) {
       throw new ApiError(409, 'This lead has no phone number yet — add one before calling.');
     }
+    // Same guard and message as the manual dial pad (callSession.startManual).
+    if (await dncCheck.isOnDncList(normalizePhone(lead.phone) || lead.phone)) {
+      throw new ApiError(409, 'This number is on the DNC list and cannot be dialed');
+    }
     if (lead.dnc_flag || !DIALABLE_STATUSES.includes(lead.status)) {
       throw new ApiError(409, `Lead is not dialable (status: ${lead.status})`);
     }
@@ -84,6 +89,13 @@ async function lockNext({ userId, leadId = null }) {
   } else {
     lead = await peekNext();
     if (!lead) throw new ApiError(404, 'No dialable leads in queue right now');
+    // A queued lead whose number is on the DNC list (e.g. added after import)
+    // is marked dnc — the same outcome as multi-line reserveSlot — and the
+    // next lead is tried. Bounded: each hit removes one lead from the queue.
+    if (await dncCheck.isOnDncList(normalizePhone(lead.phone) || lead.phone)) {
+      await leadLifecycle.markDncFromQueue(lead.id);
+      return lockNext({ userId });
+    }
   }
 
   callingHours.assertCallingHours(lead.state);
@@ -338,11 +350,29 @@ async function updateFields(leadId, fields) {
   const keys = EDITABLE_FIELDS.filter((f) => fields[f] !== undefined);
   if (keys.length === 0) throw new ApiError(400, 'No editable fields provided');
 
+  // Same phone rules as create(): store E.164 only, and never let an edit put
+  // a DNC-listed number back on a lead (that was how a DNC'd number got dialed).
+  const values = { ...fields };
+  if (values.phone !== undefined) {
+    const normalizedPhone = normalizePhone(values.phone);
+    if (!normalizedPhone) throw new ApiError(400, 'Enter a valid 10-digit US phone number');
+    if (await dncCheck.isOnDncList(normalizedPhone)) {
+      throw new ApiError(409, 'This number is on the DNC list and cannot be added as a lead');
+    }
+    values.phone = normalizedPhone;
+  }
+
   const setSql = keys.map((key, i) => `${key} = $${i + 2}`).join(', ');
-  const { rows } = await db.query(
-    `UPDATE leads SET ${setSql}, updated_at = now() WHERE id = $1 AND deleted_at IS NULL RETURNING *`,
-    [leadId, ...keys.map((k) => fields[k])]
-  );
+  let rows;
+  try {
+    ({ rows } = await db.query(
+      `UPDATE leads SET ${setSql}, updated_at = now() WHERE id = $1 AND deleted_at IS NULL RETURNING *`,
+      [leadId, ...keys.map((k) => values[k])]
+    ));
+  } catch (err) {
+    if (err.code === '23505') throw new ApiError(409, 'A lead with this phone number already exists');
+    throw err;
+  }
   if (!rows[0]) throw new ApiError(404, 'Lead not found');
 
   // Editing brokerage/address/state changes which office this lead belongs
