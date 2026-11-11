@@ -8,7 +8,7 @@ Audit only. No tracked source file was modified. Everything the audit produced l
 - `audit/logs/`: raw output, saved as `.txt` because `.gitignore` ignores `*.log`
 - `audit/screenshots/`
 
-Status: **in progress.** This report is written section by section. Any section not yet filled in is marked *pending*.
+Status: **complete.** All 12 audit sections ran. Raw output for each one is in `audit/logs/NN-*.txt`.
 
 ---
 
@@ -51,7 +51,118 @@ What could **not** be set up:
 ---
 
 ## 2. Summary
-*pending*
+
+**54 findings: 5 Critical · 10 High · 18 Medium · 21 Low.** Full details in §3.
+
+**Critical:**
+- **F-01:** a live Groq key is committed in a public repo.
+- **F-14 / F-27:** a locking race makes several simultaneous calls to the same person. It happens in normal single-rep multi-line use, and attempts blow past the cap.
+- **F-15:** a lead on a live call is released after 30 s, and a second rep can dial it mid-conversation.
+- **F-16:** editing a phone stores it un-normalised, and a DNC'd number was dialed using only the API.
+
+**High:**
+- **Legal and queue:** multi-zone calling hours (F-18); the dial pad ignores calling hours (F-19); queue starvation (F-20); no inbound STOP handling (F-37).
+- **Broken flows:** Undo after a callback crashes (F-21); dialing continues after the browser disconnects (F-28); the PDF summary shows today's numbers for every date (F-45).
+- **Call screen and lifecycle:** dispositions are lost to the rate limit on long calls (F-50); dev mode double-dials (F-51); the no-contact-person name cascade (F-17).
+
+**Clearly solid:**
+- Auth: every one of 75 protected routes plus SSE rejects four kinds of bad token.
+- Migrations are idempotent, and schema, INSERT columns and frontend↔backend routes all match.
+- DNC on import, queue and by-ID dialing; the attempt cap with no off-by-one; callback priority.
+- Calling-hour boundaries and DST in single-zone states.
+- Multi-line held/promote logic; import merge, fallback, phoneless handling, multi-sheet and 5,000-row jobs.
+- The rebuttal review gate and the feedback loop (stubbed AI).
+- Reports matching raw SQL; XSS escaping; performance at 15k leads.
+
+### Feature status matrix
+
+Statuses are for `latest` @ `1a3ff4a`. Every handoff §4 item, from the PR #12 version of `VORTEX_DIALER_HANDOFF.md`, plus later additions. Evidence is in the §4 sub-section named.
+
+| Feature (handoff §4 wording) | Status | Evidence / finding |
+|---|---|---|
+| **Built and verified by an earlier audit** | | |
+| Login / auth | Working | §2 login + 401 matrix |
+| Lead table with state sidebar, filters | Working | §2 routes, §10 UI (TX → 3014) |
+| Pagination | Working | §10 (1–50 → 51–100); API gaps F-53 |
+| Checkbox selection | Working | §10 (51 boxes, select-all) |
+| Global search | Working | §10 dropdown; §11 15 ms |
+| Time zone clock | Working | §10 `EST … PST` header |
+| CSV import | Working | §3 |
+| Excel import (multi-sheet) | Working | §3 (i) |
+| Background import jobs with progress and cancel | Partial | Cancel during the write phase is ignored (F-08); progress runs ahead (F-11) |
+| Groq-based column mapping and cleaning | Partial / Can't verify | Real Groq unreachable. The fallback mapping misses `office` (F-10). Stubbed cleaning works |
+| Duplicate merge | Partial | Name + city merge works; blank-row artifact reported as invalid (F-12) |
+| DNC check (import) | Working | §3 (h), (h2) |
+| Lead lifecycle: queue | Partial | Starvation under calling hours (F-20) |
+| Locking | **Broken** | F-14, F-15, F-27 |
+| Retry cap | Working (logic) / Broken under the race | §4 boundary passes; F-14 pushes attempts to 11/5 |
+| Cold parking | Working / Partial | `max_attempts` → cold works; name cascade (F-17) |
+| DNC (disposition, queue, by-ID, dial pad) | Partial | All blocked, except the edit path (F-16). Undo removes the DNC entry (§7 of this report) |
+| Undo | Partial | Works and times out; crashes after a callback (F-21) |
+| Callbacks | Working | §4.5 priority; validation F-35 |
+| Dialing sessions + multi-line (1–3) over SSE | Partial | Event flow and auto-resolve work; duplicate leads (F-27), disconnect (F-28), stop/crash orphans (F-29) |
+| Voicemail / busy / no-answer auto-resolve | Working | §5.1 |
+| Second live answer is "held" | Working | §5.2 |
+| Single line replaces "power dial" | Working | §5 / §10 (Lines 1/2/3) |
+| Dispositions, notes | Working | §6 (7 dispositions); ownership F-32 |
+| Previous-notes history | Partial | Mid-call notes are missing from the panel (F-33) |
+| Pitch script panel | Working (browser-only storage, F-48) | §10 |
+| Daily PDF export (table format) | Partial | Table and pagination are right; summary numbers wrong (F-45); non-Latin text garbled (F-46) |
+| Reports page | Working | §9 matches SQL; "today" boundary F-34 |
+| Daily goal tracker | Working (browser-only goal, F-48) | §6.5 |
+| Session summary | Working | §6.5 matches SQL |
+| Settings: profile, dialing defaults, script, Groq key | Partial | Max attempts has no effect, defaults are browser-only (F-48); key exposure (F-47) |
+| Dark mode | Working | §10 persists across reload |
+| Calling-hours enforcement (off by default, toggle) | Partial | Boundaries and DST correct; multi-zone (F-18), dial pad (F-19), SMS (F-39), toggle lag (F-26) |
+| **Reported built in later rounds** | | |
+| Full-page call screen + action grid | Working | §10 (all buttons render; `n` shortcut writes the disposition) |
+| Dial pad with paste support | Working | §10 paste → `3055550138` |
+| Call recording plumbing | Working | §6.4 `was_recorded` only for contacted |
+| SMS templates with merge fields | Partial | Placeholder leak (F-38) |
+| Throttled bulk send | Working | §7.2 |
+| Opt-out | Partial | Manual works and never sets DNC; no STOP / inbound (F-37) |
+| Inbox | **Missing in practice** | Renders, but nothing can create inbound messages (F-37) |
+| Per-lead conversation + unified timeline | Working | §7.5 ordering |
+| MMS attachment plumbing | Working / insecure | F-40 |
+| Email: mock adapter, compose from the lead page | Working | §7.7; minor F-41 |
+| Lead detail page `/leads/:id`, row call/snooze removed | Working | §10 |
+| CSV fix: merge rule, office→source, `missing_phone` | Working | §3; F-10 without AI |
+| **Added by the owner** | | |
+| Objection tracker | Working | §8.1 |
+| Rebuttal coach | Working (stubbed) / quality Can't verify | §8.2–8.5 |
+| Pre-call brief (and its colleague section) | Working | §8.7; wording F-42 |
+| **"Not added" items: actual status** | | |
+| Colleague mode | **Working** (it *was* added, PR #9) | §8.8 |
+| Voicemail-to-text follow-up | Missing | §8.6 |
+| Review gate (pending/approved) | Working | §8.4 |
+| "Why this works" line | Missing | §8.6 |
+| Gold-example tagging | Missing | §8.6 |
+| "I used this" tracking | Missing | §8.6 |
+| Low-performance flag | Missing | §8.6 |
+| Rebuttal voice and quality prompt | Working (stubbed) | §8.3 |
+| Monthly review banner | Partial | Calendar-month trigger, §8.6 |
+| Phase 2: Twilio/Telnyx, SendGrid | Missing | `twilioAdapter.js` throws (§5.7) |
+
+### Definition-of-done checklist
+
+| DoD item | Done | Where the real output is |
+|---|---|---|
+| Audit base, SHA, Node/Postgres versions, what couldn't be set up | ✅ | §1; `audit/logs/00-setup.txt` |
+| Install, migrate (twice, from an empty DB), build, start | ✅ | `00-setup.txt`, `01-static.txt` (migrate ×2 + schema diff), `02-auth.txt` |
+| Every backend route enumerated and hit (method, path, auth, result) | ✅ | 77 routes; 401 matrix table in `02-auth.txt` |
+| Every frontend `api.js` call matched to a real route | ✅ | 76/76, `01-static.txt` |
+| Lifecycle invariant SQL pasted; lead count conserved | ✅ | `04-lifecycle.txt` §4.13 (15052 = 15048 + 4 synthetic); `06-dispositions.txt` |
+| Parallel next-lead concurrency test | ✅ (fails, F-14) | `04-lifecycle.txt` §4.1 |
+| DNC vs `sms_opt_out` for every STOP variant | ✅ with a caveat | Manual opt-out proven (`07-sms-email.txt` §7.3). No inbound path exists, so every STOP variant is **Missing** by construction; nothing can be sent to test it (F-37) |
+| Calling hours across ≥ 4 states with a controlled clock | ✅ | 7 states + 7 multi-zone cities + DST, `04-lifecycle.txt` §4.10 re-run, §4.11, §4.12 |
+| Multi-line 2 and 3 lines with a double answer | ✅ | `05-sessions.txt` §5.2 (3 lines, held + promoted), §5.4 (2 lines) |
+| PDF for 0, 1 and large call counts, text-extracted | ✅ | `09-reports.txt`; `pdf-500-calls-text.txt` |
+| Report numbers vs raw SQL | ✅ | §9.2–9.4, §6.5 |
+| Rebuttal coach: prompt shown, banned-phrase retry triggered, gate proven | ✅ (stubbed) | `08-objections-ai.txt` §8.2–8.5 |
+| Frontend smoke: screenshots + console log per page | ✅ | `audit/screenshots/10-*.png`, `10-frontend.txt` |
+| Every finding has file/function, repro, expected vs actual | ✅ | §3 |
+| `git diff --stat` vs base shows only `AUDIT_REPORT.md` and `audit/` | ✅ | Final check at PR time (`audit/logs/12-final.txt`) |
+
 
 ## 3. Findings
 
@@ -62,7 +173,7 @@ Severity follows the brief:
 - **Medium:** a partial feature or a bad edge case.
 - **Low:** cosmetic or code quality.
 
-Findings are numbered in the order found; §2 lists them by severity.
+Findings are listed **most severe first**. IDs are the order in which they were found; they are kept stable because the per-section results in §4 cite them.
 
 ### F-01 · Critical · Security · Live Groq API key hardcoded in a public repo
 - **Where:** `backend/src/config/index.js:21`, the `module.exports.groqApiKey` fallback. Introduced by `4673858` and `0fe67f8` ("Build in Groq API key").
@@ -81,137 +192,6 @@ Findings are numbered in the order found; §2 lists them by severity.
 - **Actual:** a blank key silently falls back to the committed key. Anyone who clones the repo can use it.
 - **Also:** `aiCsvMapper.js:26-28`, `noteExpander.js:11-13` and `rebuttalCoach.js:13-15` log "GROQ_API_KEY not set — … will be unavailable", which is false because of this fallback.
 - **Suggested fix:** revoke the key in the Groq console now. Remove the literal: `groqApiKey: process.env.GROQ_API_KEY || null`. Purging it from git history is optional once it's revoked.
-
-### F-02 · Medium · Dependencies · Open `npm audit` advisories, one with no fix
-- **Where:** `backend/package.json`, `frontend/package.json`.
-- **Evidence** (`npm audit --json`, `audit/logs/01-static.txt`):
-  - Backend: `{"moderate":1,"high":3,"critical":1}`
-    - `proxy-addr` (critical, GHSA-jqcg-44mw-7w3h): not exploitable here, since `trust proxy` is never set (`grep -rn "trust proxy" backend/src` returns nothing)
-    - `multer` 2.0.x (high, two DoS advisories)
-    - `body-parser` (high, DoS)
-    - `xlsx@0.18.5` (high, prototype pollution + ReDoS, **`fixAvailable:false`**)
-  - Frontend: `{"moderate":1,"high":2}`. `vite@7.3.6` (high, dev-server advisories) is relevant because the owner runs `vite dev` on a public Codespaces port.
-- **Expected:** no known high/critical advisories in a parser of uploaded files.
-- **Actual:** `xlsx` parses every uploaded spreadsheet (`services/xlsxParser.js`) and has no npm fix.
-- **Suggested fix:** `npm audit fix` for the fixable ones. Replace `xlsx` with the SheetJS CDN build (`https://cdn.sheetjs.com`) or `exceljs`.
-
-### F-03 · Low · Architecture · SQL in route handlers (CLAUDE.md rule 4)
-- **Where:**
-  - `backend/src/routes/calls.js:67`, in `POST /api/calls`: `SELECT * FROM leads WHERE id = $1 AND status = $2 AND locked_by = $3 AND missing_phone = false`
-  - `backend/src/routes/imports.js:147`, in `POST /api/imports/process`: `SELECT source_rows FROM import_jobs WHERE id = $1 AND user_id = $2`
-- **Evidence:** `grep -nE "db\.query" backend/src/routes/*.js` (`audit/logs/01-static.txt`).
-- **Expected:** no SQL in routes.
-- **Actual:** two queries.
-- **Suggested fix:** move them to `leadQueue.getLockedByUser()` and `csvImport.getJobSourceRows()`.
-
-### F-04 · Low · Architecture · Lead status written outside `leadLifecycle.js` / the stale-lock sweep
-- **Where:**
-  - `services/callSession.js:346` `abandonSlotCall` → `status='in_queue'`
-  - `services/callSession.js:414` `reserveSlot` → `status='dnc'`
-  - `services/leadQueue.js:188` `scheduleCallback` → `status='callback_scheduled'`
-  - `services/leadQueue.js:93` `lockNext` → `in_progress`, which is the lock itself, arguably part of the queue
-- **Evidence:** grep in `audit/logs/01-static.txt`.
-- **Expected:** handoff §3 says "Every status change goes through `leadLifecycle.js` or the stale-lock sweep."
-- **Actual:** 3–4 other writers. `scheduleCallback` (`POST /api/leads/:id/callback`) changes status without a `call_history` row, snapshot or undo. The behavioral consequences are tested in §4.
-- **Suggested fix:** route these through small exported functions in `leadLifecycle.js` (`requeueAbandoned`, `markDncFromQueue`, `scheduleCallback`).
-
-### F-05 · Low · Architecture · Telephony adapter emits an undocumented `busy` event (CLAUDE.md rule 2)
-- **Where:** `backend/src/telephony/mockAdapter.js:46`: `onEvent({ type: 'busy' })`. `services/callSession.js` handles it (`event.type === 'busy'`). `telephony/index.js:24-31` still documents only `ringing | answered | voicemail_detected | ended`.
-- **Expected:** the interface does not change without discussion, or the docs are updated with it.
-- **Actual:** the contract was widened silently. A Twilio adapter written to the documented interface would never emit `busy`, so the multi-line busy path would not run.
-- **Suggested fix:** decide on `busy` and document it in `telephony/index.js` and CLAUDE.md, or map busy to `ended` in the adapter.
-
-### F-06 · Low · Security · Default login credentials committed in a public repo
-- **Where:** `backend/src/db/seeds/run.js:4-5`: `SEED_EMAIL … 'vortexoneagency@gmail.com'`, `SEED_PASSWORD … 'ChangeMe123!'`.
-- **Expected:** a dev seed password that is not reused anywhere real.
-- **Actual:** if the owner's real instance was seeded and the password never changed, anyone can log in; the CORS/Codespaces ports are public.
-- **Suggested fix:** require `SEED_USER_PASSWORD` from the environment, or print a random one on seed.
-
-### F-07 · Low · Server · Disallowed CORS origin returns HTTP 500 with a stack trace in the log
-- **Where:** `backend/src/index.js:39`, `corsOriginCheck` → `callback(new Error(...))` → `errorHandler`.
-- **Evidence** (`audit/logs/02-auth.txt`):
-  ```
-  curl $API/api/leads -H 'Origin: https://evil.example.com'
-  {"error":"Not allowed by CORS: https://evil.example.com"} [HTTP 500]
-  ```
-  The server log shows `Error: Not allowed by CORS … at corsOriginCheck (src/index.js:39:19)`. The preflight also returns `HTTP/1.1 500 Internal Server Error`.
-- **Expected:** a non-error rejection, i.e. no `Access-Control-Allow-Origin` header, status 403 or a plain 204 without CORS headers. Not a 500 that counts as a server error and logs a stack on every request.
-- **Actual:** HTTP 500. The browser still blocks the request, so this is not a security hole, but it pollutes the error logs and server-error metrics.
-- **Suggested fix:** `return callback(null, false)` for disallowed origins.
-
-### F-08 · Medium · Import · Cancel during the write phase is ignored but reported as successful
-- **Where:** `backend/src/services/csvImport.js` `processImportJob`. The last cancel check is at `:466` ("Final gate"); after that, `commitImport()` inserts every row without checking the flag. `cancelImportJob` (`:552`) returns `{cancelled:true}` regardless.
-- **Evidence** (`audit/logs/03-import.txt`, step j3):
-  ```
-  at cancel: 100% status=processing leads_written=393
-  cancel -> {"cancelled":true,"jobId":16} [HTTP 200]
-  after: job=completed cancelled_flag=true leads_written=5000
-  ```
-- **Repro:**
-  1. Upload a 5,000-row CSV and process it.
-  2. Poll `/api/imports/status/:id` until `percentage` is 100 while `status` is still `processing`.
-  3. `POST /api/imports/cancel/:id`.
-- **Expected:** either the cancel stops the inserts, or the API answers that it's too late to cancel.
-- **Actual:** the user is told the import was cancelled, all 5,000 leads are imported, and the job ends `completed`. Cancelling before the write phase does work (step j-cancel: `status=cancelled`, 0 leads written).
-- **Suggested fix:** in `cancelImportJob`, refuse (409) once commit has started. Or check the flag every N rows inside `commitImport` and stop.
-
-### F-09 · Medium · Import · Phone numbers with an extension or letters are discarded and the original value is lost
-- **Where:** `backend/src/utils/phoneNormalize.js:7` `normalizePhone`, which keeps only digits and requires exactly 10 or 11. `csvImport.commitImport` then imports the row with `phone=NULL, missing_phone=true`.
-- **Evidence** (fixture `f_phones.csv`):
-  ```
-  Phone Extension | NULL | missing_phone t     (input "602-555-0605 x123")
-  Phone Letters   | NULL | missing_phone t     (input "602-555-CALL")
-  ```
-  `importedWithoutPhone: 5` for this file. Neither the raw value nor the extension is stored anywhere (`leads` has no raw-phone column), so the lead shows "No number".
-- **Expected:** `x123`/`ext. 123` is split off and kept, and vanity letters are converted. At minimum, keep the raw string so the rep can see it.
-- **Actual:** a real, dialable number is thrown away and the lead becomes non-dialable.
-- **Suggested fix:** strip `\s*(x|ext\.?)\s*\d+$` before counting digits and store the extension. Map letters to keypad digits. Keep the raw input in a column.
-
-### F-10 · Medium · Import · With AI unavailable, the `office` column is never mapped, so brokerage comes from `source` (website domains)
-- **Where:** `backend/src/services/csvImport.js` `guessMapping`, used by `routes/imports.js` `/upload` whenever `aiCsvMapper.mapColumns` fails or is unavailable. It only matches header text containing a field name (`brokerage`, `source`, …); a header named `office` matches nothing.
-- **Evidence** (`audit/logs/03-import.txt`, fixture a, real path with Groq unreachable):
-  ```
-  upload a_clean.csv: mapping={"name":"name","phone":"phone","email":"email","state":"state","city":"city","source":"source"}
-  Alice Archer | ... | kw.com | TX
-  ```
-  With the stub mapping, the same file maps `brokerage: "office"` and gives "Keller Williams".
-- **Expected:** the handoff's typical file (`office` + `source` columns) maps `office` → brokerage even without AI.
-- **Actual:** every lead gets the website domain as brokerage. Colleague intel (§8) then groups by the wrong office key.
-- **Suggested fix:** add synonyms to `guessMapping` (`office|company|brokerage` → brokerage, `mobile|cell` → phone).
-
-### F-11 · Low · Import · Progress reaches 100% long before rows are written
-- **Where:** `csvImport.processImportJob`. `processed_rows` counts AI-cleaned rows only; the insert phase (`commitImport`) does not report progress.
-- **Evidence** (step j2, every poll printed):
-  ```
-  t= 0.7s  100%  status=processing  leads_written=1215
-  t= 1.3s  100%  status=processing  leads_written=2749
-  t= 2.5s  100%  status=completed   leads_written=5000
-  ```
-- **Expected:** progress reflects rows written.
-- **Actual:** the bar shows 100% while about 75% of rows are still pending. With real Groq latency, the gap is longer. This also widens the F-08 window.
-- **Suggested fix:** report two phases ("cleaning", then "saving N/M"), or weight the bar.
-
-### F-12 · Low · Import · The real scrape artifact (same name, everything else blank) is reported as "invalid", not merged
-- **Where:** `csvImport.js` `mergeDuplicateRows` / `localityKey`. The identity is name + locality, and a row whose locality is blank does not match a row with "Dallas".
-- **Evidence** (fixture `b_scrape.csv`, row b1 `Joshua Barkes,,,,,,`):
-  ```
-  "mergedDuplicates":1, "skippedInvalid":1, skippedDetails:[{"row":"Joshua Barkes","reason":"Could not determine a US state for this lead"}]
-  ```
-  The b2 variant (same name, same city kept) merged correctly.
-- **Expected:** the duplicate is merged, or reported as a duplicate.
-- **Actual:** no data is lost (the full row was imported), but the summary tells the user a row was invalid. The handoff described this exact pattern as one that merges.
-- **Suggested fix:** in `mergeDuplicateRows`, let a row with a blank locality merge into a single same-name row that has one.
-
-### F-13 · Low · Import · Upload validation gaps: any extension accepted, oversize gives 500, orphan jobs
-- **Where:** `routes/imports.js` `/upload` (no extension check, unlike `/preview`'s `requireCsvFile`); multer `limits.fileSize` 15 MB → `errorHandler`.
-- **Evidence:**
-  - `upload k_fake.pdf -> {"jobId":18, …"headers":["%PDF-1.4"]…}` (accepted)
-  - `upload k_wrong_ext.txt -> {"jobId":17…}` (accepted)
-  - `upload k_oversized.csv (16500017B) -> {"error":"File too large"} [HTTP 500]`
-  - `import_jobs`: `pending|2` left behind by uploads that were never processed
-- **Expected:** a 400 for non-CSV/XLSX files, a 413 for too large, and pending jobs expire.
-- **Actual:** as above. No crash, and the server stayed up (`/health` ok).
-- **Suggested fix:** check the extension on `/upload`. Map `err.code === 'LIMIT_FILE_SIZE'` to 413 in `errorHandler`. Delete pending jobs older than a day.
 
 ### F-14 · Critical · Lifecycle · Locking race: one lead is handed to many simultaneous dials, and attempts blow past `max_attempts`
 - **Where:** `backend/src/services/leadQueue.js` `lockNext` (`:62-99`). It reads the candidate (`peekNext`, or `SELECT … WHERE id=$1`), then runs `UPDATE leads SET status='in_progress' … WHERE id = $2` with **no status guard and no row lock** (`FOR UPDATE SKIP LOCKED`). `callSession.start` then increments `attempts` once per call.
@@ -272,6 +252,24 @@ Findings are numbered in the order found; §2 lists them by severity.
 - **Expected:** a number on the DNC list is never dialed by any path (CLAUDE.md "dnc — legally protected, never dial again"), and phones are stored normalised so the unique constraint and DNC lookups work.
 - **Actual:** an edit plus a single-line dial reaches a DNC'd number. Duplicates of the same person also become possible.
 - **Suggested fix:** normalise and validate `phone` (and `state`) in `updateFields` the way `createLead` does, and reject DNC'd numbers there. Add `dncCheck.isOnDncList(lead.phone)` to `lockNext`. Optionally add a DB `CHECK (phone ~ '^\+1[2-9]\d{9}$')`.
+
+### F-27 · Critical · Multi-line · In a single rep's session, several lines dial the same lead at once
+- **Where:** `backend/src/services/callSession.js`. `releaseSlot` → `dialIntoSlot` → `reserveSlot` → `leadQueue.lockNext()` runs concurrently for every line that frees up at the same moment. The code's own comment at `reserveSlot` says: *"Callers must await these one at a time … three concurrent calls all read before any of them write and every line ends up on the same lead."* Only `startMultilineSession` serialises; the refill path does not. The root cause is F-14.
+- **Evidence** (`audit/logs/05-sessions.txt` §5.4, mock outcome forced to `no_answer` so all lines end together):
+  ```
+   id  | lead_id | user_id | session_id | slot_number |   started    | disposition
+   123 |      30 |       1 |          7 |           1 | 11:06:19.578 | no_answer
+   124 |      30 |       1 |          7 |           3 | 11:06:19.578 | no_answer
+   125 |      30 |       1 |          7 |           2 | 11:06:19.582 | no_answer
+   126 |      31 |       2 |          6 |           1 | 11:06:19.590 | no_answer
+   127 |      31 |       2 |          6 |           2 | 11:06:19.595 | no_answer
+   128 |      31 |       2 |          6 |           3 | 11:06:19.600 | no_answer
+  ```
+  23 overlapping same-lead call pairs in a 15 s run. Leads 27–29 and 41 were also dialed by both users.
+- **Repro:** `node audit/scripts/sse-session.js $SCRATCH/token 3 15 '[]'` with `echo no_answer > /var/tmp/audit-scratch/force-outcome`, then query `call_history` for the same `lead_id` and `session_id` across slots.
+- **Expected:** each line dials a different lead.
+- **Actual:** one person gets 3 simultaneous calls from one rep, and the attempt counter and disposition each apply 3 times. With real telephony, lines end at nearly the same time often (busy signals, carrier no-answer timeouts).
+- **Suggested fix:** fix F-14 (atomic `SKIP LOCKED` claim) and/or serialise refills per session with a promise chain (`session.refill = session.refill.then(() => dialIntoSlot(...))`).
 
 ### F-17 · High · Lifecycle · `no_contact_person` cascades by name alone to other people in other states; Undo does not reverse it
 - **Where:** `leadLifecycle.js` `applyDisposition`, the cascade block (`:130-142`): `WHERE id != $1 AND lower(trim(name)) = lower(trim($3)) AND status NOT IN ('dnc','cold')`. `undoDisposition` restores only the one lead (documented in a code comment).
@@ -338,6 +336,124 @@ Findings are numbered in the order found; §2 lists them by severity.
 - **Actual:** 500 and the whole transaction rolls back. The UI's Undo button fails for callbacks. The same line is on `main`.
 - **Suggested fix:** `DELETE FROM callbacks WHERE id = (SELECT id FROM callbacks WHERE lead_id=$1 AND done=false ORDER BY created_at DESC LIMIT 1)`.
 
+### F-28 · High · Multi-line · A session keeps dialing after the rep's browser disconnects
+- **Where:** `backend/src/routes/calls.js` `GET /stream`: `req.on('close')` only removes the event listener. `callSession.js` multi-line sessions live in `multilineSessions` until `/multiline/stop`.
+- **Evidence** (§5.3, SSE closed at t=4 s):
+  ```
+  calls placed by the session: at t~5s=6, 20s after the listener left=27
+  stop: {"abandonedCount":3}   calls after stop: 30 -> 8s later 30
+  ```
+- **Expected:** closing the tab, a laptop sleeping or a network drop stops (or pauses) the dialer.
+- **Actual:** it keeps placing about one call per line every 3 s with nobody listening. With real telephony, answered calls would reach a person with no rep, which are abandoned calls (see §7 of this report on abandonment rules).
+- **Suggested fix:** on SSE `close`, if it was the user's last stream, call `stopMultilineSession(userId)` after a short grace period (for example 10 s, to survive reconnects).
+
+### F-37 · High · SMS / Legal · No inbound SMS path: STOP replies can't be processed, the inbox can never fill, there's no opt-back-in
+- **Where:** no route accepts an inbound message (route list: only `send`, `bulk-send`, `inbox`, `mark-read`, `opt-out`, templates and `upload-media` under `/api/sms`). `telephony/mockSmsAdapter.js` is send-only. Nothing parses keywords. `smsService.getInbox` (`:156`) only reads `direction='inbound'` rows, which no code path creates.
+- **Evidence** (`audit/logs/07-sms-email.txt` §7.3–7.5):
+  ```
+  => every STOP variant (STOP, stop, "Stop.", UNSUBSCRIBE, QUIT, CANCEL, END, START/UNSTOP): MISSING
+  (DB-seeded inbound row 'STOP' for lead 22)  ->  lead 22 sms_opt_out after an inbound 'STOP' row exists: f
+  is there a way to undo an opt-out (START)? routes: 0 matching
+  ```
+  With inbound rows inserted by SQL, the inbox, unread count, mark-read and timeline all render correctly, so the read side works.
+- **Expected** (handoff §4/§3): "SMS … opt-out, inbox", and "A STOP text sets `sms_opt_out` only".
+- **Actual:** opt-out is only possible by a rep clicking a button. On real SMS (Phase 2), a recipient's STOP would be ignored and they'd keep getting bulk texts. That is a carrier and TCPA compliance problem.
+- **Suggested fix:** add `POST /api/sms/inbound` (provider webhook shape, mock-callable). Store the row; if the normalised body matches `STOP|STOPALL|UNSUBSCRIBE|CANCEL|END|QUIT`, set `sms_opt_out` only (never DNC); `START|UNSTOP` clears it.
+
+### F-45 · High · Reports · The daily PDF for any date shows today's Total Dials, Contacts and Connect Rate
+- **Where:** `backend/src/services/pdfExport.js` `buildDailyReportBuffer`: `const todayStats = await reports.todayStats();` feeds `summary.dials`, `contacts` and `connectRate`. Only voicemails, no-answers and DNC are computed from that date's rows.
+- **Evidence** (`audit/logs/09-reports.txt` §9.1; today = 175 dials, 8 contacts):
+  ```
+  ?date=2026-01-01 (no calls)   Total Dials 175  Contacts 8  Voicemails 0   …  Connect Rate 5%   "No calls recorded for this date."
+  ?date=2026-10-02 (500 calls)  Total Dials 175  Contacts 8  Voicemails 100  No Answers 100  DNC 100  Connect Rate 5%
+  ```
+- **Repro:** `GET /api/exports/daily-pdf?date=2026-01-01`, then `pdftotext`.
+- **Expected:** every summary number is for the requested date (here: 0, and 500 / 100 contacts / 20%).
+- **Actual:** the headline numbers are today's, contradicting the table beneath them. Any past-date export misreports results.
+- **Suggested fix:** compute dials, contacts and connect rate from the same `rows` query (or a date-parameterised `reports.statsForRange(start, end)`).
+
+### F-50 · High · Call screen · On a live call the screen's own polling hits the API rate limit: status updates stop at ~55 s and a disposition clicked then is lost (429)
+- **Where:**
+  - `frontend/src/hooks/useCall.js:5` `POLL_MS = 600` (≈100 `GET /api/calls/:id` a minute). On any error the poll calls `stopPolling()` and never restarts.
+  - `backend/src/middleware/rateLimit.js` `apiLimiter`: `windowMs: 60 * 1000, max: 100` per user, across all endpoints.
+- **Evidence** (`audit/logs/10-frontend.txt` §10.3/10.3b; production build, mock forced *answered*):
+  ```
+  API calls by endpoint: … "GET /api/calls/:n":89 …   first 429 at 55s (GET /api/calls/:n)
+  click "Spoke / Interested" at ~57s -> POST /api/dispositions 429 {"error":"Too many requests — slow down and try again shortly."}
+  DB after the click: call 679 disposition=NULL
+  ```
+  A click at ~77 s (after the window reset) succeeded (`200`, `Logged as Spoke / Interested.`). Screenshot: `audit/screenshots/10-call-screen-429-disposition.png`.
+- **Repro:** `echo answered > /var/tmp/audit-scratch/force-outcome`, then `node audit/scripts/ui-ratelimit-window.js http://localhost:5173 <leadId>` with `WAIT_MS=50500`.
+- **Expected:** a rep can talk for as long as needed and then log the outcome.
+- **Actual:** after about 55 s on a live call (the calls that matter most), the status display freezes. Any click in the rest of that minute (disposition, note, SMS, objection) fails with 429. The outcome is lost unless the rep notices and retries later.
+- **Suggested fix:** stop polling once `answered`, or poll every 3–5 s, or use the existing SSE stream. Exempt `GET /api/calls/:id` from `apiLimiter`, or raise the per-user limit. Restart polling after a transient error.
+
+### F-51 · High · Call screen (dev) · Under `vite dev`, opening the call screen places two calls to the same lead and freezes on "Ringing…"
+- **Where:** `frontend/src/main.jsx:8` `<React.StrictMode>` double-runs effects in development. The `useCall.js` effect (`useEffect(() => { … startCallFor(targetId) … }, [leadId])`) starts a call each time; its cleanup can't cancel an in-flight `POST`. The first response's `cancelled` branch then calls `stopPolling()`, which can kill the second call's poll.
+- **Evidence** (§10.4):
+  ```
+  POST /api/calls requests sent by one visit to /call/92: 2 ["{\"leadId\":\"92\"}","{\"leadId\":\"92\"}"]
+  status shown at 7s: Ringing…
+  DB: calls created for lead 92: 2 -> 681:answered, 680:answered ; attempts=2
+  ```
+  The production build sends one request (§10.3: `"POST /api/calls":1`).
+- **Expected:** one call per visit.
+- **Actual:** in development the same agent is dialed twice, `attempts` double-counts, and the UI never shows "Connected". The owner runs `npm run dev` in Codespaces daily (handoff §2), so this affects real use until there is a production deployment. This is the same race as F-14.
+- **Suggested fix:** guard the start with a ref (`if (startedRef.current === leadId) return`) or an idempotency key on `POST /api/calls`. Fixing F-14 also blocks the second lock.
+
+### F-02 · Medium · Dependencies · Open `npm audit` advisories, one with no fix
+- **Where:** `backend/package.json`, `frontend/package.json`.
+- **Evidence** (`npm audit --json`, `audit/logs/01-static.txt`):
+  - Backend: `{"moderate":1,"high":3,"critical":1}`
+    - `proxy-addr` (critical, GHSA-jqcg-44mw-7w3h): not exploitable here, since `trust proxy` is never set (`grep -rn "trust proxy" backend/src` returns nothing)
+    - `multer` 2.0.x (high, two DoS advisories)
+    - `body-parser` (high, DoS)
+    - `xlsx@0.18.5` (high, prototype pollution + ReDoS, **`fixAvailable:false`**)
+  - Frontend: `{"moderate":1,"high":2}`. `vite@7.3.6` (high, dev-server advisories) is relevant because the owner runs `vite dev` on a public Codespaces port.
+- **Expected:** no known high/critical advisories in a parser of uploaded files.
+- **Actual:** `xlsx` parses every uploaded spreadsheet (`services/xlsxParser.js`) and has no npm fix.
+- **Suggested fix:** `npm audit fix` for the fixable ones. Replace `xlsx` with the SheetJS CDN build (`https://cdn.sheetjs.com`) or `exceljs`.
+
+### F-08 · Medium · Import · Cancel during the write phase is ignored but reported as successful
+- **Where:** `backend/src/services/csvImport.js` `processImportJob`. The last cancel check is at `:466` ("Final gate"); after that, `commitImport()` inserts every row without checking the flag. `cancelImportJob` (`:552`) returns `{cancelled:true}` regardless.
+- **Evidence** (`audit/logs/03-import.txt`, step j3):
+  ```
+  at cancel: 100% status=processing leads_written=393
+  cancel -> {"cancelled":true,"jobId":16} [HTTP 200]
+  after: job=completed cancelled_flag=true leads_written=5000
+  ```
+- **Repro:**
+  1. Upload a 5,000-row CSV and process it.
+  2. Poll `/api/imports/status/:id` until `percentage` is 100 while `status` is still `processing`.
+  3. `POST /api/imports/cancel/:id`.
+- **Expected:** either the cancel stops the inserts, or the API answers that it's too late to cancel.
+- **Actual:** the user is told the import was cancelled, all 5,000 leads are imported, and the job ends `completed`. Cancelling before the write phase does work (step j-cancel: `status=cancelled`, 0 leads written).
+- **Suggested fix:** in `cancelImportJob`, refuse (409) once commit has started. Or check the flag every N rows inside `commitImport` and stop.
+
+### F-09 · Medium · Import · Phone numbers with an extension or letters are discarded and the original value is lost
+- **Where:** `backend/src/utils/phoneNormalize.js:7` `normalizePhone`, which keeps only digits and requires exactly 10 or 11. `csvImport.commitImport` then imports the row with `phone=NULL, missing_phone=true`.
+- **Evidence** (fixture `f_phones.csv`):
+  ```
+  Phone Extension | NULL | missing_phone t     (input "602-555-0605 x123")
+  Phone Letters   | NULL | missing_phone t     (input "602-555-CALL")
+  ```
+  `importedWithoutPhone: 5` for this file. Neither the raw value nor the extension is stored anywhere (`leads` has no raw-phone column), so the lead shows "No number".
+- **Expected:** `x123`/`ext. 123` is split off and kept, and vanity letters are converted. At minimum, keep the raw string so the rep can see it.
+- **Actual:** a real, dialable number is thrown away and the lead becomes non-dialable.
+- **Suggested fix:** strip `\s*(x|ext\.?)\s*\d+$` before counting digits and store the extension. Map letters to keypad digits. Keep the raw input in a column.
+
+### F-10 · Medium · Import · With AI unavailable, the `office` column is never mapped, so brokerage comes from `source` (website domains)
+- **Where:** `backend/src/services/csvImport.js` `guessMapping`, used by `routes/imports.js` `/upload` whenever `aiCsvMapper.mapColumns` fails or is unavailable. It only matches header text containing a field name (`brokerage`, `source`, …); a header named `office` matches nothing.
+- **Evidence** (`audit/logs/03-import.txt`, fixture a, real path with Groq unreachable):
+  ```
+  upload a_clean.csv: mapping={"name":"name","phone":"phone","email":"email","state":"state","city":"city","source":"source"}
+  Alice Archer | ... | kw.com | TX
+  ```
+  With the stub mapping, the same file maps `brokerage: "office"` and gives "Keller Williams".
+- **Expected:** the handoff's typical file (`office` + `source` columns) maps `office` → brokerage even without AI.
+- **Actual:** every lead gets the website domain as brokerage. Colleague intel (§8) then groups by the wrong office key.
+- **Suggested fix:** add synonyms to `guessMapping` (`office|company|brokerage` → brokerage, `mobile|cell` → phone).
+
 ### F-22 · Medium · Lifecycle · A soft-deleted lead can still be dialed by id
 - **Where:** `leadQueue.js` `lockNext`, by-id branch (`:65-80`). It has no `deleted_at IS NULL` check, while `candidates()` has one.
 - **Evidence** (§4.8g):
@@ -361,62 +477,6 @@ Findings are numbered in the order found; §2 lists them by severity.
 - **Actual:** there are no other numbers. Fixing the number doesn't requeue the lead, so it is parked forever.
 - **Suggested fix:** when `phone` changes on a `no_contact_number` lead, move it to `in_queue`. Longer term, support multiple numbers per lead as the spec describes.
 
-### F-24 · Low · Lifecycle · The stale-lock sweep only runs on some reads; nothing runs it on a timer
-- **Where:** `leadQueue.releaseStaleLocks` is called from `candidates`, `lockNext`, `countsByState` and `list` only. Not from `search`, not on a schedule.
-- **Evidence** (§4.2):
-  ```
-  (a) without any queue read: DB status after 40s -> status=in_progress locked_at age=40s
-  (b) one GET /api/leads/state-counts -> status=in_queue
-  (c) polling GET /api/leads/search only: lead 53 still in_progress after 60s
-  (c2) polling GET /api/leads?pageSize=1 -> back to in_queue after 31s
-  ```
-- **Expected:** back in the queue about 30 s after hangup. **Actual:** correct when the dashboard is open; otherwise a lead stays `in_progress` until the next queue read. It isn't lost, but reports show it as in progress.
-- **Suggested fix:** a `setInterval(releaseStaleLocks, 10_000)` in `index.js`, or keep it lazy and document it.
-
-### F-25 · Low · Lifecycle · Calls that end without a disposition never get `ended_at`, so they stay open forever
-- **Where:** `callSession.js:52`, `:99` and `:190`. The adapter's `ended` event only does `UPDATE call_history SET telephony_state = $2`; `ended_at` and `duration_seconds` are set only by hangup or disposition.
-- **Evidence:** invariant I5, `dangling_calls: 35` (never dispositioned, never ended, older than 5 min). I6 shows leads with up to 11 open calls.
-- **Expected:** a call the network ended is closed with its duration.
-- **Actual:** the rows stay open. They feed duration and connect-rate maths and confuse "open call" checks.
-- **Suggested fix:** on `ended`, also set `ended_at = now()` and `duration_seconds = event.duration` when `ended_at IS NULL`.
-
-### F-26 · Low · Lifecycle · Turning the calling-hours toggle off takes ~13–15 s, not the documented 5 s
-- **Where:** `callingHours.js` `refreshEnforcedCache` / `isCallingHoursEnforced`. The first read after the cache expires returns the stale value and only *starts* the refresh.
-- **Evidence** (§4.11):
-  ```
-  immediately after OFF -> 422;  6s after OFF -> 422;  13 s after the settings row changed -> 201
-  ```
-- **Suggested fix:** await the refresh when the cache is stale, or have the settings `PUT` invalidate the cache directly.
-
-### F-27 · Critical · Multi-line · In a single rep's session, several lines dial the same lead at once
-- **Where:** `backend/src/services/callSession.js`. `releaseSlot` → `dialIntoSlot` → `reserveSlot` → `leadQueue.lockNext()` runs concurrently for every line that frees up at the same moment. The code's own comment at `reserveSlot` says: *"Callers must await these one at a time … three concurrent calls all read before any of them write and every line ends up on the same lead."* Only `startMultilineSession` serialises; the refill path does not. The root cause is F-14.
-- **Evidence** (`audit/logs/05-sessions.txt` §5.4, mock outcome forced to `no_answer` so all lines end together):
-  ```
-   id  | lead_id | user_id | session_id | slot_number |   started    | disposition
-   123 |      30 |       1 |          7 |           1 | 11:06:19.578 | no_answer
-   124 |      30 |       1 |          7 |           3 | 11:06:19.578 | no_answer
-   125 |      30 |       1 |          7 |           2 | 11:06:19.582 | no_answer
-   126 |      31 |       2 |          6 |           1 | 11:06:19.590 | no_answer
-   127 |      31 |       2 |          6 |           2 | 11:06:19.595 | no_answer
-   128 |      31 |       2 |          6 |           3 | 11:06:19.600 | no_answer
-  ```
-  23 overlapping same-lead call pairs in a 15 s run. Leads 27–29 and 41 were also dialed by both users.
-- **Repro:** `node audit/scripts/sse-session.js $SCRATCH/token 3 15 '[]'` with `echo no_answer > /var/tmp/audit-scratch/force-outcome`, then query `call_history` for the same `lead_id` and `session_id` across slots.
-- **Expected:** each line dials a different lead.
-- **Actual:** one person gets 3 simultaneous calls from one rep, and the attempt counter and disposition each apply 3 times. With real telephony, lines end at nearly the same time often (busy signals, carrier no-answer timeouts).
-- **Suggested fix:** fix F-14 (atomic `SKIP LOCKED` claim) and/or serialise refills per session with a promise chain (`session.refill = session.refill.then(() => dialIntoSlot(...))`).
-
-### F-28 · High · Multi-line · A session keeps dialing after the rep's browser disconnects
-- **Where:** `backend/src/routes/calls.js` `GET /stream`: `req.on('close')` only removes the event listener. `callSession.js` multi-line sessions live in `multilineSessions` until `/multiline/stop`.
-- **Evidence** (§5.3, SSE closed at t=4 s):
-  ```
-  calls placed by the session: at t~5s=6, 20s after the listener left=27
-  stop: {"abandonedCount":3}   calls after stop: 30 -> 8s later 30
-  ```
-- **Expected:** closing the tab, a laptop sleeping or a network drop stops (or pauses) the dialer.
-- **Actual:** it keeps placing about one call per line every 3 s with nobody listening. With real telephony, answered calls would reach a person with no rep, which are abandoned calls (see §7 of this report on abandonment rules).
-- **Suggested fix:** on SSE `close`, if it was the user's last stream, call `stopMultilineSession(userId)` after a short grace period (for example 10 s, to survive reconnects).
-
 ### F-29 · Medium · Multi-line · Stop (or a crash) orphans answered and held calls: leads stay `in_progress`, calls stay open, session never ends
 - **Where:**
   - `callSession.js` `stopMultilineSession`: slots in `LIVE_CALL_STATUSES` (`answered`, `active_disposition`, `held`) are removed from the session but neither abandoned nor dispositioned.
@@ -439,11 +499,6 @@ Findings are numbered in the order found; §2 lists them by severity.
 - **Expected:** a failed dial doesn't count as an attempt and doesn't hold the lead.
 - **Actual:** in Phase 2 every Twilio error (bad number, auth, rate limit) will burn an attempt and hold the lead for 30 s. The call log shows calls that never happened.
 - **Suggested fix:** call `placeCall` inside try/catch. On failure, delete or mark the call row `failed`, decrement or skip the attempt, and release the lock.
-
-### F-31 · Low · Config · Invalid provider names are accepted at startup and only fail per request
-- **Where:** `telephony/index.js` `getAdapter`, `telephony/smsIndex.js` and `telephony/emailIndex.js` resolve the adapter lazily.
-- **Evidence:** `TELEPHONY_PROVIDER=bogus` gives "server STARTED", then the first call returns `500 Unknown TELEPHONY_PROVIDER: "bogus"`. `SMS_PROVIDER=bogus` gives `500 Unknown SMS_PROVIDER`.
-- **Suggested fix:** validate all three providers in `config/index.js` at boot, the way the missing-table check does.
 
 ### F-32 · Medium · Authorization · Any logged-in rep can disposition, undo or hang up another rep's call
 - **Where:**
@@ -486,34 +541,6 @@ Findings are numbered in the order found; §2 lists them by severity.
 - **Actual:** the counters, daily goal and daily report reset at 05:00 Pakistan time, in the middle of every shift, so one night's work is split across two "days".
 - **Suggested fix:** make the reporting timezone a setting (default `Asia/Karachi`, or the shift start) and use `date_trunc('day', now() AT TIME ZONE $tz) AT TIME ZONE $tz`.
 
-### F-35 · Low · Dispositions · Callback time not validated: past times accepted; garbage gives a 500 with a raw Postgres error
-- **Where:** `leadLifecycle.applyDisposition` only checks `!scheduledAt`. `new Date("next tuesday")` reaches Postgres.
-- **Evidence** (§6.1):
-  ```
-  scheduledAt 2020-01-01 -> "status":"callback_scheduled" "next_action_at":"2020-01-01T00:00:00.000Z" [HTTP 200]
-  scheduledAt "next tuesday" -> {"error":"invalid input syntax for type timestamp with time zone: \"0NaN-NaN-NaNTNaN:NaN:NaN.NaN+NaN:NaN\""} [HTTP 500]
-  ```
-  `POST /api/leads/:id/callback` validates (`leadQueue.js:183` "A valid callback date and time is required"); the disposition path doesn't.
-- **Suggested fix:** reuse that validation: a 400 for invalid times, a 400 (or a warning) for past ones.
-
-### F-36 · Low · Notes · A note can be linked to a call from a different lead
-- **Where:** `leadQueue.addNote` stores `callId` without checking `call_history.lead_id = leadId`.
-- **Evidence:** `POST /api/leads/69/notes {"callId":154}` (call 154 is lead 249) gave `"lead_id":69 "call_id":154 [HTTP 201]`.
-- **Suggested fix:** verify the call belongs to the lead, or 400.
-
-### F-37 · High · SMS / Legal · No inbound SMS path: STOP replies can't be processed, the inbox can never fill, there's no opt-back-in
-- **Where:** no route accepts an inbound message (route list: only `send`, `bulk-send`, `inbox`, `mark-read`, `opt-out`, templates and `upload-media` under `/api/sms`). `telephony/mockSmsAdapter.js` is send-only. Nothing parses keywords. `smsService.getInbox` (`:156`) only reads `direction='inbound'` rows, which no code path creates.
-- **Evidence** (`audit/logs/07-sms-email.txt` §7.3–7.5):
-  ```
-  => every STOP variant (STOP, stop, "Stop.", UNSUBSCRIBE, QUIT, CANCEL, END, START/UNSTOP): MISSING
-  (DB-seeded inbound row 'STOP' for lead 22)  ->  lead 22 sms_opt_out after an inbound 'STOP' row exists: f
-  is there a way to undo an opt-out (START)? routes: 0 matching
-  ```
-  With inbound rows inserted by SQL, the inbox, unread count, mark-read and timeline all render correctly, so the read side works.
-- **Expected** (handoff §4/§3): "SMS … opt-out, inbox", and "A STOP text sets `sms_opt_out` only".
-- **Actual:** opt-out is only possible by a rep clicking a button. On real SMS (Phase 2), a recipient's STOP would be ignored and they'd keep getting bulk texts. That is a carrier and TCPA compliance problem.
-- **Suggested fix:** add `POST /api/sms/inbound` (provider webhook shape, mock-callable). Store the row; if the normalised body matches `STOP|STOPALL|UNSUBSCRIBE|CANCEL|END|QUIT`, set `sms_opt_out` only (never DNC); `START|UNSTOP` clears it.
-
 ### F-38 · Medium · SMS · Unsupported template placeholders are sent to the lead literally
 - **Where:** `backend/src/services/smsService.js:9` `mergeFields`. It replaces only `{{name}}`, `{{brokerage}}` and `{{state}}`, does no unknown-placeholder check, and template save doesn't validate either.
 - **Evidence** (§7.1):
@@ -552,45 +579,6 @@ Findings are numbered in the order found; §2 lists them by severity.
 - **Actual:** an authenticated user can host arbitrary files (HTML/JS, executables) on the API origin, readable by anyone who has the URL.
 - **Suggested fix:** add a `fileFilter` allowing `image/jpeg|png|gif`, serve with `Content-Disposition: attachment` / `X-Content-Type-Options: nosniff`, and validate that `mediaUrl` starts with `/uploads/`.
 
-### F-41 · Low · Email · Empty subject accepted; mock send leaves no trace in the server log
-- **Where:** `services/emailService.js` (requires the body only); `telephony/mockEmailAdapter.js` (no output).
-- **Evidence:** `missing subject: … "subject":"" … "status":"sent" [HTTP 201]`; `mockEmailAdapter.js has no console output` (the SMS mock does log media).
-- **Suggested fix:** require a subject (or default one). Log `[mockEmailAdapter] would send to …` like the SMS mock.
-
-### F-42 · Low · Coaching · Pre-call brief says "A few agents … have already been interested" when there is exactly one
-- **Where:** `backend/src/services/preCallBrief.js`, the instant opener built from the `colleagues` summary.
-- **Evidence** (`audit/logs/08-objections-ai.txt` §8.8): a colleague summary of `"interested":1` gives the opener `A few agents at Compass · Miami, FL have already been interested in what we do.`
-- **Expected:** plain, accurate coaching for newer callers (handoff §1), e.g. "Another agent at …".
-- **Actual:** it overstates the evidence. A rep repeating it to the lead would be saying something untrue.
-- **Suggested fix:** branch on the count (1 → "Another agent", 2+ → "{n} agents").
-
-### F-43 · Low · Rebuttal coach · Flagged suggestions can be approved with no warning, then become top few-shot examples and the call-screen hint
-- **Where:** `rebuttalCoach.reviewSuggestion` (no check on `review_note`). `fewShotExamples` puts approved ones first. `getHints` shows the newest approved.
-- **Evidence** (§8.4–8.5):
-  - Approving #8 ("needs manual rewrite: used 'innovative', 'optimize'") returned `"status":"approved" [HTTP 200]`.
-  - The hint became `{"text":"Our innovative solution will optimize your day.","source":"ai"}`.
-  - The next prompt's `Example 1 (approved by the team): "Our innovative solution will optimize your day."`.
-- **Expected:** a suggestion that failed the banned-phrase or length check can't be approved unedited, or the reviewer gets an explicit warning.
-- **Actual:** the feedback loop can teach the model the exact phrases the prompt bans.
-- **Suggested fix:** in `reviewSuggestion`, reject approval while `review_note` starts with "needs manual rewrite" unless the text was edited. Re-run `describeViolations` on approval.
-
-### F-44 · Low · Rebuttal coach · Each "Regenerate" adds another pending batch and the list shows all of them
-- **Where:** `rebuttalCoach.js`, the list query (`:255-258`, `status IN ('approved','pending') ORDER BY … generated_at DESC`). Its comment says "then the newest pending batch", but it returns every pending row.
-- **Evidence:** after 4 regenerations the response held 12 suggestions, including the earlier batches and the flagged ones. `pending queue (reviewer view): 12 pending`.
-- **Suggested fix:** return only the latest `generated_at` batch of pending rows, or expire older pending batches on regenerate.
-
-### F-45 · High · Reports · The daily PDF for any date shows today's Total Dials, Contacts and Connect Rate
-- **Where:** `backend/src/services/pdfExport.js` `buildDailyReportBuffer`: `const todayStats = await reports.todayStats();` feeds `summary.dials`, `contacts` and `connectRate`. Only voicemails, no-answers and DNC are computed from that date's rows.
-- **Evidence** (`audit/logs/09-reports.txt` §9.1; today = 175 dials, 8 contacts):
-  ```
-  ?date=2026-01-01 (no calls)   Total Dials 175  Contacts 8  Voicemails 0   …  Connect Rate 5%   "No calls recorded for this date."
-  ?date=2026-10-02 (500 calls)  Total Dials 175  Contacts 8  Voicemails 100  No Answers 100  DNC 100  Connect Rate 5%
-  ```
-- **Repro:** `GET /api/exports/daily-pdf?date=2026-01-01`, then `pdftotext`.
-- **Expected:** every summary number is for the requested date (here: 0, and 500 / 100 contacts / 20%).
-- **Actual:** the headline numbers are today's, contradicting the table beneath them. Any past-date export misreports results.
-- **Suggested fix:** compute dials, contacts and connect rate from the same `rows` query (or a date-parameterised `reports.statsForRange(start, end)`).
-
 ### F-46 · Medium · Reports · The PDF garbles emoji, Urdu and Arabic, and other non-Latin text
 - **Where:** `pdfExport.js` uses only the built-in `Helvetica`/`Helvetica-Bold` (WinAnsi encoding, `:63-159`); no Unicode TTF is registered.
 - **Evidence:** extracted text of notes written as `emoji 😀🎉 note` and `Urdu: آپ کیسے ہیں — Arabic مرحبا`:
@@ -627,40 +615,6 @@ Findings are numbered in the order found; §2 lists them by severity.
 - **Actual:** changing max attempts silently does nothing. The goal, lines and script are lost on another browser, device or a cleared cache.
 - **Suggested fix:** store these via `PUT /api/settings/*` (per user). Apply `max_attempts` on import and lead creation, or read it in `applyDisposition`.
 
-### F-49 · Low · Reports · The PDF phone column is too narrow, so every number wraps onto two lines
-- **Where:** `pdfExport.js` column widths.
-- **Evidence:** the extracted text shows `+121455510` / `50` on two lines for every row (§9.1).
-- **Suggested fix:** widen the Phone column and format it `(214) 555-1050`. "Duration" also wraps to `Durati`/`on` in the header.
-
-### F-50 · High · Call screen · On a live call the screen's own polling hits the API rate limit: status updates stop at ~55 s and a disposition clicked then is lost (429)
-- **Where:**
-  - `frontend/src/hooks/useCall.js:5` `POLL_MS = 600` (≈100 `GET /api/calls/:id` a minute). On any error the poll calls `stopPolling()` and never restarts.
-  - `backend/src/middleware/rateLimit.js` `apiLimiter`: `windowMs: 60 * 1000, max: 100` per user, across all endpoints.
-- **Evidence** (`audit/logs/10-frontend.txt` §10.3/10.3b; production build, mock forced *answered*):
-  ```
-  API calls by endpoint: … "GET /api/calls/:n":89 …   first 429 at 55s (GET /api/calls/:n)
-  click "Spoke / Interested" at ~57s -> POST /api/dispositions 429 {"error":"Too many requests — slow down and try again shortly."}
-  DB after the click: call 679 disposition=NULL
-  ```
-  A click at ~77 s (after the window reset) succeeded (`200`, `Logged as Spoke / Interested.`). Screenshot: `audit/screenshots/10-call-screen-429-disposition.png`.
-- **Repro:** `echo answered > /var/tmp/audit-scratch/force-outcome`, then `node audit/scripts/ui-ratelimit-window.js http://localhost:5173 <leadId>` with `WAIT_MS=50500`.
-- **Expected:** a rep can talk for as long as needed and then log the outcome.
-- **Actual:** after about 55 s on a live call (the calls that matter most), the status display freezes. Any click in the rest of that minute (disposition, note, SMS, objection) fails with 429. The outcome is lost unless the rep notices and retries later.
-- **Suggested fix:** stop polling once `answered`, or poll every 3–5 s, or use the existing SSE stream. Exempt `GET /api/calls/:id` from `apiLimiter`, or raise the per-user limit. Restart polling after a transient error.
-
-### F-51 · High · Call screen (dev) · Under `vite dev`, opening the call screen places two calls to the same lead and freezes on "Ringing…"
-- **Where:** `frontend/src/main.jsx:8` `<React.StrictMode>` double-runs effects in development. The `useCall.js` effect (`useEffect(() => { … startCallFor(targetId) … }, [leadId])`) starts a call each time; its cleanup can't cancel an in-flight `POST`. The first response's `cancelled` branch then calls `stopPolling()`, which can kill the second call's poll.
-- **Evidence** (§10.4):
-  ```
-  POST /api/calls requests sent by one visit to /call/92: 2 ["{\"leadId\":\"92\"}","{\"leadId\":\"92\"}"]
-  status shown at 7s: Ringing…
-  DB: calls created for lead 92: 2 -> 681:answered, 680:answered ; attempts=2
-  ```
-  The production build sends one request (§10.3: `"POST /api/calls":1`).
-- **Expected:** one call per visit.
-- **Actual:** in development the same agent is dialed twice, `attempts` double-counts, and the UI never shows "Connected". The owner runs `npm run dev` in Codespaces daily (handoff §2), so this affects real use until there is a production deployment. This is the same race as F-14.
-- **Suggested fix:** guard the start with a ref (`if (startedRef.current === leadId) return`) or an idempotency key on `POST /api/calls`. Fixing F-14 also blocks the second lock.
-
 ### F-52 · Medium · Data · Lead edit accepts an invalid state (it then falls back to the New York time zone for calling hours) and crashes on a null name
 - **Where:** `backend/src/services/leadQueue.js` `updateFields` (`PUT /api/leads/:id`). There is no validation of `state` or `name`; compare `createLead`, which checks `US_STATES.includes(state)` and requires a name. `callingHours.timezoneForState` returns `America/New_York` for any unknown code (§4.10).
 - **Evidence** (`audit/logs/11-robustness.txt` §11.2):
@@ -673,6 +627,163 @@ Findings are numbered in the order found; §2 lists them by severity.
 - **Expected:** edit enforces the same rules as create (CLAUDE.md principle 4, "Every lead is tagged with a US state").
 - **Actual:** a typo in the state field silently moves the lead to Eastern-time calling hours and out of every state filter. Bad input gives 500s.
 - **Suggested fix:** share one validator between `createLead` and `updateFields` covering name (required, max length), phone (F-16), state (`US_STATES`) and email.
+
+### F-03 · Low · Architecture · SQL in route handlers (CLAUDE.md rule 4)
+- **Where:**
+  - `backend/src/routes/calls.js:67`, in `POST /api/calls`: `SELECT * FROM leads WHERE id = $1 AND status = $2 AND locked_by = $3 AND missing_phone = false`
+  - `backend/src/routes/imports.js:147`, in `POST /api/imports/process`: `SELECT source_rows FROM import_jobs WHERE id = $1 AND user_id = $2`
+- **Evidence:** `grep -nE "db\.query" backend/src/routes/*.js` (`audit/logs/01-static.txt`).
+- **Expected:** no SQL in routes.
+- **Actual:** two queries.
+- **Suggested fix:** move them to `leadQueue.getLockedByUser()` and `csvImport.getJobSourceRows()`.
+
+### F-04 · Low · Architecture · Lead status written outside `leadLifecycle.js` / the stale-lock sweep
+- **Where:**
+  - `services/callSession.js:346` `abandonSlotCall` → `status='in_queue'`
+  - `services/callSession.js:414` `reserveSlot` → `status='dnc'`
+  - `services/leadQueue.js:188` `scheduleCallback` → `status='callback_scheduled'`
+  - `services/leadQueue.js:93` `lockNext` → `in_progress`, which is the lock itself, arguably part of the queue
+- **Evidence:** grep in `audit/logs/01-static.txt`.
+- **Expected:** handoff §3 says "Every status change goes through `leadLifecycle.js` or the stale-lock sweep."
+- **Actual:** 3–4 other writers. `scheduleCallback` (`POST /api/leads/:id/callback`) changes status without a `call_history` row, snapshot or undo. The behavioral consequences are tested in §4.
+- **Suggested fix:** route these through small exported functions in `leadLifecycle.js` (`requeueAbandoned`, `markDncFromQueue`, `scheduleCallback`).
+
+### F-05 · Low · Architecture · Telephony adapter emits an undocumented `busy` event (CLAUDE.md rule 2)
+- **Where:** `backend/src/telephony/mockAdapter.js:46`: `onEvent({ type: 'busy' })`. `services/callSession.js` handles it (`event.type === 'busy'`). `telephony/index.js:24-31` still documents only `ringing | answered | voicemail_detected | ended`.
+- **Expected:** the interface does not change without discussion, or the docs are updated with it.
+- **Actual:** the contract was widened silently. A Twilio adapter written to the documented interface would never emit `busy`, so the multi-line busy path would not run.
+- **Suggested fix:** decide on `busy` and document it in `telephony/index.js` and CLAUDE.md, or map busy to `ended` in the adapter.
+
+### F-06 · Low · Security · Default login credentials committed in a public repo
+- **Where:** `backend/src/db/seeds/run.js:4-5`: `SEED_EMAIL … 'vortexoneagency@gmail.com'`, `SEED_PASSWORD … 'ChangeMe123!'`.
+- **Expected:** a dev seed password that is not reused anywhere real.
+- **Actual:** if the owner's real instance was seeded and the password never changed, anyone can log in; the CORS/Codespaces ports are public.
+- **Suggested fix:** require `SEED_USER_PASSWORD` from the environment, or print a random one on seed.
+
+### F-07 · Low · Server · Disallowed CORS origin returns HTTP 500 with a stack trace in the log
+- **Where:** `backend/src/index.js:39`, `corsOriginCheck` → `callback(new Error(...))` → `errorHandler`.
+- **Evidence** (`audit/logs/02-auth.txt`):
+  ```
+  curl $API/api/leads -H 'Origin: https://evil.example.com'
+  {"error":"Not allowed by CORS: https://evil.example.com"} [HTTP 500]
+  ```
+  The server log shows `Error: Not allowed by CORS … at corsOriginCheck (src/index.js:39:19)`. The preflight also returns `HTTP/1.1 500 Internal Server Error`.
+- **Expected:** a non-error rejection, i.e. no `Access-Control-Allow-Origin` header, status 403 or a plain 204 without CORS headers. Not a 500 that counts as a server error and logs a stack on every request.
+- **Actual:** HTTP 500. The browser still blocks the request, so this is not a security hole, but it pollutes the error logs and server-error metrics.
+- **Suggested fix:** `return callback(null, false)` for disallowed origins.
+
+### F-11 · Low · Import · Progress reaches 100% long before rows are written
+- **Where:** `csvImport.processImportJob`. `processed_rows` counts AI-cleaned rows only; the insert phase (`commitImport`) does not report progress.
+- **Evidence** (step j2, every poll printed):
+  ```
+  t= 0.7s  100%  status=processing  leads_written=1215
+  t= 1.3s  100%  status=processing  leads_written=2749
+  t= 2.5s  100%  status=completed   leads_written=5000
+  ```
+- **Expected:** progress reflects rows written.
+- **Actual:** the bar shows 100% while about 75% of rows are still pending. With real Groq latency, the gap is longer. This also widens the F-08 window.
+- **Suggested fix:** report two phases ("cleaning", then "saving N/M"), or weight the bar.
+
+### F-12 · Low · Import · The real scrape artifact (same name, everything else blank) is reported as "invalid", not merged
+- **Where:** `csvImport.js` `mergeDuplicateRows` / `localityKey`. The identity is name + locality, and a row whose locality is blank does not match a row with "Dallas".
+- **Evidence** (fixture `b_scrape.csv`, row b1 `Joshua Barkes,,,,,,`):
+  ```
+  "mergedDuplicates":1, "skippedInvalid":1, skippedDetails:[{"row":"Joshua Barkes","reason":"Could not determine a US state for this lead"}]
+  ```
+  The b2 variant (same name, same city kept) merged correctly.
+- **Expected:** the duplicate is merged, or reported as a duplicate.
+- **Actual:** no data is lost (the full row was imported), but the summary tells the user a row was invalid. The handoff described this exact pattern as one that merges.
+- **Suggested fix:** in `mergeDuplicateRows`, let a row with a blank locality merge into a single same-name row that has one.
+
+### F-13 · Low · Import · Upload validation gaps: any extension accepted, oversize gives 500, orphan jobs
+- **Where:** `routes/imports.js` `/upload` (no extension check, unlike `/preview`'s `requireCsvFile`); multer `limits.fileSize` 15 MB → `errorHandler`.
+- **Evidence:**
+  - `upload k_fake.pdf -> {"jobId":18, …"headers":["%PDF-1.4"]…}` (accepted)
+  - `upload k_wrong_ext.txt -> {"jobId":17…}` (accepted)
+  - `upload k_oversized.csv (16500017B) -> {"error":"File too large"} [HTTP 500]`
+  - `import_jobs`: `pending|2` left behind by uploads that were never processed
+- **Expected:** a 400 for non-CSV/XLSX files, a 413 for too large, and pending jobs expire.
+- **Actual:** as above. No crash, and the server stayed up (`/health` ok).
+- **Suggested fix:** check the extension on `/upload`. Map `err.code === 'LIMIT_FILE_SIZE'` to 413 in `errorHandler`. Delete pending jobs older than a day.
+
+### F-24 · Low · Lifecycle · The stale-lock sweep only runs on some reads; nothing runs it on a timer
+- **Where:** `leadQueue.releaseStaleLocks` is called from `candidates`, `lockNext`, `countsByState` and `list` only. Not from `search`, not on a schedule.
+- **Evidence** (§4.2):
+  ```
+  (a) without any queue read: DB status after 40s -> status=in_progress locked_at age=40s
+  (b) one GET /api/leads/state-counts -> status=in_queue
+  (c) polling GET /api/leads/search only: lead 53 still in_progress after 60s
+  (c2) polling GET /api/leads?pageSize=1 -> back to in_queue after 31s
+  ```
+- **Expected:** back in the queue about 30 s after hangup. **Actual:** correct when the dashboard is open; otherwise a lead stays `in_progress` until the next queue read. It isn't lost, but reports show it as in progress.
+- **Suggested fix:** a `setInterval(releaseStaleLocks, 10_000)` in `index.js`, or keep it lazy and document it.
+
+### F-25 · Low · Lifecycle · Calls that end without a disposition never get `ended_at`, so they stay open forever
+- **Where:** `callSession.js:52`, `:99` and `:190`. The adapter's `ended` event only does `UPDATE call_history SET telephony_state = $2`; `ended_at` and `duration_seconds` are set only by hangup or disposition.
+- **Evidence:** invariant I5, `dangling_calls: 35` (never dispositioned, never ended, older than 5 min). I6 shows leads with up to 11 open calls.
+- **Expected:** a call the network ended is closed with its duration.
+- **Actual:** the rows stay open. They feed duration and connect-rate maths and confuse "open call" checks.
+- **Suggested fix:** on `ended`, also set `ended_at = now()` and `duration_seconds = event.duration` when `ended_at IS NULL`.
+
+### F-26 · Low · Lifecycle · Turning the calling-hours toggle off takes ~13–15 s, not the documented 5 s
+- **Where:** `callingHours.js` `refreshEnforcedCache` / `isCallingHoursEnforced`. The first read after the cache expires returns the stale value and only *starts* the refresh.
+- **Evidence** (§4.11):
+  ```
+  immediately after OFF -> 422;  6s after OFF -> 422;  13 s after the settings row changed -> 201
+  ```
+- **Suggested fix:** await the refresh when the cache is stale, or have the settings `PUT` invalidate the cache directly.
+
+### F-31 · Low · Config · Invalid provider names are accepted at startup and only fail per request
+- **Where:** `telephony/index.js` `getAdapter`, `telephony/smsIndex.js` and `telephony/emailIndex.js` resolve the adapter lazily.
+- **Evidence:** `TELEPHONY_PROVIDER=bogus` gives "server STARTED", then the first call returns `500 Unknown TELEPHONY_PROVIDER: "bogus"`. `SMS_PROVIDER=bogus` gives `500 Unknown SMS_PROVIDER`.
+- **Suggested fix:** validate all three providers in `config/index.js` at boot, the way the missing-table check does.
+
+### F-35 · Low · Dispositions · Callback time not validated: past times accepted; garbage gives a 500 with a raw Postgres error
+- **Where:** `leadLifecycle.applyDisposition` only checks `!scheduledAt`. `new Date("next tuesday")` reaches Postgres.
+- **Evidence** (§6.1):
+  ```
+  scheduledAt 2020-01-01 -> "status":"callback_scheduled" "next_action_at":"2020-01-01T00:00:00.000Z" [HTTP 200]
+  scheduledAt "next tuesday" -> {"error":"invalid input syntax for type timestamp with time zone: \"0NaN-NaN-NaNTNaN:NaN:NaN.NaN+NaN:NaN\""} [HTTP 500]
+  ```
+  `POST /api/leads/:id/callback` validates (`leadQueue.js:183` "A valid callback date and time is required"); the disposition path doesn't.
+- **Suggested fix:** reuse that validation: a 400 for invalid times, a 400 (or a warning) for past ones.
+
+### F-36 · Low · Notes · A note can be linked to a call from a different lead
+- **Where:** `leadQueue.addNote` stores `callId` without checking `call_history.lead_id = leadId`.
+- **Evidence:** `POST /api/leads/69/notes {"callId":154}` (call 154 is lead 249) gave `"lead_id":69 "call_id":154 [HTTP 201]`.
+- **Suggested fix:** verify the call belongs to the lead, or 400.
+
+### F-41 · Low · Email · Empty subject accepted; mock send leaves no trace in the server log
+- **Where:** `services/emailService.js` (requires the body only); `telephony/mockEmailAdapter.js` (no output).
+- **Evidence:** `missing subject: … "subject":"" … "status":"sent" [HTTP 201]`; `mockEmailAdapter.js has no console output` (the SMS mock does log media).
+- **Suggested fix:** require a subject (or default one). Log `[mockEmailAdapter] would send to …` like the SMS mock.
+
+### F-42 · Low · Coaching · Pre-call brief says "A few agents … have already been interested" when there is exactly one
+- **Where:** `backend/src/services/preCallBrief.js`, the instant opener built from the `colleagues` summary.
+- **Evidence** (`audit/logs/08-objections-ai.txt` §8.8): a colleague summary of `"interested":1` gives the opener `A few agents at Compass · Miami, FL have already been interested in what we do.`
+- **Expected:** plain, accurate coaching for newer callers (handoff §1), e.g. "Another agent at …".
+- **Actual:** it overstates the evidence. A rep repeating it to the lead would be saying something untrue.
+- **Suggested fix:** branch on the count (1 → "Another agent", 2+ → "{n} agents").
+
+### F-43 · Low · Rebuttal coach · Flagged suggestions can be approved with no warning, then become top few-shot examples and the call-screen hint
+- **Where:** `rebuttalCoach.reviewSuggestion` (no check on `review_note`). `fewShotExamples` puts approved ones first. `getHints` shows the newest approved.
+- **Evidence** (§8.4–8.5):
+  - Approving #8 ("needs manual rewrite: used 'innovative', 'optimize'") returned `"status":"approved" [HTTP 200]`.
+  - The hint became `{"text":"Our innovative solution will optimize your day.","source":"ai"}`.
+  - The next prompt's `Example 1 (approved by the team): "Our innovative solution will optimize your day."`.
+- **Expected:** a suggestion that failed the banned-phrase or length check can't be approved unedited, or the reviewer gets an explicit warning.
+- **Actual:** the feedback loop can teach the model the exact phrases the prompt bans.
+- **Suggested fix:** in `reviewSuggestion`, reject approval while `review_note` starts with "needs manual rewrite" unless the text was edited. Re-run `describeViolations` on approval.
+
+### F-44 · Low · Rebuttal coach · Each "Regenerate" adds another pending batch and the list shows all of them
+- **Where:** `rebuttalCoach.js`, the list query (`:255-258`, `status IN ('approved','pending') ORDER BY … generated_at DESC`). Its comment says "then the newest pending batch", but it returns every pending row.
+- **Evidence:** after 4 regenerations the response held 12 suggestions, including the earlier batches and the flagged ones. `pending queue (reviewer view): 12 pending`.
+- **Suggested fix:** return only the latest `generated_at` batch of pending rows, or expire older pending batches on regenerate.
+
+### F-49 · Low · Reports · The PDF phone column is too narrow, so every number wraps onto two lines
+- **Where:** `pdfExport.js` column widths.
+- **Evidence:** the extracted text shows `+121455510` / `50` on two lines for every row (§9.1).
+- **Suggested fix:** widen the Phone column and format it `(214) 555-1050`. "Duration" also wraps to `Durati`/`on` in the header.
 
 ### F-53 · Low · API · Query/body validation gaps give 500s with raw Postgres messages, an unbounded page size, and unescaped LIKE wildcards
 - **Where:**
@@ -976,14 +1087,73 @@ The headless browser was the pre-installed Playwright Chromium. `npx playwright 
 | Indexes on status / state / next_action_at | **Pass** | `idx_leads_status`, `idx_leads_state`, `idx_leads_next_action_at` (plus `deleted_at`, partial `missing_phone`, `office_key`, gin `tags`, unique `phone`) |
 | Query plans | **Info** | The queue candidates query uses a `Seq Scan` + top-N heapsort, `Execution Time: 14.381 ms`. The ILIKE search is a `Seq Scan`, 14.7 ms. Fine at 15k; a trigram index would be needed around 100k+. Every `GET /api/leads` also runs `releaseStaleLocks()` (an UPDATE) and `peekNext()`, and the dashboard polls it every 5 s |
 
-## 5. Can't verify
-*pending*
+## 5. Can't verify, and why
 
-## 6. Architecture-rule compliance
-*pending*
+| Item | Why | What *was* verified instead |
+|---|---|---|
+| Real Groq output quality (column mapping, row cleaning, rebuttals, brief, note expansion) | No real API key is available, and the container has no route to Groq (`Import chunk failed after 3 attempts: Connection error.`). The committed key (F-01) was deliberately **not** used | Prompt assembly, parsing, validation, retry, fallback, timeout, cache and storage, all against the labelled stub `audit/stubs/groq-stub-server.js` |
+| Real telephony (Twilio/Telnyx), real recording, mute/hold audio | Not built (phase 2); the brief forbids real calls | The mock adapter, with outcomes forced by `audit/stubs/force-outcome.js`; the Twilio adapter fails loudly |
+| Real SMS / MMS delivery, carrier STOP handling | Not built (mock only); no inbound path exists | Outbound mock sends, throttling, opt-out flag; inbound rendering with DB-seeded rows |
+| Real email (SendGrid) | Not built | Mock adapter |
+| `npx playwright install chromium` | Forbidden in this environment ("do not run playwright install") | The pre-installed Chromium + Playwright ran every UI check |
+| Behaviour on the owner's Codespace DB | That DB isn't reachable from here | A fresh local Postgres 16 with the same migrations |
+| Monthly banner "after a month" | Would need a month of elapsed state | Trigger logic read in code (§8.6); rendering seen in §10 |
 
-## 7. Observations needing a decision
-*pending*
 
-## 8. Suggested fix order
-*pending*
+## 6. Architecture-rule compliance (CLAUDE.md + handoff §3)
+
+| Rule | Result | Evidence |
+|---|---|---|
+| P1 / R1: API-first, frontend never touches the DB | **Pass** | `grep -rnE "\bpg\b\|postgres\|DATABASE_URL" frontend/src` gives none. All 76 UI calls go through `lib/api.js`. *But* several settings live only in `localStorage` (F-48) |
+| P2 / R2: telephony adapter interface unchanged | **Partial** | The signature is unchanged (`telephony/index.js:38`), but an undocumented `busy` event was added (F-05) |
+| P3: no lead silently disappears / exactly one status | **Partial** | Invariant I1: 0 bad statuses; lead count conserved. *But* the name cascade silently colds other people (F-17), no-contact-number leads are parked with no rule (F-23), and held calls are orphaned on stop (F-29) |
+| P4: every lead state-tagged; calling hours per zone | **Partial** | Create and import enforce a state; edit doesn't (F-52); multi-zone states (F-18) |
+| P5 / R3 / R8: small targeted changes | N/A (audit) | — |
+| R4: route in `/routes`, logic in `/services`, no SQL in routes | **Fail** (minor) | `routes/calls.js:67`, `routes/imports.js:147` (F-03) |
+| R5: new UI uses `/components/ui/` primitives, no hand-rolled shadows | **Pass** | `grep -rnE "boxShadow\|shadow-\[" frontend/src` outside `components/ui/` gives `count outside ui/: 0`. 17 files apply the shared `shadow-neu*` Tailwind tokens directly (theme tokens, not hand-rolled values). `audit/logs/12-final.txt` |
+| R6: commit after every working feature | **Fail** (process) | Multi-feature batch branches (e.g. "Parts D+E+F", PR #8) |
+| R7: env vars for anything that changes; never hardcode | **Fail** | The Groq key literal (F-01); `http://localhost:5173` and `http://localhost:4000/api` as fallbacks (acceptable defaults) |
+| Handoff §3: status changes only via `leadLifecycle.js` or the sweep | **Fail** | `callSession.js:346`, `:414`, `leadQueue.js:188` (F-04) |
+| Handoff §3: STOP sets `sms_opt_out` only, never DNC | **Pass** for manual opt-out / **Missing** for STOP | §7.3 (F-37) |
+| Handoff §3: DNC permanent and blocks re-import | **Partial** | Import blocks it; Undo removes it within 10 s; the edit path bypasses it (F-16) |
+| Handoff §3: pluggable SMS/email providers with mocks | **Pass** | `SMS_PROVIDER`/`EMAIL_PROVIDER` selected by env; validation gap F-31 |
+
+
+## 7. Observations that need a decision (not bugs)
+
+1. **Calling hours are off by default.** That is the owner's testing choice (handoff §4), but in production the TCPA window is unenforced until someone flips the toggle. Decide whether it defaults ON outside dev.
+2. **SMS quiet hours and SMS DNC scrubbing.** Texts ignore calling hours (F-39). Decide whether a call-DNC lead may still receive email: it can today (§7.7, lead 11). Legally distinct, but a business decision.
+3. **Undo removes a number from the DNC list** (§4.8e). That's useful for a mis-click, but "DNC is permanent" (handoff §3). Decide whether DNC undo is allowed, and whether to log it.
+4. **Abandoned-call rules for multi-line.** With real telephony, a "held" second answer is a live person waiting in silence. FCC/TCPA abandoned-call rules (2-second connect, ≤3% abandonment, recorded message) apply to predictive/multi-line dialing; this needs a design decision before Phase 2. F-28 makes it worse.
+5. **"Recording" badge timing.** The live badge shows for every answered call (`CallHeader.jsx:53`), but only `contacted` calls keep `was_recorded`. Combined with two-party-consent states, the pitch script notice (handoff §5) should come before real recording.
+6. **Redial counts as a new attempt** (§4.11, calls 59–62 on one lead). That's reasonable, but repeated redials can exhaust `max_attempts` within minutes.
+7. **Per-state report covers all time, including deleted leads** (§9.2). Decide whether it should follow the date filters.
+8. **Callback times are entered in the rep's browser zone** (Pakistan). A lead saying "call me at 10" means 10 in *their* zone; consider entering callbacks in the lead's local time.
+9. **Single-process state.** Multi-line sessions (`multilineSessions`), the AI brief cache and the calling-hours cache are in memory. Fine for one Codespace; a second backend instance or a restart loses them (§5.5).
+10. **The "today" / daily-report timezone** (F-34) is a choice: Pakistan shift vs US Eastern.
+
+
+## 8. Suggested fix order (one small task per Claude Code session)
+
+Each item is sized for its own session, with a described real test (re-run the named `audit/` script).
+
+1. **Rotate the Groq key and remove the literal** (F-01). Revoke in the Groq console, then `groqApiKey: process.env.GROQ_API_KEY || null`. *Test:* `GROQ_API_KEY= node -e 'console.log(require("./src/config").groqApiKey)'` prints `null`.
+2. **Atomic lead locking** (F-14, also fixes most of F-27 and F-51). `UPDATE … WHERE id = (SELECT … FOR UPDATE SKIP LOCKED LIMIT 1)` for next-lead; a status guard for by-ID. *Test:* §4.1 `xargs -P20` gives 20 distinct leads.
+3. **Serialize multi-line refills per session** (F-27). *Test:* `sse-session.js` 3 lines with forced `no_answer` gives no duplicate `lead_id` per session.
+4. **Stale-lock sweep only after hangup, or heartbeat** (F-15); disposition ownership (F-32). *Test:* §4.3 two-user script: lead stays locked at 33 s; user 2's disposition gives 403.
+5. **Normalise and validate `updateFields`** (F-16, F-52) and **check `dnc_list` in `lockNext`** (F-16, F-22). *Test:* §4.8h chain gives 409; state `ZZ` gives 400; soft-deleted dial gives 404.
+6. **Fix the undo-callback SQL** (F-21). *Test:* §4.9 callback undo gives 200 and the `callbacks` row is removed.
+7. **Call-screen polling vs rate limit** (F-50). *Test:* `ui-ratelimit-window.js` (WAIT_MS=50500) gives disposition 200.
+8. **Calling hours: dial pad** (F-19), **starvation** (F-20), **multi-zone** (F-18), toggle lag (F-26). One session each. *Tests:* §4.11 manual dial gives 422; §4.12 serves TX; `calling-hours.js` multi-zone rows within 8–21 local.
+9. **Remove or scope the no-contact-person name cascade** (F-17). *Test:* §4.7 gives `cascadedLeadIds:[]` for different states.
+10. **PDF summary from the requested date** (F-45); a Unicode font (F-46); the phone column (F-49). *Test:* §9.1 2026-01-01 shows 0 dials; Urdu note extracts intact.
+11. **Stop multi-line when the SSE listener leaves** (F-28); **close held/answered calls on stop and on boot** (F-29); **end calls on the adapter `ended` event** (F-25); **roll back a failed `placeCall`** (F-30).
+12. **Inbound SMS endpoint + STOP/START keywords** (F-37), then **placeholder validation** (F-38) and **SMS quiet hours** (F-39).
+13. **Settings hardening:** write-only key, supervisor-only PUT, key whitelist (F-47); move dialing defaults server-side and apply max attempts (F-48).
+14. **Uploads hardening** (F-40, F-13).
+15. **Import:** cancel during write (F-08), keep extensions and raw phone (F-09), `office` synonym in `guessMapping` (F-10), progress phases (F-11), blank-row merge (F-12).
+16. **Reporting day boundary as a setting** (F-34); include mid-call notes in Previous Notes (F-33).
+17. **Dependency updates** (`npm audit fix`; replace `xlsx`) (F-02).
+18. **Low-severity cleanup batch** (one session per 2–3 items): F-03, F-04, F-05, F-06, F-07, F-24, F-31, F-35, F-36, F-41, F-42, F-43, F-44, F-53, F-54.
+19. **Process:** merge the open PR stack (or retire it) so `main` matches `latest`; add automated tests for the lifecycle, DNC and disposition logic (handoff §6). The `audit/scripts/*.sh|js` repros are a starting point.
+
