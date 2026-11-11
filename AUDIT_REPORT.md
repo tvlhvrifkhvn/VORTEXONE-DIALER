@@ -139,6 +139,80 @@ Findings are numbered in the order found; §2 lists them by severity.
 - **Actual:** HTTP 500. The browser still blocks the request, so this is not a security hole, but it pollutes the error logs and server-error metrics.
 - **Suggested fix:** `return callback(null, false)` for disallowed origins.
 
+### F-08 · Medium · Import · Cancel during the write phase is ignored but reported as successful
+- **Where:** `backend/src/services/csvImport.js` `processImportJob`. The last cancel check is at `:466` ("Final gate"); after that, `commitImport()` inserts every row without checking the flag. `cancelImportJob` (`:552`) returns `{cancelled:true}` regardless.
+- **Evidence** (`audit/logs/03-import.txt`, step j3):
+  ```
+  at cancel: 100% status=processing leads_written=393
+  cancel -> {"cancelled":true,"jobId":16} [HTTP 200]
+  after: job=completed cancelled_flag=true leads_written=5000
+  ```
+- **Repro:**
+  1. Upload a 5,000-row CSV and process it.
+  2. Poll `/api/imports/status/:id` until `percentage` is 100 while `status` is still `processing`.
+  3. `POST /api/imports/cancel/:id`.
+- **Expected:** either the cancel stops the inserts, or the API answers that it's too late to cancel.
+- **Actual:** the user is told the import was cancelled, all 5,000 leads are imported, and the job ends `completed`. Cancelling before the write phase does work (step j-cancel: `status=cancelled`, 0 leads written).
+- **Suggested fix:** in `cancelImportJob`, refuse (409) once commit has started. Or check the flag every N rows inside `commitImport` and stop.
+
+### F-09 · Medium · Import · Phone numbers with an extension or letters are discarded and the original value is lost
+- **Where:** `backend/src/utils/phoneNormalize.js:7` `normalizePhone`, which keeps only digits and requires exactly 10 or 11. `csvImport.commitImport` then imports the row with `phone=NULL, missing_phone=true`.
+- **Evidence** (fixture `f_phones.csv`):
+  ```
+  Phone Extension | NULL | missing_phone t     (input "602-555-0605 x123")
+  Phone Letters   | NULL | missing_phone t     (input "602-555-CALL")
+  ```
+  `importedWithoutPhone: 5` for this file. Neither the raw value nor the extension is stored anywhere (`leads` has no raw-phone column), so the lead shows "No number".
+- **Expected:** `x123`/`ext. 123` is split off and kept, and vanity letters are converted. At minimum, keep the raw string so the rep can see it.
+- **Actual:** a real, dialable number is thrown away and the lead becomes non-dialable.
+- **Suggested fix:** strip `\s*(x|ext\.?)\s*\d+$` before counting digits and store the extension. Map letters to keypad digits. Keep the raw input in a column.
+
+### F-10 · Medium · Import · With AI unavailable, the `office` column is never mapped, so brokerage comes from `source` (website domains)
+- **Where:** `backend/src/services/csvImport.js` `guessMapping`, used by `routes/imports.js` `/upload` whenever `aiCsvMapper.mapColumns` fails or is unavailable. It only matches header text containing a field name (`brokerage`, `source`, …); a header named `office` matches nothing.
+- **Evidence** (`audit/logs/03-import.txt`, fixture a, real path with Groq unreachable):
+  ```
+  upload a_clean.csv: mapping={"name":"name","phone":"phone","email":"email","state":"state","city":"city","source":"source"}
+  Alice Archer | ... | kw.com | TX
+  ```
+  With the stub mapping, the same file maps `brokerage: "office"` and gives "Keller Williams".
+- **Expected:** the handoff's typical file (`office` + `source` columns) maps `office` → brokerage even without AI.
+- **Actual:** every lead gets the website domain as brokerage. Colleague intel (§8) then groups by the wrong office key.
+- **Suggested fix:** add synonyms to `guessMapping` (`office|company|brokerage` → brokerage, `mobile|cell` → phone).
+
+### F-11 · Low · Import · Progress reaches 100% long before rows are written
+- **Where:** `csvImport.processImportJob`. `processed_rows` counts AI-cleaned rows only; the insert phase (`commitImport`) does not report progress.
+- **Evidence** (step j2, every poll printed):
+  ```
+  t= 0.7s  100%  status=processing  leads_written=1215
+  t= 1.3s  100%  status=processing  leads_written=2749
+  t= 2.5s  100%  status=completed   leads_written=5000
+  ```
+- **Expected:** progress reflects rows written.
+- **Actual:** the bar shows 100% while about 75% of rows are still pending. With real Groq latency, the gap is longer. This also widens the F-08 window.
+- **Suggested fix:** report two phases ("cleaning", then "saving N/M"), or weight the bar.
+
+### F-12 · Low · Import · The real scrape artifact (same name, everything else blank) is reported as "invalid", not merged
+- **Where:** `csvImport.js` `mergeDuplicateRows` / `localityKey`. The identity is name + locality, and a row whose locality is blank does not match a row with "Dallas".
+- **Evidence** (fixture `b_scrape.csv`, row b1 `Joshua Barkes,,,,,,`):
+  ```
+  "mergedDuplicates":1, "skippedInvalid":1, skippedDetails:[{"row":"Joshua Barkes","reason":"Could not determine a US state for this lead"}]
+  ```
+  The b2 variant (same name, same city kept) merged correctly.
+- **Expected:** the duplicate is merged, or reported as a duplicate.
+- **Actual:** no data is lost (the full row was imported), but the summary tells the user a row was invalid. The handoff described this exact pattern as one that merges.
+- **Suggested fix:** in `mergeDuplicateRows`, let a row with a blank locality merge into a single same-name row that has one.
+
+### F-13 · Low · Import · Upload validation gaps: any extension accepted, oversize gives 500, orphan jobs
+- **Where:** `routes/imports.js` `/upload` (no extension check, unlike `/preview`'s `requireCsvFile`); multer `limits.fileSize` 15 MB → `errorHandler`.
+- **Evidence:**
+  - `upload k_fake.pdf -> {"jobId":18, …"headers":["%PDF-1.4"]…}` (accepted)
+  - `upload k_wrong_ext.txt -> {"jobId":17…}` (accepted)
+  - `upload k_oversized.csv (16500017B) -> {"error":"File too large"} [HTTP 500]`
+  - `import_jobs`: `pending|2` left behind by uploads that were never processed
+- **Expected:** a 400 for non-CSV/XLSX files, a 413 for too large, and pending jobs expire.
+- **Actual:** as above. No crash, and the server stayed up (`/health` ok).
+- **Suggested fix:** check the extension on `/upload`. Map `err.code === 'LIMIT_FILE_SIZE'` to 413 in `errorHandler`. Delete pending jobs older than a day.
+
 ## 4. Verified working
 
 ### §1 Static checks (`audit/logs/01-static.txt`)
@@ -173,7 +247,52 @@ Findings are numbered in the order found; §2 lists them by severity.
 | Startup with a bad DB password | **Pass** | `Could not verify the database schema on startup: password authentication failed for user "vortex"`, exit 1. On `latest` this fails fast at startup; on `main` it only surfaced at login, which is the error the owner hit in Codespaces |
 | CORS allowed origin | **Pass** | `http://localhost:5173` gets `204` + `Access-Control-Allow-Origin: http://localhost:5173` |
 | CORS `*.app.github.dev`, dev only | **Pass** | `https://glorious-fiesta-x-5173.app.github.dev` is allowed with `NODE_ENV=development` and refused with `NODE_ENV=production`. Look-alikes `https://evil.app.github.dev.attacker.com` and `http://x.app.github.dev` are refused in both modes. Refusals are an HTTP 500 (F-07) |
-| Unreachable API message | **Pass** | Production build with the backend stopped: `Couldn't reach the server — check that the backend is running and the app's URL is up to date`, after `POST http://localhost:4000/api/auth/login -> net::ERR_CONNECTION_REFUSED`. Screenshot: `audit/screenshots/02-login-backend-down.png` |
+| Unreachable API message (see below) | **Pass** | Production build with the backend stopped: `Couldn't reach the server — check that the backend is running and the app's URL is up to date`, after `POST http://localhost:4000/api/auth/login -> net::ERR_CONNECTION_REFUSED`. Screenshot: `audit/screenshots/02-login-backend-down.png` |
+
+
+### §3 Import and data cleaning (`audit/logs/03-import.txt`)
+
+All imports used the real background-job path: `POST /api/imports/upload`, then `/process` with the upload's mapping, then polling `/status/:id`.
+
+- **Fixture (a)** ran with Groq genuinely unreachable (dummy key).
+- **Everything else** ran with `GROQ_BASE_URL` pointed at `audit/stubs/groq-stub-server.js`. **The AI mapping and cleaning there are stubbed**: they prove the code around the model, not the model.
+
+**Row conservation** (`totalRows = imported + mergedDuplicates + skippedDnc + skippedDuplicate + skippedInvalid + aiSkipped`), taken from each `resultSummary`:
+
+| Fixture | totalRows | imported | merged | DNC | dup | invalid | Sum | Leads actually added (DB) |
+|---|---|---|---|---|---|---|---|---|
+| a clean (no AI) | 10 | 9 | 0 | 0 | 1 (fixture phone collided with a seed lead) | 0 | 10 ✓ | 9 |
+| b scrape | 4 | 2 | 1 | 0 | 0 | 1 (see F-12) | 4 ✓ | 2 |
+| c source | 2 | 2 | 0 | 0 | 0 | 0 | 2 ✓ | 2 |
+| d no phone | 2 | 2 | 0 | 0 | 0 | 0 | 2 ✓ | 2 (`missing_phone=t`, phone `NULL`) |
+| e merge | 4 | 3 | 1 | 0 | 0 | 0 | 4 ✓ | 3 |
+| f phones | 10 | 10 | 0 | 0 | 0 | 0 | 10 ✓ | 10 (5 phoneless, F-09) |
+| g state | 6 | 6 | 0 | 0 | 0 | 0 | 6 ✓ | 6 |
+| h DNC | 2 | 1 | 0 | 1 | 0 | 0 | 2 ✓ | 1 |
+| h2 DNC reformatted | 2 | 0 | 1 | 1 | 0 | 0 | 2 ✓ | 0 |
+| i xlsx | 3 | 3 | 0 | 0 | 0 | 0 | 3 ✓ | 3 |
+| j 5,000 | 5000 | 5000 | 0 | 0 | 0 | 0 | 5000 ✓ | 5000 |
+| l a_clean again | 10 | 0 | 0 | 1 | 9 | 0 | 10 ✓ | 0 (count 48 → 48) |
+| l2 phoneless again | 2 | 0 | 0 | 0 | 2 | 0 | 2 ✓ | 0 |
+
+| Check | Result | Evidence |
+|---|---|---|
+| Name + city merge (e) | **Pass** | "Pat Price" Austin and Houston stay **2 leads**. "Quinn Quade" Austin ×2 becomes **1 lead** with the email from the second row |
+| Scrape artifact (b) | **Partial** | b2 (same city kept) merged, and the license text was stripped from the name. b1 (everything blank) is "invalid" (F-12) |
+| `office` → `source` fallback (c) | **Pass** (with mapping) / **Fail** without AI (F-10) | `Lia Lane` (office blank) gets `Compass`; `Max Moore` keeps `Douglas Elliman` |
+| Phoneless → `missing_phone`, never queued | **Pass** | Imported with `phone NULL, missing_phone t`. `POST /api/calls {leadId}` returned `409 "This lead has no phone number yet — add one before calling."`. `POST /api/leads/batch-queue` returned `{"leads":[]}`. `candidates()` filters `missing_phone = false` (`leadQueue.js:43`) |
+| Phone formats (f) | **Partial** | `+1 (602)…`, `(602)…`, `602-555-…`, 10-digit and `16025550609` all became `+1602…`. Extension and letters are dropped (F-09). `+44…`, `555-0608` and junk are correctly treated as no phone |
+| State (g) | **Pass** | `fl` → FL, `Florida` → FL, blank → HI from area code 808. Invalid `ZZ` was inferred from the area code (HI), not rejected, which is acceptable. A given state wins over the area code (`TX` with 808) |
+| DNC on import (h) | **Pass** | `skippedDnc:1, reason "Phone number is on the DNC list: +12145550101"`. A reformatted `214.555.0101` is also blocked (normalised before the check) |
+| Multi-sheet xlsx (i) | **Pass** | 3 sheets (one with reordered columns, one empty) gave 3 leads with the right states |
+| 5,000 rows (j) | **Pass** | `imported:5000`, lead delta exactly 5000, 16.4 s with a 150 ms stub delay per AI call. Progress is monotonic (0 → 8 → 17 → 26 → 61 → 100%) but runs ahead of the writes (F-11) |
+| Cancel mid-cleaning | **Pass** | Cancelled at 840/5000: `status=cancelled`, **0 leads written**, still the same 5 s later |
+| Cancel mid-write | **Fail** | F-08 |
+| Second import (l) | **Pass** | No duplicates: lead count 48 → 48 for both the phone file and the phoneless file (name + state dedup) |
+| Bad files (k) | **Pass** (clean failures) with gaps (F-13) | Empty, header-only and no-file uploads give 400 with clear messages. Malformed CSV gives `400 "Could not parse CSV: Quote Not Closed … at line 3"` and 0 rows written. Unknown job gives 404. No stack trace in any body. `/health` was ok afterwards |
+| Real-Groq-unreachable fallback (a) | **Pass** (behaviour) | A 10-row file took 12.2 s (SDK retries plus the app's 2 s and 4 s back-off), `needsManualReview:10`, and the rows were still imported uncleaned |
+
+Lead-count baseline at the end of §3: **15,048** leads (`select count(*) from leads`). §4–§6 invariants compare against it.
 
 ## 5. Can't verify
 *pending*
