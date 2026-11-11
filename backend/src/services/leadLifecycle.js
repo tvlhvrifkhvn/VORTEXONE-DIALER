@@ -344,8 +344,10 @@ async function snooze({ leadId }) {
  * The lead's phone number was just changed (leadQueue.updateFields calls this
  * after saving the new number). A lead parked as no_contact_number because
  * its number was bad goes back to in_queue: attempts are kept, next_action_at
- * is cleared, and a timeline note records why. Any other status is left as
- * it is. Returns the lead as it now stands.
+ * is cleared, and a timeline note records why. A lead imported without a
+ * number (missing_phone) becomes dialable: the flag is cleared, its status
+ * stays as it was (normally 'new'), and a note records it. Any other status
+ * is left as it is. Returns the lead as it now stands.
  */
 async function phoneNumberChanged(leadId) {
   const client = await db.getClient();
@@ -364,6 +366,19 @@ async function phoneNumberChanged(leadId) {
       await client.query('INSERT INTO lead_notes (lead_id, body) VALUES ($1, $2)', [
         leadId,
         'Number changed, back in queue',
+      ]);
+    }
+    if (lead && lead.missing_phone && lead.phone) {
+      ({ rows: [lead] } = await client.query(
+        `UPDATE leads
+         SET missing_phone = false, notes_count = notes_count + 1, updated_at = now()
+         WHERE id = $1
+         RETURNING *`,
+        [leadId]
+      ));
+      await client.query('INSERT INTO lead_notes (lead_id, body) VALUES ($1, $2)', [
+        leadId,
+        'Number added, lead is now dialable',
       ]);
     }
     await client.query('COMMIT');

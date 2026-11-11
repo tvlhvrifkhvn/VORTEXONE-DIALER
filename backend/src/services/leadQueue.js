@@ -454,12 +454,18 @@ const EDITABLE_FIELDS = ['name', 'phone', 'email', 'address', 'brokerage', 'stat
  * plain contact fields are editable this way — lifecycle fields (status,
  * attempts, etc.) go through leadLifecycle instead. */
 async function updateFields(leadId, fields) {
-  const keys = EDITABLE_FIELDS.filter((f) => fields[f] !== undefined);
-  if (keys.length === 0) throw new ApiError(400, 'No editable fields provided');
-
   const { rows: currentRows } = await db.query('SELECT * FROM leads WHERE id = $1 AND deleted_at IS NULL', [leadId]);
   const current = currentRows[0];
   if (!current) throw new ApiError(404, 'Lead not found');
+
+  // The edit form sends every field. A blank phone on a lead that has no
+  // number yet (imported without one) means "no change", not "invalid".
+  if (current.phone == null && fields.phone !== undefined && String(fields.phone ?? '').trim() === '') {
+    fields = { ...fields, phone: undefined };
+  }
+
+  const keys = EDITABLE_FIELDS.filter((f) => fields[f] !== undefined);
+  if (keys.length === 0) throw new ApiError(400, 'No editable fields provided');
 
   // Same rules as create() for the fields being edited: name, E.164 phone
   // (never a DNC-listed number — that was how a DNC'd number got dialed),
