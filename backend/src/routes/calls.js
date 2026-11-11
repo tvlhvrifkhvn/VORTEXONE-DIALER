@@ -94,15 +94,16 @@ router.get(
 );
 
 // A manual (dial-pad) call has no lead to release or disposition — branch
-// before delegating to leadLifecycle, which assumes a lead.
+// before delegating to leadLifecycle, which assumes a lead. Both services
+// check that req.user placed the call (or is a supervisor) — 403 otherwise.
 router.post(
   '/:id/hangup',
   asyncHandler(async (req, res) => {
     const call = await callSession.get(req.params.id);
     if (!call) return res.status(404).json({ error: 'Call not found' });
     const result = call.lead_id
-      ? await leadLifecycle.hangup({ callHistoryId: req.params.id })
-      : await callSession.endManualCall(req.params.id);
+      ? await leadLifecycle.hangup({ callHistoryId: req.params.id, user: req.user })
+      : await callSession.endManualCall(req.params.id, req.user);
     res.json(result);
   })
 );

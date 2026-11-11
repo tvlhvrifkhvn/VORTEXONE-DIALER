@@ -13,7 +13,9 @@ router.post(
     if (!callId || !disposition) {
       return res.status(400).json({ error: 'callId and disposition are required' });
     }
-    const result = await leadLifecycle.applyDisposition({ callHistoryId: callId, disposition, note, scheduledAt });
+    const result = await leadLifecycle.applyDisposition({
+      callHistoryId: callId, disposition, note, scheduledAt, user: req.user,
+    });
     res.json(result);
   })
 );
@@ -21,7 +23,7 @@ router.post(
 router.post(
   '/:callId/undo',
   asyncHandler(async (req, res) => {
-    const lead = await leadLifecycle.undoDisposition({ callHistoryId: req.params.callId });
+    const lead = await leadLifecycle.undoDisposition({ callHistoryId: req.params.callId, user: req.user });
     res.json({ lead });
   })
 );

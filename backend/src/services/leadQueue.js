@@ -21,18 +21,53 @@ const CANDIDATE_ORDER_SQL = `
            created_at ASC
 `;
 
+// Safety ceiling for a call that never closes (browser closed mid-call, a
+// lost `ended` event): an open call older than this no longer protects its
+// lead from the sweep. Env MAX_LIVE_CALL_MINUTES, default 240 (4 hours).
+function maxLiveCallMinutes() {
+  const value = Number(process.env.MAX_LIVE_CALL_MINUTES);
+  return Number.isFinite(value) && value > 0 ? value : 240;
+}
+
 /**
  * A rep who hangs up without submitting a disposition keeps the lead locked
  * for a 30s grace period (see leadLifecycle.hangup), after which it should
- * silently become dialable again. Rather than run a background sweep, every
- * read of the queue lazily releases any lock past that grace period first.
+ * silently become dialable again. Every read of the queue lazily releases any
+ * lock past that grace period first, and index.js also runs this on a timer.
+ *
+ * A lock is stale only when locked_at is past the grace period AND the lead
+ * has no open call (call_history row with ended_at and disposition both
+ * empty) — a rep on a live call keeps the lead however long it lasts. An
+ * open call older than maxLiveCallMinutes() counts as dangling: the lead is
+ * released and that call row is closed (ended_at = now()). One statement,
+ * so a lead is never released while a check about it is half done.
  */
 async function releaseStaleLocks() {
-  await db.query(
-    `UPDATE leads
+  const { rows } = await db.query(
+    `WITH stale AS (
+       SELECT l.id FROM leads l
+       WHERE l.status = 'in_progress'
+         AND l.locked_at < now() - interval '${LOCK_TIMEOUT_SECONDS} seconds'
+         AND NOT EXISTS (
+           SELECT 1 FROM call_history c
+           WHERE c.lead_id = l.id AND c.ended_at IS NULL AND c.disposition IS NULL
+             AND c.started_at > now() - $1::float8 * interval '1 minute'
+         )
+       FOR UPDATE OF l SKIP LOCKED
+     ), closed_calls AS (
+       UPDATE call_history c SET ended_at = now()
+       FROM stale
+       WHERE c.lead_id = stale.id AND c.ended_at IS NULL AND c.disposition IS NULL
+       RETURNING c.id
+     )
+     UPDATE leads l
      SET status = 'in_queue', locked_by = NULL, locked_at = NULL, updated_at = now()
-     WHERE status = 'in_progress' AND locked_at < now() - interval '${LOCK_TIMEOUT_SECONDS} seconds'`
+     FROM stale
+     WHERE l.id = stale.id
+     RETURNING l.id`,
+    [maxLiveCallMinutes()]
   );
+  return rows.map((r) => r.id);
 }
 
 async function candidates(limit = 50) {
