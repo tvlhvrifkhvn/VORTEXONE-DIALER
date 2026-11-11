@@ -579,6 +579,59 @@ Findings are numbered in the order found; §2 lists them by severity.
 - **Evidence:** after 4 regenerations the response held 12 suggestions, including the earlier batches and the flagged ones. `pending queue (reviewer view): 12 pending`.
 - **Suggested fix:** return only the latest `generated_at` batch of pending rows, or expire older pending batches on regenerate.
 
+### F-45 · High · Reports · The daily PDF for any date shows today's Total Dials, Contacts and Connect Rate
+- **Where:** `backend/src/services/pdfExport.js` `buildDailyReportBuffer`: `const todayStats = await reports.todayStats();` feeds `summary.dials`, `contacts` and `connectRate`. Only voicemails, no-answers and DNC are computed from that date's rows.
+- **Evidence** (`audit/logs/09-reports.txt` §9.1; today = 175 dials, 8 contacts):
+  ```
+  ?date=2026-01-01 (no calls)   Total Dials 175  Contacts 8  Voicemails 0   …  Connect Rate 5%   "No calls recorded for this date."
+  ?date=2026-10-02 (500 calls)  Total Dials 175  Contacts 8  Voicemails 100  No Answers 100  DNC 100  Connect Rate 5%
+  ```
+- **Repro:** `GET /api/exports/daily-pdf?date=2026-01-01`, then `pdftotext`.
+- **Expected:** every summary number is for the requested date (here: 0, and 500 / 100 contacts / 20%).
+- **Actual:** the headline numbers are today's, contradicting the table beneath them. Any past-date export misreports results.
+- **Suggested fix:** compute dials, contacts and connect rate from the same `rows` query (or a date-parameterised `reports.statsForRange(start, end)`).
+
+### F-46 · Medium · Reports · The PDF garbles emoji, Urdu and Arabic, and other non-Latin text
+- **Where:** `pdfExport.js` uses only the built-in `Helvetica`/`Helvetica-Bold` (WinAnsi encoding, `:63-159`); no Unicode TTF is registered.
+- **Evidence:** extracted text of notes written as `emoji 😀🎉 note` and `Urdu: آپ کیسے ہیں — Arabic مرحبا`:
+  ```
+  emoji Ø=ÞØ<ß‰ note
+  Urdu: b&~ j–Ìc6Ò lÌk¢r abic dV1bÖ(bp
+  ```
+  Latin-1 text (`Ünïcödé ñ façade`) and `<script>` render as plain text, correctly.
+- **Expected:** names and notes print as typed. The owner writes from Pakistan and may type Urdu.
+- **Actual:** mojibake in the exported report.
+- **Suggested fix:** `doc.registerFont('Body', 'NotoSans-Regular.ttf')` (plus a Noto Naskh/Emoji fallback) and use it for table cells.
+
+### F-47 · Medium · Security · The settings API returns the full Groq key to any logged-in user and lets anyone write arbitrary keys
+- **Where:** `backend/src/routes/settings.js`, `GET /:key` and `PUT /:key`, with no role check and no key whitelist. `settings.value` is a `text` column stored in plain text (the handoff already notes this).
+- **Evidence** (§9.5, a fake key was used):
+  ```
+  user2 (role rep) GET /api/settings/groq-key: {"key":"groq-key","value":"gsk_AUDITFAKE****(full 37-char key)"} [HTTP 200]
+  DB storage of groq-key: groq-key = gsk_AUDITFAKE… (len 37, plain text column type text)
+  PUT /api/settings/anything-at-all -> [HTTP 200]
+  PUT /api/settings/<101-char key> -> {"error":"value too long for type character varying(100)"} [HTTP 500]
+  ```
+- **Expected:** the key is write-only from the UI (show only "configured ✓" or the last 4 characters); only a supervisor can change settings; only known keys are accepted.
+- **Actual:** any rep can read the full key and overwrite any setting, including `calling_hours_enforced`.
+- **Suggested fix:** whitelist the keys. Return `{configured:true, last4}` for secret keys. Require `role==='supervisor'` for `PUT`. Validate the key length (400, not 500).
+
+### F-48 · Medium · Settings · Most "Dialing defaults" are browser-only, and "Default max attempts" has no effect at all
+- **Where:** `frontend/src/pages/Settings.jsx:104-106` and `:206` write max attempts, daily goal, default lines and the pitch script to `localStorage`. Only the calling-hours toggle (`:108`) and the Groq key (`:253`) go to the API. The backend uses the DB default `max_attempts INTEGER NOT NULL DEFAULT 5` (`002_create_leads.sql:14`).
+- **Evidence** (§9.5):
+  ```
+  is default max attempts read anywhere outside Settings.jsx? 0 references
+  ```
+  `calling_hours_enforced` and the profile name survived a backend restart (server-side); the others are not in the `settings` table (`settings keys now in DB: anything-at-all, calling_hours_enforced, groq-key`).
+- **Expected:** a saved "max attempts per lead" changes how many attempts leads get. Defaults follow the user across browsers and devices (API-first, CLAUDE.md rule 1).
+- **Actual:** changing max attempts silently does nothing. The goal, lines and script are lost on another browser, device or a cleared cache.
+- **Suggested fix:** store these via `PUT /api/settings/*` (per user). Apply `max_attempts` on import and lead creation, or read it in `applyDisposition`.
+
+### F-49 · Low · Reports · The PDF phone column is too narrow, so every number wraps onto two lines
+- **Where:** `pdfExport.js` column widths.
+- **Evidence:** the extracted text shows `+121455510` / `50` on two lines for every row (§9.1).
+- **Suggested fix:** widen the Phone column and format it `(214) 555-1050`. "Duration" also wraps to `Durati`/`on` in the header.
+
 ## 4. Verified working
 
 ### §1 Static checks (`audit/logs/01-static.txt`)
@@ -799,6 +852,22 @@ The code defines **7** dispositions, not CLAUDE.md's "six": the six buttons plus
 | Low-performance flag | **Missing** | `NO MATCHES` |
 | Rebuttal voice/quality prompt | **Working** (stubbed; quality unverified) | Above |
 | Monthly review banner | **Partial** | `ObjectionReport.jsx:101-114` `RecalibrationBanner` shows "It's been a month — worth skimming recently approved rebuttals…" whenever the setting `rebuttal-recalibration-dismissed-month` ≠ the current calendar month, i.e. **once per calendar month until dismissed**, not a month after the last review. On the first Reports visit of any month it claims "it's been a month" even if rebuttals were approved the day before. Rendering is checked in §10 |
+
+### §9 Reports, exports, settings (`audit/logs/09-reports.txt`)
+
+| Check | Result | Evidence |
+|---|---|---|
+| PDF, 0 calls | **Pass** (table) / **Fail** (summary, F-45) | `?date=2026-01-01` gave 200, `application/pdf`, 1 page, "No calls recorded for this date." |
+| PDF, 1 call | **Pass** (table) | 1 page, row `1 Bulk Agent 500 Office 19 +121455510(50) Contacted single synthetic call 2:00 3:00 PM` |
+| PDF, 500 calls | **Pass** (pagination) | 26 A4 pages. **All 500 lead names present** (`500 of 500 expected`, none missing). The lowest text on each page is above the margin. The 2,000-char note wraps and prints in full. The 500 rows are **synthetic** (SQL insert on 2026-10-02, labelled) |
+| PDF text safety | **Pass** for `<script>` and Latin-1 / **Fail** for emoji and non-Latin scripts (F-46) | `<script>alert(1)</script> &` printed literally |
+| Per-state report vs SQL | **Pass** | 11 states, API vs `LEFT JOIN … GROUP BY state` SQL: **diff empty**. Counts all calls ever (no date window), including calls of soft-deleted leads (1 such call); a decision, not a bug |
+| Manual-today vs SQL | **Pass** | `api=1 calls sql=1 calls` |
+| Today vs SQL | **Pass** (numbers) | `{"dials":175,"contacts":8}` = SQL `dials=175 contacts=8`. Day boundary: F-34 |
+| Settings survive a restart | **Pass** for server-side values | After restarting the backend: profile `"name":"Talha Arif (audit)"`, `calling_hours_enforced "true"`, `groq-key` intact. Browser-only values: F-48 |
+| GET settings returns the full key | **Fail** | F-47 (returned to a `rep`) |
+| Plain-text storage | **Confirmed** | `text` column, value readable in `psql` (F-47; the handoff already notes it) |
+| Dark mode persists | See §10 | |
 
 ## 5. Can't verify
 *pending*
