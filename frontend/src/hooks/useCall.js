@@ -132,12 +132,12 @@ export function useCall(leadId) {
   );
 
   const startCallFor = useCallback(
-    (id) => {
+    (id, opts = {}) => {
       setStarting(true);
       setError(null);
       setUndoInfo(null);
       return api
-        .startCall(id, getActiveSessionId())
+        .startCall(id, getActiveSessionId(), opts)
         .then(({ call: newCall, lead: newLead }) => {
           setCall(newCall);
           setLead(newLead);
@@ -181,7 +181,7 @@ export function useCall(leadId) {
    * that's already in_progress and locked to this same user). */
   const redial = useCallback(() => {
     if (!lead) return Promise.resolve();
-    return startCallFor(lead.id);
+    return startCallFor(lead.id, { redial: true });
   }, [lead, startCallFor]);
 
   const submitDisposition = useCallback(
