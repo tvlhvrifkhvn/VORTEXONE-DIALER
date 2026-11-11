@@ -1,0 +1,57 @@
+# Segment 1 fix log — base origin/claude/full-bug-audit @ 34d47bb, branch claude/fix-seg1-secrets-dnc
+# All passwords masked as first 4 chars + length.
+
+## F-06 PRE-FIX (base seeds/run.js) on fresh DB vortex_seg1b
+--- [pre-fix] seed output on vortex_seg1b (passwords masked):
+    Seed complete. Login with vortexoneagency@gmail.com / Chan****(len 12)
+--- [pre-fix] users row: vortexoneagency@gmail.com role=supervisor
+--- [pre-fix] login with the password the seed printed (Chan****(len 12)): HTTP 200
+--- [pre-fix] login with the OLD committed default (Chan****(len 12)): HTTP 200
+
+## F-06 POST-FIX on fresh DB vortex_seg1 (SEED_USER_PASSWORD unset)
+--- [post-fix-first-seed] seed output on vortex_seg1 (passwords masked):
+    Seed complete.
+    
+    ==== SEED LOGIN (shown once — store it now, it is not saved anywhere) ====
+      email:    vortexoneagency@gmail.com
+      password: SU6Q****(len 24)
+    =========================================================================
+--- [post-fix-first-seed] users row: vortexoneagency@gmail.com role=supervisor
+--- [post-fix-first-seed] login with the password the seed printed (SU6Q****(len 24)): HTTP 200
+--- [post-fix-first-seed] login with the OLD committed default (Chan****(len 12)): HTTP 401
+generated password length=24 (first seed)
+
+## F-06 POST-FIX reseed of the same DB (user must be left unchanged)
+--- [post-fix-reseed] seed output on vortex_seg1 (passwords masked):
+    Seed complete.
+    Seed user vortexoneagency@gmail.com already exists — left unchanged (password not modified).
+--- [post-fix-reseed] users row: vortexoneagency@gmail.com role=supervisor
+--- [post-fix-reseed] login with the password the seed printed ((none)): HTTP 400
+--- [post-fix-reseed] login with the OLD committed default (Chan****(len 12)): HTTP 401
+password_hash unchanged by reseed: yes
+first seed's password still logs in after reseed:
+  HTTP 200
+
+## F-06 POST-FIX with SEED_USER_PASSWORD set, on a re-created fresh DB vortex_seg1b
+Migrations up to date.
+--- [post-fix-env-password] seed output on vortex_seg1b (passwords masked):
+    Seed complete.
+    Seed user vortexoneagency@gmail.com created with the password from SEED_USER_PASSWORD.
+--- [post-fix-env-password] users row: vortexoneagency@gmail.com role=supervisor
+--- [post-fix-env-password] login with the password the seed printed (EnvT****(len 20)): HTTP 200
+--- [post-fix-env-password] login with the OLD committed default (Chan****(len 12)): HTTP 401
+
+## grep for the old default password (working tree, excluding node_modules/.git) BEFORE masking audit/:
+  ./audit/scripts/ui-ratelimit-window.js
+  ./audit/scripts/ui-ratelimit.js
+  ./audit/scripts/ui-xss.js
+  ./audit/scripts/ui-strictmode.js
+  ./audit/scripts/ui-smoke.js
+  ./audit/logs/00-setup.txt
+  ./audit/logs/01-static.txt
+  ./audit/lib/env.sh
+  ./AUDIT_REPORT.md
+
+## F-06 grep after masking audit/: files containing the old default password
+  ./AUDIT_REPORT.md (agreed exception: report not edited)
+## F-06 change-password endpoint/script? none (authService exports login, getById, updateProfile; no password_hash UPDATE anywhere outside seeds)

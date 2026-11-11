@@ -1,8 +1,11 @@
+const crypto = require('crypto');
 const bcrypt = require('bcrypt');
 const db = require('../index');
 
 const SEED_EMAIL = process.env.SEED_USER_EMAIL || 'vortexoneagency@gmail.com';
-const SEED_PASSWORD = process.env.SEED_USER_PASSWORD || 'ChangeMe123!';
+// No default password in the repo: use SEED_USER_PASSWORD if set, otherwise a
+// random one that is printed once below (only when the user is created).
+const SEED_PASSWORD_FROM_ENV = process.env.SEED_USER_PASSWORD || null;
 const SEED_NAME = process.env.SEED_USER_NAME || 'Talha Arif';
 
 const SAMPLE_LEADS = [
@@ -19,12 +22,15 @@ const SAMPLE_LEADS = [
 ];
 
 async function seed() {
-  const passwordHash = await bcrypt.hash(SEED_PASSWORD, 10);
+  const password = SEED_PASSWORD_FROM_ENV || crypto.randomBytes(18).toString('base64url'); // 24 chars
+  const passwordHash = await bcrypt.hash(password, 10);
 
-  await db.query(
+  // An existing seed user is never touched — its password stays whatever it is.
+  const { rows: created } = await db.query(
     `INSERT INTO users (email, password_hash, name, role)
      VALUES ($1, $2, $3, 'supervisor')
-     ON CONFLICT (email) DO NOTHING`,
+     ON CONFLICT (email) DO NOTHING
+     RETURNING id`,
     [SEED_EMAIL, passwordHash, SEED_NAME]
   );
 
@@ -37,7 +43,18 @@ async function seed() {
     );
   }
 
-  console.log(`Seed complete. Login with ${SEED_EMAIL} / ${SEED_PASSWORD}`);
+  console.log('Seed complete.');
+  if (created.length === 0) {
+    console.log(`Seed user ${SEED_EMAIL} already exists — left unchanged (password not modified).`);
+  } else if (SEED_PASSWORD_FROM_ENV) {
+    console.log(`Seed user ${SEED_EMAIL} created with the password from SEED_USER_PASSWORD.`);
+  } else {
+    console.log('');
+    console.log('==== SEED LOGIN (shown once — store it now, it is not saved anywhere) ====');
+    console.log(`  email:    ${SEED_EMAIL}`);
+    console.log(`  password: ${password}`);
+    console.log('=========================================================================');
+  }
 }
 
 seed()

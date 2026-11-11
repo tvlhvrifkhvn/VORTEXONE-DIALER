@@ -80,7 +80,7 @@ Applied migration: 022_rebuttal_review.sql
 Migrations up to date.
 ## npm run seed
 
-Seed complete. Login with vortexoneagency@gmail.com / ChangeMe123!
+Seed complete. Login with vortexoneagency@gmail.com / [seed-password]
 ## git status --porcelain (tracked changes)
 ?? audit/
 (end)
