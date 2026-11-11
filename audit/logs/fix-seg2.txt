@@ -312,3 +312,56 @@ NOTICE:  database "vortex_seg2_run" does not exist, skipping
 [post-fix-3]   status of chosen leads: 50:no_answer 51:new(deleted) 52:no_answer 53:new 54:no_answer
 [post-fix-3]   leads left in_progress after stop: 0
 [post-fix-3] server log errors: 0  lines: 
+
+## F-51 PRE-FIX under vite dev (React.StrictMode), mock forced answered
+(first F-51 pre-fix attempt aborted: harness used $PWD after cd into the base worktree, so the --require preload path was wrong and the backend never started. Driver script fix-seg2-f51.sh uses an absolute path.)
+[pre-fix-base] visit /call/90: POST /api/calls sent=2
+[pre-fix-base]    201 body={"leadId":"90"} -> lead 90
+[pre-fix-base]    201 body={"leadId":"90"} -> lead 90
+[pre-fix-base]    UI state at 8s: Ringing…
+[pre-fix-base] page errors: none
+[pre-fix-base] DB lead 90: calls=2 (1:answered, 2:answered) attempts 0 -> 2
+[pre-fix-after-F14] visit /call/90: POST /api/calls sent=2
+[pre-fix-after-F14]    201 body={"leadId":"90"} -> lead 90
+[pre-fix-after-F14]    409 body={"leadId":"90"} error="Lead is not dialable (status: in_progress)"
+[pre-fix-after-F14]    UI state at 8s: Couldn't start this call
+[pre-fix-after-F14] page errors: none
+[pre-fix-after-F14] DB lead 90: calls=1 (1:answered) attempts 0 -> 1
+
+## F-51 POST-FIX (useCall.js startedForRef/activeRef) — vite dev x3, dev navigation A->B, production build
+[post-fix-dev-1] visit /call/90: POST /api/calls sent=1
+[post-fix-dev-1]    201 body={"leadId":"90"} -> lead 90
+[post-fix-dev-1]    UI state at 8s: Connected
+[post-fix-dev-1] page errors: none
+[post-fix-dev-1] DB lead 90: calls=1 (1:answered) attempts 0 -> 1
+[post-fix-dev-2] visit /call/90: POST /api/calls sent=1
+[post-fix-dev-2]    201 body={"leadId":"90"} -> lead 90
+[post-fix-dev-2]    UI state at 8s: Connected
+[post-fix-dev-2] page errors: none
+[post-fix-dev-2] DB lead 90: calls=1 (1:answered) attempts 0 -> 1
+[post-fix-dev-3] visit /call/90: POST /api/calls sent=1
+[post-fix-dev-3]    201 body={"leadId":"90"} -> lead 90
+[post-fix-dev-3]    UI state at 8s: Connected
+[post-fix-dev-3] page errors: none
+[post-fix-dev-3] DB lead 90: calls=1 (1:answered) attempts 0 -> 1
+[post-fix-dev-nav] visit /call/90: POST /api/calls sent=1
+[post-fix-dev-nav]    201 body={"leadId":"90"} -> lead 90
+[post-fix-dev-nav]    UI state at 8s: Connected
+[post-fix-dev-nav] visit /call/91: POST /api/calls sent=1
+[post-fix-dev-nav]    201 body={"leadId":"91"} -> lead 91
+[post-fix-dev-nav]    UI state at 8s: Connected
+[post-fix-dev-nav] page errors: none
+[post-fix-dev-nav] DB lead 90: calls=1 (1:answered) attempts=1 status=in_progress
+[post-fix-dev-nav] DB lead 91: calls=1 (2:answered) attempts=1 status=in_progress
+[post-fix-prod] visit /call/90: POST /api/calls sent=1
+[post-fix-prod]    201 body={"leadId":"90"} -> lead 90
+[post-fix-prod]    UI state at 8s: Connected
+[post-fix-prod] page errors: none
+[post-fix-prod] DB lead 90: calls=1 (1:answered) attempts 0 -> 1
+
+## F-51 POST-FIX: dev visit to /call/next (queue pick, no lead id)
+[post-fix-dev-next] visit /call/next: POST /api/calls sent=1
+[post-fix-dev-next]    201 body={} -> lead 1
+[post-fix-dev-next]    UI state at 8s: Connected
+[post-fix-dev-next] page errors: none
+[post-fix-dev-next] DB: calls created=1 on 1 lead(s)
