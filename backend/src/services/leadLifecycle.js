@@ -130,22 +130,10 @@ async function applyDisposition({ callHistoryId, disposition, note, scheduledAt,
       );
     }
 
-    let cascadedLeadIds = [];
-    if (disposition === 'no_contact_person') {
-      // Best-effort match on the same person across separate lead rows —
-      // phase 1 has no explicit person entity, so this matches by name only.
-      // Undo does not reverse this cascade (see undoDisposition).
-      const { rows: siblings } = await client.query(
-        `UPDATE leads
-         SET status = 'cold', cold_at = $2, cold_reason = 'no_contact_person', next_action_at = NULL, updated_at = $2
-         WHERE id != $1
-           AND lower(trim(name)) = lower(trim($3))
-           AND status NOT IN ('dnc', 'cold')
-         RETURNING id`,
-        [lead.id, now, lead.name]
-      );
-      cascadedLeadIds = siblings.map((r) => r.id);
-    }
+    // no_contact_person parks this lead only. A lead has one phone, and
+    // CLAUDE.md scopes the rule to "that lead" — there is no cascade to other
+    // leads with the same name (removed: it parked different people in other
+    // states, and undo could not reverse it).
 
     // Recording eligibility: only a real conversation ('contacted') is ever
     // recorded — voicemail/no_answer/busy/no_contact_*/dnc never are.
@@ -171,7 +159,6 @@ async function applyDisposition({ callHistoryId, disposition, note, scheduledAt,
 
     return {
       lead: updatedLead,
-      cascadedLeadIds,
       undoExpiresAt: new Date(now.getTime() + UNDO_WINDOW_SECONDS * 1000),
     };
   } catch (err) {
@@ -185,8 +172,9 @@ async function applyDisposition({ callHistoryId, disposition, note, scheduledAt,
 /**
  * Reverts the most recent disposition on a call within the 10s undo window,
  * restoring the lead to its pre-disposition state and reopening the same
- * call_history row so a new disposition can be submitted. Does not reverse
- * a no_contact_person cascade to sibling leads.
+ * call_history row so a new disposition can be submitted. Every disposition
+ * changes only its own lead, so restoring that lead (plus the callback /
+ * DNC-list row it created) undoes it completely.
  */
 async function undoDisposition({ callHistoryId, user }) {
   const client = await db.getClient();
