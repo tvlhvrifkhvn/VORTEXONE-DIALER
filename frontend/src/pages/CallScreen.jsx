@@ -82,9 +82,9 @@ function CallScreenInner({ leadId }) {
 
   // Submission path handed to the shared DispositionPanel — the panel owns
   // the note text and the DNC confirmation, this owns how it's sent.
-  const handlePanelDisposition = async ({ disposition, note: panelNote }) => {
+  const handlePanelDisposition = async ({ disposition, note: panelNote, onRetrying }) => {
     setActionError(null);
-    await submitDisposition({ disposition, note: panelNote });
+    await submitDisposition({ disposition, note: panelNote, onRetrying });
     setLastDisposition(disposition);
   };
 
@@ -106,7 +106,12 @@ function CallScreenInner({ leadId }) {
     setSubmitting(true);
     setActionError(null);
     try {
-      await submitDisposition({ disposition: 'callback_scheduled', scheduledAt });
+      await submitDisposition({
+        disposition: 'callback_scheduled',
+        scheduledAt,
+        onRetrying: (attempt, max) => setActionError(`Not saved yet — retrying (${attempt + 1} of ${max})…`),
+      });
+      setActionError(null);
       setLastDisposition('callback_scheduled');
     } catch (err) {
       setActionError(err.message);
@@ -119,7 +124,8 @@ function CallScreenInner({ leadId }) {
     setSubmitting(true);
     setActionError(null);
     try {
-      await hangup();
+      await hangup({ onRetrying: (attempt, max) => setActionError(`Hang-up not sent yet — retrying (${attempt + 1} of ${max})…`) });
+      setActionError(null);
       setHungUp(true);
     } catch (err) {
       setActionError(err.message);

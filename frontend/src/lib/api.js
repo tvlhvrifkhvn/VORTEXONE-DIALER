@@ -88,7 +88,9 @@ async function request(path, { method = 'GET', body, isFormData = false } = {}) 
     // all (wrong/unreachable host, DNS failure, CORS/Private-Network-Access
     // block, offline). A real API error response is handled separately
     // below and keeps its actual message from the response body.
-    throw new Error("Couldn't reach the server — check that the backend is running and the app's URL is up to date");
+    const networkError = new Error("Couldn't reach the server — check that the backend is running and the app's URL is up to date");
+    networkError.network = true;
+    throw networkError;
   }
 
   if (res.status === 401) {
@@ -106,6 +108,8 @@ async function request(path, { method = 'GET', body, isFormData = false } = {}) 
     const message = (data && data.error) || res.statusText || 'Request failed';
     const error = new Error(message);
     error.status = res.status;
+    // Seconds to wait before trying again (rate limit), when the server says.
+    error.retryAfter = Number(res.headers.get('Retry-After')) || null;
     throw error;
   }
   return data;

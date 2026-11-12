@@ -110,6 +110,7 @@ export default function DispositionPanel({
   const [note, setNote] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState(null);
+  const [retrying, setRetrying] = useState(null);
   const [expanding, setExpanding] = useState(false);
   const [showDncConfirm, setShowDncConfirm] = useState(false);
   const [highlight, setHighlight] = useState(false);
@@ -127,11 +128,16 @@ export default function DispositionPanel({
   const submitOutcome = async (disposition) => {
     setSubmitting(true);
     setError(null);
+    setRetrying(null);
+    // A 429 or a dropped connection is retried automatically (lib/retry.js);
+    // the panel stays open and says so until it is saved or gives up.
+    const onRetrying = (attempt, max) => setRetrying(`Not saved yet — retrying (${attempt + 1} of ${max})…`);
     try {
-      await onDispositionSubmit({ disposition, note });
+      await onDispositionSubmit({ disposition, note, onRetrying });
     } catch (err) {
-      setError(err.message);
+      setError(`Couldn't save this outcome: ${err.message} Click it again to retry.`);
     } finally {
+      setRetrying(null);
       setSubmitting(false);
     }
   };
@@ -202,6 +208,7 @@ export default function DispositionPanel({
           <DispositionButtons onSelect={handleSelect} disabled={locked} />
         </div>
 
+        {retrying && <p className="text-sm font-medium text-action-warn">{retrying}</p>}
         {error && <p className="text-sm text-action-hangup">{error}</p>}
 
         <CollapsibleSection title="Previous Notes">

@@ -6,6 +6,7 @@ import NeuInput from '../ui/NeuInput';
 import { SmsCompose } from '../leads/LeadActionHub';
 import ObjectionPanel from './ObjectionPanel';
 import * as api from '../../lib/api';
+import { sendWithRetry } from '../../lib/retry';
 
 // Read by colleagueIntel.js when summarizing an office — keep in sync with
 // CLIENT_TAG / INTERESTED_TAG there.
@@ -85,8 +86,20 @@ export default function CallActionGrid({ lead, callId, onLeadUpdated, muted = fa
     if (!noteText.trim()) return;
     setBusy(true);
     setError(null);
+    const body = noteText;
+    const startedAt = Date.now();
+    // Before a resend, look for the note: an earlier try may have been saved.
+    const alreadySaved = async () => {
+      const { notes } = await api.getLeadNotes(lead.id);
+      const found = notes.find((n) => n.body === body.trim() && new Date(n.created_at).getTime() >= startedAt - 60_000);
+      return found ? { note: found } : null;
+    };
     try {
-      await api.addLeadNote(lead.id, noteText, callId);
+      await sendWithRetry(() => api.addLeadNote(lead.id, body, callId), {
+        alreadySaved,
+        onRetrying: (attempt, max) => setError(`Note not saved yet — retrying (${attempt + 1} of ${max})…`),
+      });
+      setError(null);
       setNoteText('');
       showFlash('Note saved');
     } catch (err) {
