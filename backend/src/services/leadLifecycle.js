@@ -391,6 +391,30 @@ async function phoneNumberChanged(leadId) {
   }
 }
 
+/**
+ * The dial for this lead never happened (the telephony provider refused it).
+ * The attempt the dial counted is taken back, and the lock is released to
+ * the status the lead had before it was locked (previousStatus, from
+ * leadQueue.claimLead). A Redial of a lead the rep already held
+ * (previousStatus 'in_progress') keeps the rep's lock; the stale-lock sweep
+ * frees it as usual since the failed call is not open.
+ */
+async function releaseAfterFailedDial({ leadId, userId, previousStatus }) {
+  const back = previousStatus && previousStatus !== 'in_progress' ? previousStatus : null;
+  const { rows } = await db.query(
+    `UPDATE leads
+     SET attempts = GREATEST(attempts - 1, 0),
+         status = CASE WHEN $3::text IS NOT NULL AND status = 'in_progress' AND locked_by = $2 THEN $3::text ELSE status END,
+         locked_by = CASE WHEN $3::text IS NOT NULL AND status = 'in_progress' AND locked_by = $2 THEN NULL ELSE locked_by END,
+         locked_at = CASE WHEN $3::text IS NOT NULL AND status = 'in_progress' AND locked_by = $2 THEN NULL ELSE locked_at END,
+         updated_at = now()
+     WHERE id = $1
+     RETURNING *`,
+    [leadId, userId, back]
+  );
+  return rows[0] || null;
+}
+
 /** The queue picked a lead whose number is already on the DNC list (added
  * after import, or by another lead): park it as dnc so it is never served
  * again. Mirrors what multi-line reserveSlot does on the same hit. */
@@ -416,4 +440,5 @@ module.exports = {
   snooze,
   markDncFromQueue,
   phoneNumberChanged,
+  releaseAfterFailedDial,
 };

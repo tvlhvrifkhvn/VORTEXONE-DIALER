@@ -15,6 +15,31 @@ const MOCK_FROM_NUMBER = '+15555550100';
 
 const MULTILINE_SLOTS = 3;
 
+// What the rep sees when the telephony provider refuses a dial.
+const DIAL_FAILED_MESSAGE =
+  "The call couldn't be placed — the phone service returned an error. No attempt was counted and the lead is free again.";
+// Multi-line: after this many refused dials in a row the session stops
+// dialing (instead of locking and releasing the whole queue one by one).
+const MAX_CONSECUTIVE_DIAL_FAILURES = 3;
+
+/** Sets a call's telephony_state from an adapter event, unless the dial was marked failed. */
+function recordState(callId, state) {
+  return db.query(`UPDATE call_history SET telephony_state = $2 WHERE id = $1 AND telephony_state <> 'failed'`, [callId, state]);
+}
+
+/**
+ * The adapter's placeCall threw (or rejected): the dial never happened.
+ * Close the call row as 'failed' and, for a lead, take back the attempt and
+ * release the lock to the lead's previous status (leadLifecycle).
+ */
+async function cleanUpFailedDial({ call, lead = null, userId, err }) {
+  console.warn(`Dial failed for call ${call.id}${lead ? ` (lead ${lead.id})` : ''}: ${err.message}`);
+  await callLifecycle.markFailed(call.id);
+  if (lead) {
+    await leadLifecycle.releaseAfterFailedDial({ leadId: lead.id, userId, previousStatus: lead.previous_status || 'in_progress' });
+  }
+}
+
 /**
  * Live call status feed for multi-line dialing. routes/calls.js's SSE
  * endpoint subscribes to this and forwards each event to the browser, which
@@ -48,15 +73,19 @@ async function start({ lead, userId, sessionId = null }) {
 
   await db.query('UPDATE leads SET attempts = attempts + 1, updated_at = now() WHERE id = $1', [lead.id]);
 
-  const telephonyCallId = telephony.placeCall(fromNumber, lead.phone, (event) => {
-    const nextState = event.type; // 'ringing' | 'answered' | 'voicemail_detected' | 'ended'
-    const write = nextState === 'ended'
-      ? callLifecycle.markEnded(call.id, event.duration)
-      : db.query('UPDATE call_history SET telephony_state = $2 WHERE id = $1', [call.id, nextState]);
-    write.catch((err) => {
-      console.error(`Failed to record telephony event "${event.type}" for call ${call.id}:`, err.message);
+  let telephonyCallId;
+  try {
+    telephonyCallId = await telephony.placeCall(fromNumber, lead.phone, (event) => {
+      const nextState = event.type; // 'ringing' | 'answered' | 'voicemail_detected' | 'ended'
+      const write = nextState === 'ended' ? callLifecycle.markEnded(call.id, event.duration) : recordState(call.id, nextState);
+      write.catch((err) => {
+        console.error(`Failed to record telephony event "${event.type}" for call ${call.id}:`, err.message);
+      });
     });
-  });
+  } catch (err) {
+    await cleanUpFailedDial({ call, lead, userId, err });
+    throw new ApiError(502, DIAL_FAILED_MESSAGE);
+  }
 
   await db.query('UPDATE call_history SET telephony_call_id = $2 WHERE id = $1', [call.id, telephonyCallId]);
 
@@ -99,14 +128,18 @@ async function startManual({ userId, toNumberRaw }) {
   );
   const call = rows[0];
 
-  const telephonyCallId = telephony.placeCall(fromNumber, toNumber, (event) => {
-    const write = event.type === 'ended'
-      ? callLifecycle.markEnded(call.id, event.duration)
-      : db.query('UPDATE call_history SET telephony_state = $2 WHERE id = $1', [call.id, event.type]);
-    write.catch((err) => {
-      console.error(`Failed to record telephony event "${event.type}" for manual call ${call.id}:`, err.message);
+  let telephonyCallId;
+  try {
+    telephonyCallId = await telephony.placeCall(fromNumber, toNumber, (event) => {
+      const write = event.type === 'ended' ? callLifecycle.markEnded(call.id, event.duration) : recordState(call.id, event.type);
+      write.catch((err) => {
+        console.error(`Failed to record telephony event "${event.type}" for manual call ${call.id}:`, err.message);
+      });
     });
-  });
+  } catch (err) {
+    await cleanUpFailedDial({ call, userId, err });
+    throw new ApiError(502, "The call couldn't be placed — the phone service returned an error.");
+  }
 
   await db.query('UPDATE call_history SET telephony_call_id = $2 WHERE id = $1', [call.id, telephonyCallId]);
 
@@ -189,26 +222,38 @@ async function placeSlotCall(session, slot) {
   slot.status = 'dialing';
   emitSlot(session, slot, 'dialing');
 
-  const telephonyCallId = telephony.placeCall(fromNumber, lead.phone, (event) => {
-    // The mock adapter keeps firing timers for a call we've already moved
-    // past (dropped, or the slot refilled) — ignore anything that isn't for
-    // the call this slot is currently on.
-    const current = session.slots.get(slotNumber);
-    if (session.stopped || !current || current.callId !== call.id) return;
+  let telephonyCallId;
+  try {
+    telephonyCallId = await telephony.placeCall(fromNumber, lead.phone, (event) => {
+      // The mock adapter keeps firing timers for a call we've already moved
+      // past (dropped, or the slot refilled) — ignore anything that isn't for
+      // the call this slot is currently on.
+      const current = session.slots.get(slotNumber);
+      if (session.stopped || !current || current.callId !== call.id) return;
 
-    const write = event.type === 'ended'
-      ? callLifecycle.markEnded(call.id, event.duration)
-      : db.query('UPDATE call_history SET telephony_state = $2 WHERE id = $1', [call.id, event.type]);
-    write.catch((err) => {
-      console.error(`Failed to record telephony event "${event.type}" for call ${call.id}:`, err.message);
+      const write = event.type === 'ended' ? callLifecycle.markEnded(call.id, event.duration) : recordState(call.id, event.type);
+      write.catch((err) => {
+        console.error(`Failed to record telephony event "${event.type}" for call ${call.id}:`, err.message);
+      });
+
+      handleSlotEvent(session, current, event).catch((err) => {
+        console.error(`Multi-line slot ${slotNumber} failed handling "${event.type}":`, err.message);
+      });
     });
+  } catch (err) {
+    // The dial never happened: no phantom call, no attempt, no stat, lead released.
+    await cleanUpFailedDial({ call, lead, userId: session.userId, err });
+    if (session.sessionId) await dialingSession.decrementStat(session.sessionId, 'total_dials').catch(() => {});
+    session.slots.delete(slotNumber);
+    session.dialFailures += 1;
+    slot.status = 'failed';
+    emitSlot(session, slot, 'failed', { message: DIAL_FAILED_MESSAGE });
+    return false;
+  }
 
-    handleSlotEvent(session, current, event).catch((err) => {
-      console.error(`Multi-line slot ${slotNumber} failed handling "${event.type}":`, err.message);
-    });
-  });
-
+  session.dialFailures = 0;
   await db.query('UPDATE call_history SET telephony_call_id = $2 WHERE id = $1', [call.id, telephonyCallId]);
+  return true;
 }
 
 async function handleSlotEvent(session, slot, event) {
@@ -443,11 +488,22 @@ async function reserveSlot(session, slotNumber) {
   return null;
 }
 
-/** Refills one freed slot: reserve a lead, then dial it. */
+/** Refills one freed slot: reserve a lead, then dial it. A refused dial is
+ * retried with the next lead, until MAX_CONSECUTIVE_DIAL_FAILURES in a row
+ * stop the line with a plain message. */
 async function dialIntoSlot(session, slotNumber) {
-  const slot = await reserveSlot(session, slotNumber);
-  if (!slot) return;
-  await placeSlotCall(session, slot);
+  for (;;) {
+    if (session.stopped) return;
+    if (session.dialFailures >= MAX_CONSECUTIVE_DIAL_FAILURES) {
+      emitSlot(session, { slotNumber, lead: {}, callId: null }, 'idle', {
+        message: `Stopped dialing: the phone service refused ${session.dialFailures} calls in a row. Check the phone settings, then start again.`,
+      });
+      return;
+    }
+    const slot = await reserveSlot(session, slotNumber);
+    if (!slot) return;
+    if (await placeSlotCall(session, slot)) return;
+  }
 }
 
 /**
@@ -498,6 +554,7 @@ async function startMultilineSession(userId, sessionId, lineCount = MULTILINE_SL
     lineCount: lines,
     leadIds: orderedLeadIds,
     refillChain: Promise.resolve(), // see queueRefill
+    dialFailures: 0, // refused dials in a row (see dialIntoSlot)
   };
   multilineSessions.set(userId, session);
 
@@ -508,7 +565,11 @@ async function startMultilineSession(userId, sessionId, lineCount = MULTILINE_SL
     const slot = await reserveSlot(session, slotNumber);
     if (slot) reserved.push(slot);
   }
-  await Promise.all(reserved.map((slot) => placeSlotCall(session, slot)));
+  const placed = await Promise.all(reserved.map((slot) => placeSlotCall(session, slot)));
+  // A line whose first dial was refused tries the next lead (dialIntoSlot caps it).
+  reserved.forEach((slot, i) => {
+    if (!placed[i]) queueRefill(session, slot.slotNumber);
+  });
 
   return {
     lineCount: lines,

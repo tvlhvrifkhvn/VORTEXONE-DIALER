@@ -31,7 +31,7 @@ async function markEnded(callHistoryId, durationSeconds) {
            duration_seconds = COALESCE(c.duration_seconds, $2,
              GREATEST(0, EXTRACT(EPOCH FROM (now() - c.started_at))::int))
        FROM prev
-       WHERE c.id = prev.id
+       WHERE c.id = prev.id AND c.telephony_state <> 'failed'
        RETURNING c.lead_id, c.user_id, c.disposition, prev.prev_ended_at
      )
      UPDATE leads l
@@ -73,4 +73,18 @@ function assertLeadNotTaken(call, lead) {
   }
 }
 
-module.exports = { markEnded, assertCanActOn, assertLeadNotTaken };
+/**
+ * The telephony provider refused to place the call (placeCall threw): the
+ * row is closed as 'failed' so no phantom "ringing" call is left behind.
+ * Events that still arrive for it are ignored (they check for 'failed').
+ */
+async function markFailed(callHistoryId) {
+  await db.query(
+    `UPDATE call_history
+     SET telephony_state = 'failed', ended_at = COALESCE(ended_at, now()), duration_seconds = COALESCE(duration_seconds, 0)
+     WHERE id = $1`,
+    [callHistoryId]
+  );
+}
+
+module.exports = { markEnded, markFailed, assertCanActOn, assertLeadNotTaken };

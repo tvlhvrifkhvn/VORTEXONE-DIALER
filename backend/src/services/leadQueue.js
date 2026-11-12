@@ -166,16 +166,21 @@ const CLAIM_ROUNDS = 3;
  * other caller gets null. Used only by lockNext().
  */
 async function claimLead(leadId, userId) {
+  // Same compare-and-set as before; the CTE only adds previous_status (the
+  // status the lead had just before this lock), so a dial the telephony
+  // provider refuses can put the lead back exactly where it was.
   const { rows } = await db.query(
-    `UPDATE leads
+    `WITH prev AS (SELECT id, status AS previous_status FROM leads WHERE id = $2 FOR UPDATE)
+     UPDATE leads l
      SET status = 'in_progress', locked_by = $1, locked_at = now(), updated_at = now()
-     WHERE id = $2
-       AND status = ANY($3)
-       AND deleted_at IS NULL
-       AND dnc_flag = false
-       AND missing_phone = false
-       AND (next_action_at IS NULL OR next_action_at <= now())
-     RETURNING *`,
+     FROM prev
+     WHERE l.id = prev.id
+       AND l.status = ANY($3)
+       AND l.deleted_at IS NULL
+       AND l.dnc_flag = false
+       AND l.missing_phone = false
+       AND (l.next_action_at IS NULL OR l.next_action_at <= now())
+     RETURNING l.*, prev.previous_status`,
     [userId, leadId, DIALABLE_STATUSES]
   );
   return rows[0] || null;
