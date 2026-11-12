@@ -8,9 +8,18 @@ function withConnectRate(row) {
   };
 }
 
+/**
+ * What counts as a dial, everywhere a report counts calls: a call that was
+ * actually placed. A dial the phone provider refused (telephony_state
+ * 'failed', Segment 5 B.1) never rang anyone, so it is not a dial, a
+ * contact or an attempt. (A dial refused by calling hours never creates a
+ * row at all.) `ch` is the call_history alias.
+ */
+const PLACED_CALL_SQL = "ch.telephony_state IS DISTINCT FROM 'failed'";
+
 // The calls a period covers — one WHERE clause for the headline numbers
 // and for the PDF table, so the two can never disagree.
-const PERIOD_CALLS_WHERE = 'ch.started_at >= $1 AND ch.started_at < $2';
+const PERIOD_CALLS_WHERE = `ch.started_at >= $1 AND ch.started_at < $2 AND ${PLACED_CALL_SQL}`;
 
 /**
  * Every headline number for a period (reportingPeriod.resolvePeriod; by
@@ -58,7 +67,7 @@ async function perStateReport() {
             count(ch.id)::int AS dials,
             count(*) FILTER (WHERE ch.disposition = 'contacted')::int AS contacts
      FROM leads l
-     LEFT JOIN call_history ch ON ch.lead_id = l.id
+     LEFT JOIN call_history ch ON ch.lead_id = l.id AND ${PLACED_CALL_SQL}
      GROUP BY l.state
      ORDER BY l.state ASC`
   );
@@ -71,12 +80,12 @@ async function manualCallsToday(period) {
   const p = period || (await reportingPeriod.resolvePeriod());
   const { rows } = await db.query(
     `SELECT id, to_number, started_at, ended_at, duration_seconds
-     FROM call_history
-     WHERE is_manual = true AND started_at >= $1 AND started_at < $2
+     FROM call_history ch
+     WHERE is_manual = true AND ${PERIOD_CALLS_WHERE}
      ORDER BY started_at DESC`,
     [p.start, p.end]
   );
   return rows;
 }
 
-module.exports = { todayStats, periodStats, periodCalls, perStateReport, manualCallsToday };
+module.exports = { PLACED_CALL_SQL, todayStats, periodStats, periodCalls, perStateReport, manualCallsToday };
