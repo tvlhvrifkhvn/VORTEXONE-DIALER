@@ -36,6 +36,9 @@ router.get('/stream', (req, res) => {
     res.write(`data: ${JSON.stringify(payload)}\n\n`);
   };
   callSession.callEvents.on('call', onCall);
+  // Track the user's open streams: when the last one closes, their
+  // multi-line session is stopped after a grace period (callSession.streamClosed).
+  callSession.streamOpened(user.sub);
 
   // Proxies between here and the browser will cut an idle stream; a comment
   // line every 25s keeps it open without showing up as an event.
@@ -44,6 +47,7 @@ router.get('/stream', (req, res) => {
   req.on('close', () => {
     clearInterval(keepAlive);
     callSession.callEvents.off('call', onCall);
+    callSession.streamClosed(user.sub);
     res.end();
   });
 });

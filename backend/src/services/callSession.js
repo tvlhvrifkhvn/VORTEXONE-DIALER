@@ -399,11 +399,7 @@ async function abandonSlotCall(session, slot) {
     abandoned = rowCount > 0;
 
     if (abandoned) {
-      await db.query(
-        `UPDATE leads SET status = 'in_queue', locked_by = NULL, locked_at = NULL, updated_at = now()
-         WHERE id = $1 AND status = 'in_progress'`,
-        [slot.lead.id]
-      );
+      await leadLifecycle.releaseAbandoned(slot.lead.id);
       session.abandonedCount += 1;
     }
   } catch (err) {
@@ -621,18 +617,111 @@ async function takeMultilineCall(userId, slotNumber) {
 // still handled correctly.
 const LIVE_CALL_STATUSES = ['answered', 'active_disposition', 'held'];
 
-/** Ends multi-line dialing, dropping every line that's still just ringing. */
-async function stopMultilineSession(userId) {
+/**
+ * Ends multi-line dialing.
+ *   Manual Stop (the rep pressed Stop): the call the rep is talking on stays
+ *   live and is finished normally (disposition as usual). Lines still ringing,
+ *   and answered callers waiting on hold, are hung up and recorded as
+ *   abandoned (was_abandoned = true); their leads go back to the queue.
+ *   Automatic stop ({ automatic: true } — the rep's browser went away, see
+ *   streamClosed): nobody is there to talk, so every line, including the
+ *   active and held calls, is abandoned and recorded, and the dialing
+ *   session is closed.
+ * Ending a call at the phone provider is not part of the TelephonyAdapter
+ * interface; the app stops acting on the call (see dropOtherSlots).
+ */
+async function stopMultilineSession(userId, { automatic = false } = {}) {
   const session = multilineSessions.get(userId);
   if (!session) return { abandonedCount: 0 };
 
   session.stopped = true;
+  let keptLive = null;
   for (const slot of [...session.slots.values()]) {
     session.slots.delete(slot.slotNumber);
-    if (slot.callId && !LIVE_CALL_STATUSES.includes(slot.status)) await abandonSlotCall(session, slot);
+    if (!slot.callId) continue;
+    const isActive = session.activeSlot === slot.slotNumber && ['active_disposition', 'answered'].includes(slot.status);
+    if (isActive && !automatic) {
+      keptLive = { slotNumber: slot.slotNumber, callId: slot.callId, leadId: slot.lead.id };
+      continue;
+    }
+    if (LIVE_CALL_STATUSES.includes(slot.status) || DROPPABLE_STATUSES.includes(slot.status)) {
+      await abandonSlotCall(session, slot);
+    }
   }
   multilineSessions.delete(userId);
-  return { abandonedCount: session.abandonedCount };
+  if (automatic && session.sessionId) {
+    await dialingSession.endSession(session.sessionId).catch((err) => {
+      console.error(`Could not close dialing session ${session.sessionId}:`, err.message);
+    });
+  }
+  return { abandonedCount: session.abandonedCount, keptLive };
+}
+
+// ---------------------------------------------------------------------------
+// Browser connection (F-28): the multi-line screen holds an SSE stream open
+// (routes/calls.js GET /stream). When a user's LAST stream closes — tab
+// closed, laptop asleep, network gone — their multi-line session is stopped
+// automatically after a grace period, unless a stream reconnects first.
+// ---------------------------------------------------------------------------
+
+const SSE_DISCONNECT_GRACE_MS = 10_000;
+const openStreams = new Map(); // userId → number of open streams
+const disconnectTimers = new Map(); // userId → pending auto-stop timer
+
+function streamOpened(userId) {
+  const key = String(userId);
+  openStreams.set(key, (openStreams.get(key) || 0) + 1);
+  clearTimeout(disconnectTimers.get(key));
+  disconnectTimers.delete(key);
+}
+
+function streamClosed(userId) {
+  const key = String(userId);
+  const left = (openStreams.get(key) || 1) - 1;
+  if (left > 0) {
+    openStreams.set(key, left);
+    return;
+  }
+  openStreams.delete(key);
+  clearTimeout(disconnectTimers.get(key));
+  const timer = setTimeout(() => {
+    disconnectTimers.delete(key);
+    if (openStreams.has(key) || !multilineSessions.has(userId)) return;
+    console.log(`Multi-line session of user ${userId} stopped: browser disconnected for ${SSE_DISCONNECT_GRACE_MS / 1000} s`);
+    stopMultilineSession(userId, { automatic: true }).catch((err) => {
+      console.error(`Auto-stop of user ${userId}'s multi-line session failed:`, err.message);
+    });
+  }, SSE_DISCONNECT_GRACE_MS);
+  timer.unref();
+  disconnectTimers.set(key, timer);
+}
+
+/** Server shutdown: no pending auto-stop timer is left behind. */
+function clearConnectionTimers() {
+  for (const timer of disconnectTimers.values()) clearTimeout(timer);
+  disconnectTimers.clear();
+}
+
+/**
+ * Server startup (F-29): multi-line sessions live in memory, so after a
+ * restart (crash, deploy) nothing is dialing any more. Close what the
+ * previous process left open: dialing sessions without ended_at, and calls
+ * still open (no ended_at, no disposition) — recorded as abandoned — and put
+ * their leads back in the queue (leadLifecycle). With a real phone provider
+ * such a call may still be up at the provider; ending it there is not part
+ * of the adapter interface (phase C).
+ */
+async function recoverAfterRestart() {
+  const { rowCount: sessions } = await db.query('UPDATE dialing_sessions SET ended_at = now() WHERE ended_at IS NULL');
+  const { rows: calls } = await db.query(
+    `UPDATE call_history
+     SET ended_at = now(), was_abandoned = true, telephony_state = CASE WHEN telephony_state = 'failed' THEN 'failed' ELSE 'ended' END,
+         duration_seconds = COALESCE(duration_seconds, GREATEST(0, EXTRACT(EPOCH FROM (now() - started_at))::int))
+     WHERE ended_at IS NULL AND disposition IS NULL
+     RETURNING lead_id`
+  );
+  const released = await leadLifecycle.releaseAbandoned(calls.map((c) => c.lead_id));
+  return { sessions, calls: calls.length, leads: released.length };
 }
 
 module.exports = {
@@ -648,4 +737,8 @@ module.exports = {
   takeMultilineCall,
   releaseActiveSlot,
   stopMultilineSession,
+  streamOpened,
+  streamClosed,
+  clearConnectionTimers,
+  recoverAfterRestart,
 };

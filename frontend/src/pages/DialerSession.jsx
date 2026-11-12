@@ -105,16 +105,30 @@ export default function DialerSession() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [location.state]);
 
+  // Set when Stop left the rep's current call live: that line stays on screen
+  // until its outcome is logged, then the session summary opens.
+  const [finishing, setFinishing] = useState(null);
+
+  const finishSession = async (abandoned) => {
+    setActive(false);
+    setFinishing(null);
+    const stats = await endDialingSession();
+    setAbandonedCount(abandoned);
+    setSummaryStats(stats);
+  };
+
   const handleEndSession = async () => {
     const result = await multiline.stopSession();
-    setActive(false);
-    const stats = await endDialingSession();
-    setAbandonedCount(result?.abandonedCount || 0);
-    setSummaryStats(stats);
+    if (result?.keptLive) {
+      setFinishing({ slotNumber: result.keptLive.slotNumber, abandonedCount: result.abandonedCount || 0 });
+      return;
+    }
+    await finishSession(result?.abandonedCount || 0);
   };
 
   const handleMultilineDisposition = async (line, payload) => {
     await multiline.submitDispositionFor(line, payload);
+    if (finishing && line.slotNumber === finishing.slotNumber) await finishSession(finishing.abandonedCount);
   };
 
   const handleCloseSummary = () => {
@@ -125,6 +139,11 @@ export default function DialerSession() {
   return (
     <AppShell>
       <div className="mx-auto mt-4 max-w-5xl">
+        {finishing && (
+          <p className="mb-3 rounded-input bg-action-warn/10 px-3 py-2 text-sm font-medium text-action-warn">
+            Dialing stopped. Finish the call you're on and log its outcome — the session summary opens after that.
+          </p>
+        )}
         {active ? (
           <MultilinePanel
             lines={multiline.lines.slice(0, lineCount)}
@@ -132,7 +151,7 @@ export default function DialerSession() {
             starting={multiline.starting}
             error={multiline.error}
             onDrop={multiline.dropLine}
-            onStop={handleEndSession}
+            onStop={finishing ? null : handleEndSession}
             onDispositionSubmit={handleMultilineDisposition}
           />
         ) : (

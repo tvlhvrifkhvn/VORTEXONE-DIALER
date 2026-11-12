@@ -178,7 +178,10 @@ export function useMultiline({ enabled = true } = {}) {
   const stopSession = useCallback(async () => {
     try {
       const result = await api.stopMultiline();
-      setLines(emptySlots());
+      // On a manual Stop the call the rep is talking on stays live
+      // (result.keptLive): keep that one line so it can still be logged.
+      const kept = result?.keptLive;
+      setLines((prev) => (kept ? prev.map((l, i) => (l.slotNumber === kept.slotNumber ? l : emptySlots()[i])) : emptySlots()));
       return result;
     } catch (err) {
       setError(err.message);

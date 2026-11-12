@@ -415,6 +415,23 @@ async function releaseAfterFailedDial({ leadId, userId, previousStatus }) {
   return rows[0] || null;
 }
 
+/**
+ * The lead's call was abandoned without a disposition (a multi-line line
+ * dropped or stopped, or a call cut off by a server restart): the lead goes
+ * back to the queue, as after a hangup whose grace period ran out.
+ */
+async function releaseAbandoned(leadIds) {
+  const ids = (Array.isArray(leadIds) ? leadIds : [leadIds]).filter((id) => id != null);
+  if (ids.length === 0) return [];
+  const { rows } = await db.query(
+    `UPDATE leads SET status = 'in_queue', locked_by = NULL, locked_at = NULL, updated_at = now()
+     WHERE id = ANY($1) AND status = 'in_progress'
+     RETURNING id`,
+    [ids]
+  );
+  return rows.map((r) => r.id);
+}
+
 /** The queue picked a lead whose number is already on the DNC list (added
  * after import, or by another lead): park it as dnc so it is never served
  * again. Mirrors what multi-line reserveSlot does on the same hit. */
@@ -441,4 +458,5 @@ module.exports = {
   markDncFromQueue,
   phoneNumberChanged,
   releaseAfterFailedDial,
+  releaseAbandoned,
 };

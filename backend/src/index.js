@@ -6,6 +6,7 @@ const config = require('./config');
 const db = require('./db');
 const leadQueue = require('./services/leadQueue');
 const csvImport = require('./services/csvImport');
+const callSession = require('./services/callSession');
 const { errorHandler, notFound } = require('./middleware/errorHandler');
 const { apiLimiter } = require('./middleware/rateLimit');
 
@@ -145,6 +146,19 @@ function runImportCleanup() {
     .catch((err) => console.error('Import cleanup failed:', err.message));
 }
 
+/** Close what a previous process left open (see callSession.recoverAfterRestart). */
+function recoverCallsAfterRestart() {
+  if (require.main !== module) return;
+  callSession
+    .recoverAfterRestart()
+    .then(({ sessions, calls, leads }) => {
+      if (sessions || calls || leads) {
+        console.log(`After restart: closed ${sessions} dialing session(s) and ${calls} open call(s); ${leads} lead(s) back in the queue`);
+      }
+    })
+    .catch((err) => console.error('Could not clean up calls left open by the previous run:', err.message));
+}
+
 function startImportHousekeeping() {
   if (require.main !== module) return;
   csvImport
@@ -161,6 +175,7 @@ function shutdown(signal) {
   staleLockTimer = null;
   clearInterval(importCleanupTimer);
   importCleanupTimer = null;
+  callSession.clearConnectionTimers();
   console.log(`${signal} received — stale-lock sweep and import cleanup stopped, shutting down`);
   process.exit(0);
 }
@@ -171,6 +186,7 @@ assertSchemaIsMigrated()
       console.log(`Vortex Dialer API listening on port ${config.port} (telephony: ${config.telephonyProvider})`);
       startStaleLockSweep();
       startImportHousekeeping();
+      recoverCallsAfterRestart();
     });
     process.once('SIGTERM', shutdown);
     process.once('SIGINT', shutdown);
