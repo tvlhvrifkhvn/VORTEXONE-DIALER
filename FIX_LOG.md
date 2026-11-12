@@ -126,10 +126,133 @@ Known limitations (not fixed here):
 - The lead-page callback route (`POST /api/leads/:id/callback`) still accepts past times. The owner's past-time rule was set for the disposition path; say if it should apply there too.
 - `leadQueue.scheduleCallback` (lead-page route) still sets the status itself rather than through `leadLifecycle.js`. This is existing code, unchanged apart from the shared time parser.
 
+## Segment 5 — Part A: import readiness — branch `claude/fix-seg5-import-and-sessions` (base `origin/latest` @ `d3ccb9f`)
+
+Part A (import) ships as its own PR first, because the owner uploads real lists right after it. Part B (call screen and sessions) follows on top of it.
+
+### Before every real upload: backup, and how to restore
+```bash
+./scripts/backup-db.sh
+```
+This writes `backups/vortex-YYYYmmdd-HHMMSS.dump`. `backups/` is git-ignored, and the script prints the restore command with the file name filled in. To restore:
+```bash
+pg_restore --clean --if-exists --no-owner -d "$DATABASE_URL" backups/vortex-YYYYmmdd-HHMMSS.dump
+```
+Checked on a test database: restoring into an empty database, and over a modified one, brings the backed-up data back.
+
+### Migrations (all `IF NOT EXISTS`; `./dev.sh` / `npm run migrate` applies them)
+- `023_lead_phone_original.sql`: `leads.original_phone` (raw cell text) and `leads.extension`.
+- `024_import_progress.sql`: `import_jobs.phase`, `rows_to_save`, `saved_rows`, `written_leads`.
+- `025_import_staging.sql`: the `import_rows` staging table (with indexes), and `idx_leads_phoneless_identity` on `leads (lower(name), state) WHERE phone IS NULL`.
+
+There is no `schema.sql` in this repo: the migrations are the schema, so there was nothing to update. The startup schema check now also requires `import_rows`.
+
+| Item | Status | Commit | File:function | Before → after |
+|---|---|---|---|---|
+| A.0 Backup | **Added** | `abfbcb8` | `scripts/backup-db.sh` (new), `.gitignore` | No backup tool → timestamped `pg_dump`, restore checked |
+| A.1 F-09 Phone numbers lost | **Fixed** | `402adfa` | `utils/phoneNormalize.js` `parsePhone` (new), `normalizePhone`; migration 023; `csvImport.prepareRow`; frontend `LeadRow`, `LeadDetail`, `CallContactHeader`, `MultilinePanel`, `useMultiline`; the `callSession` slot event | Audit fixture `f_phones.csv`: before, "602-555-0605 x123" and "602-555-CALL" became NULL / "No number". After: `+16025550605` ext `123`, `+16025552255`. "not a phone", "555-0608" and "+44…" keep their raw text and show "Number unreadable: …" |
+| A.2 F-10 Mapping without AI | **Fixed** | `e386307` | `csvImport.guessMapping` (synonyms), `completeMapping` (new), `rawName`; `aiCsvMapper.client` (`IMPORT_AI=off`); circuit breaker in the cleaning phase; Import page mapping list | Base, AI unreachable: `Mobile` was never mapped → the job **failed** after 53.7 s ("mapping must include … phone"), with 24–39 "Import chunk failed" errors. After, AI off: both generated header styles (`Name/Mobile/Office/Street/Zip…` and `First Name/Last Name/Phone Number/Company/Postal Code…`) map fully, in 19/19 runs. The preview lists every field (city, source, first/last name, zip were hidden) and the user can change any of them |
+| A.3 F-08 / F-11 Cancel and progress | **Fixed** | `df184d5` | `csvImport` save phase (one transaction per batch), `cancelImportJob`, `progressOf`; migration 024; Import page, `useImportJob`, `AppShell` | Base: a cancel at "100% processing" → `{"cancelled":true}`, then all 3,659 leads written, job `completed`. After: a cancel mid-save answers `written N`, and the job ends `cancelled` with exactly the reported count in the DB (13/13 mid-way cancels at 4,000+ rows). An already-finished job → **409 `too_late`**. Progress shows "Cleaning N / M" (0–50%), then "Saving N / M" (50–99%), and 100% only when done |
+| A.4 Any file size | **Fixed** | `c99af87` (+ `c5c452b`) | `xlsxParser.readUploadInBatches` (new); `csvImport` `stageRows` / `cleanPhase` / `mergePhase` / `savePhase` / `startJob`; migration 025; `routes/imports.js` (disk upload, `IMPORT_MAX_UPLOAD_MB`, 413) | Base: 30,000 rows → 400 "Files over 5,000 leads should be split"; per-row DNC + duplicate queries; rows held in memory and copied twice. After: no row cap, `IMPORT_BATCH_SIZE` = 500. One DNC, one existing-phone and one phoneless-identity query per batch, then one INSERT. Measured numbers below |
+| A.5 F-12 Blank-locality duplicate | **Fixed** | `3f7ec13` | `csvImport.groupSameName` | Audit fixture `b_scrape.csv`: before, merged 1 + invalid 1 ("Joshua Barkes: could not determine a US state"). After, merged 2 + invalid 0. A name found in two or more places is not guessed; the row is reported instead |
+| A.6 F-13 Upload validation | **Fixed** | `d5681f6` | `xlsxParser.checkUploadType` (new), `/upload`; `csvImport.expireStaleImports`, `failInterruptedImports`; `index.js` hourly timer | `fix-seg5-upload.sh`. Base: PDF, .txt and a CSV renamed .xlsx → **201**; a 16 MB file → **500**; old pending jobs and a cut-off "processing" job stay forever. After: 400 ×4 with plain messages; 413 for an over-size file; pending jobs over 24 h deleted at startup and hourly; a cut-off job is marked failed with an explanation; 0 temp files left |
+| A.7 Duplicates, DNC, summary | **Fixed** | `ee22ef6` | `csvImport.savePhase`, `buildSummary`, `writeSkippedRowsCsv` (new); `GET /api/imports/:jobId/skipped.csv` (new); Import page report | Base: a phone of a lead marked DNC, but not on `dnc_list`, counted only as a "duplicate". "imported" mixed phoneless leads in. AI-skipped rows vanished; there was no skipped-row download. After: such phones are **DNC-blocked**. The report has total / imported / no number (unreadable) / merged / already in list / DNC-blocked / invalid (with reasons). Sum = total in 19/19 runs. The skipped-rows CSV has exactly the skipped rows. Re-import adds 0 |
+| A.8 Old phone data | **Added** | `c5d6c2f` | `scripts/normalize-existing-phones.js` (new) | Dry run by default. Test DB with 7 planted leads: 3 safe fixes; 3 collisions reported and left alone (never merged or deleted); 1 unreadable left alone. `--apply` took a backup first, changed the 3, and logged each change. With an unwritable backup dir it changed nothing. F-17 (name cascade) was already fixed in Segment 4; its test is re-run in the regression below |
+
+### A.9 measured import numbers
+Data is generated by `audit/scripts/gen-leads.js` (any row count; the share of each messy case is a parameter). AI is forced off (`IMPORT_AI=off`, plus `GROQ_BASE_URL` pointing at a closed local port). Each run uses a fresh clone of the test DB (5,019 synthetic leads) and plants DNC numbers and legacy DNC leads by DIRECT SQL.
+
+For each run: import → same file again → a second file cancelled mid-way → invariants I1–I8 → 5 imported leads dialed through the mock adapter.
+- "Time" runs from the upload request to the job being completed.
+- "Requests" counts upload + process + status polls (polled every 1 s).
+- "Peak RSS" is the backend's VmHWM, with its value just before the import in brackets.
+
+| Run | Rows | File | Upload | Mapping (AI off) | Time | Requests | Peak RSS (start) | Buckets | Rows accounted | Skipped CSV | Re-import new | Cancel mid-way (answer → end) | Dial sample | Server errors |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| r1-300-csv | 300 | 0.03 MB | 201 | yes | 1.1 s | 3 | 126 MB (116 MB) | all equal | OK | OK | 0 | 0.1s 100% saving Done: 409 written 276 → completed, 276 in DB = 276 reported | 5/5 → 201 | 0 |
+| r1-300-xlsx | 300 | 0.14 MB | 201 | yes | 1.1 s | 3 | 134 MB (117 MB) | all equal | OK | OK | 0 | 0.1s 100% saving Done: 409 written 276 → completed, 276 in DB = 276 reported | 5/5 → 201 | 0 |
+| r1-4000-csv | 4000 | 0.41 MB | 201 | yes | 1.1 s | 3 | 140 MB (115 MB) | all equal | OK | OK | 0 | 0.3s 69% saving Saving 1,500 / 3,840 rows: 200 written 1904 → cancelled, 2387 in DB = 2387 reported | 5/5 → 201 | 0 |
+| r1-4000-xlsx | 4000 | 1.69 MB | 201 | yes | 1.2 s | 3 | 153 MB (118 MB) | all equal | OK | OK | 0 | 0.4s 62% saving Saving 1,000 / 3,840 rows: 200 written 953 → cancelled, 1431 in DB = 1431 reported | 5/5 → 201 | 0 |
+| r1-30000-csv | 30000 | 3.10 MB | 201 | yes | 4.7 s | 6 | 180 MB (116 MB) | all equal | OK | OK | 0 | 1.6s 50% saving Saving 500 / 28,800 rows: 200 written 482 → cancelled, 962 in DB = 962 reported | 5/5 → 201 | 0 |
+| r1-30000-xlsx | 30000 | 12.87 MB | 201 | yes | 5.1 s | 6 | 228 MB (116 MB) | all equal | OK | OK | 0 | 2.1s 50% saving Saving 500 / 28,800 rows: 200 written 482 → cancelled, 962 in DB = 962 reported | 5/5 → 201 | 0 |
+| r2-300-csv | 300 | 0.03 MB | 201 | yes | 1 s | 3 | 127 MB (117 MB) | all equal | OK | OK | 0 | 0.1s 100% saving Done: 409 written 276 → completed, 276 in DB = 276 reported | 5/5 → 201 | 0 |
+| r2-300-xlsx | 300 | 0.14 MB | 201 | yes | 1.1 s | 3 | 134 MB (116 MB) | all equal | OK | OK | 0 | 0.1s 100% saving Done: 409 written 276 → completed, 276 in DB = 276 reported | 5/5 → 201 | 0 |
+| r2-4000-csv | 4000 | 0.41 MB | 201 | yes | 1.2 s | 3 | 141 MB (115 MB) | all equal | OK | OK | 0 | 0.3s 69% saving Saving 1,500 / 3,840 rows: 200 written 1429 → cancelled, 1900 in DB = 1900 reported | 5/5 → 201 | 0 |
+| r2-4000-xlsx | 4000 | 1.69 MB | 201 | yes | 1.2 s | 3 | 149 MB (116 MB) | all equal | OK | OK | 0 | 0.4s 69% saving Saving 1,500 / 3,840 rows: 200 written 1429 → cancelled, 1900 in DB = 1900 reported | 5/5 → 201 | 0 |
+| r2-30000-csv | 30000 | 3.11 MB | 201 | yes | 4.6 s | 6 | 179 MB (116 MB) | all equal | OK | OK | 0 | 1.5s 51% saving Saving 1,000 / 28,800 rows: 200 written 951 → cancelled, 1432 in DB = 1432 reported | 5/5 → 201 | 0 |
+| r2-30000-xlsx | 30000 | 12.88 MB | 201 | yes | 4.1 s | 5 | 224 MB (116 MB) | all equal | OK | OK | 0 | 2.1s 50% saving Saving 500 / 28,800 rows: 200 written 951 → cancelled, 1432 in DB = 1432 reported | 5/5 → 201 | 0 |
+| r3-300-csv | 300 | 0.03 MB | 201 | yes | 1.1 s | 3 | 127 MB (117 MB) | all equal | OK | OK | 0 | 0.1s 100% saving Done: 409 written 276 → completed, 276 in DB = 276 reported | 5/5 → 201 | 0 |
+| r3-300-xlsx | 300 | 0.14 MB | 201 | yes | 1.1 s | 3 | 135 MB (117 MB) | all equal | OK | OK | 0 | 0.1s 100% saving Done: 409 written 276 → completed, 276 in DB = 276 reported | 5/5 → 201 | 0 |
+| r3-4000-csv | 4000 | 0.41 MB | 201 | yes | 1.1 s | 3 | 140 MB (116 MB) | all equal | OK | OK | 0 | 0.3s 69% saving Saving 1,500 / 3,840 rows: 200 written 1436 → cancelled, 1907 in DB = 1907 reported | 5/5 → 201 | 0 |
+| r3-4000-xlsx | 4000 | 1.69 MB | 201 | yes | 1.3 s | 3 | 150 MB (116 MB) | all equal | OK | OK | 0 | 0.4s 69% saving Saving 1,500 / 3,840 rows: 200 written 1436 → cancelled, 1907 in DB = 1907 reported | 5/5 → 201 | 0 |
+| r3-30000-csv | 30000 | 3.11 MB | 201 | yes | 4.6 s | 6 | 178 MB (117 MB) | all equal | OK | OK | 0 | 1.6s 51% saving Saving 1,000 / 28,800 rows: 200 written 953 → cancelled, 1428 in DB = 1428 reported | 5/5 → 201 | 0 |
+| r3-30000-xlsx | 30000 | 12.87 MB | 201 | yes | 5.1 s | 6 | 220 MB (115 MB) | all equal | OK | OK | 0 | 2.1s 50% saving Saving 500 / 28,800 rows: 200 written 470 → cancelled, 953 in DB = 953 reported | 5/5 → 201 | 0 |
+| extra: 100000-csv | 100000 | 10.55 MB | 201 | yes | 12.1 s | 12 | 210 MB (116 MB) | all equal | OK | OK | 0 | 5.4s 50% saving Saving 1,000 / 96,000 rows: 200 written 1433 → cancelled, 1903 in DB = 1903 reported | 5/5 → 201 | 0 |
+
+Reading the numbers:
+- **Speed:** time grows with the file, about 0.12–0.15 ms per row.
+- **Memory:** it grows far slower than the file. CSV peak RSS rises about +25 MB at 4,000 rows, +62 MB at 30,000 and +94 MB at 100,000 (one extra run).
+- **XLSX:** a workbook has to be opened whole (a SheetJS limitation), so a 12.9 MB XLSX of 30,000 rows peaks at about +105–112 MB.
+- **Size limit:** `IMPORT_MAX_UPLOAD_MB` (default 50) bounds every upload; a bigger file gets a 413 asking to split it.
+- **Not a capacity claim:** these are measurements of what was run, not a "supported size".
+- **Small-file cancel:** at 300 rows the whole file is one batch and finishes in ~0.1 s, so the cancel arrives too late. The server says so (409 `too_late`), and the written count matches the DB.
+- **Invariants:** I1, I4, I5, I6, I7 and I8 are clean in every run.
+
+Base comparison (`audit/logs/fix-seg5.txt`, base section):
+- 300 rows with AI unreachable: auto mapping missed the phone column; the job **failed after 53.7 s**. With the mapping fixed by hand it took 55.7 s, with 39 AI-retry errors in the log.
+- 4,000 rows (AI stubbed so it could finish): 3.1 s, peak +37 MB. Extensions and letters were lost, and the cancel was ignored.
+- 30,000 rows: **refused** (5,000-row cap).
+
+### Owner-approved decisions applied
+- A cancel stops further batches; rows already written stay and are reported.
+- Re-imports only ever add leads; an existing lead is never replaced.
+- A blank-locality row merges only when exactly one same-name row has a locality. Otherwise the importer does not guess.
+
+### Known limitations (Part A)
+- **XLSX memory:** an XLSX file is opened whole by SheetJS, so its memory grows with the file (CSV is streamed). The upload size limit bounds it; for very large lists, CSV is the lighter format.
+- **Interrupted imports:** imports run inside the server process. A restart mid-import marks that job failed (with the number of leads it saved), and uploading the file again imports the rest.
+- **Skipped-row storage:** skipped rows stay in `import_rows` so they can be downloaded. Nothing deletes them yet; that is a later cleanup.
+- **`.xls` files** are accepted as well as `.csv` / `.xlsx`. The Import page already offered them, and SheetJS reads them.
+- **The lead edit form** accepts an extension in a typed number but doesn't store it (only imports store extensions).
+- **Real data and AI untested:** no real lead list and no real Groq call were used (generated data; AI off or stubbed).
+
+Regression for Part A (`audit/logs/fix-seg5-regression.txt`):
+- Segment 1 repros (`f06`, `f16`, `f16-multiline`, `f22`, `f52`) pass. `f16`'s setup step that moves a DNC lead's number still gets the Segment 4 409.
+- Segment 2 repros pass:
+  - `f14`: 20/20; 1×201 + 9×409.
+  - `f27`: 15/15 and 30/30; held → promoted.
+  - Redial: unchanged.
+  - `f51` (dev): 1 POST, "Connected".
+- Segment 3 repros pass (`fix-seg3.sh`, every part):
+  - live-call lock, release after hangup;
+  - F-32: 403 ×3 and the late-disposition 409;
+  - multi-line, 3 lines forced no_answer: 15 calls on 15 leads, I6 = 0.
+  `fix-seg3-ui.sh`: the 403/409 messages show.
+- Segment 4 repros pass: undo matrix 8/8, cascade, callback, note, ncn, missing, dncedit. `fix-seg4-ui.sh` passes.
+- Routes: +1 (`GET /api/imports/:jobId/skipped.csv`, behind auth); everything else is identical.
+- Schema check: 0 problems.
+- Auth matrix: identical to base (76 protected routes + SSE, all 401; paced).
+- calling-hours.js: identical (only the DB toggle's starting value differs).
+- Invariants: unchanged from Segment 4.
+- Frontend build passes. Production ui-smoke: 0 console errors and 0 4xx/5xx on all 12 views.
+- Import flow in the browser (production build), 4 runs:
+  - the mapping chosen with AI off is shown, and a field can be changed;
+  - "All 300 rows are accounted for", with buckets equal to expected;
+  - the skipped-rows CSV holds exactly the skipped rows;
+  - 0 page errors. Screenshots: `audit/screenshots/seg5-import-mapping.png`, `seg5-import-report.png`.
+- Server logs: 0 errors or warnings in every Segment 5 run. The only exception is the base runs with AI unreachable (24 and 39 "Import chunk failed" lines).
+
+Extra files touched, and why:
+- `frontend/src/components/layout/AppShell.jsx`: the navbar import badge shows the phase label.
+- `backend/src/services/callSession.js`: the multi-line slot event carries the extension (one line).
+- `backend/src/index.js`: hourly import cleanup timer, cleared on shutdown; `import_rows` added to the startup schema check.
+- `.gitignore`: `backups/`.
+- `audit/screenshots/seg5-import-*.png`: the new import screens.
+
 Still open (later segments):
 - **F-01** Groq key, deferred by the owner to the last segment.
 - **F-20** queue starvation under calling hours (Segment 6).
-- **F-28/F-29/F-30** session disconnect, stop cleanup and telephony rollback (Segment 5).
+- **Segment 5 Part B** (next PR, on top of Part A): F-30 failed dial, F-50 call-screen polling / lost disposition, F-28 browser disconnect, F-29 stop/restart cleanup, F-33 Previous Notes, and the Segment 4 carry-overs (lead-page callback validation through `leadLifecycle`, the Redial lock check).
 
 ## New findings (not in the audit)
 
