@@ -12,7 +12,7 @@
 #   boundary   calls 30 s either side of midnight (Asia/Karachi)
 #   tz         reporting_timezone = America/Chicago moves the day
 #   daystart   day_start_time = 06:00 moves the day
-#   failed     3 dials refused by the phone provider (TELEPHONY_PROVIDER=bogus)
+#   failed     3 dials refused by the phone provider (TELEPHONY_PROVIDER=twilio: the phase-2 stub refuses every dial; an unknown name no longer starts, F-31)
 #              + 1 dial-pad: before vs after in the counters and the PDF
 #   validate   bad dates and ranges -> HTTP codes
 #   goal       controlled clock: the dashboard counter across midnight and
@@ -118,10 +118,10 @@ failed)
   sql "update leads set status='in_queue' where id in (select id from leads where not missing_phone order by id limit 5)" >/dev/null
   srv
   BEFORE_API=$(apinums ""); BEFORE_PDF=$(pdfnums "" failed-before); BEFORE_ROWS=$(sql "select count(*)||' rows, '||count(*) filter (where telephony_state='failed')||' failed' from call_history")
-  stop_backend; srv TELEPHONY_PROVIDER=bogus
+  stop_backend; srv TELEPHONY_PROVIDER=twilio
   codes=''; for i in 1 2 3; do codes="$codes $(api POST /api/calls '{}' tokA | grep -oE 'HTTP [0-9]+')"; done
   codes="$codes / dial pad $(api POST /api/calls/manual/start '{"toNumber":"212-555-0188"}' tokA | grep -oE 'HTTP [0-9]+')"
-  p "== 3 queue dials + 1 dial-pad dial with TELEPHONY_PROVIDER=bogus: $codes"
+  p "== 3 queue dials + 1 dial-pad dial with TELEPHONY_PROVIDER=twilio: $codes"
   p "  call_history: before $BEFORE_ROWS; after $(sql "select count(*)||' rows, '||count(*) filter (where telephony_state='failed')||' failed' from call_history")"
   p "  today, API: before $BEFORE_API | after $(apinums "")"
   p "  today, PDF: before $BEFORE_PDF"
