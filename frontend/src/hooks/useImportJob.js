@@ -93,10 +93,12 @@ export function useImportJob() {
   const cancelJob = async () => {
     const jobId = job?.jobId || storedJobId();
     if (!jobId) return;
+    // The server answers honestly: cancelled with the number of leads already
+    // saved, or "too late" (409) once the import has finished.
     try {
-      await api.cancelImportJob(jobId);
-    } catch {
-      // Status polling will surface the real outcome either way.
+      return await api.cancelImportJob(jobId);
+    } catch (err) {
+      return { cancelled: false, message: err.message };
     }
   };
 

@@ -37,6 +37,9 @@ async function resolveApiKey() {
 }
 
 async function client() {
+  // IMPORT_AI=off turns every import AI call off (mapping, row cleaning,
+  // state guessing): the import then runs on the built-in rules only.
+  if (process.env.IMPORT_AI === 'off') return null;
   const apiKey = await resolveApiKey();
   if (!apiKey) return null;
   return new Groq({ apiKey });

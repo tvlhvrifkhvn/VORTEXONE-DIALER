@@ -5,6 +5,7 @@ const path = require('path');
 const config = require('./config');
 const db = require('./db');
 const leadQueue = require('./services/leadQueue');
+const csvImport = require('./services/csvImport');
 const { errorHandler, notFound } = require('./middleware/errorHandler');
 const { apiLimiter } = require('./middleware/rateLimit');
 
@@ -94,6 +95,7 @@ const EXPECTED_TABLES = [
   'objection_types',
   'call_objections',
   'rebuttal_suggestions',
+  'import_rows',
 ];
 
 async function assertSchemaIsMigrated() {
@@ -130,10 +132,36 @@ function startStaleLockSweep() {
   staleLockTimer.unref();
 }
 
+// Import housekeeping: abandoned uploads (never processed) are deleted after
+// 24 h — at startup and then every hour. An import cut off by a restart is
+// marked failed at startup (see csvImport.failInterruptedImports).
+const IMPORT_CLEANUP_INTERVAL_MS = 60 * 60 * 1000;
+let importCleanupTimer = null;
+
+function runImportCleanup() {
+  csvImport
+    .expireStaleImports()
+    .then((n) => n > 0 && console.log(`Import cleanup: deleted ${n} unprocessed upload(s) older than 24 h`))
+    .catch((err) => console.error('Import cleanup failed:', err.message));
+}
+
+function startImportHousekeeping() {
+  if (require.main !== module) return;
+  csvImport
+    .failInterruptedImports()
+    .then((n) => n > 0 && console.log(`Marked ${n} import(s) interrupted by the restart as failed`))
+    .catch((err) => console.error('Could not check for interrupted imports:', err.message));
+  runImportCleanup();
+  importCleanupTimer = setInterval(runImportCleanup, IMPORT_CLEANUP_INTERVAL_MS);
+  importCleanupTimer.unref();
+}
+
 function shutdown(signal) {
   clearInterval(staleLockTimer);
   staleLockTimer = null;
-  console.log(`${signal} received — stale-lock sweep stopped, shutting down`);
+  clearInterval(importCleanupTimer);
+  importCleanupTimer = null;
+  console.log(`${signal} received — stale-lock sweep and import cleanup stopped, shutting down`);
   process.exit(0);
 }
 
@@ -142,6 +170,7 @@ assertSchemaIsMigrated()
     app.listen(config.port, () => {
       console.log(`Vortex Dialer API listening on port ${config.port} (telephony: ${config.telephonyProvider})`);
       startStaleLockSweep();
+      startImportHousekeeping();
     });
     process.once('SIGTERM', shutdown);
     process.once('SIGINT', shutdown);

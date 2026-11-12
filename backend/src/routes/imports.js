@@ -1,6 +1,8 @@
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
 const express = require('express');
 const multer = require('multer');
-const db = require('../db');
 const csvImport = require('../services/csvImport');
 const xlsxParser = require('../services/xlsxParser');
 const aiCsvMapper = require('../services/aiCsvMapper');
@@ -11,7 +13,36 @@ const { ApiError } = require('../middleware/errorHandler');
 const router = express.Router();
 router.use(requireAuth);
 
-const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 15 * 1024 * 1024 } });
+// Largest lead file accepted, in MB (env IMPORT_MAX_UPLOAD_MB, default 50).
+// There is no row limit: within this size a file of any length is imported in
+// batches. A larger file gets a 413 asking to split it.
+const DEFAULT_MAX_UPLOAD_MB = 50;
+const MAX_UPLOAD_MB = Number(process.env.IMPORT_MAX_UPLOAD_MB) > 0 ? Number(process.env.IMPORT_MAX_UPLOAD_MB) : DEFAULT_MAX_UPLOAD_MB;
+const limits = { fileSize: Math.round(MAX_UPLOAD_MB * 1024 * 1024) };
+
+// /upload writes the file to a temp directory and reads it back in batches,
+// so a big file is never held in memory. /preview and /analyze (older
+// single-request flow) still read it into memory.
+const UPLOAD_DIR = path.join(os.tmpdir(), 'vortex-imports');
+fs.mkdirSync(UPLOAD_DIR, { recursive: true });
+const upload = multer({ storage: multer.memoryStorage(), limits });
+const uploadToDisk = multer({ dest: UPLOAD_DIR, limits });
+
+/** Runs a multer middleware, turning "file too large" into a plain 413. */
+function acceptFile(middleware) {
+  return (req, res, next) =>
+    middleware(req, res, (err) => {
+      if (err && err.code === 'LIMIT_FILE_SIZE') {
+        return next(
+          new ApiError(
+            413,
+            `That file is larger than ${MAX_UPLOAD_MB} MB. Split it into smaller files (for example by state or by sheet) and upload them one at a time.`
+          )
+        );
+      }
+      return next(err);
+    });
+}
 
 const CSV_MIME_TYPES = new Set(['text/csv', 'application/csv', 'application/vnd.ms-excel', 'text/plain']);
 
@@ -31,7 +62,7 @@ function requireCsvFile(req, res, next) {
 // preview before anything is committed to the database.
 router.post(
   '/preview',
-  upload.single('file'),
+  acceptFile(upload.single('file')),
   requireCsvFile,
   asyncHandler(async (req, res) => {
     const { headers, rows } = csvImport.parseCsv(req.file.buffer);
@@ -45,7 +76,7 @@ router.post(
 // of the plain heuristic guessMapping(). Does not touch /preview or /commit.
 router.post(
   '/analyze',
-  upload.single('file'),
+  acceptFile(upload.single('file')),
   requireCsvFile,
   asyncHandler(async (req, res) => {
     const { headers, rows } = csvImport.parseCsv(req.file.buffer);
@@ -91,16 +122,34 @@ router.post(
 // single "Sheet1" plus .xlsx/.xls with any number of sheets.
 router.post(
   '/upload',
-  upload.single('file'),
+  acceptFile(uploadToDisk.single('file')),
   asyncHandler(async (req, res) => {
     if (!req.file) throw new ApiError(400, 'No file uploaded (expected multipart field "file")');
+    const typeError = await xlsxParser.checkUploadType(req.file.path, req.file.originalname || '');
+    if (typeError) {
+      await fs.promises.unlink(req.file.path).catch(() => {});
+      throw new ApiError(400, typeError);
+    }
 
-    const parsed = xlsxParser.parseUpload(req.file.buffer, req.file.originalname || '');
-    if (parsed.error) return res.status(400).json({ error: parsed.error });
-    if (parsed.totalRows === 0) return res.status(400).json({ error: 'That file has no rows.' });
+    // The rows go straight from the file into the job's import_rows, batch by batch.
+    const jobId = await csvImport.createImportJob({ userId: req.user.sub, filename: req.file.originalname || null });
+    let parsed;
+    try {
+      parsed = await xlsxParser.readUploadInBatches(req.file.path, req.file.originalname || '', csvImport.IMPORT_BATCH_SIZE, (sheet, rows, first) =>
+        csvImport.stageRows(jobId, sheet, rows, first)
+      );
+    } catch (err) {
+      await csvImport.deleteImportJob(jobId);
+      throw err;
+    } finally {
+      fs.promises.unlink(req.file.path).catch(() => {});
+    }
+    if (parsed.error || parsed.totalRows === 0) {
+      await csvImport.deleteImportJob(jobId);
+      return res.status(400).json({ error: parsed.error || 'That file has no rows.' });
+    }
 
-    const headers = xlsxParser.headersOf(parsed.sheets, parsed.sheetNames);
-    const sampleRows = xlsxParser.rowsFor(parsed.sheets, parsed.sheetNames).slice(0, 4);
+    const { headers, sampleRows } = parsed;
 
     // One quick AI call for the suggested mapping (falls back to the
     // heuristic guess when Groq isn't configured). Row cleaning — the slow
@@ -109,27 +158,24 @@ router.post(
     try {
       mappingResult = await aiCsvMapper.mapColumns(headers, sampleRows);
     } catch {
-      mappingResult = { mapping: csvImport.guessMapping(headers), confidence: {}, needsReview: [] };
+      // AI failed (unreachable, bad key, bad answer): same as unavailable.
+      mappingResult = { mapping: csvImport.guessMapping(headers), confidence: {}, needsReview: [], unavailable: true };
     }
     if (mappingResult.unavailable) {
       mappingResult = { ...mappingResult, mapping: csvImport.guessMapping(headers) };
+    } else {
+      mappingResult = { ...mappingResult, mapping: csvImport.completeMapping(mappingResult.mapping, headers) };
     }
 
-    const jobId = await csvImport.createImportJob({
-      userId: req.user.sub,
-      filename: req.file.originalname || null,
-      totalRows: parsed.totalRows,
-      sourceRows: parsed.sheets,
-      mapping: mappingResult.mapping,
-    });
+    await csvImport.setUploadResult(jobId, { totalRows: parsed.totalRows, mapping: mappingResult.mapping });
 
     res.status(201).json({
       jobId,
       sheetNames: parsed.sheetNames,
       totalRows: parsed.totalRows,
-      sheetRowCounts: Object.fromEntries(parsed.sheetNames.map((n) => [n, parsed.sheets[n].length])),
+      sheetRowCounts: parsed.sheetRowCounts,
       headers,
-      fields: csvImport.LEAD_FIELDS,
+      fields: csvImport.MAPPABLE_FIELDS,
       sampleRows,
       ...mappingResult,
     });
@@ -144,22 +190,7 @@ router.post(
     const { jobId, sheets: selectedSheets, mapping } = req.body;
     if (!jobId) throw new ApiError(400, 'jobId is required');
 
-    const { rows } = await db.query('SELECT source_rows FROM import_jobs WHERE id = $1 AND user_id = $2', [
-      jobId,
-      req.user.sub,
-    ]);
-    if (!rows[0]) throw new ApiError(404, 'Import job not found');
-
-    const sheets = rows[0].source_rows || {};
-    const names = Array.isArray(selectedSheets) && selectedSheets.length ? selectedSheets : Object.keys(sheets);
-    const selectedRows = xlsxParser.rowsFor(sheets, names);
-    if (selectedRows.length === 0) throw new ApiError(400, 'The selected sheets have no rows.');
-
-    await csvImport.setJobMappingAndRows(jobId, {
-      mapping,
-      sourceRows: selectedRows,
-      totalRows: selectedRows.length,
-    });
+    const totalRows = await csvImport.startJob(jobId, req.user.sub, { sheets: selectedSheets, mapping });
 
     setImmediate(() => {
       csvImport.processImportJob(jobId).catch((err) => {
@@ -167,7 +198,7 @@ router.post(
       });
     });
 
-    res.json({ status: 'processing', jobId, totalRows: selectedRows.length });
+    res.json({ status: 'processing', jobId, totalRows });
   })
 );
 
@@ -178,15 +209,20 @@ router.get(
     const job = await csvImport.getImportJob(req.params.jobId);
     if (!job) return res.status(404).json({ error: 'Import job not found' });
 
-    const percentage = job.total_rows > 0 ? Math.round((job.processed_rows / job.total_rows) * 100) : 0;
+    const { percentage, phaseLabel } = csvImport.progressOf(job);
     res.json({
       jobId: job.id,
       filename: job.filename,
       status: job.status,
+      phase: job.phase,
+      phaseLabel,
       processedRows: job.processed_rows,
       totalRows: job.total_rows,
       failedRows: job.failed_rows,
-      percentage: Math.min(100, percentage),
+      rowsToSave: job.rows_to_save,
+      savedRows: job.saved_rows,
+      written: job.written_leads,
+      percentage,
       resultSummary: job.result_summary,
       errorMessage: job.error_message,
     });
@@ -196,9 +232,28 @@ router.get(
 router.post(
   '/cancel/:jobId',
   asyncHandler(async (req, res) => {
-    const job = await csvImport.cancelImportJob(req.params.jobId);
-    if (!job) return res.status(404).json({ error: 'Import job not found' });
-    res.json({ cancelled: true, jobId: job.id });
+    const result = await csvImport.cancelImportJob(req.params.jobId);
+    if (!result) return res.status(404).json({ error: 'Import job not found' });
+    res.status(result.tooLate ? 409 : 200).json(result.tooLate ? { ...result, reason: 'too_late', error: result.message } : result);
+  })
+);
+
+// Every row of an import that didn't become a lead, as a CSV download.
+router.get(
+  '/:jobId/skipped.csv',
+  asyncHandler(async (req, res) => {
+    const job = await csvImport.getImportJob(req.params.jobId);
+    const base = (job?.filename || 'import').replace(/\.[^.]+$/, '').replace(/[^A-Za-z0-9._-]+/g, '_');
+    let started = false;
+    await csvImport.writeSkippedRowsCsv(req.params.jobId, req.user, (chunk) => {
+      if (!started) {
+        res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+        res.setHeader('Content-Disposition', `attachment; filename="${base}-skipped-rows.csv"`);
+        started = true;
+      }
+      res.write(chunk);
+    });
+    res.end();
   })
 );
 

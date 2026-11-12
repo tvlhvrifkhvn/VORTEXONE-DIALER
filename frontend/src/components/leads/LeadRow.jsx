@@ -82,9 +82,14 @@ export default function LeadRow({
       <td className="px-3 py-3 text-text-primary">
         <div className="flex items-center gap-1.5">
           {lead.missing_phone ? (
-            <span className="text-xs italic text-text-secondary">No number</span>
+            <span className="text-xs italic text-text-secondary">
+              {lead.original_phone ? `Number unreadable: ${lead.original_phone}` : 'No number'}
+            </span>
           ) : (
-            formatPhone(lead.phone)
+            <>
+              {formatPhone(lead.phone)}
+              {lead.extension && <span className="text-xs text-text-secondary">ext. {lead.extension}</span>}
+            </>
           )}
           {lead.is_dnc_flagged && (
             <span title="On the DNC list" aria-label="On the DNC list" className="text-action-dnc">

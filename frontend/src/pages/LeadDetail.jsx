@@ -155,7 +155,9 @@ export default function LeadDetail() {
           {lead.missing_phone && (
             <p className="flex items-center gap-2 rounded-input bg-action-warn/10 px-3 py-2 text-xs font-medium text-action-warn">
               <PhoneOff size={14} />
-              No phone number on file — this lead can't be dialed until one is added below.
+              {lead.original_phone
+                ? `Number unreadable: ${lead.original_phone} — this lead can't be dialed until a valid number is added below.`
+                : "No phone number on file — this lead can't be dialed until one is added below."}
             </p>
           )}
 
