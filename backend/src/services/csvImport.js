@@ -27,10 +27,25 @@ const LEAD_FIELDS = ['name', 'phone', 'email', 'address', 'brokerage', 'state'];
 // carries the brokerage when the primary one's cell is blank (see
 // resolveBrokerage); `city` is a city-only locality column, which scraped
 // files often have instead of a full address — it feeds state resolution and
-// the merge identity.
+// the merge identity. `first_name` / `last_name` are joined into the name when
+// the file has no single name column; `zip` is added to the address text.
 const SOURCE_FIELD = 'source';
 const CITY_FIELD = 'city';
-const MAPPABLE_FIELDS = [...LEAD_FIELDS, CITY_FIELD, SOURCE_FIELD];
+const NAME_PART_FIELDS = ['first_name', 'last_name'];
+const ZIP_FIELD = 'zip';
+const MAPPABLE_FIELDS = [...LEAD_FIELDS, ...NAME_PART_FIELDS, CITY_FIELD, ZIP_FIELD, SOURCE_FIELD];
+
+/** The raw name of a row: the mapped name column, or first + last name joined. */
+function rawName(row, mapping) {
+  if (mapping.name) return row[mapping.name] ?? '';
+  return NAME_PART_FIELDS.map((f) => (mapping[f] ? cleanText(row[mapping[f]]) : ''))
+    .filter(Boolean)
+    .join(' ');
+}
+
+function hasNameMapping(mapping) {
+  return Boolean(mapping && (mapping.name || mapping.first_name || mapping.last_name));
+}
 const MAX_SKIPPED_DETAILS = 100;
 
 /**
@@ -63,20 +78,83 @@ function parseCsv(buffer) {
   return { headers, rows };
 }
 
-/** A best-guess column mapping so the frontend can pre-fill the mapping UI. */
+// Header synonyms for guessMapping, compared after lower-casing and dropping
+// everything but letters/digits ("E-mail" → "email", "Phone Number" →
+// "phonenumber"). `exact` must equal the whole header; `partial` only has to
+// appear in it. Fields are tried in this order, exact matches for every field
+// first, so "Office Phone" becomes phone before "office" can claim it.
+const HEADER_SYNONYMS = [
+  ['phone', { exact: ['phone', 'phonenumber', 'phoneno', 'mobile', 'mobilephone', 'mobilenumber', 'cell', 'cellphone', 'cellnumber', 'tel', 'telephone', 'directphone', 'officephone', 'contactnumber', 'number'], partial: ['phone', 'mobile', 'cell', 'telephone'] }],
+  ['email', { exact: ['email', 'emailaddress', 'mail', 'email1'], partial: ['email'] }],
+  ['first_name', { exact: ['firstname', 'first', 'fname', 'givenname'], partial: ['firstname'] }],
+  ['last_name', { exact: ['lastname', 'last', 'lname', 'surname', 'familyname'], partial: ['lastname', 'surname'] }],
+  ['name', { exact: ['name', 'fullname', 'agentname', 'agent', 'contactname', 'contact', 'realtor', 'realtorname'], partial: ['name'] }],
+  ['brokerage', { exact: ['brokerage', 'brokeragename', 'office', 'officename', 'company', 'companyname', 'agency', 'broker', 'firm'], partial: ['brokerage', 'office', 'company', 'agency', 'broker'] }],
+  ['address', { exact: ['address', 'street', 'streetaddress', 'address1', 'addressline1', 'mailingaddress'], partial: ['address', 'street'] }],
+  ['city', { exact: ['city', 'town'], partial: ['city'] }],
+  ['state', { exact: ['state', 'st', 'province', 'stateprovince'], partial: ['state'] }],
+  ['zip', { exact: ['zip', 'zipcode', 'postal', 'postalcode', 'postcode'], partial: ['zip', 'postal'] }],
+  ['source', { exact: ['source', 'website', 'site', 'url', 'domain', 'web'], partial: ['source', 'website', 'url'] }],
+];
+// A header containing one of these is never taken as the person's name.
+const NOT_A_NAME = ['first', 'last', 'company', 'office', 'broker', 'file', 'user', 'agency', 'street'];
+
+/**
+ * A best-guess column mapping without AI, so the preview can be pre-filled
+ * (and is the whole mapping when AI is unavailable). The user can change any
+ * of it in the preview before importing.
+ */
 function guessMapping(headers) {
-  const normalized = headers.map((h) => ({ header: h, key: h.toLowerCase().replace(/[^a-z]/g, '') }));
+  const normalized = headers.map((h) => ({ header: h, key: String(h).toLowerCase().replace(/[^a-z0-9]/g, '') }));
   const mapping = {};
   const used = new Set();
+  const take = (field, h) => {
+    mapping[field] = h.header;
+    used.add(h.header);
+  };
 
-  for (const field of MAPPABLE_FIELDS) {
-    const exact = normalized.find((h) => !used.has(h.header) && h.key === field);
-    const partial = normalized.find((h) => !used.has(h.header) && h.key.includes(field));
-    const match = exact || partial;
-    if (match) {
-      mapping[field] = match.header;
-      used.add(match.header);
+  for (const [field, { exact }] of HEADER_SYNONYMS) {
+    // Earlier synonyms are better matches ("brokerage" beats "agency").
+    for (const synonym of exact) {
+      const h = normalized.find((c) => !used.has(c.header) && c.key === synonym);
+      if (h) {
+        take(field, h);
+        break;
+      }
     }
+  }
+  for (const [field, { partial }] of HEADER_SYNONYMS) {
+    if (mapping[field]) continue;
+    const h = normalized.find(
+      (c) =>
+        !used.has(c.header) &&
+        partial.some((p) => c.key.includes(p)) &&
+        !(field === 'name' && NOT_A_NAME.some((w) => c.key.includes(w)))
+    );
+    if (h) take(field, h);
+  }
+  // A single name column wins over first/last parts.
+  if (mapping.name) {
+    delete mapping.first_name;
+    delete mapping.last_name;
+  }
+  return mapping;
+}
+
+/** The AI's mapping, with any field it didn't map filled from guessMapping
+ * (the AI knows nothing about first/last name or zip columns). */
+function completeMapping(aiMapping, headers) {
+  const mapping = { ...(aiMapping || {}) };
+  const used = new Set(Object.values(mapping).filter(Boolean));
+  for (const [field, header] of Object.entries(guessMapping(headers))) {
+    if (!mapping[field] && !used.has(header)) {
+      mapping[field] = header;
+      used.add(header);
+    }
+  }
+  if (mapping.name) {
+    delete mapping.first_name;
+    delete mapping.last_name;
   }
   return mapping;
 }
@@ -113,7 +191,7 @@ function mergeDuplicateRows(mapping, rows) {
   let mergedCount = 0;
 
   for (const row of rows) {
-    const name = cleanLeadName(row[mapping.name]).toLowerCase();
+    const name = cleanLeadName(rawName(row, mapping)).toLowerCase();
     const key = name ? `${name}|${localityKey(row, mapping)}` : '';
     if (!key) {
       // No usable name to group on — leave it for the import loop to reject.
@@ -175,8 +253,8 @@ function mergeDuplicateRows(mapping, rows) {
  * than throwing on a per-row basis — a bad row shouldn't fail the batch.
  */
 async function commitImport({ mapping, rows, userId, filename }) {
-  if (!mapping || !mapping.name || !mapping.phone) {
-    throw new ApiError(400, 'mapping must include at least name and phone');
+  if (!hasNameMapping(mapping) || !mapping.phone) {
+    throw new ApiError(400, 'mapping must include at least name (or first/last name) and phone');
   }
   if (!Array.isArray(rows) || rows.length === 0) {
     throw new ApiError(400, 'No rows to import');
@@ -205,7 +283,7 @@ async function commitImport({ mapping, rows, userId, filename }) {
 
   const skip = (row, reason) => {
     if (summary.skippedDetails.length < MAX_SKIPPED_DETAILS) {
-      summary.skippedDetails.push({ row: row[mapping.name] || row[mapping.phone] || '(unknown)', reason });
+      summary.skippedDetails.push({ row: rawName(row, mapping) || row[mapping.phone] || '(unknown)', reason });
     }
   };
 
@@ -215,13 +293,14 @@ async function commitImport({ mapping, rows, userId, filename }) {
     const rawPhone = row[mapping.phone];
     const parsedPhone = parsePhone(rawPhone);
     const phone = parsedPhone.e164;
-    const name = cleanLeadName(row[mapping.name]);
-    const address = mapping.address ? cleanText(row[mapping.address]) : '';
+    const name = cleanLeadName(rawName(row, mapping));
+    const street = mapping.address ? cleanText(row[mapping.address]) : '';
+    const zip = mapping[ZIP_FIELD] ? cleanText(row[mapping[ZIP_FIELD]]) : '';
     // A city-only column ("boise id usa") is the only locality a scraped row
     // may carry, and it's the sole state source for a row with no phone —
     // the area-code tier below can't help those.
     const city = mapping.city ? cleanText(row[mapping.city]) : '';
-    const locationText = [address, city].filter(Boolean).join(' ');
+    const locationText = [street, city, zip].filter(Boolean).join(' ');
 
     let state = mapping.state ? cleanText(row[mapping.state]).toUpperCase() : '';
     if (!US_STATES.includes(state)) state = stateFromAddressText(locationText) || '';
@@ -233,7 +312,7 @@ async function commitImport({ mapping, rows, userId, filename }) {
       parsedPhone,
       phone,
       name,
-      address: address || city,
+      address: [street || city, zip].filter(Boolean).join(' '),
       // Kept separately from address: a mapped city column is a cleaner
       // office-grouping input than re-parsing it back out of the address.
       city,
@@ -429,6 +508,12 @@ async function processImportJob(jobId) {
     let needsManualReview = 0;
     let cancelled = false;
     let nextChunk = 0;
+    // Circuit breaker: once a chunk has failed every AI attempt, the service is
+    // treated as down for the rest of this job and the remaining rows go
+    // through the built-in rules only, instead of each chunk paying for the
+    // full retry cycle again.
+    let aiDown = false;
+    let rowsNotAiCleaned = 0;
 
     // Up to MAX_CONCURRENT_CHUNKS workers pulling from the same chunk list —
     // faster than one at a time without firing 50 Groq calls simultaneously.
@@ -445,7 +530,14 @@ async function processImportJob(jobId) {
         }
 
         const chunk = chunks[current];
-        const cleaned = await cleanChunkWithRetry(chunk.rows, mapping);
+        let cleaned;
+        if (aiDown) {
+          cleaned = { cleanedRows: chunk.rows, originals: new Map(), skippedIndexes: new Set(), needsManualReview: false };
+          rowsNotAiCleaned += chunk.rows.length;
+        } else {
+          cleaned = await cleanChunkWithRetry(chunk.rows, mapping);
+          if (cleaned.needsManualReview) aiDown = true;
+        }
         cleanedChunks[current] = cleaned;
 
         processed += chunk.rows.length;
@@ -512,6 +604,8 @@ async function processImportJob(jobId) {
     });
 
     summary.needsManualReview = needsManualReview;
+    summary.aiStoppedAfterFailures = aiDown;
+    summary.rowsNotAiCleaned = rowsNotAiCleaned;
     summary.aiSkipped = aiSkipped;
     summary.originalNames = originalNames;
 
@@ -581,8 +675,10 @@ async function getImportHistory() {
 
 module.exports = {
   LEAD_FIELDS,
+  MAPPABLE_FIELDS,
   parseCsv,
   guessMapping,
+  completeMapping,
   commitImport,
   getImportHistory,
   createImportJob,

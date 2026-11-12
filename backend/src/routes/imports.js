@@ -109,10 +109,13 @@ router.post(
     try {
       mappingResult = await aiCsvMapper.mapColumns(headers, sampleRows);
     } catch {
-      mappingResult = { mapping: csvImport.guessMapping(headers), confidence: {}, needsReview: [] };
+      // AI failed (unreachable, bad key, bad answer): same as unavailable.
+      mappingResult = { mapping: csvImport.guessMapping(headers), confidence: {}, needsReview: [], unavailable: true };
     }
     if (mappingResult.unavailable) {
       mappingResult = { ...mappingResult, mapping: csvImport.guessMapping(headers) };
+    } else {
+      mappingResult = { ...mappingResult, mapping: csvImport.completeMapping(mappingResult.mapping, headers) };
     }
 
     const jobId = await csvImport.createImportJob({
@@ -129,7 +132,7 @@ router.post(
       totalRows: parsed.totalRows,
       sheetRowCounts: Object.fromEntries(parsed.sheetNames.map((n) => [n, parsed.sheets[n].length])),
       headers,
-      fields: csvImport.LEAD_FIELDS,
+      fields: csvImport.MAPPABLE_FIELDS,
       sampleRows,
       ...mappingResult,
     });

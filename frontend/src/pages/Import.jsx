@@ -12,6 +12,19 @@ import * as api from '../lib/api';
 // lead — the backend derives it from address text or phone area code (and,
 // as a last resort, a validated AI guess) when no column is mapped to it.
 const REQUIRED_FIELDS = ['name', 'phone'];
+// The preview table shows the lead as it will be saved; the mapping list
+// shows every column the importer understands.
+const PREVIEW_FIELDS = ['name', 'phone', 'email', 'address', 'brokerage', 'state'];
+const FIELD_LABELS = { first_name: 'first name', last_name: 'last name', zip: 'zip / postal', source: 'source / website' };
+
+/** What the importer will use as the name: the name column, or first + last joined. */
+function previewName(row, mapping) {
+  if (mapping.name) return row[mapping.name];
+  return [mapping.first_name, mapping.last_name]
+    .map((h) => (h ? String(row[h] || '').trim() : ''))
+    .filter(Boolean)
+    .join(' ');
+}
 const CONFIDENCE_COLORS = { high: 'text-action-contacted', medium: 'text-action-warn', low: 'text-action-hangup' };
 
 /** Last 10 imports, shown below the upload area. */
@@ -118,7 +131,8 @@ export default function Import() {
     setMapping((m) => ({ ...m, [field]: header || undefined }));
   };
 
-  const canContinue = REQUIRED_FIELDS.every((f) => mapping[f]);
+  const hasName = Boolean(mapping.name || mapping.first_name || mapping.last_name);
+  const canContinue = hasName && Boolean(mapping.phone);
 
   const handleCommit = async () => {
     setCommitting(true);
@@ -238,7 +252,8 @@ export default function Import() {
               <h2 className="mb-1 text-sm font-semibold text-text-primary">We detected these columns</h2>
               {analysis.unavailable ? (
                 <p className="mb-3 rounded-input bg-action-warn/10 px-3 py-2 text-xs font-medium text-action-warn">
-                  AI mapping is not configured — please map columns manually.
+                  AI mapping is off or unavailable — columns were matched by their names. Check them below
+                  and change any that are wrong.
                 </p>
               ) : (
                 <p className="mb-3 text-xs text-text-secondary">
@@ -252,7 +267,7 @@ export default function Import() {
                   return (
                     <div key={field} className="grid grid-cols-[100px_1fr_80px] items-center gap-3">
                       <label className="text-xs font-medium capitalize text-text-secondary">
-                        {field}
+                        {FIELD_LABELS[field] || field}
                         {REQUIRED_FIELDS.includes(field) && ' *'}
                       </label>
                       <NeuInput
@@ -284,7 +299,7 @@ export default function Import() {
               <table className="w-full text-xs">
                 <thead>
                   <tr className="text-left uppercase tracking-wide text-text-secondary">
-                    {analysis.fields.map((f) => (
+                    {PREVIEW_FIELDS.map((f) => (
                       <th key={f} className="px-2 py-2">
                         {f}
                       </th>
@@ -294,11 +309,12 @@ export default function Import() {
                 <tbody>
                   {(analysis.sampleRows || []).slice(0, 5).map((row, i) => (
                     <tr key={i} className="border-t border-shadow/20">
-                      {analysis.fields.map((f) => {
+                      {PREVIEW_FIELDS.map((f) => {
                         const original = f === 'name' ? analysis.originalNames?.[i] : null;
+                        const value = f === 'name' ? previewName(row, mapping) : mapping[f] ? row[mapping[f]] : '';
                         return (
                           <td key={f} className="px-2 py-2 text-text-primary">
-                            {mapping[f] ? row[mapping[f]] || '—' : '—'}
+                            {value || '—'}
                             {original && (
                               <span
                                 title={`Cleaned by AI from: ${original}`}
@@ -325,7 +341,9 @@ export default function Import() {
               </ActionButton>
               <NeuButton onClick={handleReset}>Start over</NeuButton>
               {!canContinue && (
-                <span className="text-xs text-text-secondary">Map name and phone to continue.</span>
+                <span className="text-xs text-text-secondary">
+                  Map phone and a name (or first/last name) to continue.
+                </span>
               )}
             </div>
           </>
