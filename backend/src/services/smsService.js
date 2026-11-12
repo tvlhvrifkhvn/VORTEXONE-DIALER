@@ -215,16 +215,22 @@ async function sendBulkSms(leadIds, templateId) {
     throw new ApiError(422, `This template needs fixing before it can be sent: ${badTokens.join(', ')} isn't a supported field (${supportedList()})`);
   }
 
-  const { rows: leads } = await db.query('SELECT * FROM leads WHERE id = ANY($1) AND deleted_at IS NULL', [leadIds]);
+  const ids = [...new Set(leadIds.map(Number))];
+  const { rows: leads } = await db.query('SELECT * FROM leads WHERE id = ANY($1) AND deleted_at IS NULL', [ids]);
 
-  // missing_field: the template uses a field this lead doesn't have (skipped, not sent with a gap).
-  // outside_hours: outside 8am–9pm in the lead's time zone, or the zone is
-  // unknown (F-39) — skipped, can be sent later.
-  const summary = { sent: 0, skipped_opt_out: 0, skipped_dnc: 0, outside_hours: 0, missing_field: 0, failed: 0 };
+  // Every requested lead lands in exactly one bucket, so the counts add up to
+  // total. missing_field: the template uses a field this lead doesn't have
+  // (skipped, not sent with a gap). outside_hours: outside 8am–9pm in the
+  // lead's time zone, or the zone is unknown (F-39) — can be sent later.
+  const summary = {
+    total: ids.length, sent: 0, opted_out: 0, dnc: 0, outside_hours: 0, missing_field: 0,
+    invalid_number: 0, not_found: ids.length - leads.length, failed: 0,
+  };
   const eligible = [];
   for (const lead of leads) {
-    if (lead.dnc_flag) summary.skipped_dnc += 1;
-    else if (lead.sms_opt_out) summary.skipped_opt_out += 1;
+    if (lead.dnc_flag) summary.dnc += 1;
+    else if (lead.sms_opt_out) summary.opted_out += 1;
+    else if (!lead.phone || !normalizePhone(lead.phone)) summary.invalid_number += 1;
     else if (!(await withinCallingHours(lead))) summary.outside_hours += 1;
     else {
       const rendered = renderMessage(template.body, lead);
