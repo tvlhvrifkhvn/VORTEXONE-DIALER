@@ -238,6 +238,25 @@ router.post(
   })
 );
 
+// Every row of an import that didn't become a lead, as a CSV download.
+router.get(
+  '/:jobId/skipped.csv',
+  asyncHandler(async (req, res) => {
+    const job = await csvImport.getImportJob(req.params.jobId);
+    const base = (job?.filename || 'import').replace(/\.[^.]+$/, '').replace(/[^A-Za-z0-9._-]+/g, '_');
+    let started = false;
+    await csvImport.writeSkippedRowsCsv(req.params.jobId, req.user, (chunk) => {
+      if (!started) {
+        res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+        res.setHeader('Content-Disposition', `attachment; filename="${base}-skipped-rows.csv"`);
+        started = true;
+      }
+      res.write(chunk);
+    });
+    res.end();
+  })
+);
+
 // Last 10 imports — powers the Import page's "Import History" table.
 router.get(
   '/history',

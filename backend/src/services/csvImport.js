@@ -519,7 +519,10 @@ async function savePhase(jobId, state) {
       await client.query('BEGIN');
       const phones = batch.filter((r) => r.prep.phone).map((r) => r.prep.phone);
       const { rows: dncRows } = await client.query('SELECT phone FROM dnc_list WHERE phone = ANY($1)', [phones]);
-      const { rows: existingRows } = await client.query('SELECT phone FROM leads WHERE phone = ANY($1)', [phones]);
+      const { rows: existingRows } = await client.query(
+        `SELECT phone, (dnc_flag OR status = 'dnc') AS is_dnc FROM leads WHERE phone = ANY($1)`,
+        [phones]
+      );
       const phoneless = batch.filter((r) => !r.prep.phone && r.prep.name && r.prep.state);
       const { rows: identityRows } = await client.query(
         `SELECT lower(name) AS n, state FROM leads
@@ -527,7 +530,9 @@ async function savePhase(jobId, state) {
            AND (lower(name), state) IN (SELECT * FROM unnest($1::text[], $2::text[]))`,
         [phoneless.map((r) => r.prep.name.toLowerCase()), phoneless.map((r) => r.prep.state)]
       );
-      const dnc = new Set(dncRows.map((r) => r.phone));
+      // A number on the DNC list, or belonging to a lead already marked DNC
+      // (even if the list itself lacks it), is never imported as dialable.
+      const dnc = new Set([...dncRows.map((r) => r.phone), ...existingRows.filter((r) => r.is_dnc).map((r) => r.phone)]);
       const existing = new Set(existingRows.map((r) => r.phone));
       const identities = new Set(identityRows.map((r) => `${r.n}|${r.state}`));
 
@@ -544,7 +549,16 @@ async function savePhase(jobId, state) {
             reason: `No state, and the same name appears in ${p.sameNameElsewhere} different places in this file — not merged into any of them`,
           });
         } else if (!p.state) updates.push({ id: r.id, prep: p, outcome: 'invalid', reason: 'Could not determine a US state for this lead' });
-        else if (p.phone && dnc.has(p.phone)) updates.push({ id: r.id, prep: p, outcome: 'dnc_blocked', reason: `Phone number is on the DNC list: ${p.phone}` });
+        else if (p.phone && dnc.has(p.phone)) {
+          updates.push({
+            id: r.id,
+            prep: p,
+            outcome: 'dnc_blocked',
+            reason: existing.has(p.phone)
+              ? `Belongs to a lead already marked DNC: ${p.phone}`
+              : `Phone number is on the DNC list: ${p.phone}`,
+          });
+        }
         else if (p.phone && existing.has(p.phone)) updates.push({ id: r.id, prep: p, outcome: 'already_in_list', reason: `Already in your list (same phone number): ${p.phone}` });
         else if (!p.phone && (identities.has(`${p.nameKey}|${p.state}`) || phonelessSeen.has(`${p.nameKey}|${p.state}`))) {
           updates.push({ id: r.id, prep: p, outcome: 'already_in_list', reason: `Already in your list (same name and state, no phone number): ${p.name} (${p.state})` });
@@ -630,22 +644,43 @@ async function buildSummary(jobId, state) {
     [jobId]
   );
   const c = counts[0];
+  const { rows: invalidReasons } = await db.query(
+    `SELECT reason, count(*)::int AS count FROM import_rows
+     WHERE job_id = $1 AND outcome = 'invalid' GROUP BY reason ORDER BY count(*) DESC`,
+    [jobId]
+  );
   const { rows: skipped } = await db.query(
     `SELECT data, prep, reason FROM import_rows
      WHERE job_id = $1 AND outcome IN ('merged', 'already_in_list', 'dnc_blocked', 'invalid')
      ORDER BY id LIMIT $2`,
     [jobId, MAX_SKIPPED_DETAILS]
   );
+  const buckets = {
+    imported: c.imported, // new dialable leads
+    noNumber: c.no_number, // new leads without a usable number (kept, not dialable)
+    merged: c.merged, // folded into another row of the same file
+    alreadyInList: c.already_in_list, // same phone (or same name + state) already in the database
+    dncBlocked: c.dnc_blocked, // on the DNC list, or the number of a lead marked DNC
+    invalid: c.invalid, // could not be imported — see invalidReasons
+  };
+  const accounted = Object.values(buckets).reduce((a, b) => a + b, 0);
   return {
+    jobId,
     totalRows: c.total,
-    // Leads written (with and without a phone number).
-    imported: c.imported + c.no_number,
+    ...buckets,
+    // Every row of the file lands in exactly one bucket. Only a cancelled
+    // import leaves rows unprocessed, and those are counted here.
+    notProcessed: c.not_processed,
+    allRowsAccountedFor: accounted + c.not_processed === c.total,
+    invalidReasons,
+    // Leads written in total (with and without a number), and the older
+    // field names kept for the Import history table and older clients.
+    importedTotal: c.imported + c.no_number,
     importedWithoutPhone: c.no_number,
     mergedDuplicates: c.merged,
     skippedDuplicate: c.already_in_list,
     skippedDnc: c.dnc_blocked,
     skippedInvalid: c.invalid,
-    notProcessed: c.not_processed,
     unreadable: c.unreadable,
     withExtension: c.with_extension,
     written: c.imported + c.no_number,
@@ -694,7 +729,7 @@ async function processImportJob(jobId) {
     await db.query(
       `INSERT INTO import_history (user_id, filename, total_rows, imported, skipped_dnc, skipped_duplicate, skipped_invalid)
        VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-      [job.user_id || null, job.filename || null, summary.totalRows, summary.imported, summary.skippedDnc, summary.skippedDuplicate, summary.skippedInvalid]
+      [job.user_id || null, job.filename || null, summary.totalRows, summary.importedTotal, summary.skippedDnc, summary.skippedDuplicate, summary.skippedInvalid]
     );
     await db.query(
       `UPDATE import_jobs SET status = $3, completed_at = now(), result_summary = $2 WHERE id = $1`,
@@ -793,6 +828,56 @@ async function startJob(jobId, userId, { sheets, mapping }) {
     [jobId, JSON.stringify(mapping), count[0].n]
   );
   return count[0].n;
+}
+
+const OUTCOME_LABELS = {
+  merged: 'Merged within the file',
+  already_in_list: 'Already in your list',
+  dnc_blocked: 'DNC — blocked',
+  invalid: 'Invalid',
+};
+
+function csvCell(value) {
+  const s = value == null ? '' : String(value);
+  return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+}
+
+/**
+ * Writes every row of an import that did NOT become a lead (merged, already
+ * in the list, DNC-blocked, invalid) as CSV: where it was in the file, what
+ * happened and why, then the row's own columns exactly as uploaded — so
+ * nothing from the file is lost. Streams in batches through write(chunk).
+ * Only the user who ran the import (or a supervisor) can download it.
+ */
+async function writeSkippedRowsCsv(jobId, user, write) {
+  const { rows: jobs } = await db.query('SELECT id, user_id FROM import_jobs WHERE id = $1', [jobId]);
+  if (!jobs[0]) throw new ApiError(404, 'Import job not found');
+  if (user.role !== 'supervisor' && Number(jobs[0].user_id) !== Number(user.sub)) {
+    throw new ApiError(403, 'This import belongs to another user.');
+  }
+  const skippedOutcomes = Object.keys(OUTCOME_LABELS);
+  const { rows: keys } = await db.query(
+    `SELECT k FROM import_rows, jsonb_object_keys(data) AS k
+     WHERE job_id = $1 AND outcome = ANY($2) GROUP BY k ORDER BY min(id), k`,
+    [jobId, skippedOutcomes]
+  );
+  const columns = keys.map((r) => r.k);
+  write(`${['Sheet', 'Row', 'Outcome', 'Reason', ...columns].map(csvCell).join(',')}\n`);
+  let afterId = 0;
+  for (;;) {
+    const { rows } = await db.query(
+      `SELECT id, sheet, row_number, outcome, reason, data FROM import_rows
+       WHERE job_id = $1 AND outcome = ANY($2) AND id > $3 ORDER BY id LIMIT $4`,
+      [jobId, skippedOutcomes, afterId, IMPORT_BATCH_SIZE]
+    );
+    if (rows.length === 0) return;
+    afterId = rows[rows.length - 1].id;
+    write(
+      rows
+        .map((r) => [r.sheet, r.row_number, OUTCOME_LABELS[r.outcome], r.reason, ...columns.map((c) => r.data[c])].map(csvCell).join(','))
+        .join('\n') + '\n'
+    );
+  }
 }
 
 // An upload that was never processed (the user closed the preview) is
@@ -919,5 +1004,6 @@ module.exports = {
   progressOf,
   expireStaleImports,
   failInterruptedImports,
+  writeSkippedRowsCsv,
   processImportJob,
 };

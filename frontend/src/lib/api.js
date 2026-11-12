@@ -239,6 +239,8 @@ export const processImportJob = (jobId, sheets, mapping) =>
   request('/imports/process', { method: 'POST', body: { jobId, sheets, mapping } });
 export const getImportJobStatus = (jobId) => request(`/imports/status/${jobId}`);
 export const cancelImportJob = (jobId) => request(`/imports/cancel/${jobId}`, { method: 'POST' });
+/** Every row of an import that didn't become a lead, as a CSV Blob. */
+export const downloadSkippedRows = (jobId) => request(`/imports/${jobId}/skipped.csv`);
 
 // ai
 export const expandNote = (note) => request('/ai/expand-note', { method: 'POST', body: { note } });
