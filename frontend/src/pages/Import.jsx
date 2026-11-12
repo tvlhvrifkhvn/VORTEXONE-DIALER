@@ -82,6 +82,7 @@ export default function Import() {
   const [committing, setCommitting] = useState(false);
   const [summary, setSummary] = useState(null);
   const [error, setError] = useState(null);
+  const [cancelNote, setCancelNote] = useState(null);
   const [historyRefreshKey, setHistoryRefreshKey] = useState(0);
   const { job, isActive, cancelJob, clearJob } = useImportJob();
 
@@ -97,7 +98,12 @@ export default function Import() {
       setError(job.errorMessage || 'Import failed.');
       setStep(2);
     } else if (job.status === 'cancelled') {
-      setError('Import cancelled.');
+      const written = job.resultSummary?.written ?? job.written ?? 0;
+      setError(
+        written > 0
+          ? `Import cancelled. ${written} leads were already saved and stay in your list; the rest of the file was not imported.`
+          : 'Import cancelled. No leads were saved from this file.'
+      );
       setStep(2);
     }
   }, [job]);
@@ -150,6 +156,7 @@ export default function Import() {
 
   const handleReset = () => {
     clearJob();
+    setCancelNote(null);
     setStep(1);
     setAnalysis(null);
     setMapping({});
@@ -183,13 +190,21 @@ export default function Import() {
               />
             </div>
             <p className="text-xs text-text-secondary">
-              {job.processedRows} of {job.totalRows} rows processed
+              {job.phaseLabel || `${job.processedRows} of ${job.totalRows} rows processed`}
               {job.failedRows > 0 ? ` · ${job.failedRows} need manual review` : ''}
             </p>
             <p className="text-xs text-text-secondary">
               This runs on the server — you can leave this page and it keeps going.
             </p>
-            <NeuButton onClick={cancelJob}>Cancel import</NeuButton>
+            <NeuButton
+              onClick={async () => {
+                const result = await cancelJob();
+                if (result?.message) setCancelNote(result.message);
+              }}
+            >
+              Cancel import
+            </NeuButton>
+            {cancelNote && <p className="text-xs text-text-secondary">{cancelNote}</p>}
           </NeuCard>
         )}
 

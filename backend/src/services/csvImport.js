@@ -47,6 +47,8 @@ function hasNameMapping(mapping) {
   return Boolean(mapping && (mapping.name || mapping.first_name || mapping.last_name));
 }
 const MAX_SKIPPED_DETAILS = 100;
+// Rows written per transaction. Fixed — it does not depend on the file size.
+const SAVE_BATCH_SIZE = 500;
 
 /**
  * Real scraped files put the brokerage in different columns row by row: an
@@ -252,7 +254,7 @@ function mergeDuplicateRows(mapping, rows) {
  * non-duplicate, non-DNC leads to the database. Returns a summary rather
  * than throwing on a per-row basis — a bad row shouldn't fail the batch.
  */
-async function commitImport({ mapping, rows, userId, filename }) {
+async function commitImport({ mapping, rows, userId, filename, jobId = null }) {
   if (!hasNameMapping(mapping) || !mapping.phone) {
     throw new ApiError(400, 'mapping must include at least name (or first/last name) and phone');
   }
@@ -344,87 +346,138 @@ async function commitImport({ mapping, rows, userId, filename }) {
   }
 
   // Pass 3 — dedupe (exact phone match, in-file and against existing leads),
-  // DNC check, and insert.
+  // DNC check, and insert. Rows are saved in batches of SAVE_BATCH_SIZE, each
+  // in one transaction: a crash or error never leaves half a batch written,
+  // and the job's saved/written counters move only when a batch commits. A
+  // cancel is checked after every batch: it stops the remaining batches, and
+  // the rows already committed stay (and are reported).
   const seenPhones = new Set();
+  const counterKeys = ['imported', 'skippedDnc', 'skippedDuplicate', 'skippedInvalid', 'importedWithoutPhone', 'unreadable', 'withExtension'];
 
-  for (const p of prepared) {
-    const { row, parsedPhone, phone, name, address, city, state } = p;
-
-    if (!name) {
-      summary.skippedInvalid += 1;
-      skip(row, 'Missing name');
-      continue;
-    }
-    if (!state) {
-      summary.skippedInvalid += 1;
-      skip(row, `Could not determine a US state for this lead`);
-      continue;
-    }
-
-    // A row with a name but no usable phone is a real person from a partial
-    // scrape, not junk — import it flagged and non-dialable rather than
-    // dropping it (CLAUDE.md: no lead ever silently disappears).
-    const missingPhone = !phone;
-
-    if (phone) {
-      if (seenPhones.has(phone)) {
-        summary.skippedDuplicate += 1;
-        skip(row, `Duplicate phone number within this file: ${phone}`);
-        continue;
-      }
-      seenPhones.add(phone);
-
-      if (await dncCheck.isOnDncList(phone)) {
-        summary.skippedDnc += 1;
-        skip(row, `Phone number is on the DNC list: ${phone}`);
-        continue;
-      }
-
-      const { rows: existing } = await db.query('SELECT id FROM leads WHERE phone = $1', [phone]);
-      if (existing.length > 0) {
-        summary.skippedDuplicate += 1;
-        skip(row, `Lead with this phone number already exists: ${phone}`);
-        continue;
-      }
-    } else {
-      // No phone to dedupe on, so re-importing the same file would stack
-      // copies — match on the name+state identity instead.
-      const { rows: existing } = await db.query(
-        `SELECT id FROM leads
-         WHERE phone IS NULL AND lower(name) = lower($1) AND state = $2 AND deleted_at IS NULL`,
-        [name, state]
-      );
-      if (existing.length > 0) {
-        summary.skippedDuplicate += 1;
-        skip(row, `Lead without a phone number already exists: ${name} (${state})`);
-        continue;
-      }
-    }
-
-    const brokerage = resolveBrokerage(row, mapping) || null;
-
-    await db.query(
-      `INSERT INTO leads (name, phone, email, address, brokerage, state, status, missing_phone, office_key,
-                          original_phone, extension)
-       VALUES ($1, $2, $3, $4, $5, $6, 'new', $7, $8, $9, $10)`,
-      [
-        name,
-        phone,
-        mapping.email ? cleanText(row[mapping.email]) || null : null,
-        address || null,
-        brokerage,
-        state,
-        missingPhone,
-        buildOfficeKey({ brokerage, address, city, state }),
-        parsedPhone.original,
-        parsedPhone.extension,
-      ]
-    );
-    summary.imported += 1;
-    if (missingPhone) summary.importedWithoutPhone += 1;
-    if (parsedPhone.unreadable) summary.unreadable += 1;
-    if (parsedPhone.extension) summary.withExtension += 1;
+  if (jobId) {
+    await db.query(`UPDATE import_jobs SET phase = 'saving', rows_to_save = $2, saved_rows = 0, written_leads = 0 WHERE id = $1`, [
+      jobId,
+      prepared.length,
+    ]);
   }
+
+  let saved = 0;
+  for (let start = 0; start < prepared.length; start += SAVE_BATCH_SIZE) {
+    const batch = prepared.slice(start, start + SAVE_BATCH_SIZE);
+    const counts = Object.fromEntries(counterKeys.map((k) => [k, 0]));
+    const details = [];
+    const batchSeen = [];
+    const client = await db.getClient();
+    try {
+      await client.query('BEGIN');
+      for (const p of batch) {
+        const { row, parsedPhone, phone, name, address, city, state } = p;
+        const skipRow = (reason) => details.push({ row, reason });
+
+        if (!name) {
+          counts.skippedInvalid += 1;
+          skipRow('Missing name');
+          continue;
+        }
+        if (!state) {
+          counts.skippedInvalid += 1;
+          skipRow('Could not determine a US state for this lead');
+          continue;
+        }
+
+        // A row with a name but no usable phone is a real person from a partial
+        // scrape, not junk — import it flagged and non-dialable rather than
+        // dropping it (CLAUDE.md: no lead ever silently disappears).
+        const missingPhone = !phone;
+
+        if (phone) {
+          if (seenPhones.has(phone) || batchSeen.includes(phone)) {
+            counts.skippedDuplicate += 1;
+            skipRow(`Duplicate phone number within this file: ${phone}`);
+            continue;
+          }
+          batchSeen.push(phone);
+
+          if (await dncCheck.isOnDncList(phone)) {
+            counts.skippedDnc += 1;
+            skipRow(`Phone number is on the DNC list: ${phone}`);
+            continue;
+          }
+
+          const { rows: existing } = await client.query('SELECT id FROM leads WHERE phone = $1', [phone]);
+          if (existing.length > 0) {
+            counts.skippedDuplicate += 1;
+            skipRow(`Lead with this phone number already exists: ${phone}`);
+            continue;
+          }
+        } else {
+          // No phone to dedupe on, so re-importing the same file would stack
+          // copies — match on the name+state identity instead.
+          const { rows: existing } = await client.query(
+            `SELECT id FROM leads
+             WHERE phone IS NULL AND lower(name) = lower($1) AND state = $2 AND deleted_at IS NULL`,
+            [name, state]
+          );
+          if (existing.length > 0) {
+            counts.skippedDuplicate += 1;
+            skipRow(`Lead without a phone number already exists: ${name} (${state})`);
+            continue;
+          }
+        }
+
+        const brokerage = resolveBrokerage(row, mapping) || null;
+
+        await client.query(
+          `INSERT INTO leads (name, phone, email, address, brokerage, state, status, missing_phone, office_key,
+                              original_phone, extension)
+           VALUES ($1, $2, $3, $4, $5, $6, 'new', $7, $8, $9, $10)`,
+          [
+            name,
+            phone,
+            mapping.email ? cleanText(row[mapping.email]) || null : null,
+            address || null,
+            brokerage,
+            state,
+            missingPhone,
+            buildOfficeKey({ brokerage, address, city, state }),
+            parsedPhone.original,
+            parsedPhone.extension,
+          ]
+        );
+        counts.imported += 1;
+        if (missingPhone) counts.importedWithoutPhone += 1;
+        if (parsedPhone.unreadable) counts.unreadable += 1;
+        if (parsedPhone.extension) counts.withExtension += 1;
+      }
+
+      if (jobId) {
+        await client.query('UPDATE import_jobs SET saved_rows = $2, written_leads = written_leads + $3 WHERE id = $1', [
+          jobId,
+          saved + batch.length,
+          counts.imported,
+        ]);
+      }
+      await client.query('COMMIT');
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
+    }
+
+    // Only a committed batch counts toward the summary.
+    saved += batch.length;
+    batchSeen.forEach((ph) => seenPhones.add(ph));
+    for (const k of counterKeys) summary[k] += counts[k];
+    details.forEach((d) => skip(d.row, d.reason));
+
+    if (jobId && start + SAVE_BATCH_SIZE < prepared.length && (await isJobCancelled(jobId))) {
+      summary.cancelled = true;
+      break;
+    }
+  }
+  summary.written = summary.imported;
+  summary.savedRows = saved;
 
   await db.query(
     `INSERT INTO import_history (user_id, filename, total_rows, imported, skipped_dnc, skipped_duplicate, skipped_invalid)
@@ -496,6 +549,7 @@ async function processImportJob(jobId) {
   try {
     const sourceRows = job.source_rows || [];
     const mapping = job.mapping || {};
+    await db.query(`UPDATE import_jobs SET phase = 'cleaning' WHERE id = $1`, [jobId]);
 
     const chunks = [];
     for (let i = 0; i < sourceRows.length; i += CHUNK_SIZE) {
@@ -570,8 +624,8 @@ async function processImportJob(jobId) {
 
     if (cancelled) {
       await db.query(
-        `UPDATE import_jobs SET status = 'cancelled', completed_at = now() WHERE id = $1`,
-        [jobId]
+        `UPDATE import_jobs SET status = 'cancelled', completed_at = now(), result_summary = $2 WHERE id = $1`,
+        [jobId, JSON.stringify({ cancelled: true, written: 0, phase: 'cleaning' })]
       );
       return;
     }
@@ -601,6 +655,7 @@ async function processImportJob(jobId) {
       rows: rowsToImport,
       userId: job.user_id,
       filename: job.filename,
+      jobId,
     });
 
     summary.needsManualReview = needsManualReview;
@@ -609,11 +664,16 @@ async function processImportJob(jobId) {
     summary.aiSkipped = aiSkipped;
     summary.originalNames = originalNames;
 
+    // A cancel that arrived while the last batch was saving finds nothing
+    // left to stop: the job is still reported as cancelled, with every row it
+    // wrote counted, so the answer the user got ("cancelled, N written") holds.
+    const { rows: flag } = await db.query('SELECT cancelled FROM import_jobs WHERE id = $1', [jobId]);
+    if (flag[0]?.cancelled) summary.cancelled = true;
     await db.query(
       `UPDATE import_jobs
-       SET status = 'completed', completed_at = now(), result_summary = $2, processed_rows = $3
+       SET status = $4, completed_at = now(), result_summary = $2, processed_rows = $3
        WHERE id = $1`,
-      [jobId, JSON.stringify(summary), sourceRows.length]
+      [jobId, JSON.stringify(summary), sourceRows.length, summary.cancelled ? 'cancelled' : 'completed']
     );
   } catch (err) {
     console.error(`Import job ${jobId} failed:`, err.message);
@@ -639,7 +699,7 @@ async function createImportJob({ userId, filename, totalRows, sourceRows, mappin
 async function getImportJob(jobId) {
   const { rows } = await db.query(
     `SELECT id, filename, status, total_rows, processed_rows, failed_rows, result_summary,
-            error_message, cancelled, created_at, completed_at
+            error_message, cancelled, created_at, completed_at, phase, rows_to_save, saved_rows, written_leads
      FROM import_jobs WHERE id = $1`,
     [jobId]
   );
@@ -654,12 +714,68 @@ async function setJobMappingAndRows(jobId, { mapping, sourceRows, totalRows }) {
   );
 }
 
+/**
+ * Cancels an import if it is still running. Returns one of:
+ *   { cancelled: true, written: 0 }            not started yet (pending)
+ *   { cancelled: true, phase, written: N }     running: no further batch is
+ *                                              saved; the N rows already
+ *                                              committed stay and are reported
+ *   { cancelled: false, tooLate: true, ... }   already finished
+ *   null                                       no such job
+ */
 async function cancelImportJob(jobId) {
   const { rows } = await db.query(
-    `UPDATE import_jobs SET cancelled = true WHERE id = $1 RETURNING id, status`,
+    `UPDATE import_jobs
+     SET cancelled = true,
+         status = CASE WHEN status = 'pending' THEN 'cancelled' ELSE status END,
+         completed_at = CASE WHEN status = 'pending' THEN now() ELSE completed_at END
+     WHERE id = $1 AND status IN ('pending', 'processing')
+     RETURNING id, status, phase, written_leads`,
     [jobId]
   );
-  return rows[0] || null;
+  if (rows[0]) {
+    const job = rows[0];
+    return {
+      cancelled: true,
+      jobId: job.id,
+      phase: job.status === 'cancelled' ? null : job.phase,
+      written: job.written_leads,
+      message:
+        job.written_leads > 0
+          ? `Stopping. ${job.written_leads} leads were already saved and stay; no further rows will be saved after the batch in progress.`
+          : 'Stopping. No leads have been saved from this file.',
+    };
+  }
+  const { rows: existing } = await db.query('SELECT id, status, written_leads FROM import_jobs WHERE id = $1', [jobId]);
+  if (!existing[0]) return null;
+  return {
+    cancelled: false,
+    tooLate: true,
+    jobId: existing[0].id,
+    status: existing[0].status,
+    written: existing[0].written_leads,
+    message: `Too late to cancel — this import is already ${existing[0].status}.`,
+  };
+}
+
+/** Live progress in two phases: "cleaning" (rows read and checked), then
+ * "saving" (batches committed). 100% only once the job has completed. */
+function progressOf(job) {
+  const total = job.total_rows || 0;
+  let percentage = 0;
+  let phaseLabel = '';
+  if (job.status === 'completed') {
+    percentage = 100;
+    phaseLabel = 'Done';
+  } else if (job.phase === 'saving') {
+    const toSave = job.rows_to_save || 0;
+    percentage = 50 + (toSave > 0 ? Math.floor((job.saved_rows / toSave) * 49) : 49);
+    phaseLabel = `Saving ${job.saved_rows.toLocaleString('en-US')} / ${toSave.toLocaleString('en-US')} rows`;
+  } else {
+    percentage = total > 0 ? Math.floor((job.processed_rows / total) * 50) : 0;
+    phaseLabel = `Cleaning ${(job.processed_rows || 0).toLocaleString('en-US')} / ${total.toLocaleString('en-US')} rows`;
+  }
+  return { percentage: Math.min(job.status === 'completed' ? 100 : 99, percentage), phaseLabel };
 }
 
 /** Last 10 imports for the Import page's history table. */
@@ -685,5 +801,6 @@ module.exports = {
   getImportJob,
   setJobMappingAndRows,
   cancelImportJob,
+  progressOf,
   processImportJob,
 };

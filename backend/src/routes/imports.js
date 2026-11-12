@@ -181,15 +181,20 @@ router.get(
     const job = await csvImport.getImportJob(req.params.jobId);
     if (!job) return res.status(404).json({ error: 'Import job not found' });
 
-    const percentage = job.total_rows > 0 ? Math.round((job.processed_rows / job.total_rows) * 100) : 0;
+    const { percentage, phaseLabel } = csvImport.progressOf(job);
     res.json({
       jobId: job.id,
       filename: job.filename,
       status: job.status,
+      phase: job.phase,
+      phaseLabel,
       processedRows: job.processed_rows,
       totalRows: job.total_rows,
       failedRows: job.failed_rows,
-      percentage: Math.min(100, percentage),
+      rowsToSave: job.rows_to_save,
+      savedRows: job.saved_rows,
+      written: job.written_leads,
+      percentage,
       resultSummary: job.result_summary,
       errorMessage: job.error_message,
     });
@@ -199,9 +204,9 @@ router.get(
 router.post(
   '/cancel/:jobId',
   asyncHandler(async (req, res) => {
-    const job = await csvImport.cancelImportJob(req.params.jobId);
-    if (!job) return res.status(404).json({ error: 'Import job not found' });
-    res.json({ cancelled: true, jobId: job.id });
+    const result = await csvImport.cancelImportJob(req.params.jobId);
+    if (!result) return res.status(404).json({ error: 'Import job not found' });
+    res.status(result.tooLate ? 409 : 200).json(result.tooLate ? { ...result, reason: 'too_late', error: result.message } : result);
   })
 );
 
