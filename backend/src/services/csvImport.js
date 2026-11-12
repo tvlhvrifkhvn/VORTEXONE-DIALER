@@ -382,16 +382,37 @@ async function cleanPhase(jobId, mapping, state) {
   }
 }
 
-/** Groups one name's rows into people: same name + same locality is one
- * person (two blank localities match each other). Returns [[survivor, ...dups]]. */
+/**
+ * Groups one name's rows (in file order) into people. Returns
+ * [[survivor, ...duplicates]], plus the blank-locality rows that were left
+ * alone because the name appears in several places.
+ *   - same name + same locality → one person
+ *   - same name + blank locality (the usual scrape artifact: a name and
+ *     nothing else) → merged into the ONE same-name row that has a locality
+ *   - if the name appears with two or more different localities, a blank
+ *     row is not guessed into either: it stays on its own and is flagged
+ *   - only blank localities → they are one person, as before
+ */
 function groupSameName(rows) {
   const byLocality = new Map();
+  const blank = [];
   for (const r of rows) {
     const key = r.prep.localityKey || '';
+    if (!key) {
+      blank.push(r);
+      continue;
+    }
     if (!byLocality.has(key)) byLocality.set(key, []);
     byLocality.get(key).push(r);
   }
-  return [...byLocality.values()];
+  const groups = [...byLocality.values()];
+  if (blank.length === 0) return { groups, ambiguous: [] };
+  if (groups.length === 0) return { groups: [blank], ambiguous: [] };
+  if (groups.length === 1) {
+    groups[0].push(...blank); // survivor stays the row that has the locality
+    return { groups, ambiguous: [] };
+  }
+  return { groups, ambiguous: blank.map((r) => ({ row: r, places: groups.length })) };
 }
 
 /**
@@ -427,7 +448,13 @@ async function mergePhase(jobId, state) {
 
     const updates = [];
     for (const nameRows of byName.values()) {
-      for (const group of groupSameName(nameRows, state)) {
+      const { groups, ambiguous } = groupSameName(nameRows);
+      for (const { row, places } of ambiguous) {
+        // Kept as its own row; the note travels with it into the summary.
+        updates.push({ id: row.id, prep: { ...row.prep, sameNameElsewhere: places } });
+        state.ambiguousSameName += 1;
+      }
+      for (const group of groups) {
         if (group.length < 2) continue;
         const [survivor, ...dups] = group;
         let prep = survivor.prep;
@@ -509,7 +536,14 @@ async function savePhase(jobId, state) {
       for (const r of batch) {
         const p = r.prep;
         if (!p.name) updates.push({ id: r.id, prep: p, outcome: 'invalid', reason: 'Missing name' });
-        else if (!p.state) updates.push({ id: r.id, prep: p, outcome: 'invalid', reason: 'Could not determine a US state for this lead' });
+        else if (!p.state && p.sameNameElsewhere) {
+          updates.push({
+            id: r.id,
+            prep: p,
+            outcome: 'invalid',
+            reason: `No state, and the same name appears in ${p.sameNameElsewhere} different places in this file — not merged into any of them`,
+          });
+        } else if (!p.state) updates.push({ id: r.id, prep: p, outcome: 'invalid', reason: 'Could not determine a US state for this lead' });
         else if (p.phone && dnc.has(p.phone)) updates.push({ id: r.id, prep: p, outcome: 'dnc_blocked', reason: `Phone number is on the DNC list: ${p.phone}` });
         else if (p.phone && existing.has(p.phone)) updates.push({ id: r.id, prep: p, outcome: 'already_in_list', reason: `Already in your list (same phone number): ${p.phone}` });
         else if (!p.phone && (identities.has(`${p.nameKey}|${p.state}`) || phonelessSeen.has(`${p.nameKey}|${p.state}`))) {
@@ -619,6 +653,8 @@ async function buildSummary(jobId, state) {
     aiStoppedAfterFailures: state.aiDown,
     rowsNotAiCleaned: state.rowsNotAiCleaned,
     aiRenamed: state.aiRenamed,
+    // Blank-locality rows left unmerged because the name appears in several places.
+    ambiguousSameName: state.ambiguousSameName,
     skippedDetails: skipped.map((r) => ({ row: r.prep?.name || '(no name)', reason: r.reason })),
   };
 }
@@ -633,7 +669,15 @@ async function processImportJob(jobId) {
   const job = jobRows[0];
   if (!job) return;
 
-  const state = { processed: 0, needsManualReview: 0, aiDown: false, rowsNotAiCleaned: 0, aiRenamed: 0, cancelled: false };
+  const state = {
+    processed: 0,
+    needsManualReview: 0,
+    aiDown: false,
+    rowsNotAiCleaned: 0,
+    aiRenamed: 0,
+    ambiguousSameName: 0,
+    cancelled: false,
+  };
   try {
     const mapping = job.mapping || {};
     await db.query(`UPDATE import_jobs SET phase = 'cleaning' WHERE id = $1`, [jobId]);
