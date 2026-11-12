@@ -1,5 +1,4 @@
 const PDFDocument = require('pdfkit');
-const db = require('../db');
 const reports = require('./reports');
 const reportingPeriod = require('./reportingPeriod');
 
@@ -200,32 +199,18 @@ async function buildDailyReportBuffer(periodInput, repName = 'Talha Arif') {
   const period = periodInput || (await reportingPeriod.resolvePeriod());
   const date = period.start;
 
-  const { rows } = await db.query(
-    `SELECT ch.started_at, ch.duration_seconds, ch.disposition, ch.note,
-            l.name, l.phone, l.state, l.brokerage
-     FROM call_history ch
-     JOIN leads l ON l.id = ch.lead_id
-     WHERE ch.started_at >= $1 AND ch.started_at < $2 AND ch.disposition IS NOT NULL
-     ORDER BY ch.started_at ASC`,
-    [period.start, period.end]
-  );
-  const todayStats = await reports.todayStats();
-
-  const summary = {
-    dials: todayStats.dials,
-    contacts: todayStats.contacts,
-    connectRate: todayStats.connectRate,
-    voicemails: rows.filter((r) => r.disposition === 'voicemail').length,
-    noAnswers: rows.filter((r) => r.disposition === 'no_answer').length,
-    dnc: rows.filter((r) => r.disposition === 'dnc').length,
-  };
+  // Headline numbers and table rows come from the same period and the same
+  // WHERE clause (reports.periodStats / periodCalls): the counts always match.
+  const [summary, rows] = await Promise.all([reports.periodStats(period), reports.periodCalls(period)]);
 
   const tableRows = rows.map((r, i) => ({
     index: i + 1,
-    name: r.name,
+    name: r.is_manual ? 'Dial pad call' : r.name,
     brokerage: r.brokerage || '—',
-    phone: r.phone,
-    status: DISPOSITION_LABELS[r.disposition] || r.disposition,
+    phone: r.is_manual ? r.to_number : r.phone,
+    status: r.disposition
+      ? DISPOSITION_LABELS[r.disposition] || r.disposition
+      : r.was_abandoned ? 'Abandoned' : r.is_manual ? 'Dial pad' : r.ended_at ? 'Not logged' : 'In progress',
     note: r.note || '—',
     duration: formatDuration(r.duration_seconds),
     timeCalled: new Date(r.started_at).toLocaleTimeString('en-US', { timeStyle: 'short' }),
@@ -245,7 +230,7 @@ async function buildDailyReportBuffer(periodInput, repName = 'Talha Arif') {
     drawSummary(doc, usableWidth, summary);
 
     if (tableRows.length === 0) {
-      doc.font('Helvetica').fontSize(10).fillColor(THEME.subtle).text('No calls recorded for this date.', MARGIN);
+      doc.font('Helvetica').fontSize(10).fillColor(THEME.subtle).text('No calls recorded for this period.', MARGIN);
     } else {
       drawTableHeader(doc, columns, usableWidth);
       tableRows.forEach((row, i) => {
