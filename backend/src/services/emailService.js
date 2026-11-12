@@ -24,9 +24,11 @@ async function sendSingleEmail(leadId, { subject, body }) {
   // there's no dedicated flag for this yet, just a plain presence check.
   if (!lead.email) throw new ApiError(400, 'This lead has no email address on file');
   if (!body || !body.trim()) throw new ApiError(400, 'Email body is required');
+  // F-41: an email needs a subject; no default is made up for it.
+  if (typeof subject !== 'string' || !subject.trim()) throw new ApiError(400, 'Email subject is required');
 
   // Same placeholder rules as texts (F-38): no unsupported field or empty value reaches the lead.
-  const mergedSubject = renderOrThrow(subject || '', lead, 'subject');
+  const mergedSubject = renderOrThrow(subject.trim(), lead, 'subject');
   const mergedBody = renderOrThrow(body, lead, 'email');
 
   await emailAdapter.sendEmail(lead.email, mergedSubject, mergedBody);
