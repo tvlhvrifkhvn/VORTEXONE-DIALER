@@ -95,6 +95,7 @@ const EXPECTED_TABLES = [
   'objection_types',
   'call_objections',
   'rebuttal_suggestions',
+  'import_rows',
 ];
 
 async function assertSchemaIsMigrated() {
