@@ -74,21 +74,33 @@ function heightOfRuns(doc, runs, width, { bold = false, size }) {
 }
 
 const MARGIN = 40;
-const PAGE_SIZE = 'A4'; // 595.28 x 841.89pt
+const PAGE_SIZE = 'A4';
+// Landscape (841.89 x 595.28 pt): eight columns fit without squeezing names and notes.
+const PAGE_LAYOUT = 'landscape';
 
 // Proportional widths per the spec, scaled against the usable page width
 // (A4 width minus left+right margins) rather than hardcoded points, so the
 // table always exactly fills the page regardless of page size.
+// Short columns (#, Phone, Status, Duration, Time) are sized to their
+// widest value or header so they never wrap; Name, Brokerage and Note share
+// the rest of the page by `share` and wrap inside their cells.
 const COLUMN_SPEC = [
-  { key: 'index', label: '#', pct: 0.04 },
-  { key: 'name', label: 'Lead Name', pct: 0.15 },
-  { key: 'brokerage', label: 'Brokerage', pct: 0.15 },
-  { key: 'phone', label: 'Phone', pct: 0.12 },
-  { key: 'status', label: 'Status', pct: 0.1 },
-  { key: 'note', label: 'Note', pct: 0.28 },
-  { key: 'duration', label: 'Duration', pct: 0.08 },
-  { key: 'timeCalled', label: 'Time Called', pct: 0.08 },
+  { key: 'index', label: '#', fit: true },
+  { key: 'name', label: 'Lead Name', share: 0.27 },
+  { key: 'brokerage', label: 'Brokerage', share: 0.23 },
+  { key: 'phone', label: 'Phone', fit: true },
+  { key: 'status', label: 'Status', fit: true },
+  { key: 'note', label: 'Note', share: 0.5 },
+  { key: 'duration', label: 'Duration', fit: true },
+  { key: 'timeCalled', label: 'Time', fit: true },
 ];
+const CELL_PADDING = 8; // 4 pt each side
+
+/** (214) 555-1050 for a US number; anything else as stored. */
+function formatPhone(phone) {
+  const m = /^\+?1?(\d{3})(\d{3})(\d{4})$/.exec(String(phone || '').replace(/[^\d+]/g, ''));
+  return m ? `(${m[1]}) ${m[2]}-${m[3]}` : phone || '—';
+}
 
 const DISPOSITION_LABELS = {
   contacted: 'Contacted',
@@ -109,30 +121,37 @@ function formatDuration(seconds) {
 
 /** Builds the column layout (x offset + width per column) against however
  * wide the page's usable area actually is. */
-function buildColumns(usableWidth) {
+function buildColumns(doc, usableWidth, rows) {
+  const fitWidth = (col) => {
+    const header = doc.font(FONT_BOLD).fontSize(10).widthOfString(col.label);
+    doc.font(FONT).fontSize(9);
+    const widest = rows.reduce((max, row) => Math.max(max, doc.widthOfString(String(row[col.key] ?? '—'))), 0);
+    return Math.ceil(Math.max(header, widest)) + CELL_PADDING + 2;
+  };
+  const widths = COLUMN_SPEC.map((col) => (col.fit ? fitWidth(col) : 0));
+  const rest = usableWidth - widths.reduce((a, b) => a + b, 0);
   let x = MARGIN;
-  return COLUMN_SPEC.map((col) => {
-    const width = Math.round(usableWidth * col.pct);
+  return COLUMN_SPEC.map((col, i) => {
+    const width = col.fit ? widths[i] : Math.floor(rest * col.share);
     const column = { ...col, x, width };
     x += width;
     return column;
   });
 }
 
-function drawHeader(doc, usableWidth, repName, date) {
+function drawHeader(doc, usableWidth, repName, period) {
   doc
     .font(FONT_BOLD)
     .fontSize(18)
     .fillColor(THEME.blue)
-    .text('VORTEXONE AGENCY — Daily Call Report', MARGIN, MARGIN, { continued: false });
+    .text(period.kind === 'range' ? 'VORTEXONE AGENCY — Call Report' : 'VORTEXONE AGENCY — Daily Call Report', MARGIN, MARGIN, { continued: false });
 
-  const rightText = `${date.toDateString()}\n${repName}`;
-  doc.font(FONT).fontSize(10).fillColor(THEME.subtle).text(rightText, MARGIN, MARGIN, {
-    width: usableWidth,
-    align: 'right',
-  });
+  // The day or range, and the timezone every time on the page is in.
+  const periodLine = period.kind === 'range' ? `From ${period.label}` : period.label;
+  doc.font(FONT).fontSize(9.5).fillColor(THEME.subtle)
+    .text(`${periodLine}  ·  Times in ${period.timezone}  ·  ${repName}`, MARGIN, MARGIN + 26, { width: usableWidth });
 
-  const ruleY = MARGIN + 34;
+  const ruleY = doc.y + 6;
   doc.moveTo(MARGIN, ruleY).lineTo(MARGIN + usableWidth, ruleY).strokeColor(THEME.border).lineWidth(1).stroke();
 
   doc.y = ruleY + 12;
@@ -254,7 +273,6 @@ function drawFooters(doc, usableWidth) {
  * default the reporting day containing now) as a Buffer. */
 async function buildDailyReportBuffer(periodInput, repName = 'Talha Arif') {
   const period = periodInput || (await reportingPeriod.resolvePeriod());
-  const date = period.start;
 
   // Headline numbers and table rows come from the same period and the same
   // WHERE clause (reports.periodStats / periodCalls): the counts always match.
@@ -264,35 +282,54 @@ async function buildDailyReportBuffer(periodInput, repName = 'Talha Arif') {
     index: i + 1,
     name: r.is_manual ? 'Dial pad call' : r.name,
     brokerage: r.brokerage || '—',
-    phone: r.is_manual ? r.to_number : r.phone,
+    phone: formatPhone(r.is_manual ? r.to_number : r.phone),
     status: r.disposition
       ? DISPOSITION_LABELS[r.disposition] || r.disposition
       : r.was_abandoned ? 'Abandoned' : r.is_manual ? 'Dial pad' : r.ended_at ? 'Not logged' : 'In progress',
     note: r.note || '—',
     duration: formatDuration(r.duration_seconds),
-    timeCalled: new Date(r.started_at).toLocaleTimeString('en-US', { timeStyle: 'short' }),
+    // In the reporting timezone; a range longer than one day also shows the date.
+    timeCalled: new Intl.DateTimeFormat('en-US', {
+      timeZone: period.timezone, hour: 'numeric', minute: '2-digit',
+      ...(period.kind === 'range' && period.end - period.start > 864e5 ? { month: 'short', day: 'numeric' } : {}),
+    }).format(new Date(r.started_at)),
   }));
 
   return new Promise((resolve, reject) => {
-    const doc = new PDFDocument({ margin: MARGIN, size: PAGE_SIZE, bufferPages: true });
+    const doc = new PDFDocument({ margin: MARGIN, size: PAGE_SIZE, layout: PAGE_LAYOUT, bufferPages: true });
     registerFonts(doc);
     const usableWidth = doc.page.width - MARGIN * 2;
-    const columns = buildColumns(usableWidth);
+    const columns = buildColumns(doc, usableWidth, tableRows);
 
     const chunks = [];
     doc.on('data', (chunk) => chunks.push(chunk));
     doc.on('end', () => resolve(Buffer.concat(chunks)));
     doc.on('error', reject);
 
-    drawHeader(doc, usableWidth, repName, date);
+    drawHeader(doc, usableWidth, repName, period);
     drawSummary(doc, usableWidth, summary);
 
     if (tableRows.length === 0) {
       doc.font(FONT).fontSize(10).fillColor(THEME.subtle).text('No calls recorded for this period.', MARGIN);
     } else {
       drawTableHeader(doc, columns, usableWidth);
+      // Room for one row on an empty page (below the repeated header row, above the footer).
+      const maxRowHeight = doc.page.height - MARGIN - 30 - MARGIN - 40;
       tableRows.forEach((row, i) => {
-        const height = computeRowHeight(doc, columns, row, FONT, 9);
+        let height = computeRowHeight(doc, columns, row, FONT, 9);
+        if (height > maxRowHeight) {
+          // A note longer than a whole page is cut to fit, and says so.
+          const full = row.note;
+          let lo = 0;
+          let hi = full.length;
+          while (hi - lo > 1) {
+            const mid = Math.floor((lo + hi) / 2);
+            const fits = computeRowHeight(doc, columns, { ...row, note: `${full.slice(0, mid)}… [note cut: too long for one page]` }, FONT, 9) <= maxRowHeight;
+            if (fits) lo = mid; else hi = mid;
+          }
+          row = { ...row, note: `${full.slice(0, lo)}… [note cut: too long for one page]` };
+          height = computeRowHeight(doc, columns, row, FONT, 9);
+        }
         if (doc.y + height > doc.page.height - MARGIN - 30) {
           doc.addPage();
           drawTableHeader(doc, columns, usableWidth);
