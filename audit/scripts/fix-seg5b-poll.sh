@@ -9,7 +9,7 @@ export DB=vortex_seg5b_poll
 psql -q -h /var/tmp/audit-pg -U postgres -c "DROP DATABASE IF EXISTS $DB" -c "CREATE DATABASE $DB OWNER vortex TEMPLATE vortex_seg3_tpl" >/dev/null 2>&1
 echo answered > "$SCRATCH/force-outcome"
 stop_backend; pkill -f "vite preview"; sleep 0.5
-( cd "$CO/backend" && exec setsid env DATABASE_URL="postgres://vortex:vortex@localhost:5432/$DB" NODE_OPTIONS="--require $ROOT/audit/stubs/force-outcome.js" node src/index.js > "$SCRATCH/seg5b-poll-be-$LABEL.txt" 2>&1 < /dev/null & )
+( cd "$CO/backend" && exec setsid env DATABASE_URL="postgres://vortex:vortex@localhost:5432/$DB" GROQ_BASE_URL=http://127.0.0.1:9 IMPORT_AI=off NODE_OPTIONS="--require $ROOT/audit/stubs/force-outcome.js" node src/index.js > "$SCRATCH/seg5b-poll-be-$LABEL.txt" 2>&1 < /dev/null & )
 ( cd "$CO/frontend" && npx vite build > "$SCRATCH/seg5b-poll-build-$LABEL.txt" 2>&1 && exec setsid npx vite preview --port 5173 --strictPort > "$SCRATCH/seg5b-poll-fe-$LABEL.txt" 2>&1 < /dev/null & )
 for i in $(seq 1 120); do curl -s "$API/health" >/dev/null 2>&1 && curl -s -o /dev/null localhost:5173/ 2>/dev/null && break; sleep 0.5; done
 L=$(sql "select string_agg(id::text, ' ') from (select id from leads where status='new' and not missing_phone and state in ('CA','NY','TX','FL','IL') order by id limit 3) t")
