@@ -57,4 +57,7 @@ function parseInbound(payload) {
   return getSmsAdapter().parseInbound(payload);
 }
 
-module.exports = { sendSms, getSmsAdapter, verifyInbound, parseInbound };
+// The provider names this file knows (startup check: config/validateProviders.js).
+const PROVIDERS = Object.keys(adapters);
+
+module.exports = { sendSms, getSmsAdapter, verifyInbound, parseInbound, PROVIDERS };

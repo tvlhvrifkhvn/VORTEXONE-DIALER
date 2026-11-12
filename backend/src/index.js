@@ -3,6 +3,7 @@ const cors = require('cors');
 const fs = require('fs');
 const path = require('path');
 const config = require('./config');
+const { validateProviders } = require('./config/validateProviders');
 const db = require('./db');
 const leadQueue = require('./services/leadQueue');
 const csvImport = require('./services/csvImport');
@@ -196,6 +197,16 @@ function shutdown(signal) {
   callSession.clearConnectionTimers();
   console.log(`${signal} received — stale-lock sweep and import cleanup stopped, shutting down`);
   process.exit(0);
+}
+
+// F-31: a wrong TELEPHONY_PROVIDER / SMS_PROVIDER / EMAIL_PROVIDER stops the
+// server here, before it listens, instead of failing on the first request.
+if (require.main === module) {
+  const providerProblems = validateProviders();
+  if (providerProblems.length > 0) {
+    for (const problem of providerProblems) console.error(`Startup stopped: ${problem}`);
+    process.exit(1);
+  }
 }
 
 assertSchemaIsMigrated()

@@ -39,4 +39,7 @@ function placeCall(fromNumber, toNumber, onEvent) {
   return getAdapter().placeCall(fromNumber, toNumber, onEvent);
 }
 
-module.exports = { placeCall, getAdapter };
+// The provider names this file knows (startup check: config/validateProviders.js).
+const PROVIDERS = Object.keys(adapters);
+
+module.exports = { placeCall, getAdapter, PROVIDERS };
