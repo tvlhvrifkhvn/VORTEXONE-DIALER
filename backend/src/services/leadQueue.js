@@ -70,8 +70,40 @@ async function releaseStaleLocks() {
   return rows.map((r) => r.id);
 }
 
+/**
+ * Works out tz_zones for leads that don't have them yet (NULL): rows from
+ * before migration 027, seeds, or anything written straight to the DB. Run
+ * at startup and before every queue read, so no lead is left out of the
+ * queue for lack of a zone. derived data: updated_at is left alone.
+ */
+let backfillRun = null;
+async function backfillZones(batchSize = 2000) {
+  if (backfillRun) return backfillRun;
+  backfillRun = (async () => {
+    let total = 0;
+    for (;;) {
+      const { rows } = await db.query(
+        'SELECT id, phone, state, address FROM leads WHERE tz_zones IS NULL ORDER BY id LIMIT $1',
+        [batchSize]
+      );
+      if (rows.length === 0) return total;
+      await db.query(
+        `UPDATE leads l SET tz_zones = ARRAY(SELECT jsonb_array_elements_text(v.zones))
+         FROM jsonb_to_recordset($1::jsonb) AS v(id int, zones jsonb)
+         WHERE l.id = v.id`,
+        [JSON.stringify(rows.map((r) => ({ id: r.id, zones: callingHours.zonesForLead(r) })))]
+      );
+      total += rows.length;
+    }
+  })().finally(() => {
+    backfillRun = null;
+  });
+  return backfillRun;
+}
+
 async function candidates(limit = 50) {
   await releaseStaleLocks();
+  await backfillZones();
   const { rows } = await db.query(
     `SELECT * FROM leads
      WHERE dnc_flag = false
@@ -89,7 +121,7 @@ async function candidates(limit = 50) {
 /** The lead the dialer would call next, respecting calling hours. Read-only. */
 async function peekNext() {
   const rows = await candidates();
-  return rows.find((lead) => callingHours.isWithinCallingHours(lead.state)) || null;
+  return rows.find((lead) => callingHours.isLeadWithinCallingHours(lead)) || null;
 }
 
 /**
@@ -128,7 +160,7 @@ async function lockNext({ userId, leadId = null }) {
     // atomically, so a candidate another request just took is skipped
     // instead of being locked a second time. Bounded: CLAIM_ROUNDS re-queries.
     for (let round = 0; round < CLAIM_ROUNDS; round++) {
-      const inHours = (await candidates()).filter((c) => callingHours.isWithinCallingHours(c.state));
+      const inHours = (await candidates()).filter((c) => callingHours.isLeadWithinCallingHours(c));
       if (inHours.length === 0) break;
       for (const candidate of inHours) {
         // A queued lead whose number is on the DNC list (e.g. added after
@@ -144,7 +176,7 @@ async function lockNext({ userId, leadId = null }) {
     throw new ApiError(404, 'No dialable leads in queue right now');
   }
 
-  callingHours.assertCallingHours(lead.state);
+  await callingHours.assertCallingHours(lead);
 
   const claimed = await claimLead(lead.id, userId);
   if (!claimed) {
@@ -429,8 +461,8 @@ async function create({ name, phone, state, email = null, address = null, broker
 
   try {
     const { rows } = await db.query(
-      `INSERT INTO leads (name, phone, email, address, brokerage, state, status, office_key)
-       VALUES ($1, $2, $3, $4, $5, $6, 'new', $7)
+      `INSERT INTO leads (name, phone, email, address, brokerage, state, status, office_key, tz_zones)
+       VALUES ($1, $2, $3, $4, $5, $6, 'new', $7, $8)
        RETURNING *`,
       [
         valid.name,
@@ -440,6 +472,7 @@ async function create({ name, phone, state, email = null, address = null, broker
         brokerage || null,
         normalizedState,
         buildOfficeKey({ brokerage, address, state: normalizedState }),
+        callingHours.zonesForLead({ phone: normalizedPhone, state: normalizedState, address }),
       ]
     );
     return rows[0];
@@ -505,6 +538,13 @@ async function updateFields(leadId, fields) {
   let updated = rows[0];
   if (updated.phone !== current.phone) {
     updated = (await leadLifecycle.phoneNumberChanged(leadId)) || updated;
+  }
+
+  // A new phone, state or address can change the lead's time zone(s).
+  const zones = callingHours.zonesForLead(updated);
+  if (JSON.stringify(zones) !== JSON.stringify(updated.tz_zones)) {
+    const { rows: rezoned } = await db.query('UPDATE leads SET tz_zones = $2 WHERE id = $1 RETURNING *', [leadId, zones]);
+    updated = rezoned[0];
   }
 
   // Editing brokerage/address/state changes which office this lead belongs
@@ -581,6 +621,7 @@ async function batchQueue(ids) {
 module.exports = {
   DIALABLE_STATUSES,
   releaseStaleLocks,
+  backfillZones,
   candidates,
   peekNext,
   lockNext,
