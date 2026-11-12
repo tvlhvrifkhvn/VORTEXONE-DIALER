@@ -1,7 +1,7 @@
 const { parse } = require('csv-parse/sync');
 const db = require('../db');
 const { ApiError } = require('../middleware/errorHandler');
-const { normalizePhone } = require('../utils/phoneNormalize');
+const { normalizePhone, parsePhone } = require('../utils/phoneNormalize');
 const { stateFromAreaCode } = require('../utils/stateFromAreaCode');
 const { stateFromAddressText } = require('../utils/stateFromAddressText');
 const { buildOfficeKey } = require('../utils/officeKey');
@@ -190,6 +190,10 @@ async function commitImport({ mapping, rows, userId, filename }) {
     skippedInvalid: 0,
     mergedDuplicates: 0,
     importedWithoutPhone: 0,
+    // Phone cell had text but no valid US number in it: imported as a
+    // phoneless lead that keeps the raw text (original_phone).
+    unreadable: 0,
+    withExtension: 0,
     skippedDetails: [],
   };
 
@@ -209,7 +213,8 @@ async function commitImport({ mapping, rows, userId, filename }) {
   // address text, then phone area code). No AI involved yet.
   const prepared = workingRows.map((row) => {
     const rawPhone = row[mapping.phone];
-    const phone = normalizePhone(rawPhone);
+    const parsedPhone = parsePhone(rawPhone);
+    const phone = parsedPhone.e164;
     const name = cleanLeadName(row[mapping.name]);
     const address = mapping.address ? cleanText(row[mapping.address]) : '';
     // A city-only column ("boise id usa") is the only locality a scraped row
@@ -225,6 +230,7 @@ async function commitImport({ mapping, rows, userId, filename }) {
     return {
       row,
       rawPhone,
+      parsedPhone,
       phone,
       name,
       address: address || city,
@@ -263,7 +269,7 @@ async function commitImport({ mapping, rows, userId, filename }) {
   const seenPhones = new Set();
 
   for (const p of prepared) {
-    const { row, rawPhone, phone, name, address, city, state } = p;
+    const { row, parsedPhone, phone, name, address, city, state } = p;
 
     if (!name) {
       summary.skippedInvalid += 1;
@@ -319,8 +325,9 @@ async function commitImport({ mapping, rows, userId, filename }) {
     const brokerage = resolveBrokerage(row, mapping) || null;
 
     await db.query(
-      `INSERT INTO leads (name, phone, email, address, brokerage, state, status, missing_phone, office_key)
-       VALUES ($1, $2, $3, $4, $5, $6, 'new', $7, $8)`,
+      `INSERT INTO leads (name, phone, email, address, brokerage, state, status, missing_phone, office_key,
+                          original_phone, extension)
+       VALUES ($1, $2, $3, $4, $5, $6, 'new', $7, $8, $9, $10)`,
       [
         name,
         phone,
@@ -330,10 +337,14 @@ async function commitImport({ mapping, rows, userId, filename }) {
         state,
         missingPhone,
         buildOfficeKey({ brokerage, address, city, state }),
+        parsedPhone.original,
+        parsedPhone.extension,
       ]
     );
     summary.imported += 1;
     if (missingPhone) summary.importedWithoutPhone += 1;
+    if (parsedPhone.unreadable) summary.unreadable += 1;
+    if (parsedPhone.extension) summary.withExtension += 1;
   }
 
   await db.query(

@@ -28,7 +28,10 @@ export default function CallContactHeader({ lead, call, ended = false }) {
             {lead.brokerage || 'No brokerage on file'}
           </p>
           <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
-            <span className="font-medium tabular-nums text-text-primary">{formatPhone(lead.phone)}</span>
+            <span className="font-medium tabular-nums text-text-primary">
+              {formatPhone(lead.phone)}
+              {lead.extension && <span className="ml-1.5 text-text-secondary">ext. {lead.extension}</span>}
+            </span>
             <span className="rounded-full bg-surface px-2 py-0.5 text-xs font-medium text-text-secondary shadow-neu-sm">
               {lead.state}
             </span>

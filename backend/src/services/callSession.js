@@ -154,6 +154,7 @@ function emitSlot(session, slot, status, extra = {}) {
     leadName: lead.name ?? null,
     brokerage: lead.brokerage ?? null,
     phone: lead.phone ?? null,
+    extension: lead.extension ?? null,
     state: lead.state ?? null,
     duration: null,
     status,

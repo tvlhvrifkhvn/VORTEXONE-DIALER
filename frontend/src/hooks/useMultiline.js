@@ -80,6 +80,7 @@ export function useMultiline({ enabled = true } = {}) {
                   name: payload.leadName,
                   brokerage: payload.brokerage,
                   phone: payload.phone,
+                  extension: payload.extension ?? null,
                   state: payload.state,
                 }
               : null,

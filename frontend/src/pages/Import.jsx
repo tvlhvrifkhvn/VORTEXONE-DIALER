@@ -343,6 +343,8 @@ export default function Import() {
               <p className="rounded-input bg-action-warn/10 px-3 py-2 text-xs font-medium text-action-warn">
                 {summary.importedWithoutPhone} leads imported without a phone number (visible in the list,
                 not dialable until a number is added manually).
+                {summary.unreadable > 0 &&
+                  ` ${summary.unreadable} of them had a number that couldn't be read — the original text is kept on the lead.`}
               </p>
             )}
             {summary.needsManualReview > 0 && (

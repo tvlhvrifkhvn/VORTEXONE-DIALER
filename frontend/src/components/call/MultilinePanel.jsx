@@ -70,7 +70,10 @@ function LeadIdentity({ line, compact = false }) {
       <div className="min-w-0">
         <p className="truncate text-sm font-semibold text-text-primary">{line.lead.name}</p>
         <p className="truncate text-xs text-text-secondary">{line.lead.brokerage || '—'}</p>
-        <p className="mt-0.5 text-xs text-text-primary">{formatPhone(line.lead.phone)}</p>
+        <p className="mt-0.5 text-xs text-text-primary">
+          {formatPhone(line.lead.phone)}
+          {line.lead.extension && <span className="ml-1 text-text-secondary">ext. {line.lead.extension}</span>}
+        </p>
         {!compact && <p className="text-xs text-text-secondary">{line.lead.state}</p>}
       </div>
     </div>
