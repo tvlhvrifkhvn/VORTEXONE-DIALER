@@ -165,6 +165,24 @@ const CLAIM_ROUNDS = 3;
  * after the row-lock wait, so exactly one caller gets the row back and every
  * other caller gets null. Used only by lockNext().
  */
+/**
+ * Redial: the lead is still locked to this rep (in_progress) — refresh the
+ * lock in the same statement that checks it. A plain read left a gap: the
+ * stale-lock sweep could release the lead between the check and the new
+ * call, leaving it unlocked while the rep was on the phone (seen 3 times in
+ * 40 in fix-seg5b-b6.sh). Now either this wins (the sweep then sees a fresh
+ * lock) or the sweep wins first (no row; the caller falls back to lockNext).
+ */
+async function refreshOwnLock(leadId, userId) {
+  const { rows } = await db.query(
+    `UPDATE leads SET locked_at = now(), updated_at = now()
+     WHERE id = $1 AND status = 'in_progress' AND locked_by = $2 AND missing_phone = false AND deleted_at IS NULL
+     RETURNING *, 'in_progress' AS previous_status`,
+    [leadId, userId]
+  );
+  return rows[0] || null;
+}
+
 async function claimLead(leadId, userId) {
   // Same compare-and-set as before; the CTE only adds previous_status (the
   // status the lead had just before this lock), so a dial the telephony
@@ -266,28 +284,6 @@ async function addNote({ leadId, callId = null, userId = null, body }) {
   return rows[0];
 }
 
-/**
- * Schedules a callback from the lead page, with no call in progress.
- * leadLifecycle.applyDisposition covers the same transition, but only for a
- * live call — it requires a call_history row to attach the disposition to.
- * Same two writes (lead status + next_action_at, and a callbacks row) so both
- * paths leave identical state behind.
- */
-async function scheduleCallback(leadId, scheduledAt) {
-  const when = leadLifecycle.parseCallbackTime(scheduledAt);
-
-  const { rows } = await db.query(
-    `UPDATE leads
-     SET status = 'callback_scheduled', next_action_at = $2, updated_at = now()
-     WHERE id = $1 AND deleted_at IS NULL
-     RETURNING *`,
-    [leadId, when]
-  );
-  if (!rows[0]) throw new ApiError(404, 'Lead not found');
-
-  await db.query('INSERT INTO callbacks (lead_id, scheduled_at) VALUES ($1, $2)', [leadId, when]);
-  return rows[0];
-}
 
 async function listNotes(leadId) {
   const { rows } = await db.query(
@@ -588,6 +584,7 @@ module.exports = {
   candidates,
   peekNext,
   lockNext,
+  refreshOwnLock,
   create,
   getById,
   getHistory,
@@ -595,7 +592,6 @@ module.exports = {
   removeTag,
   addNote,
   listNotes,
-  scheduleCallback,
   countsByState,
   list,
   updateFields,

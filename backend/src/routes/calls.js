@@ -1,6 +1,5 @@
 const express = require('express');
 const jwt = require('jsonwebtoken');
-const db = require('../db');
 const config = require('../config');
 const leadQueue = require('../services/leadQueue');
 const callSession = require('../services/callSession');
@@ -71,11 +70,7 @@ router.post(
 
     let lead;
     if (leadId && redial === true) {
-      const { rows } = await db.query(
-        'SELECT * FROM leads WHERE id = $1 AND status = $2 AND locked_by = $3 AND missing_phone = false',
-        [leadId, 'in_progress', req.user.sub]
-      );
-      lead = rows[0];
+      lead = await leadQueue.refreshOwnLock(leadId, req.user.sub);
     }
     if (!lead) {
       lead = await leadQueue.lockNext({ userId: req.user.sub, leadId: leadId || null });

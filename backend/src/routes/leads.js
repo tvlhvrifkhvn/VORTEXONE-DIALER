@@ -154,7 +154,7 @@ router.post(
 router.post(
   '/:id/callback',
   asyncHandler(async (req, res) => {
-    const lead = await leadQueue.scheduleCallback(req.params.id, req.body.scheduledAt);
+    const lead = await leadLifecycle.scheduleCallback({ leadId: req.params.id, scheduledAt: req.body.scheduledAt });
     res.json({ lead });
   })
 );

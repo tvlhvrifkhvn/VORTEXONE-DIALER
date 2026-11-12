@@ -27,11 +27,21 @@ const CALLBACK_PAST_TOLERANCE_MS = 60 * 1000;
 
 /** Parses a callback time; 400 with a plain message when it isn't a real
  * date and time. Shared by the disposition path (applyDisposition) and the
- * lead page's callback route (leadQueue.scheduleCallback). */
+ * lead page's callback route (scheduleCallback below). */
 function parseCallbackTime(scheduledAt) {
   const when = new Date(scheduledAt);
   if (!scheduledAt || Number.isNaN(when.getTime())) {
     throw new ApiError(400, 'A valid callback date and time is required');
+  }
+  return when;
+}
+
+/** A callback time from the rep: a real date and time, not in the past
+ * (CALLBACK_PAST_TOLERANCE_MS of clock skew allowed). 400 otherwise. */
+function parseFutureCallbackTime(scheduledAt) {
+  const when = parseCallbackTime(scheduledAt);
+  if (when.getTime() < Date.now() - CALLBACK_PAST_TOLERANCE_MS) {
+    throw new ApiError(400, 'That callback time is in the past — pick a time from now on');
   }
   return when;
 }
@@ -62,10 +72,7 @@ async function applyDisposition({ callHistoryId, disposition, note, scheduledAt,
   }
   let callbackAt = null;
   if (disposition === 'callback_scheduled') {
-    callbackAt = parseCallbackTime(scheduledAt);
-    if (callbackAt.getTime() < Date.now() - CALLBACK_PAST_TOLERANCE_MS) {
-      throw new ApiError(400, 'That callback time is in the past — pick a time from now on');
-    }
+    callbackAt = parseFutureCallbackTime(scheduledAt);
   }
 
   const client = await db.getClient();
@@ -432,6 +439,38 @@ async function releaseAbandoned(leadIds) {
   return rows.map((r) => r.id);
 }
 
+/**
+ * Schedules a callback from the lead page, with no call in progress
+ * (POST /api/leads/:id/callback). Same time rules as the disposition path
+ * (parseFutureCallbackTime) and the same two writes — lead status +
+ * next_action_at, and a callbacks row — in one transaction. A DNC lead is
+ * never put back into a dialable status.
+ */
+async function scheduleCallback({ leadId, scheduledAt }) {
+  const when = parseFutureCallbackTime(scheduledAt);
+  const client = await db.getClient();
+  try {
+    await client.query('BEGIN');
+    const { rows: current } = await client.query('SELECT id, status, dnc_flag FROM leads WHERE id = $1 AND deleted_at IS NULL FOR UPDATE', [leadId]);
+    if (!current[0]) throw new ApiError(404, 'Lead not found');
+    if (current[0].dnc_flag || current[0].status === 'dnc') {
+      throw new ApiError(409, "This lead is on the DNC list — it can't be scheduled for a callback");
+    }
+    const { rows } = await client.query(
+      `UPDATE leads SET status = 'callback_scheduled', next_action_at = $2, updated_at = now() WHERE id = $1 RETURNING *`,
+      [leadId, when]
+    );
+    await client.query('INSERT INTO callbacks (lead_id, scheduled_at) VALUES ($1, $2)', [leadId, when]);
+    await client.query('COMMIT');
+    return rows[0];
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
 /** The queue picked a lead whose number is already on the DNC list (added
  * after import, or by another lead): park it as dnc so it is never served
  * again. Mirrors what multi-line reserveSlot does on the same hit. */
@@ -459,4 +498,5 @@ module.exports = {
   phoneNumberChanged,
   releaseAfterFailedDial,
   releaseAbandoned,
+  scheduleCallback,
 };
