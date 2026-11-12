@@ -214,8 +214,8 @@ export default function Import() {
               Upload a CSV or Excel file with lead name, phone, and state at minimum.
             </p>
             <p className="mt-1 text-xs text-text-secondary">
-              We'll use AI to detect which columns map to each field. Files over 5,000 leads should be split up
-              for now.
+              Columns are matched automatically (with AI when it's available) and you can correct them before
+              importing. Any number of rows; very large files (over the upload size limit) need to be split.
             </p>
             <NeuButton className="mt-4" onClick={() => fileInputRef.current?.click()} disabled={uploading}>
               {uploading ? 'Reading file…' : 'Choose CSV or Excel file'}

@@ -1,11 +1,12 @@
+const fs = require('fs');
 const XLSX = require('xlsx');
+const { parse } = require('csv-parse');
 const csvImport = require('./csvImport');
 
-// Hard ceiling for now — a bigger file should be split rather than run as one
-// job. Returned as an { error } result, never thrown, so the route can answer
-// with a clear message instead of a stack trace.
-const MAX_TOTAL_ROWS = 5000;
+// There is no row limit: a file's size is limited only by the upload size
+// setting (IMPORT_MAX_UPLOAD_MB, see routes/imports.js).
 const CSV_SHEET_NAME = 'Sheet1';
+const SAMPLE_ROWS = 4;
 
 function isSpreadsheet(filename = '') {
   return /\.(xlsx|xls)$/i.test(filename);
@@ -25,9 +26,6 @@ function parseUpload(buffer, filename = '') {
     // Reuses the existing CSV parser so csv behaviour (trim, BOM, header
     // detection) stays exactly as it already was.
     const { rows } = csvImport.parseCsv(buffer);
-    if (rows.length > MAX_TOTAL_ROWS) {
-      return { error: 'Files over 5,000 leads should be split into smaller files for now.' };
-    }
     return {
       sheetNames: [CSV_SHEET_NAME],
       sheets: { [CSV_SHEET_NAME]: rows },
@@ -53,11 +51,100 @@ function parseUpload(buffer, filename = '') {
     totalRows += rows.length;
   }
 
-  if (totalRows > MAX_TOTAL_ROWS) {
-    return { error: 'Files over 5,000 leads should be split into smaller files for now.' };
+  return { sheetNames: workbook.SheetNames, sheets, totalRows };
+}
+
+/** SheetJS's header keys for a header row: blanks become __EMPTY, repeats get _1, _2… */
+function headerKeys(cells) {
+  const seen = new Map();
+  return cells.map((cell) => {
+    const base = cell === undefined || cell === null || String(cell).trim() === '' ? '__EMPTY' : String(cell);
+    const n = seen.get(base) || 0;
+    seen.set(base, n + 1);
+    return n === 0 ? base : `${base}_${n}`;
+  });
+}
+
+/**
+ * Reads an uploaded file from disk in batches and hands each batch to
+ * onBatch(sheetName, rows, firstRowNumber) — awaited, so a batch is written
+ * before the next one is read. A CSV is streamed (memory stays flat however
+ * long the file is). An XLSX workbook has to be opened whole (a SheetJS
+ * limitation), but its rows are still converted one batch at a time.
+ *
+ * Returns { sheetNames, sheetRowCounts, totalRows, headers, sampleRows }, or
+ * { error } for a file that can't be read.
+ */
+async function readUploadInBatches(filePath, filename, batchSize, onBatch) {
+  const sheetRowCounts = {};
+  const headers = [];
+  const sampleRows = [];
+  const addHeaders = (keys) => keys.forEach((k) => !headers.includes(k) && headers.push(k));
+
+  if (!isSpreadsheet(filename)) {
+    // Same options as csvImport.parseCsv, so CSV behaviour (trim, BOM, header row) is unchanged.
+    const parser = fs.createReadStream(filePath).pipe(parse({ columns: true, skip_empty_lines: true, trim: true, bom: true }));
+    let batch = [];
+    let count = 0;
+    try {
+      for await (const row of parser) {
+        if (count === 0) addHeaders(Object.keys(row));
+        if (sampleRows.length < SAMPLE_ROWS) sampleRows.push(row);
+        batch.push(row);
+        count += 1;
+        if (batch.length >= batchSize) {
+          await onBatch(CSV_SHEET_NAME, batch, count - batch.length + 1);
+          batch = [];
+        }
+      }
+    } catch (err) {
+      return { error: `Could not parse CSV: ${err.message}` };
+    }
+    if (batch.length > 0) await onBatch(CSV_SHEET_NAME, batch, count - batch.length + 1);
+    sheetRowCounts[CSV_SHEET_NAME] = count;
+    return { sheetNames: [CSV_SHEET_NAME], sheetRowCounts, totalRows: count, headers, sampleRows };
   }
 
-  return { sheetNames: workbook.SheetNames, sheets, totalRows };
+  let workbook;
+  try {
+    // dense: rows stored as arrays — noticeably less memory than the default.
+    workbook = XLSX.readFile(filePath, { dense: true });
+  } catch (err) {
+    return { error: `Could not read this spreadsheet: ${err.message}` };
+  }
+
+  let totalRows = 0;
+  for (const name of workbook.SheetNames) {
+    const ws = workbook.Sheets[name];
+    sheetRowCounts[name] = 0;
+    if (!ws || !ws['!ref']) continue;
+    const range = XLSX.utils.decode_range(ws['!ref']);
+    const headerCells = XLSX.utils.sheet_to_json(ws, {
+      header: 1,
+      range: { s: { r: range.s.r, c: range.s.c }, e: { r: range.s.r, c: range.e.c } },
+      defval: '',
+      raw: false,
+    })[0] || [];
+    const keys = headerKeys(headerCells);
+    addHeaders(keys);
+    for (let r = range.s.r + 1; r <= range.e.r; r += batchSize) {
+      // defval:'' keeps blank cells as empty strings so every row object has
+      // the same keys — the column mapping downstream relies on that.
+      const rows = XLSX.utils.sheet_to_json(ws, {
+        header: keys,
+        range: { s: { r, c: range.s.c }, e: { r: Math.min(r + batchSize - 1, range.e.r), c: range.e.c } },
+        defval: '',
+        raw: false,
+        blankrows: false,
+      });
+      if (rows.length === 0) continue;
+      for (const row of rows) if (sampleRows.length < SAMPLE_ROWS) sampleRows.push(row);
+      await onBatch(name, rows, sheetRowCounts[name] + 1);
+      sheetRowCounts[name] += rows.length;
+      totalRows += rows.length;
+    }
+  }
+  return { sheetNames: workbook.SheetNames, sheetRowCounts, totalRows, headers, sampleRows };
 }
 
 /** Column headers seen across the given sheets, in first-seen order. */
@@ -78,4 +165,4 @@ function rowsFor(sheets, sheetNames) {
   return sheetNames.flatMap((name) => sheets[name] || []);
 }
 
-module.exports = { MAX_TOTAL_ROWS, CSV_SHEET_NAME, parseUpload, headersOf, rowsFor };
+module.exports = { CSV_SHEET_NAME, parseUpload, readUploadInBatches, headersOf, rowsFor };
