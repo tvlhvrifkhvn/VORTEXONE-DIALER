@@ -125,6 +125,11 @@ router.post(
   acceptFile(uploadToDisk.single('file')),
   asyncHandler(async (req, res) => {
     if (!req.file) throw new ApiError(400, 'No file uploaded (expected multipart field "file")');
+    const typeError = await xlsxParser.checkUploadType(req.file.path, req.file.originalname || '');
+    if (typeError) {
+      await fs.promises.unlink(req.file.path).catch(() => {});
+      throw new ApiError(400, typeError);
+    }
 
     // The rows go straight from the file into the job's import_rows, batch by batch.
     const jobId = await csvImport.createImportJob({ userId: req.user.sub, filename: req.file.originalname || null });

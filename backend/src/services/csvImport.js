@@ -795,6 +795,36 @@ async function startJob(jobId, userId, { sheets, mapping }) {
   return count[0].n;
 }
 
+// An upload that was never processed (the user closed the preview) is
+// deleted after this long, together with its staged rows.
+const PENDING_IMPORT_MAX_AGE_HOURS = 24;
+
+/** Deletes pending import jobs older than PENDING_IMPORT_MAX_AGE_HOURS. Returns how many. */
+async function expireStaleImports() {
+  const { rowCount } = await db.query(
+    `DELETE FROM import_jobs WHERE status = 'pending' AND created_at < now() - make_interval(hours => $1)`,
+    [PENDING_IMPORT_MAX_AGE_HOURS]
+  );
+  return rowCount;
+}
+
+/**
+ * At startup: an import still marked "processing" was cut off by the
+ * restart (imports run inside the server process). Mark it failed with a
+ * plain explanation instead of leaving the page polling forever. Every batch
+ * is its own transaction, so the leads it saved are complete, and uploading
+ * the file again imports only what is missing.
+ */
+async function failInterruptedImports() {
+  const { rowCount } = await db.query(
+    `UPDATE import_jobs
+     SET status = 'failed', completed_at = now(),
+         error_message = 'The server restarted during this import. The ' || written_leads || ' leads it had saved are kept. Upload the file again to import the rest — rows already in your list are skipped.'
+     WHERE status = 'processing'`
+  );
+  return rowCount;
+}
+
 /**
  * Cancels an import if it is still running. Returns one of:
  *   { cancelled: true, written: 0 }            not started yet (pending)
@@ -887,5 +917,7 @@ module.exports = {
   getImportJob,
   cancelImportJob,
   progressOf,
+  expireStaleImports,
+  failInterruptedImports,
   processImportJob,
 };

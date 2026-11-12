@@ -54,6 +54,35 @@ function parseUpload(buffer, filename = '') {
   return { sheetNames: workbook.SheetNames, sheets, totalRows };
 }
 
+/**
+ * Lead files must be CSV or Excel. Checks the extension AND the first bytes,
+ * so a renamed PDF or image is refused instead of being read as text.
+ * Returns an error message, or null when the file is acceptable.
+ */
+async function checkUploadType(filePath, filename = '') {
+  const ext = (filename.match(/\.([a-z0-9]+)$/i) || [])[1]?.toLowerCase();
+  if (!['csv', 'xlsx', 'xls'].includes(ext)) {
+    return 'Only CSV or Excel (.xlsx) files can be imported. Save the list as CSV or .xlsx and try again.';
+  }
+  const fh = await fs.promises.open(filePath, 'r');
+  const head = Buffer.alloc(4096);
+  let bytes = 0;
+  try {
+    ({ bytesRead: bytes } = await fh.read(head, 0, head.length, 0));
+  } finally {
+    await fh.close();
+  }
+  const start = head.subarray(0, bytes);
+  const isZip = start.subarray(0, 4).equals(Buffer.from([0x50, 0x4b, 0x03, 0x04])); // .xlsx is a zip
+  const isOle = start.subarray(0, 4).equals(Buffer.from([0xd0, 0xcf, 0x11, 0xe0])); // legacy .xls
+  if (ext === 'xlsx' && !isZip) return "This file is named .xlsx but isn't an Excel workbook. Re-save it from Excel or as CSV.";
+  if (ext === 'xls' && !isOle && !isZip) return "This file is named .xls but isn't an Excel workbook. Re-save it from Excel or as CSV.";
+  if (ext === 'csv' && (isZip || isOle || start.includes(0))) {
+    return "This file is named .csv but isn't plain text (it may be an Excel file or a PDF). Re-save it as CSV.";
+  }
+  return null;
+}
+
 /** SheetJS's header keys for a header row: blanks become __EMPTY, repeats get _1, _2… */
 function headerKeys(cells) {
   const seen = new Map();
@@ -165,4 +194,4 @@ function rowsFor(sheets, sheetNames) {
   return sheetNames.flatMap((name) => sheets[name] || []);
 }
 
-module.exports = { CSV_SHEET_NAME, parseUpload, readUploadInBatches, headersOf, rowsFor };
+module.exports = { CSV_SHEET_NAME, parseUpload, readUploadInBatches, checkUploadType, headersOf, rowsFor };
