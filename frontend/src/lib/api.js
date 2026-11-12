@@ -250,9 +250,17 @@ export const downloadSkippedRows = (jobId) => request(`/imports/${jobId}/skipped
 export const expandNote = (note) => request('/ai/expand-note', { method: 'POST', body: { note } });
 
 // reports
-export const getTodayStats = () => request('/reports/today');
+// A report period: { date: 'YYYY-MM-DD' } or { from, to } (local date-times
+// in the reporting timezone), or nothing for today.
+const periodQuery = (period = {}) => {
+  const q = new URLSearchParams();
+  for (const k of ['date', 'from', 'to']) if (period[k]) q.set(k, period[k]);
+  const s = q.toString();
+  return s ? `?${s}` : '';
+};
+export const getTodayStats = (period) => request(`/reports/today${periodQuery(period)}`);
 export const getPerStateReport = () => request('/reports/per-state');
-export const getManualCallsToday = () => request('/reports/manual-today');
+export const getManualCallsToday = (period) => request(`/reports/manual-today${periodQuery(period)}`);
 
 // settings (key/value store — e.g. the Groq API key, see Settings.jsx → Integrations)
 export const getSetting = (key) => request(`/settings/${encodeURIComponent(key)}`);
@@ -264,12 +272,14 @@ export const startSession = (mode) => request('/sessions/start', { method: 'POST
 export const endSession = (sessionId) => request('/sessions/end', { method: 'POST', body: { sessionId } });
 
 // exports — fetched as a blob (not a plain <a href>) so the auth header goes along
-export async function downloadDailyPdf(date) {
-  const blob = await request(`/exports/daily-pdf${date ? `?date=${date}` : ''}`);
+export async function downloadDailyPdf(period) {
+  // Older callers pass a date string.
+  const p = typeof period === 'string' ? { date: period } : period || {};
+  const blob = await request(`/exports/daily-pdf${periodQuery(p)}`);
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = `vortex-dialer-${date || new Date().toISOString().slice(0, 10)}.pdf`;
+  a.download = `vortex-dialer-${p.date || (p.from ? `${p.from}_to_${p.to}` : 'today')}.pdf`.replace(/:/g, '');
   document.body.appendChild(a);
   a.click();
   a.remove();

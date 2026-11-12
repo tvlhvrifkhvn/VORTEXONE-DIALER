@@ -16,7 +16,15 @@ async function getSetting(key) {
   return rows[0]?.value ?? null;
 }
 
+// Settings with a fixed format are checked here (400 on a bad value).
+// Registered by the service that owns them (reportingPeriod).
+const validators = new Map();
+function registerValidator(key, fn) {
+  validators.set(key, fn);
+}
+
 async function setSetting(key, value) {
+  if (validators.has(key)) validators.get(key)(key, value);
   const { rows } = await db.query(
     `INSERT INTO settings (key, value, updated_at) VALUES ($1, $2, now())
      ON CONFLICT (key) DO UPDATE SET value = $2, updated_at = now()
@@ -27,4 +35,4 @@ async function setSetting(key, value) {
   return rows[0];
 }
 
-module.exports = { getSetting, setSetting, onSettingChanged };
+module.exports = { getSetting, setSetting, onSettingChanged, registerValidator };

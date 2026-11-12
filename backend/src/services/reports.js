@@ -1,4 +1,5 @@
 const db = require('../db');
+const reportingPeriod = require('./reportingPeriod');
 
 function withConnectRate(row) {
   return {
@@ -7,16 +8,22 @@ function withConnectRate(row) {
   };
 }
 
-/** Dials/contacts/connect-rate for today — powers the dashboard stat cards. */
-async function todayStats() {
+/**
+ * Dials/contacts/connect-rate for a period (reportingPeriod.resolvePeriod) —
+ * by default the reporting day containing now. Powers the dashboard stat
+ * cards and the daily goal.
+ */
+async function todayStats(period) {
+  const p = period || (await reportingPeriod.resolvePeriod());
   const { rows } = await db.query(
     `SELECT
        count(*)::int AS dials,
        count(*) FILTER (WHERE disposition = 'contacted')::int AS contacts
      FROM call_history
-     WHERE started_at >= date_trunc('day', now())`
+     WHERE started_at >= $1 AND started_at < $2`,
+    [p.start, p.end]
   );
-  return withConnectRate(rows[0]);
+  return { ...withConnectRate(rows[0]), period: reportingPeriod.describe(p) };
 }
 
 /** Per-state contact counts and connect rate — powers the /reports page. */
@@ -35,12 +42,14 @@ async function perStateReport() {
 
 /** Today's ad-hoc dial-pad calls (no lead) — the per-state report can't
  * carry these (no lead means no state), so they get their own small list. */
-async function manualCallsToday() {
+async function manualCallsToday(period) {
+  const p = period || (await reportingPeriod.resolvePeriod());
   const { rows } = await db.query(
     `SELECT id, to_number, started_at, ended_at, duration_seconds
      FROM call_history
-     WHERE is_manual = true AND started_at >= date_trunc('day', now())
-     ORDER BY started_at DESC`
+     WHERE is_manual = true AND started_at >= $1 AND started_at < $2
+     ORDER BY started_at DESC`,
+    [p.start, p.end]
   );
   return rows;
 }

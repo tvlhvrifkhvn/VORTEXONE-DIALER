@@ -1,6 +1,7 @@
 const PDFDocument = require('pdfkit');
 const db = require('../db');
 const reports = require('./reports');
+const reportingPeriod = require('./reportingPeriod');
 
 const THEME = {
   blue: '#3B82F6',
@@ -193,22 +194,20 @@ function drawFooters(doc, usableWidth) {
   }
 }
 
-/** Builds the "all dialed contacts today" PDF as a Buffer. */
-async function buildDailyReportBuffer(dateInput, repName = 'Talha Arif') {
-  const date = dateInput ? new Date(dateInput) : new Date();
-  const startOfDay = new Date(date);
-  startOfDay.setHours(0, 0, 0, 0);
-  const endOfDay = new Date(date);
-  endOfDay.setHours(23, 59, 59, 999);
+/** Builds the call report PDF for a period (reportingPeriod.resolvePeriod;
+ * default the reporting day containing now) as a Buffer. */
+async function buildDailyReportBuffer(periodInput, repName = 'Talha Arif') {
+  const period = periodInput || (await reportingPeriod.resolvePeriod());
+  const date = period.start;
 
   const { rows } = await db.query(
     `SELECT ch.started_at, ch.duration_seconds, ch.disposition, ch.note,
             l.name, l.phone, l.state, l.brokerage
      FROM call_history ch
      JOIN leads l ON l.id = ch.lead_id
-     WHERE ch.started_at BETWEEN $1 AND $2 AND ch.disposition IS NOT NULL
+     WHERE ch.started_at >= $1 AND ch.started_at < $2 AND ch.disposition IS NOT NULL
      ORDER BY ch.started_at ASC`,
-    [startOfDay, endOfDay]
+    [period.start, period.end]
   );
   const todayStats = await reports.todayStats();
 

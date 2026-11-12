@@ -227,6 +227,83 @@ function DialingDefaultsSection() {
   );
 }
 
+/** Reporting day: which timezone "today" uses for the dashboard counters,
+ * the daily goal, reports and the PDF, and when that day starts. Both are
+ * server settings (reporting_timezone, day_start_time); the server checks
+ * the values. */
+function ReportingDaySection() {
+  const [timezone, setTimezone] = useState('');
+  const [dayStart, setDayStart] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [saved, setSaved] = useState(false);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    Promise.all([api.getSetting('reporting_timezone'), api.getSetting('day_start_time')])
+      .then(([tz, start]) => {
+        setTimezone(tz.value || '');
+        setDayStart(start.value || '');
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+
+  const handleSave = async (e) => {
+    e.preventDefault();
+    setError(null);
+    try {
+      await api.putSetting('reporting_timezone', timezone.trim());
+      await api.putSetting('day_start_time', dayStart);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+    } catch (err) {
+      setError(err.message);
+    }
+  };
+
+  return (
+    <NeuCard className="space-y-4 p-5">
+      <h2 className="text-sm font-semibold text-text-primary">Reporting day</h2>
+      <form onSubmit={handleSave} className="space-y-3">
+        <div>
+          <label className="mb-1 block text-xs font-medium text-text-secondary" htmlFor="reporting-timezone">
+            Reporting timezone
+          </label>
+          <NeuInput
+            id="reporting-timezone"
+            value={timezone}
+            onChange={(e) => setTimezone(e.target.value)}
+            disabled={loading}
+            className="w-64"
+          />
+          <p className="mt-1 text-xs text-text-secondary">
+            An IANA name, e.g. Asia/Karachi. "Today" on the dashboard, the daily goal, reports and the PDF use this timezone.
+          </p>
+        </div>
+        <div>
+          <label className="mb-1 block text-xs font-medium text-text-secondary" htmlFor="day-start-time">
+            Day starts at
+          </label>
+          <NeuInput
+            id="day-start-time"
+            type="time"
+            value={dayStart}
+            onChange={(e) => setDayStart(e.target.value)}
+            disabled={loading}
+            className="w-32"
+          />
+          <p className="mt-1 text-xs text-text-secondary">
+            A day runs from this time to the same time the next day, in the reporting timezone.
+          </p>
+        </div>
+        {error && <p className="text-sm text-action-hangup">{error}</p>}
+        {saved && <p className="text-sm text-action-contacted">Saved.</p>}
+        <NeuButton type="submit" disabled={loading}>Save reporting day</NeuButton>
+      </form>
+    </NeuCard>
+  );
+}
+
 function ScriptEditorSection() {
   const [script, setScript] = useState(() => localStorage.getItem(SCRIPT_KEY) || DEFAULT_SCRIPT);
   const [saved, setSaved] = useState(false);
@@ -481,6 +558,7 @@ export default function Settings() {
         <h1 className="text-lg font-semibold text-text-primary">Settings</h1>
         <ProfileSection />
         <DialingDefaultsSection />
+        <ReportingDaySection />
         <ScriptEditorSection />
         <ObjectionsSection />
         <IntegrationsSection />
