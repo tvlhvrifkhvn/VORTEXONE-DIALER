@@ -2,6 +2,7 @@ const db = require('../db');
 const { ApiError } = require('../middleware/errorHandler');
 const smsAdapter = require('../telephony/smsIndex');
 const { normalizePhone } = require('../utils/phoneNormalize');
+const callingHours = require('./callingHours');
 
 const SEGMENT_SIZE = 160;
 const BULK_DELAY_MS = 1500;
@@ -171,6 +172,9 @@ async function resolveBody({ templateId, rawBody }, lead) {
 async function sendSingleSms(leadId, { templateId, rawBody, mediaUrl } = {}) {
   const lead = await getLeadForSms(leadId);
   assertEligible(lead);
+  // Texts follow the same 8am–9pm lead-local rule as calls (F-39), with the
+  // same check (unknown zone -> refused while calling hours are enforced).
+  await callingHours.assertCallingHours(lead);
 
   const { merged, templateId: resolvedTemplateId } = await resolveBody({ templateId, rawBody }, lead);
   await smsAdapter.sendSms(lead.phone, merged, mediaUrl);
@@ -182,6 +186,17 @@ async function sendSingleSms(leadId, { templateId, rawBody, mediaUrl } = {}) {
     [leadId, merged, resolvedTemplateId, segmentCount(merged), mediaUrl || null]
   );
   return rows[0];
+}
+
+/** true when calling hours allow texting this lead now (the same check as calls). */
+async function withinCallingHours(lead) {
+  try {
+    await callingHours.assertCallingHours(lead);
+    return true;
+  } catch (err) {
+    if (err.status === 422) return false;
+    throw err;
+  }
 }
 
 /** Sends a template to many leads, sequentially with a delay between each —
@@ -203,11 +218,14 @@ async function sendBulkSms(leadIds, templateId) {
   const { rows: leads } = await db.query('SELECT * FROM leads WHERE id = ANY($1) AND deleted_at IS NULL', [leadIds]);
 
   // missing_field: the template uses a field this lead doesn't have (skipped, not sent with a gap).
-  const summary = { sent: 0, skipped_opt_out: 0, skipped_dnc: 0, missing_field: 0, failed: 0 };
+  // outside_hours: outside 8am–9pm in the lead's time zone, or the zone is
+  // unknown (F-39) — skipped, can be sent later.
+  const summary = { sent: 0, skipped_opt_out: 0, skipped_dnc: 0, outside_hours: 0, missing_field: 0, failed: 0 };
   const eligible = [];
   for (const lead of leads) {
     if (lead.dnc_flag) summary.skipped_dnc += 1;
     else if (lead.sms_opt_out) summary.skipped_opt_out += 1;
+    else if (!(await withinCallingHours(lead))) summary.outside_hours += 1;
     else {
       const rendered = renderMessage(template.body, lead);
       if (rendered.missing.length) summary.missing_field += 1;
