@@ -6,7 +6,8 @@ import NeuInput from '../components/ui/NeuInput';
 import ActionButton from '../components/ui/ActionButton';
 import * as api from '../lib/api';
 
-const MERGE_FIELDS = ['{{name}}', '{{brokerage}}', '{{state}}'];
+// The only fields the server accepts (smsService.TEMPLATE_FIELDS).
+const MERGE_FIELDS = ['{{name}}', '{{first_name}}', '{{brokerage}}', '{{state}}', '{{city}}'];
 const SEGMENT_SIZE = 160;
 const SAMPLE_LEAD = { name: 'Sarah Whitman', brokerage: 'Whitman Realty Group', state: 'FL' };
 
@@ -177,7 +178,17 @@ export default function SmsTemplates() {
           templates.map((t) => (
             <NeuCard key={t.id} className="flex items-center justify-between gap-3 p-4">
               <div className="min-w-0">
-                <p className="font-medium text-text-primary">{t.name}</p>
+                <p className="font-medium text-text-primary">
+                  {t.name}
+                  {t.needs_fixing && (
+                    <span
+                      className="ml-2 rounded-full bg-action-warn/15 px-2 py-0.5 text-[10px] font-semibold text-action-warn"
+                      title={`Can't be sent until fixed: ${(t.invalid_tokens || []).join(', ')}`}
+                    >
+                      Needs fixing
+                    </span>
+                  )}
+                </p>
                 <p className="truncate text-xs text-text-secondary">{t.body.slice(0, 60)}</p>
               </div>
               <div className="flex shrink-0 gap-2">

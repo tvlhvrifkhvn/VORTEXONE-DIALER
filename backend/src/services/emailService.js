@@ -1,7 +1,7 @@
 const db = require('../db');
 const { ApiError } = require('../middleware/errorHandler');
 const emailAdapter = require('../telephony/emailIndex');
-const { mergeFields } = require('./smsService');
+const { renderOrThrow } = require('./smsService');
 
 async function getLeadForEmail(leadId) {
   const { rows } = await db.query('SELECT * FROM leads WHERE id = $1 AND deleted_at IS NULL', [leadId]);
@@ -14,8 +14,9 @@ async function getLeadForEmail(leadId) {
  * Sends a single email to a lead — mirrors smsService.sendSingleSms's shape
  * (load lead, validate, merge fields, call the adapter, record the message),
  * minus templates/segments/DNC, none of which apply to this channel.
- * mergeFields only collapses runs of 2+ spaces, so a multi-line body's
- * newlines pass through untouched.
+ * Placeholders are merged with smsService.renderOrThrow (422 when a field is
+ * unsupported or empty for this lead); a multi-line body's newlines pass
+ * through untouched.
  */
 async function sendSingleEmail(leadId, { subject, body }) {
   const lead = await getLeadForEmail(leadId);
@@ -24,8 +25,9 @@ async function sendSingleEmail(leadId, { subject, body }) {
   if (!lead.email) throw new ApiError(400, 'This lead has no email address on file');
   if (!body || !body.trim()) throw new ApiError(400, 'Email body is required');
 
-  const mergedSubject = mergeFields(subject || '', lead);
-  const mergedBody = mergeFields(body, lead);
+  // Same placeholder rules as texts (F-38): no unsupported field or empty value reaches the lead.
+  const mergedSubject = renderOrThrow(subject || '', lead, 'subject');
+  const mergedBody = renderOrThrow(body, lead, 'email');
 
   await emailAdapter.sendEmail(lead.email, mergedSubject, mergedBody);
 

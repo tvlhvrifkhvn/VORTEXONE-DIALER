@@ -240,7 +240,7 @@ export function EmailCompose({ lead, onSent }) {
         onChange={(e) => setBody(e.target.value)}
         className="w-full resize-none"
         style={{ minHeight: 100 }}
-        placeholder="Write a message… use {{name}}, {{brokerage}}, {{state}}"
+        placeholder="Write a message… use {{name}}, {{first_name}}, {{brokerage}}, {{state}}, {{city}}"
       />
 
       {(previewSubject || previewBody) && (
