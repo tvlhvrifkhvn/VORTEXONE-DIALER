@@ -101,9 +101,17 @@ async function backfillZones(batchSize = 2000) {
   return backfillRun;
 }
 
+/**
+ * The dialable leads, in queue order. Calling hours are part of the query
+ * (F-20): while they're enforced, only leads whose every time zone is open
+ * right now ($3 = the open zones) come back, so leads waiting for their
+ * hours can never fill the first page and starve the rest. Unknown zone
+ * ({}) never matches. $3 NULL = calling hours off, no filter.
+ */
 async function candidates(limit = 50) {
   await releaseStaleLocks();
   await backfillZones();
+  const openZones = await callingHours.openZonesNow();
   const { rows } = await db.query(
     `SELECT * FROM leads
      WHERE dnc_flag = false
@@ -111,17 +119,18 @@ async function candidates(limit = 50) {
        AND missing_phone = false
        AND status = ANY($1)
        AND (next_action_at IS NULL OR next_action_at <= now())
+       AND ($3::text[] IS NULL OR (cardinality(tz_zones) > 0 AND tz_zones <@ $3::text[]))
      ${CANDIDATE_ORDER_SQL}
      LIMIT $2`,
-    [DIALABLE_STATUSES, limit]
+    [DIALABLE_STATUSES, limit, openZones]
   );
   return rows;
 }
 
-/** The lead the dialer would call next, respecting calling hours. Read-only. */
+/** The lead the dialer would call next (calling hours included). Read-only. */
 async function peekNext() {
-  const rows = await candidates();
-  return rows.find((lead) => callingHours.isLeadWithinCallingHours(lead)) || null;
+  const rows = await candidates(1);
+  return rows[0] || null;
 }
 
 /**
@@ -155,12 +164,12 @@ async function lockNext({ userId, leadId = null }) {
       throw new ApiError(409, `Lead is not due yet (next action at ${lead.next_action_at})`);
     }
   } else {
-    // "Next lead": the same candidates, in the same order, with the same
-    // calling-hours filter peekNext() applies — but each one is claimed
+    // "Next lead": the same candidates, in the same order, as peekNext()
+    // (calling hours are in the query) — but each one is claimed
     // atomically, so a candidate another request just took is skipped
     // instead of being locked a second time. Bounded: CLAIM_ROUNDS re-queries.
     for (let round = 0; round < CLAIM_ROUNDS; round++) {
-      const inHours = (await candidates()).filter((c) => callingHours.isLeadWithinCallingHours(c));
+      const inHours = await candidates();
       if (inHours.length === 0) break;
       for (const candidate of inHours) {
         // A queued lead whose number is on the DNC list (e.g. added after
@@ -334,19 +343,56 @@ async function listNotes(leadId) {
   return rows;
 }
 
+/**
+ * Per-state counts for the sidebar and dashboard. Besides total / dialable /
+ * uncontacted (unchanged), each state carries how many of its dialable
+ * leads can be called now, how many wait for their calling hours to open,
+ * how many have an unknown time zone, and when the next waiting ones open.
+ */
 async function countsByState() {
   await releaseStaleLocks();
+  await backfillZones();
   const { rows } = await db.query(
-    `SELECT state, count(*)::int AS total,
-            count(*) FILTER (WHERE missing_phone = false AND status = ANY($1) AND (next_action_at IS NULL OR next_action_at <= now())) AS dialable,
-            count(*) FILTER (WHERE missing_phone = false AND status IN ('new', 'in_queue')) AS uncontacted
+    `SELECT state, tz_zones, count(*)::int AS total,
+            count(*) FILTER (WHERE missing_phone = false AND status = ANY($1) AND (next_action_at IS NULL OR next_action_at <= now()))::int AS dialable,
+            count(*) FILTER (WHERE missing_phone = false AND status IN ('new', 'in_queue'))::int AS uncontacted
      FROM leads
      WHERE deleted_at IS NULL
-     GROUP BY state
-     ORDER BY state ASC`,
+     GROUP BY state, tz_zones`,
     [DIALABLE_STATUSES]
   );
-  return rows;
+  const enforced = await callingHours.isEnforced();
+  const now = new Date();
+  const byState = new Map();
+  for (const r of rows) {
+    const s = byState.get(r.state) || {
+      state: r.state, total: 0, dialable: 0, uncontacted: 0,
+      dialable_now: 0, waiting_for_hours: 0, unknown_zone: 0, next_opens_at: null,
+    };
+    s.total += r.total;
+    s.dialable += r.dialable;
+    s.uncontacted += r.uncontacted;
+    const zones = r.tz_zones || [];
+    if (r.dialable > 0) {
+      if (!enforced || callingHours.zonesOpen(zones, now)) s.dialable_now += r.dialable;
+      else if (zones.length === 0) s.unknown_zone += r.dialable;
+      else {
+        s.waiting_for_hours += r.dialable;
+        const opens = callingHours.nextOpensAt(zones, now);
+        if (opens && (!s.next_opens_at || opens < s.next_opens_at)) s.next_opens_at = opens;
+      }
+    }
+    byState.set(r.state, s);
+  }
+  // Same order and the same value types as before: counts as strings.
+  return [...byState.values()]
+    .sort((a, b) => (a.state < b.state ? -1 : a.state > b.state ? 1 : 0))
+    .map((s) => ({
+      ...s,
+      dialable: String(s.dialable),
+      uncontacted: String(s.uncontacted),
+      next_opens_at: s.next_opens_at ? s.next_opens_at.toISOString() : null,
+    }));
 }
 
 function buildListFilters({ search, status, dateFrom, dateTo }) {

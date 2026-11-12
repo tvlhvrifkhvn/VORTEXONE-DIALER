@@ -193,12 +193,6 @@ function localHour(state, date = new Date()) {
   return localParts(timezoneForState(state), date).hour;
 }
 
-/** Synchronous form of the same rule for one lead (the queue filter). */
-function isLeadWithinCallingHours(lead, date = new Date()) {
-  if (!isCallingHoursEnforced()) return true;
-  return zonesOpen(zonesOf(lead), date);
-}
-
 /** Synchronous, state-only form of the same rule (every zone of the state must be open). */
 function isWithinCallingHours(state, date = new Date()) {
   if (!isCallingHoursEnforced()) return true;
@@ -217,7 +211,6 @@ module.exports = {
   isEnforced,
   isCallingHoursEnforced,
   isWithinCallingHours,
-  isLeadWithinCallingHours,
   timezoneForState,
   localHour,
   ENFORCEMENT_SETTING_KEY,

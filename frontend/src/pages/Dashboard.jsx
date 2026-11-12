@@ -6,6 +6,7 @@ import LeadTable from '../components/leads/LeadTable';
 import LeadFilters from '../components/leads/LeadFilters';
 import BulkSmsModal from '../components/leads/BulkSmsModal';
 import StatCard from '../components/stats/StatCard';
+import QueueHoursCards from '../components/stats/QueueHoursCards';
 import NeuCard from '../components/ui/NeuCard';
 import NeuButton from '../components/ui/NeuButton';
 import NeuInput from '../components/ui/NeuInput';
@@ -179,6 +180,7 @@ export default function Dashboard() {
           <StatCard label="Dials today" value={stats.dials} />
           <StatCard label="Contacts today" value={stats.contacts} />
           <StatCard label="Connect rate" value={`${stats.connectRate}%`} />
+          <QueueHoursCards counts={counts} />
         </div>
 
         <DailyGoalTracker dials={stats.dials} />
