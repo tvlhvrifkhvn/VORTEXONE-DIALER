@@ -1,0 +1,28 @@
+Vortex Dialer API listening on port 4000 (telephony: twilio)
+Error: twilioAdapter is not implemented yet — set TELEPHONY_PROVIDER=mock
+    at Object.placeCall (/var/tmp/seg5b-base/backend/src/telephony/twilioAdapter.js:12:9)
+    at Object.placeCall (/var/tmp/seg5b-base/backend/src/telephony/index.js:39:23)
+    at Object.start (/var/tmp/seg5b-base/backend/src/services/callSession.js:51:37)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async /var/tmp/seg5b-base/backend/src/routes/calls.js:80:18
+Error: twilioAdapter is not implemented yet — set TELEPHONY_PROVIDER=mock
+    at Object.placeCall (/var/tmp/seg5b-base/backend/src/telephony/twilioAdapter.js:12:9)
+    at Object.placeCall (/var/tmp/seg5b-base/backend/src/telephony/index.js:39:23)
+    at Object.start (/var/tmp/seg5b-base/backend/src/services/callSession.js:51:37)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async /var/tmp/seg5b-base/backend/src/routes/calls.js:80:18
+Error: twilioAdapter is not implemented yet — set TELEPHONY_PROVIDER=mock
+    at Object.placeCall (/var/tmp/seg5b-base/backend/src/telephony/twilioAdapter.js:12:9)
+    at Object.placeCall (/var/tmp/seg5b-base/backend/src/telephony/index.js:39:23)
+    at Object.startManual (/var/tmp/seg5b-base/backend/src/services/callSession.js:102:37)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async /var/tmp/seg5b-base/backend/src/routes/calls.js:115:18
+Error: twilioAdapter is not implemented yet — set TELEPHONY_PROVIDER=mock
+    at Object.placeCall (/var/tmp/seg5b-base/backend/src/telephony/twilioAdapter.js:12:9)
+    at Object.placeCall (/var/tmp/seg5b-base/backend/src/telephony/index.js:39:23)
+    at placeSlotCall (/var/tmp/seg5b-base/backend/src/services/callSession.js:192:37)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async Promise.all (index 0)
+    at async Object.startMultilineSession (/var/tmp/seg5b-base/backend/src/services/callSession.js:511:3)
+    at async /var/tmp/seg5b-base/backend/src/routes/calls.js:125:20
+SIGTERM received — stale-lock sweep and import cleanup stopped, shutting down

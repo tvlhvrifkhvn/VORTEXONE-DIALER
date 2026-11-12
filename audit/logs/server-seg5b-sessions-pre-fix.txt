@@ -1,0 +1,11 @@
+Vortex Dialer API listening on port 4000 (telephony: mock)
+SIGTERM received — stale-lock sweep and import cleanup stopped, shutting down
+Vortex Dialer API listening on port 4000 (telephony: mock)
+SIGTERM received — stale-lock sweep and import cleanup stopped, shutting down
+Vortex Dialer API listening on port 4000 (telephony: mock)
+SIGTERM received — stale-lock sweep and import cleanup stopped, shutting down
+Vortex Dialer API listening on port 4000 (telephony: mock)
+SIGTERM received — stale-lock sweep and import cleanup stopped, shutting down
+Vortex Dialer API listening on port 4000 (telephony: mock)
+Vortex Dialer API listening on port 4000 (telephony: mock)
+SIGTERM received — stale-lock sweep and import cleanup stopped, shutting down
