@@ -12,4 +12,19 @@ function sendSms(toNumber, body, mediaUrl) {
   });
 }
 
-module.exports = { sendSms };
+/**
+ * Inbound webhook body -> { from, to, body, providerMessageId }. The mock
+ * takes the provider-neutral shape as-is (tests post it directly). A real
+ * provider's adapter maps its own webhook fields here (e.g. From/To/Body/
+ * MessageSid), so smsService never sees a provider's format.
+ */
+function parseInbound(payload = {}) {
+  return {
+    from: payload.from,
+    to: payload.to,
+    body: payload.body,
+    providerMessageId: payload.providerMessageId,
+  };
+}
+
+module.exports = { sendSms, parseInbound };
