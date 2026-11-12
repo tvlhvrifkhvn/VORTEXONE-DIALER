@@ -206,6 +206,15 @@ const CLAIM_ROUNDS = 3;
  * lock) or the sweep wins first (no row; the caller falls back to lockNext).
  */
 async function refreshOwnLock(leadId, userId) {
+  // A Redial is a new dial: calling hours apply exactly as for any other
+  // (F-19). Refused -> the lead stays locked to this rep, who can still log
+  // the previous call; the stale-lock sweep frees it otherwise.
+  const { rows: own } = await db.query(
+    `SELECT * FROM leads WHERE id = $1 AND status = 'in_progress' AND locked_by = $2 AND deleted_at IS NULL`,
+    [leadId, userId]
+  );
+  if (own[0]) await callingHours.assertCallingHours(own[0]);
+
   const { rows } = await db.query(
     `UPDATE leads SET locked_at = now(), updated_at = now()
      WHERE id = $1 AND status = 'in_progress' AND locked_by = $2 AND missing_phone = false AND deleted_at IS NULL
