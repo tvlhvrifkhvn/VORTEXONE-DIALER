@@ -9,41 +9,55 @@ const ENFORCEMENT_SETTING_KEY = 'calling_hours_enforced';
 // from now, so a call can't be placed in the last instant before 9pm.
 const DIAL_MARGIN_MS = 5000;
 
-// Testing-phase toggle (Settings → Dialing defaults → "Enforce calling
-// hours"), default OFF. A self-refreshing in-memory cache, so the
-// synchronous checks below can read it; up to CACHE_REFRESH_MS stale.
+// Settings → "Enforce calling hours". ON unless the setting is exactly
+// 'false' (a missing setting means ON). The value is cached for
+// CACHE_REFRESH_MS; settings.setSetting() pushes every change here at once
+// (onSettingChanged below), and the async checks await a refresh when the
+// cache is stale, so a flip of the toggle applies to the very next dial.
 const CACHE_REFRESH_MS = 5000;
-let cachedEnforced = false;
+let cachedEnforced = true;
 let lastRefreshAt = 0;
-let refreshInFlight = false;
+let refreshPromise = null;
+let changeVersion = 0; // bumped by every saved change; a DB read that started earlier is ignored
+
+const enforcedFromValue = (value) => value !== 'false';
 
 function refreshEnforcedCache() {
-  const now = Date.now();
-  if (refreshInFlight || now - lastRefreshAt < CACHE_REFRESH_MS) return;
-  refreshInFlight = true;
-  settingsStore
+  if (refreshPromise) return refreshPromise;
+  const startedAt = changeVersion;
+  refreshPromise = settingsStore
     .getSetting(ENFORCEMENT_SETTING_KEY)
     .then((value) => {
-      cachedEnforced = value === 'true';
+      if (startedAt !== changeVersion) return;
+      cachedEnforced = enforcedFromValue(value);
+      lastRefreshAt = Date.now();
     })
     .catch(() => {
-      // Leave the cached value as-is on a transient DB hiccup.
+      // Keep the cached value on a transient DB error (it starts as ON).
     })
     .finally(() => {
-      lastRefreshAt = Date.now();
-      refreshInFlight = false;
+      refreshPromise = null;
     });
+  return refreshPromise;
 }
 
-/** Fire-and-forget refresh, synchronous read of whatever's cached. */
-function isCallingHoursEnforced() {
-  refreshEnforcedCache();
+/** The current setting, refreshed from the DB first when the cache is stale. */
+async function isEnforced() {
+  if (Date.now() - lastRefreshAt >= CACHE_REFRESH_MS) await refreshEnforcedCache();
   return cachedEnforced;
 }
 
-async function isEnforced() {
-  return isCallingHoursEnforced();
+/** Synchronous read of the cached value (starts a background refresh when stale). */
+function isCallingHoursEnforced() {
+  if (Date.now() - lastRefreshAt >= CACHE_REFRESH_MS) refreshEnforcedCache();
+  return cachedEnforced;
 }
+
+settingsStore.onSettingChanged(ENFORCEMENT_SETTING_KEY, (value) => {
+  changeVersion += 1;
+  cachedEnforced = enforcedFromValue(value);
+  lastRefreshAt = Date.now();
+});
 
 // ---- zones -----------------------------------------------------------------
 
