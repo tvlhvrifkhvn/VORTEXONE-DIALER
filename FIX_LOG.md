@@ -381,6 +381,82 @@ Still open (later segments):
 - Settings/upload-permission items (F-07, F-40, F-47, F-48).
 - **Phase C:** ending a call at a real phone provider.
 
+## Segment 7 — reports, PDF and the reporting timezone — branch `claude/fix-seg7-reports` (base `claude/fix-seg6-calling-hours` @ `9057c96`, since PRs #21 and #22 are not merged yet)
+
+**New settings** (migration `028_reporting_settings.sql`: an idempotent seed that never overwrites a saved value):
+- `reporting_timezone`: default `Asia/Karachi`. It must be an IANA name, otherwise 400.
+- `day_start_time`: default `00:00`. It must be `HH:MM` (24-hour), otherwise 400.
+- Both are editable in Settings → Reporting day. No shift or calling window is assumed anywhere.
+
+**Every "today" that changed** (a grep for `date_trunc('day', now())`, `setHours(0…)` and UTC date slicing):
+
+| File:function | Before | After |
+|---|---|---|
+| `reports.todayStats` (`/api/reports/today`: dashboard counters, daily goal, Reports page) | `date_trunc('day', now())`, a UTC day | `reportingPeriod.resolvePeriod`, accepting `?date` or `?from&to` |
+| `reports.manualCallsToday` (`/api/reports/manual-today`) | UTC day | same |
+| `pdfExport.buildDailyReportBuffer` (`/api/exports/daily-pdf`) | the server's local midnight to 23:59:59.999 | same |
+| `objectionService.getReport` | `$1::date` in the database's zone | reporting days |
+
+Unchanged: `frontend/.../ObjectionReport.jsx` still pre-fills its default From/To fields from UTC dates. Those are only the default values the owner can edit, and the server now reads them as reporting days.
+
+| Item | Status | Commit | File:function | Before → after (3 runs each; `audit/logs/fix-seg7.txt`) |
+|---|---|---|---|---|
+| 2.1 F-34 Reporting day | **Fixed** | `6e249ee` | `services/reportingPeriod.js` (new): `dayContaining` / `dayStarting` / `resolvePeriod`; migration 028; `settings.registerValidator`; `reports`, `routes/reports`, `routes/exports`, `pdfExport`, `objectionService`; `Settings.jsx` (Reporting day), `Reports.jsx` (From / To, Today, Download PDF), `lib/api.js` | **Midnight in Karachi** (calls at 23:59:30 Nov 10 and 00:00:30 Nov 11): before, both landed on Nov 10 in the PDF and the API ignored the date (0 0). After, each is on its own day, in the API and the PDF.<br>**`reporting_timezone=America/Chicago`:** before, ignored (the API showed 0; the PDF put both calls on Nov 11). After, the Chicago day matches the DB on both dates.<br>**`day_start_time=06:00`:** before, ignored. After, Nov 10 runs 06:00 → 06:00 (2 calls, = DB); back at 00:00 it runs midnight to midnight (= DB).<br>**Range Nov 7 22:00 → Nov 8 04:00:** before, ignored; after, one report of 3 calls (= DB).<br>**Daily goal counter, controlled clock:** after, 2 at 23:59 Karachi → 1 at 00:00:30 (the new day); no change at 05:00 Karachi (UTC midnight). Before, it followed the database's UTC day.<br>**Daylight saving:** New York days are 23 h and 25 h long; a day start inside the spring-forward gap begins at the jump.<br>**Validation:** before, a bad `date` on the PDF gave 500 (`not-a-date`, `2026-13-01`), and every other bad input was silently ignored (200). After, 400 with a message for: a bad date, Feb 30, month 13, `from` without `to`, a reversed range, a range over 366 days, a garbage `from`, and `date` together with a range. Bad setting values give 400 (before: stored as given, e.g. `day_start_time=6am`) |
+| 2.2 F-45 PDF numbers | **Fixed** | `8a9c8af` | `reports.periodStats` / `periodCalls` (same WHERE), `todayStats = periodStats`, `pdfExport` | **5 periods, columns in the order API \| PDF headline \| PDF table \| DB.**<br>Before:<ul><li>empty day: 5 \| 5 \| 0 \| 0</li><li>known mix: 5 \| 5 \| 10 \| 11</li><li>today: 5 \| 5 \| 3 \| 4</li><li>1,500-call day: 5 \| 5 \| 1,140 (a UTC day) \| 1,500</li><li>range: 5 \| 5 \| 3 \| 3, but over a different period</li></ul>After: 0/0/0/0, 11/11/11/11, 4/4/4/4, 1,500/1,500/1,500/1,500, 3/3/3/3, with contacts, voicemails, no-answers and DNC equal too. The empty day says "No calls recorded for this period". **Browser:** the dashboard cards (4/2), the Reports page for today and for the range (3/1), and the PDF downloaded from the Reports page (3/1, 3 rows) all equal the API and the DB |
+| 2.3 Failed dials | **Fixed** | `d189e11` | `reports.PLACED_CALL_SQL` (the one definition), used by `periodStats`, `periodCalls`, `perStateReport` and `manualCallsToday` | 3 queue dials and 1 dial-pad dial refused by the provider (`TELEPHONY_PROVIDER=bogus`, all 502). **Before:** today 4 dials, PDF headline 4 above an empty table, the per-state report 3, the manual list 1. **After:** 0 / 0 / 0 / 0. Lead attempts stay 0 (Segment 5 B.1) |
+| 2.4 F-46 Fonts | **Fixed** | `2516591` | `backend/assets/fonts` (Noto Sans regular and bold, Noto Emoji), `pdfExport.textRuns` / `drawRuns` / `heightOfRuns` | **Before** (`audit/screenshots/seg7/pdf-fonts-before.png`): emoji printed as garbage such as `Ø=ÜM` that ran into the next column. **After** (`pdf-fonts-after.png`): `José Hernández-Muñoz`, `Zoë Ångström`, `Ünïcödé ñ façade`, `Café Olé`, `Señora` and `<script>alert(1)</script>` print as typed; emoji (😀 👍 🏠 ☎️) print in black and white. The text extracts as typed, and the embedded fonts are NotoSans-Regular, NotoSans-Bold and NotoEmoji-Regular |
+| 2.5 F-49 Table | **Fixed** | `bde649f` | `pdfExport.buildColumns` (sized to fit), `formatPhone`, `drawHeader`, landscape; long-note guard | **Before:** `+141555501/01`, `Durati/on` and `Time/Called` wrapped. **After:** `(415) 555-0101`, `m:ss`, `Duration` and `Time` on one line each.<br>The header shows the day or range and "Times in Asia/Karachi".<br>**1,500-row day:** 49 pages; the header row repeats on every page, with no overlap (`pdf-bigday-p2-*.png`). Long names and brokerages wrap inside their cells. A note longer than a page is cut and marked "[note cut: too long for one page]" (`pdf-long-note-cut.png`) |
+
+**Performance** (100,000 calls over about 90 days, median of 9 calls, 3 runs):
+
+| Call | Base | HEAD |
+|---|---|---|
+| `/reports/today` | 2.0 ms | 2.7 ms |
+| `/reports/today?date=…` | 1.6 ms | 2.5–2.7 ms |
+| `/reports/per-state` | 22–26 ms | 22–23 ms |
+| `/reports/manual-today` | 1.8 ms | 2.3–2.9 ms |
+| Daily PDF, about 1,085 calls | 0.26 s | 0.36–0.38 s (embedded fonts, landscape, every call listed) |
+
+Regression (`audit/logs/fix-seg7-regression.txt`). The templates were migrated to 028.
+- **Segment 1–5 repros:** same results as the Segment 6 regression, including:
+  - imports at 300 / 4,000 / 30,000 rows;
+  - multi-line 15 calls on 15 leads;
+  - F-51 "Connected" under `npm run dev`;
+  - Redial vs the sweep 20/20;
+  - the Part B sessions, notes and Stop UI.
+  The only difference is in the deliberate failed-dial multi-line test: peak concurrent lines was 2 instead of 3, which comes from timing.
+- **Segment 6:** boundary table 0 wrong; split places 0 slots out of hours; every path, starvation and toggle (15–19 ms) as before.
+- **Routes:** identical (79). **Schema check:** 0 problems. **Auth matrix:** identical (76 + SSE, all 401). **Invariants:** unchanged.
+- **Production smoke test:** 0 errors on 12 views, Reports and Dashboard included. Build passes.
+- **Server logs:** clean. The only warnings are the deliberate refused dials in the failed-dial tests.
+
+**Font licence:** Noto Sans and Noto Emoji are both under the SIL Open Font License 1.1, which allows bundling with software. The licence files and a README with the source and copyright notices are in `backend/assets/fonts/`.
+
+Decisions:
+- **What a dial is:** a `call_history` row whose `telephony_state` is not `failed`. This includes dial-pad calls and calls not logged yet, so the PDF now lists every dial. Before, it listed only logged lead calls while the headline counted everything.
+- **A day:** runs from `day_start_time` on one date to the same wall-clock time on the next date in `reporting_timezone`. `?date=D` is the day that starts on D.
+- **A custom range:** `from` and `to` are local date-times in the reporting timezone; the end is excluded, and the range is capped at 366 days.
+- **Emoji:** drawn with the monochrome Noto Emoji font (PDF can't show colour emoji). A character that neither bundled font has prints as "?".
+- **PDF layout:** landscape A4.
+
+Extra files touched, and why:
+- `backend/src/services/settings.js`: value checks for the two new settings. Who can read or write settings is unchanged.
+- `backend/src/services/objectionService.js`: its date range was a UTC "today".
+- `frontend/src/lib/api.js`: report and PDF calls take a period.
+- `audit/scripts/pdf-numbers.js`: reads PDF numbers for the tests.
+
+Known limitations:
+- **Emoji:** black and white only. Some sequences are simplified: the family 👨‍👩‍👧 draws as a smaller family glyph, and flags draw as boxed letters (🇺🇸 → "US").
+- **Text outside Latin, Greek and Cyrillic** prints as "?". This is by design: the app is English-only.
+- **DST repeated hour:** if `day_start_time` falls in the hour repeated in autumn, the day starts at the first of the two occurrences (only for zones with daylight saving; Asia/Karachi has none).
+- **Not verified with another browser timezone:** the Reports page sends From/To as typed. They are read in the reporting timezone, not the browser's.
+
+Still open (later segments):
+- **F-01** Groq key, deferred by the owner to the last segment.
+- SMS/email items (F-37 to F-41).
+- Settings/upload permission items (F-07, F-40, F-47, F-48).
+- **Phase C:** ending calls at a real phone provider.
+
 ## New findings (not in the audit)
 
 | ID | Found in | Description | Planned |
