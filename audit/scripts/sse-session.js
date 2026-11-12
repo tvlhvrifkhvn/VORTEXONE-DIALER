@@ -1,6 +1,7 @@
 // Drives a real multi-line dialing session over the API while listening to the
 // SSE stream, and prints every event the server pushed.
-// Usage: node audit/scripts/sse-session.js <tokenfile> <lineCount> <seconds> [steps-json]
+// Usage: [LEAD_IDS=1,2,3] node audit/scripts/sse-session.js <tokenfile> <lineCount> <seconds> [steps-json]
+//   LEAD_IDS: dial these selected leads instead of the queue
 //   steps-json: [{"at":5,"do":"dispose","slot":"active","disposition":"contacted"},
 //                {"at":8,"do":"release","slot":"active"}, {"at":12,"do":"stop"},
 //                {"at":6,"do":"closeSSE"}, {"at":9,"do":"openSSE"}]
@@ -56,7 +57,7 @@ const activeSlot = () => Object.entries(slots).find(([, s]) => s.status === 'ans
 (async () => {
   await openSSE();
   const s = await post('/api/sessions/start', { mode: 'multiline' });
-  await post('/api/calls/multiline/start', { sessionId: s.sessionId, lineCount: Number(lineCount) });
+  await post('/api/calls/multiline/start', { sessionId: s.sessionId, lineCount: Number(lineCount), ...(process.env.LEAD_IDS ? { leadIds: process.env.LEAD_IDS.split(',').map(Number) } : {}) });
   const pending = [...steps].sort((a, b) => a.at - b.at);
   while ((Date.now() - t0) / 1000 < Number(seconds)) {
     while (pending.length && (Date.now() - t0) / 1000 >= pending[0].at) {
