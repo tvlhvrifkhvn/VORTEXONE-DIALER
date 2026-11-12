@@ -33,7 +33,7 @@ const setting = async () => (await sql.query("SELECT value FROM settings WHERE k
   // Settings
   await p.goto(base + '/settings');
   await p.waitForTimeout(2000);
-  const sw = p.getByRole('switch');
+  const sw = p.locator('label', { hasText: 'Enforce calling hours' }).getByRole('switch');
   const banner = async () => ((await p.getByTestId('calling-hours-state').count()) ? (await p.getByTestId('calling-hours-state').locator('p').first().innerText()) : '(no ON/OFF line)');
   say(`settings: stored value ${await setting()}; switch aria-checked=${await sw.getAttribute('aria-checked')}; page says: ${await banner()}`);
 

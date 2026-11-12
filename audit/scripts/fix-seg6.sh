@@ -27,6 +27,7 @@ p() { echo "[$LABEL] $*"; }
 KEY=calling_hours_enforced
 
 fresh_db() {
+  stop_backend   # the previous part's server holds the DB open; DROP would fail
   psql -q -h /var/tmp/audit-pg -U postgres -c "DROP DATABASE IF EXISTS $DB" -c "CREATE DATABASE $DB OWNER vortex TEMPLATE vortex_seg3_tpl" >/dev/null 2>&1
   ( cd "$CO/backend" && DATABASE_URL="postgres://vortex:vortex@localhost:5432/$DB" node src/db/migrate.js >/dev/null )
   sql "update leads set deleted_at = now()" >/dev/null   # DIRECT SQL: park the template's leads
@@ -54,8 +55,11 @@ leadof() { local v; v=$(sed -E 's/ \[HTTP.*//' "$SCRATCH/s6-last" | jget lead.id
 finish() { [ -n "${1:-}" ] && [ "$1" != undefined ] && { code POST /api/calls/$1/hangup '' "${2:-tokA}" >/dev/null; code POST /api/dispositions "{\"callId\":$1,\"disposition\":\"contacted\"}" "${2:-tokA}" >/dev/null; }; }
 desc() { sql "select '#'||id||' '||name||' ('||coalesce(nullif(trim(state),''),'no state')||' '||phone||')' from leads where id=$1"; }
 leftover() {
+  # leads locked to a rep with no call (a refused Redial keeps its lock) go back after 30 s: run the sweep
+  sql "update leads set locked_at = now() - interval '31 seconds' where status = 'in_progress' and deleted_at is null and not exists (select 1 from call_history c where c.lead_id = leads.id and c.ended_at is null and c.disposition is null)" >/dev/null   # DIRECT SQL: skip the 30 s wait
+  api GET "/api/leads?limit=1" '' tokS >/dev/null   # a queue read runs the stale-lock sweep
   p "  no lead lost: test leads by status: $(sql "select string_agg(status||'='||n, ', ') from (select status, count(*) n from leads where deleted_at is null group by 1 order by 1) s")"
-  p "  in_progress with no open call: $(sql "select count(*) from leads l where status='in_progress' and not exists (select 1 from call_history c where c.lead_id=l.id and c.ended_at is null and c.disposition is null)"); open calls: $(sql "select count(*) from call_history where ended_at is null and disposition is null")"
+  p "  in_progress with no open call: $(sql "select count(*) from leads l where deleted_at is null and status='in_progress' and not exists (select 1 from call_history c where c.lead_id=l.id and c.ended_at is null and c.disposition is null)"); open calls: $(sql "select count(*) from call_history where ended_at is null and disposition is null")"
   p "  invariants: $(psql -q -h localhost -U vortex -d $DB -At -f "$ROOT/audit/scripts/invariants.sql" 2>&1 | tr '\n' ' ' | cut -c1-400)"
 }
 
