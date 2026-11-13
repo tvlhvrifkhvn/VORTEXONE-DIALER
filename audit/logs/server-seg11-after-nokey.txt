@@ -1,0 +1,12 @@
+GROQ_API_KEY not set — AI CSV mapping will be unavailable
+GROQ_API_KEY not set — AI rebuttal suggestions will be unavailable
+GROQ_API_KEY not set — AI note expansion will be unavailable
+Vortex Dialer API listening on port 4000 (telephony: mock)
+ApiError: AI is not configured: set GROQ_API_KEY on the server, or add a key under Settings → Integrations.
+    at Object.expandNote (/home/user/vortexone-dialer/backend/src/services/noteExpander.js:48:20)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async /home/user/vortexone-dialer/backend/src/routes/ai.js:14:22 {
+  status: 503
+}
+[brief] lead 5020: first call — skipping AI
+SIGTERM received — stale-lock sweep and import cleanup stopped, shutting down

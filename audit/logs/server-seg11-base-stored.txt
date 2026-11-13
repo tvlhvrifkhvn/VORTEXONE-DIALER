@@ -1,0 +1,5 @@
+GROQ_API_KEY not set — AI CSV mapping will be unavailable
+GROQ_API_KEY not set — AI rebuttal suggestions will be unavailable
+GROQ_API_KEY not set — AI note expansion will be unavailable
+Vortex Dialer API listening on port 4000 (telephony: mock)
+SIGTERM received — stale-lock sweep and import cleanup stopped, shutting down
