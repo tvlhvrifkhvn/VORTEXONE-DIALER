@@ -266,6 +266,10 @@ export const getManualCallsToday = (period) => request(`/reports/manual-today${p
 export const getSetting = (key) => request(`/settings/${encodeURIComponent(key)}`);
 export const putSetting = (key, value) =>
   request(`/settings/${encodeURIComponent(key)}`, { method: 'PUT', body: { value } });
+// the signed-in user's own preferences (server-side, follow the user to any browser)
+export const getMySettings = () => request('/settings/me');
+export const putMySetting = (key, value) =>
+  request(`/settings/me/${encodeURIComponent(key)}`, { method: 'PUT', body: { value } });
 
 // dialing sessions
 export const startSession = (mode) => request('/sessions/start', { method: 'POST', body: { mode } });

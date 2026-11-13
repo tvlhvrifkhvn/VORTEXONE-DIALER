@@ -3,6 +3,7 @@ const { ApiError } = require('../middleware/errorHandler');
 const callingHours = require('./callingHours');
 const dncCheck = require('./dncCheck');
 const leadLifecycle = require('./leadLifecycle');
+const settingsStore = require('./settings');
 const { normalizePhone } = require('../utils/phoneNormalize');
 const { buildOfficeKey } = require('../utils/officeKey');
 const { US_STATES } = require('../utils/usStates');
@@ -516,8 +517,8 @@ async function create({ name, phone, state, email = null, address = null, broker
 
   try {
     const { rows } = await db.query(
-      `INSERT INTO leads (name, phone, email, address, brokerage, state, status, office_key, tz_zones)
-       VALUES ($1, $2, $3, $4, $5, $6, 'new', $7, $8)
+      `INSERT INTO leads (name, phone, email, address, brokerage, state, status, office_key, tz_zones, max_attempts)
+       VALUES ($1, $2, $3, $4, $5, $6, 'new', $7, $8, $9)
        RETURNING *`,
       [
         valid.name,
@@ -528,6 +529,7 @@ async function create({ name, phone, state, email = null, address = null, broker
         normalizedState,
         buildOfficeKey({ brokerage, address, state: normalizedState }),
         callingHours.zonesForLead({ phone: normalizedPhone, state: normalizedState, address }),
+        await settingsStore.defaultMaxAttempts(), // F-48: the owner's default, for new leads
       ]
     );
     return rows[0];

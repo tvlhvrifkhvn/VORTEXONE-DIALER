@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import AppShell from '../components/layout/AppShell';
 import StateSidebar from '../components/layout/StateSidebar';
@@ -14,28 +14,28 @@ import ActionButton from '../components/ui/ActionButton';
 import { useLeads, useStateCounts } from '../hooks/useLeads';
 import { DIAL_MODE_KEY, startDialingSession } from '../hooks/useCall';
 import * as api from '../lib/api';
+import { useUserSettings } from '../hooks/useUserSettings';
 
 const EMPTY_FILTERS = { search: '', status: '', dateFrom: '', dateTo: '', state: null };
-const GOAL_KEY = 'vortex_dialer_daily_goal';
 const DEFAULT_GOAL = 100;
-// Default simultaneous lines, set under Settings → Dialing defaults. The
-// dashboard selector starts here and can be changed per session.
-export const DEFAULT_LINES_KEY = 'vortex_dialer_default_lines';
+// Default simultaneous lines, set under Settings → Dialing defaults (a
+// per-user server setting, F-48). The dashboard selector starts here and can
+// be changed per session.
 const DEFAULT_LINES = 3;
 
-function readDefaultLines() {
-  const stored = Number(localStorage.getItem(DEFAULT_LINES_KEY));
-  return [1, 2, 3].includes(stored) ? stored : DEFAULT_LINES;
-}
-
-function readGoal() {
-  const stored = Number(localStorage.getItem(GOAL_KEY));
-  return Number.isFinite(stored) && stored > 0 ? stored : DEFAULT_GOAL;
-}
+const goalFrom = (settings) => {
+  const n = Number(settings?.daily_goal);
+  return Number.isFinite(n) && n > 0 ? n : DEFAULT_GOAL;
+};
+const linesFrom = (settings) => {
+  const n = Number(settings?.default_lines);
+  return [1, 2, 3].includes(n) ? n : DEFAULT_LINES;
+};
 
 /** Below the stat cards — a neumorphic progress bar toward the daily dial goal. */
 function DailyGoalTracker({ dials }) {
-  const [goal, setGoal] = useState(readGoal);
+  const { settings, save } = useUserSettings();
+  const goal = goalFrom(settings);
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(String(goal));
 
@@ -43,10 +43,7 @@ function DailyGoalTracker({ dials }) {
 
   const saveGoal = () => {
     const next = Number(draft);
-    if (Number.isFinite(next) && next > 0) {
-      setGoal(next);
-      localStorage.setItem(GOAL_KEY, String(next));
-    }
+    if (Number.isInteger(next) && next > 0) save('daily_goal', next).catch(() => {});
     setEditing(false);
   };
 
@@ -104,7 +101,13 @@ export default function Dashboard() {
   const { leads, total, page, pageSize, setPage, loading, refresh } = useLeads(filters);
   const { counts, refresh: refreshCounts } = useStateCounts();
   const [stats, setStats] = useState({ dials: 0, contacts: 0, connectRate: 0 });
-  const [lineCount, setLineCount] = useState(readDefaultLines);
+  const { settings: userSettings } = useUserSettings();
+  const [lineCount, setLineCount] = useState(() => linesFrom(userSettings));
+  // Start from the saved default once it has loaded (the selector can still change per session).
+  const linesTouched = useRef(false);
+  useEffect(() => {
+    if (userSettings && !linesTouched.current) setLineCount(linesFrom(userSettings));
+  }, [userSettings]);
   const [exporting, setExporting] = useState(false);
   const [selectedIds, setSelectedIds] = useState(() => new Set());
   const [bulkSmsLeads, setBulkSmsLeads] = useState(null);
@@ -212,7 +215,10 @@ export default function Dashboard() {
                 <button
                   key={n}
                   type="button"
-                  onClick={() => setLineCount(n)}
+                  onClick={() => {
+                    linesTouched.current = true;
+                    setLineCount(n);
+                  }}
                   title={`Dial ${n} line${n === 1 ? '' : 's'} at a time`}
                   className={`rounded-input px-3 py-1.5 text-xs font-medium transition-shadow ${
                     lineCount === n ? 'shadow-neu-sm text-text-primary' : 'text-text-secondary'

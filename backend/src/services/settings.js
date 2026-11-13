@@ -47,8 +47,54 @@ const API_SETTINGS = {
   'groq-key': { maxLength: 200, secret: true },          // the AI features
   reporting_timezone: { maxLength: 64 },                 // reportingPeriod.js
   day_start_time: { maxLength: 5 },                      // reportingPeriod.js
-  'rebuttal-recalibration-dismissed-month': { maxLength: 7 }, // Reports banner
+  default_max_attempts: { maxLength: 2 },                // new leads (F-48), see defaultMaxAttempts()
 };
+
+// ---- default max attempts (F-48) ----------------------------------------------
+// A global setting (supervisor only). It applies to NEW leads (created or
+// imported); existing leads keep their own max_attempts. Read only here.
+const DEFAULT_MAX_ATTEMPTS = 5; // the leads.max_attempts column default
+const MAX_ATTEMPTS_RANGE = [1, 10];
+registerValidator('default_max_attempts', (key, value) => {
+  const n = Number(value);
+  if (value !== null && !(Number.isInteger(n) && n >= MAX_ATTEMPTS_RANGE[0] && n <= MAX_ATTEMPTS_RANGE[1])) {
+    throw new ApiError(400, `Default max attempts must be a whole number from ${MAX_ATTEMPTS_RANGE[0]} to ${MAX_ATTEMPTS_RANGE[1]}`);
+  }
+});
+
+/** max_attempts for a lead being created or imported now. */
+async function defaultMaxAttempts() {
+  const n = Number(await getSetting('default_max_attempts'));
+  return Number.isInteger(n) && n >= MAX_ATTEMPTS_RANGE[0] && n <= MAX_ATTEMPTS_RANGE[1] ? n : DEFAULT_MAX_ATTEMPTS;
+}
+
+// ---- per-user preferences (F-48) ------------------------------------------------
+// Each user's own; any logged-in user reads and writes their own.
+const USER_SETTINGS = {
+  daily_goal: { maxLength: 6, check: (v) => Number.isInteger(Number(v)) && Number(v) >= 1 && Number(v) <= 100000, hint: 'a whole number from 1 to 100000' },
+  default_lines: { maxLength: 1, check: (v) => ['1', '2', '3'].includes(v), hint: '1, 2 or 3' },
+  pitch_script: { maxLength: 5000 },
+  'rebuttal-recalibration-dismissed-month': { maxLength: 7, check: (v) => /^\d{4}-\d{2}$/.test(v), hint: 'YYYY-MM' },
+};
+
+async function getUserSettings(userId) {
+  const { rows } = await db.query('SELECT key, value FROM user_settings WHERE user_id = $1', [userId]);
+  return Object.fromEntries(rows.filter((r) => USER_SETTINGS[r.key]).map((r) => [r.key, r.value]));
+}
+
+async function setUserSetting(userId, key, value) {
+  const def = USER_SETTINGS[key];
+  if (!def) throw new ApiError(400, `Unknown preference "${String(key).slice(0, 100)}"`);
+  if (value !== null && typeof value !== 'string') throw new ApiError(400, 'A preference value must be text');
+  if (value !== null && value.length > def.maxLength) throw new ApiError(400, `That value is too long (${def.maxLength} characters max)`);
+  if (value !== null && def.check && !def.check(value)) throw new ApiError(400, `${key} must be ${def.hint}`);
+  await db.query(
+    `INSERT INTO user_settings (user_id, key, value, updated_at) VALUES ($1, $2, $3, now())
+     ON CONFLICT (user_id, key) DO UPDATE SET value = $3, updated_at = now()`,
+    [userId, key, value]
+  );
+  return getUserSettings(userId);
+}
 
 function apiSetting(key) {
   if (typeof key !== 'string' || key.length > MAX_KEY_LENGTH) {
@@ -82,4 +128,7 @@ async function writeFromApi(key, value, user) {
   return readForApi(key);
 }
 
-module.exports = { getSetting, setSetting, onSettingChanged, registerValidator, readForApi, writeFromApi, API_SETTINGS };
+module.exports = {
+  getSetting, setSetting, onSettingChanged, registerValidator, readForApi, writeFromApi, API_SETTINGS,
+  defaultMaxAttempts, getUserSettings, setUserSetting, USER_SETTINGS,
+};

@@ -6,6 +6,23 @@ const { requireAuth } = require('../middleware/auth');
 const router = express.Router();
 router.use(requireAuth);
 
+// The signed-in user's own preferences (F-48): daily goal, default lines,
+// pitch script, the Reports reminder. Before '/:key' so "me" isn't a key.
+router.get(
+  '/me',
+  asyncHandler(async (req, res) => {
+    res.json({ settings: await settingsStore.getUserSettings(req.user.sub) });
+  })
+);
+
+router.put(
+  '/me/:key',
+  asyncHandler(async (req, res) => {
+    const settings = await settingsStore.setUserSetting(req.user.sub, req.params.key, req.body.value ?? null);
+    res.json({ settings });
+  })
+);
+
 router.get(
   '/:key',
   asyncHandler(async (req, res) => {
