@@ -80,6 +80,8 @@ function ProfileSection() {
 }
 
 function DialingDefaultsSection() {
+  const { user } = useAuth();
+  const isSupervisor = user?.role === 'supervisor';
   const [maxAttempts, setMaxAttempts] = useState(() => readLocalNumber(MAX_ATTEMPTS_KEY, DEFAULT_MAX_ATTEMPTS));
   const [dailyGoal, setDailyGoal] = useState(() => readLocalNumber(GOAL_KEY, DEFAULT_GOAL));
   const [defaultLines, setDefaultLines] = useState(() => readLocalNumber(DEFAULT_LINES_KEY, DEFAULT_LINES));
@@ -123,7 +125,8 @@ function DialingDefaultsSection() {
     localStorage.setItem(GOAL_KEY, String(dailyGoal));
     localStorage.setItem(DEFAULT_LINES_KEY, String(defaultLines));
     try {
-      await api.putSetting(CALLING_HOURS_KEY, String(enforceHours));
+      // Global setting: only a supervisor can change it (the switch saves on its own too).
+      if (isSupervisor) await api.putSetting(CALLING_HOURS_KEY, String(enforceHours));
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
     } catch (err) {
@@ -193,7 +196,7 @@ function DialingDefaultsSection() {
               role="switch"
               aria-checked={enforceHours}
               onClick={handleToggleHours}
-              disabled={loadingToggle || savingToggle}
+              disabled={loadingToggle || savingToggle || !isSupervisor}
               className={`relative h-6 w-11 shrink-0 rounded-full transition-colors duration-200 disabled:opacity-50 ${
                 enforceHours ? 'bg-action-call' : 'bg-shadow/40'
               }`}
@@ -205,6 +208,7 @@ function DialingDefaultsSection() {
               />
             </button>
             <span className="text-xs font-medium text-text-secondary">Enforce calling hours (8am–9pm local)</span>
+            {!isSupervisor && <span className="text-xs text-text-secondary">(only a supervisor can change this)</span>}
           </label>
           <p className="mt-1 text-xs text-text-secondary">
             On by default. Saved as soon as you flip it. When on, the dialer never calls a lead outside
@@ -232,6 +236,8 @@ function DialingDefaultsSection() {
  * server settings (reporting_timezone, day_start_time); the server checks
  * the values. */
 function ReportingDaySection() {
+  const { user } = useAuth();
+  const isSupervisor = user?.role === 'supervisor';
   const [timezone, setTimezone] = useState('');
   const [dayStart, setDayStart] = useState('');
   const [loading, setLoading] = useState(true);
@@ -273,7 +279,7 @@ function ReportingDaySection() {
             id="reporting-timezone"
             value={timezone}
             onChange={(e) => setTimezone(e.target.value)}
-            disabled={loading}
+            disabled={loading || !isSupervisor}
             className="w-64"
           />
           <p className="mt-1 text-xs text-text-secondary">
@@ -289,7 +295,7 @@ function ReportingDaySection() {
             type="time"
             value={dayStart}
             onChange={(e) => setDayStart(e.target.value)}
-            disabled={loading}
+            disabled={loading || !isSupervisor}
             className="w-32"
           />
           <p className="mt-1 text-xs text-text-secondary">
@@ -298,7 +304,8 @@ function ReportingDaySection() {
         </div>
         {error && <p className="text-sm text-action-hangup">{error}</p>}
         {saved && <p className="text-sm text-action-contacted">Saved.</p>}
-        <NeuButton type="submit" disabled={loading}>Save reporting day</NeuButton>
+        {!isSupervisor && <p className="text-xs text-text-secondary">Only a supervisor can change the reporting day.</p>}
+        <NeuButton type="submit" disabled={loading || !isSupervisor}>Save reporting day</NeuButton>
       </form>
     </NeuCard>
   );
@@ -338,7 +345,12 @@ function ScriptEditorSection() {
 }
 
 function IntegrationsSection() {
+  const { user } = useAuth();
+  const isSupervisor = user?.role === 'supervisor';
+  // The key is write-only (F-47): the server says only whether one is set
+  // and its last 4 characters. The field is for a replacement.
   const [groqKey, setGroqKey] = useState('');
+  const [status, setStatus] = useState({ configured: false, last4: null });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -347,7 +359,7 @@ function IntegrationsSection() {
   useEffect(() => {
     api
       .getSetting('groq-key')
-      .then(({ value }) => setGroqKey(value || ''))
+      .then(({ configured, last4 }) => setStatus({ configured: Boolean(configured), last4 }))
       .catch(() => {})
       .finally(() => setLoading(false));
   }, []);
@@ -357,7 +369,9 @@ function IntegrationsSection() {
     setSaving(true);
     setError(null);
     try {
-      await api.putSetting('groq-key', groqKey);
+      const { setting } = await api.putSetting('groq-key', groqKey.trim());
+      setStatus({ configured: Boolean(setting?.configured), last4: setting?.last4 ?? null });
+      setGroqKey('');
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
     } catch (err) {
@@ -377,19 +391,28 @@ function IntegrationsSection() {
       <form onSubmit={handleSave} className="space-y-3">
         <div>
           <label className="mb-1 block text-xs font-medium text-text-secondary">Groq API key</label>
+          <p className="mb-2 text-xs text-text-secondary" data-testid="groq-key-status">
+            {loading
+              ? 'Checking…'
+              : status.configured
+                ? `Configured ✓${status.last4 ? ` (ending ····${status.last4})` : ''}`
+                : 'Not configured'}
+          </p>
           <NeuInput
             type="password"
             value={groqKey}
             onChange={(e) => setGroqKey(e.target.value)}
-            placeholder={loading ? 'Loading…' : 'gsk_…'}
+            placeholder={status.configured ? 'Paste a new key to replace it' : 'gsk_…'}
             className="w-full"
             autoComplete="off"
+            disabled={!isSupervisor}
           />
+          {!isSupervisor && <p className="mt-1 text-xs text-text-secondary">Only a supervisor can change this.</p>}
         </div>
         {error && <p className="text-sm text-action-hangup">{error}</p>}
         {saved && <p className="text-sm text-action-contacted">Saved.</p>}
-        <NeuButton type="submit" disabled={saving || loading}>
-          {saving ? 'Saving…' : 'Save key'}
+        <NeuButton type="submit" disabled={saving || loading || !isSupervisor || !groqKey.trim()}>
+          {saving ? 'Saving…' : status.configured ? 'Replace key' : 'Save key'}
         </NeuButton>
       </form>
     </NeuCard>

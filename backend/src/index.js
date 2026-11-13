@@ -3,6 +3,7 @@ const cors = require('cors');
 const fs = require('fs');
 const path = require('path');
 const config = require('./config');
+const authService = require('./services/authService');
 const { validateProviders } = require('./config/validateProviders');
 const db = require('./db');
 const leadQueue = require('./services/leadQueue');
@@ -125,6 +126,15 @@ async function assertSchemaIsMigrated() {
   }
 }
 
+/** Only a supervisor can change settings (F-47): say so if none exists. No role is changed. */
+function checkSupervisorExists() {
+  if (require.main !== module) return;
+  authService
+    .countSupervisors()
+    .then((n) => n === 0 && console.warn('No supervisor account exists: settings cannot be changed. The seed (npm run seed) creates the owner as a supervisor.'))
+    .catch((err) => console.error('Could not check for a supervisor account:', err.message));
+}
+
 /** Work out the time zone(s) of leads that don't have them yet (see leadQueue.backfillZones). */
 function backfillLeadZones() {
   if (require.main !== module) return;
@@ -217,6 +227,7 @@ assertSchemaIsMigrated()
       startImportHousekeeping();
       recoverCallsAfterRestart();
       backfillLeadZones();
+      checkSupervisorExists();
     });
     process.once('SIGTERM', shutdown);
     process.once('SIGINT', shutdown);

@@ -47,4 +47,11 @@ async function updateProfile(userId, { name, email }) {
   }
 }
 
-module.exports = { login, getById, updateProfile };
+/** How many supervisors exist (only a supervisor can change settings). */
+async function countSupervisors() {
+  const { rows } = await db.query("SELECT count(*)::int AS n FROM users WHERE role = 'supervisor'");
+  return rows[0].n;
+}
+
+module.exports = {
+  countSupervisors, login, getById, updateProfile };
