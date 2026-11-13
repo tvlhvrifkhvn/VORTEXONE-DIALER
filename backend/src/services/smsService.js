@@ -438,10 +438,29 @@ async function receiveInbound({ from, to, body, providerMessageId } = {}) {
   return { duplicate: false, stored: stored.length, matchedLeadIds: leadIds, action, changedLeadIds, confirmationSent };
 }
 
+/** Unread texts from numbers that match no lead (counted like a matched lead's unread texts). */
+async function countUnmatchedUnread() {
+  const { rows } = await db.query(
+    "SELECT count(*)::int AS n FROM sms_messages WHERE lead_id IS NULL AND direction = 'inbound' AND is_read = false"
+  );
+  return rows[0].n;
+}
+
+/** Marks one text from an unknown number as read; 404 if it isn't one. */
+async function markUnmatchedRead(messageId) {
+  const { rows } = await db.query(
+    `UPDATE sms_messages SET is_read = true
+     WHERE id = $1 AND lead_id IS NULL AND direction = 'inbound'
+     RETURNING id`,
+    [messageId]
+  );
+  if (!rows[0]) throw new ApiError(404, 'Message not found');
+}
+
 /** Inbound texts from numbers that match no lead (newest first). */
 async function getUnmatchedInbound({ limit = 20 } = {}) {
   const { rows } = await db.query(
-    `SELECT id, from_number AS "fromNumber", body, sent_at AS "receivedAt", keyword_action AS "keywordAction"
+    `SELECT id, from_number AS "fromNumber", body, sent_at AS "receivedAt", keyword_action AS "keywordAction", is_read AS "isRead"
      FROM sms_messages
      WHERE lead_id IS NULL AND direction = 'inbound'
      ORDER BY sent_at DESC
@@ -507,5 +526,7 @@ module.exports = {
   keywordAction,
   receiveInbound,
   getUnmatchedInbound,
+  countUnmatchedUnread,
+  markUnmatchedRead,
   getTimeline,
 };

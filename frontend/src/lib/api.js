@@ -167,6 +167,7 @@ export const uploadSmsMedia = (file) => {
 export const sendBulkSms = (leadIds, templateId) =>
   request('/sms/bulk-send', { method: 'POST', body: { leadIds, templateId } });
 export const getSmsInbox = (page = 1, limit = 20) => request(`/sms/inbox?page=${page}&limit=${limit}`);
+export const markUnmatchedSmsRead = (messageId) => request(`/sms/mark-read-unmatched/${messageId}`, { method: 'POST' });
 export const markSmsRead = (leadId) => request(`/sms/mark-read/${leadId}`, { method: 'POST' });
 export const optOutSms = (leadId) => request(`/sms/opt-out/${leadId}`, { method: 'POST' });
 

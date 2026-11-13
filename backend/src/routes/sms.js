@@ -111,7 +111,8 @@ router.get(
       limit: limit ? Number(limit) : undefined,
     });
     const unmatched = await smsService.getUnmatchedInbound();
-    res.json({ leads, unmatched });
+    const unmatchedUnread = await smsService.countUnmatchedUnread();
+    res.json({ leads, unmatched, unmatchedUnread });
   })
 );
 
@@ -119,6 +120,15 @@ router.post(
   '/mark-read/:leadId',
   asyncHandler(async (req, res) => {
     await smsService.markRead(req.params.leadId);
+    res.json({ ok: true });
+  })
+);
+
+// A text from a number that matches no lead (kept in the inbox): mark it read.
+router.post(
+  '/mark-read-unmatched/:messageId',
+  asyncHandler(async (req, res) => {
+    await smsService.markUnmatchedRead(req.params.messageId);
     res.json({ ok: true });
   })
 );

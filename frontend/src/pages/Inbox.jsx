@@ -133,7 +133,7 @@ export default function Inbox() {
             <ul className="divide-y divide-shadow/20">
               {unmatched.map((m) => (
                 <li key={m.id} className="flex flex-wrap items-center gap-3 py-2 text-sm">
-                  <span className="font-mono text-text-primary">{m.fromNumber}</span>
+                  <span className={`font-mono ${m.isRead ? 'text-text-secondary' : 'font-semibold text-text-primary'}`}>{m.fromNumber}</span>
                   <span className="min-w-0 flex-1 truncate text-text-secondary">{m.body}</span>
                   {m.keywordAction && (
                     <span className="text-xs text-text-secondary">
@@ -141,6 +141,14 @@ export default function Inbox() {
                     </span>
                   )}
                   <span className="text-xs text-text-secondary">{formatRelativeToNow(m.receivedAt)}</span>
+                  {!m.isRead && (
+                    <NeuButton
+                      className="text-xs"
+                      onClick={() => api.markUnmatchedSmsRead(m.id).then(load).catch(() => {})}
+                    >
+                      Mark read
+                    </NeuButton>
+                  )}
                 </li>
               ))}
             </ul>
