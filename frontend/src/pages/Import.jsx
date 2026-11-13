@@ -148,6 +148,11 @@ function ImportSummary({ summary, onReset }) {
             ` ${summary.unreadable} of them had a number that couldn't be read — the original text is shown on the lead.`}
         </p>
       )}
+      {summary.namesTrimmed > 0 && (
+        <p className="text-xs text-text-secondary" data-testid="import-names-trimmed">
+          {summary.namesTrimmed} name(s) were longer than 200 characters and were cut to 200.
+        </p>
+      )}
       {summary.smsOptedOut > 0 && (
         <p className="text-xs text-text-secondary" data-testid="import-sms-opted-out">
           SMS opted out: {summary.smsOptedOut} imported lead(s) replied STOP to a text earlier — they won't be texted, but

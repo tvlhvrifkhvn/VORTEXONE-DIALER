@@ -134,7 +134,7 @@ function GlobalSearch() {
                 }}
                 className="flex w-full flex-col rounded-input px-2 py-1.5 text-left hover:shadow-neu-sm"
               >
-                <span className="font-medium text-text-primary">{lead.name}</span>
+                <span className="max-w-full truncate font-medium text-text-primary" title={lead.name}>{lead.name}</span>
                 <span className="text-xs text-text-secondary">
                   {lead.phone} · {lead.state}
                 </span>
