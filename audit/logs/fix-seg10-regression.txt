@@ -1,0 +1,943 @@
+# Segment 10 final regression (Segments 1-9) — branch HEAD acf8672 vs base ad8c0b2
+# Test templates migrated to 032 and kept at and given calling_hours_enforced='false' (the Segment 1-5 repros ran with a missing setting, which meant OFF before Segment 6; a missing setting now means ON).
+  vortex_seg2_tpl: Migrations up to date.
+  vortex_seg2_tpl: calling_hours_enforced = false
+  vortex_seg3_tpl: Migrations up to date.
+  vortex_seg3_tpl: calling_hours_enforced = false
+  vortex_empty: Migrations up to date.
+
+## Segment 1 repros
+### fix-seg1-f16.sh
+[seg10-regr] lead A=5020 (214) 555-2244 dialed (call 1), disposition dnc: [HTTP 200]
+[seg10-regr]   dnc_list has +12145552244: 1
+[seg10-regr]   PUT A phone -> (214) 555-2245 (moves A off the number): [HTTP 409]
+[seg10-regr] lead B=5021
+[seg10-regr]   PUT B phone="(214) 555-2244" -> [HTTP 409] This number is on the DNC list and cannot be added as a lead stored=+12145552246
+[seg10-regr]   PUT B phone="214-555-2244" -> [HTTP 409] This number is on the DNC list and cannot be added as a lead stored=+12145552246
+[seg10-regr]   PUT B phone="+1 214 555 2244" -> [HTTP 409] This number is on the DNC list and cannot be added as a lead stored=+12145552246
+[seg10-regr]   POST /api/calls {leadId:B} -> [HTTP 201] undefined | dialed number: +12145552246
+[seg10-regr] invalid phone: PUT B phone="abc" -> [HTTP 400] Enter a valid 10-digit US phone number
+[seg10-regr] number held by lead 5022: PUT B -> [HTTP 409] A lead with this phone number already exists
+[seg10-regr] clean new number "214 555 2248": PUT B -> [HTTP 200] stored=+12145552248
+[seg10-regr] lead D=5023: number put on dnc_list by DIRECT SQL, dnc_flag=f
+[seg10-regr]   by-id dial D -> [HTTP 409] This number is on the DNC list and cannot be dialed
+[seg10-regr]   D made the top queue candidate by DIRECT SQL (callback due a day ago)
+[seg10-regr]   POST /api/calls {} -> [HTTP 201] served lead=1 (D=5023)
+[seg10-regr]   D afterwards: status=dnc dnc_flag=true locked_by=null
+[seg10-regr] manual dial pad to the DNC'd number (214) 555-2244 -> [HTTP 409] This number is on the DNC list and cannot be dialed
+### fix-seg1-f16-multiline.sh
+[seg10-regr] queue mode: lead 5024 (dnc_list only) is the top candidate
+[seg10-regr]   calls placed to lead 5024: 0   lead 5024 now: dnc dnc_flag=true   other calls placed: 4
+[seg10-regr] selected-leads mode: leadIds=[5025 (dnc_list only), 5026 (clean)]
+[seg10-regr]   multiline/start -> 201 {"lineCount":2,"slots":[{"slotNumber":1,"leadId":5026,"leadName":"Seg1 ML ok 29651","status":"ringing"}]}
+[seg10-regr]   calls placed to lead 5025: 0   lead 5025 now: new dnc_flag=false   calls to clean lead 5026: 1
+### fix-seg1-f22.sh
+[seg10-regr] lead X=5027 created; DELETE /api/leads/5027 -> [HTTP 200]  deleted_at set=t
+[seg10-regr]   dial deleted lead by id -> [HTTP 404] Lead not found
+[seg10-regr]   deleted lead made the top queue candidate by DIRECT SQL; POST /api/calls {} served lead=4 (X=5027)
+[seg10-regr] control: non-deleted lead Y=5028 dial by id -> [HTTP 201]
+### fix-seg1-f52.sh
+[seg10-regr] lead X=5029
+[seg10-regr] PUT state "ZZ"            -> [HTTP 400] Enter a valid US state  stored state=TX
+[seg10-regr] PUT name null             -> [HTTP 400] Name is required
+[seg10-regr] PUT name 10,000 chars     -> [HTTP 400] Name is too long (200 characters max)  stored length=14
+[seg10-regr] PUT name "   "             -> [HTTP 400] Name is required  stored name="Seg1 Edit 9644"
+[seg10-regr] PUT name 200 chars (limit) -> [HTTP 200] undefined
+[seg10-regr] PUT name 201 chars        -> [HTTP 400] Name is too long (200 characters max)
+[seg10-regr] POST state ZZ             -> [HTTP 400] Enter a valid US state
+[seg10-regr] POST name null            -> [HTTP 400] Name is required
+[seg10-regr] POST name 10,000 chars    -> [HTTP 400] Name is too long (200 characters max)
+[seg10-regr] POST name "   "            -> [HTTP 400] Name is required
+[seg10-regr] valid edits:
+[seg10-regr]   PUT name="Seg1 Renamed 9644" -> [HTTP 200] undefined  stored name=Seg1 Renamed 9644
+[seg10-regr]   PUT phone="(817) 555-9647" -> [HTTP 200] undefined  stored phone=+18175559647
+[seg10-regr]   PUT email="seg1-9644@example.com" -> [HTTP 200] undefined  stored email=seg1-9644@example.com
+[seg10-regr]   PUT address="1 Main St, Fort Worth" -> [HTTP 200] undefined  stored address=1 Main St, Fort Worth
+[seg10-regr]   PUT brokerage="Seg1 Realty" -> [HTTP 200] undefined  stored brokerage=Seg1 Realty
+[seg10-regr]   PUT state="OK" -> [HTTP 200] undefined  stored state=OK
+[seg10-regr] lowercase state: PUT {"state":"ca"} -> [HTTP 200] undefined stored=CA   | POST state "ca" -> CA
+### invariants.sql on the regression DB
+-- I1 every lead has exactly one status from the allowed list (violations):
+ status | count 
+--------+-------
+(0 rows)
+
+-- I2 leads in_progress, and whether each has an open (undispositioned) call:
+  id  | locked_by | lock_age_s | open_calls 
+------+-----------+------------+------------
+    1 |         1 |          8 |          1
+    4 |         1 |          1 |          2
+ 5021 |         1 |          9 |          1
+ 5028 |         1 |          1 |          1
+(4 rows)
+
+-- I3 in_progress with lock older than 30s (should be swept on next queue read):
+ stale_locks 
+-------------
+           0
+(1 row)
+
+-- I4 orphan call rows (lead_id not in leads; manual calls have NULL lead_id by design):
+ orphan_calls 
+--------------
+            0
+(1 row)
+
+-- I5 calls never dispositioned and never ended, older than 5 minutes:
+ dangling_calls 
+----------------
+              0
+(1 row)
+
+-- I6 leads with more open (undispositioned) calls than one:
+ lead_id | open_calls 
+---------+------------
+       4 |          2
+(1 row)
+
+-- I7 attempts above max_attempts:
+ id | attempts | max_attempts | status 
+----+----------+--------------+--------
+(0 rows)
+
+-- I8 dnc consistency: dnc_flag vs status vs dnc_list
+                      kind                       | count 
+-------------------------------------------------+-------
+ flag without status                             |     0
+ status without flag                             |     0
+ lead whose phone is on dnc_list but not flagged |     1
+ phones not in E.164 (+1 and 10 digits)          |     0
+(4 rows)
+
+-- I9 lead counts:
+ total | soft_deleted 
+-------+--------------
+  5030 |            1
+(1 row)
+
+### server log (regression backend): 0 error/warn lines
+
+### fix-seg1-f06.sh (fresh DB vortex_seg10_f06, SEED_USER_PASSWORD unset)
+--- [seg10-regr] seed output on vortex_seg10_f06 (passwords masked):
+    Seed complete.
+    
+    ==== SEED LOGIN (shown once — store it now, it is not saved anywhere) ====
+      email:    vortexoneagency@gmail.com
+      password: qFD3****(len 24)
+    =========================================================================
+--- [seg10-regr] users row: vortexoneagency@gmail.com role=supervisor
+--- [seg10-regr] login with the password the seed printed (qFD3****(len 24)): HTTP 200
+
+## Segment 2 repros
+### fix-seg2-f14.sh
+[seg10-regr] (d) sequential order: first 10 leads served by 10 sequential POST /api/calls {} on fresh data
+[seg10-regr]   order: BA777 Karen_Mitchell David_Chen Melissa_Ortiz James_Whitfield Angela_Rossi Brian_Kowalski Patricia_Nguyen Robert_Hayes Susan_Delgado   (Bulk Agent 777 was made a due callback, so it must be first)
+[seg10-regr]   dial→disposition→dial: dispose call 10 no_answer -> [HTTP 200]; next dial -> [HTTP 201]
+[seg10-regr]   calls from (d) left open after dispositioning them: 0
+[seg10-regr] (a) 20 parallel POST /api/calls {} — one user
+[seg10-regr]   statuses: 20×201 
+[seg10-regr]   calls created: 20   distinct leads: 20   responses' distinct lead ids: 20
+[seg10-regr]   leads with >1 open call (ended_at IS NULL): none
+[seg10-regr]   attempts > max_attempts (I7): 0
+[seg10-regr] (b) 10 parallel POST /api/calls {leadId:60} — one user, one lead (attempts before=0)
+[seg10-regr]   statuses: 1×201 9×409   calls on lead 60: 1  attempts after=1 (delta 1)
+[seg10-regr]   409 messages:       9 "error":"Lead is not dialable (status: in_progress)" 
+[seg10-regr] (c) two users, 10 parallel next-lead requests each, at the same time
+[seg10-regr]   user1 statuses: 10×201   user2 statuses: 10×201 
+[seg10-regr]   leads served to BOTH users: none   calls: 20 on 20 leads
+[seg10-regr] (e) invariants after the run
+[seg10-regr]   I7 attempts > max_attempts: 0   I2 in_progress leads without an open call: 0   leads with >1 open call: 0
+[seg10-regr]   server log: 500-class errors=0  (lines: )
+### fix-seg2-f27.sh
+[seg10-regr] (a) one user, 3 lines, forced no_answer, 15 s
+[seg10-regr]   SUMMARY sessionId=1 events=60 byStatus={"loading":15,"dialing":15,"ringing":15,"no_answer":12,"dropped":3} maxConcurrentLiveSlots=3 (lineCount=3)
+[seg10-regr]   calls: 15 on 15 distinct leads
+[seg10-regr]   same lead dialed twice in the same second within one session: none
+[seg10-regr]   sample (first 6 calls): 1:slot1:lead1@59.216  2:slot2:lead2@59.216  3:slot3:lead3@59.217  4:slot1:lead4@02.238  5:slot3:lead5@02.250  6:slot2:lead6@02.260
+[seg10-regr] (b) two users, two sessions at once, 3 lines each, forced no_answer, 15 s
+[seg10-regr]   calls: 30 on 30 leads; sessions: 2,3
+[seg10-regr]   same lead in BOTH sessions with overlapping calls (started < 6 s apart): none
+[seg10-regr]   same-second duplicates within a session: none
+[seg10-regr] (c) audit §5.2: 3 lines all answered -> held; dispose+release active -> promoted; stop
+[seg10-regr]     3.1s slot 1 answered  
+[seg10-regr]     3.1s slot 2 held      
+[seg10-regr]     3.1s slot 3 held      
+[seg10-regr]     7.5s slot 2 answered   (promoted from hold)
+[seg10-regr]     7.5s POST /api/calls/multiline/release {"slotNumber":1} -> 200 {"promoted":2}
+[seg10-regr]   SUMMARY sessionId=4 events=22 byStatus={"loading":5,"dialing":5,"ringing":5,"answered":2,"held":2,"no_answer":1,"dropped":2} maxConcurrentLiveSlots=3 (lineCount=3)
+[seg10-regr] (d) selected-leads session with 5 chosen ids: 1 soft-deleted (API DELETE), 1 DNC-listed (direct SQL), 3 normal
+[seg10-regr]   ids=[50,51,52,53,54] deleted=51 dnc_listed=53
+[seg10-regr]   multiline/start -> 201 {"lineCount":3,"slots":[{"slotNumber":1,"leadId":54,"status":"ringing"},{"slotNumber":2,"leadId":52,"status":"ringing"},{"slotNumber":3,"leadId":50,"status":"ringing"}]}
+[seg10-regr]   multiline/stop -> 200 {"abandonedCount":0,"keptLive":null}
+[seg10-regr]   calls per chosen lead: 50=1 51=0 52=1 53=0 54=1
+[seg10-regr]   status of chosen leads: 50:no_answer 51:new(deleted) 52:no_answer 53:new 54:no_answer
+[seg10-regr]   leads left in_progress after stop: 0
+[seg10-regr] server log errors: 0  lines: 
+
+## Segment 3 repros
+### fix-seg3.sh (all parts)
+[seg10-regr] == F-15 live call: U1 on an answered call, locked_at backdated 60 s ==
+[seg10-regr]   U1 dial lead 21 -> 201, call 1 telephony_state=answered
+[seg10-regr]   after lazy sweep (GET /api/leads): in_progress locked_by=2
+[seg10-regr]   after 12 s more (timer, if any): in_progress locked_by=2
+[seg10-regr]   U2 dial the same lead -> 409 Lead is not dialable (status: in_progress)
+[seg10-regr]   open calls on lead 21: 1
+[seg10-regr] == F-15 hung-up call: released 30 s after hangup ==
+[seg10-regr]   U1 dial lead 35, hangup -> 200
+[seg10-regr]   25 s after hangup: in_progress locked_by=2
+[seg10-regr]   32 s after hangup: in_queue locked_by=-
+[seg10-regr] == F-15 lead locked with no call row at all ==
+[seg10-regr]   locked 25 s ago: in_progress locked_by=2
+[seg10-regr]   locked 31 s ago: in_queue locked_by=-
+[seg10-regr] == F-15 safety ceiling: open call older than MAX_LIVE_CALL_MINUTES (default 240) ==
+[seg10-regr]   open call started 239 min ago: in_progress locked_by=2, call ended_at null=t
+[seg10-regr]   open call started 241 min ago: in_queue locked_by=-, call ended_at set=t, disposition=null
+[seg10-regr] == undo after a hangup: the lead must not stay locked by a reopened call ==
+[seg10-regr]   U1 hangup, no_answer, undo -> 200 | lead in_progress locked_by=2 | call ended_at set=t
+[seg10-regr]   31 s after undo with no new disposition: in_queue locked_by=-
+[seg10-regr] == F-25 network ended: ended_at / duration_seconds / locked_at ==
+[seg10-regr]   no_answer call 5: state=ended ended_at_set=true duration=3 locked_at_after_end=true
+[seg10-regr]   voicemail call hung up at 4.5 s, network ended at ~7 s: hangup wrote [13:37:11.385 d=5], row now [13:37:11.385 d=5 state=ended]
+[seg10-regr]   voicemail call dispositioned at 4.5 s, network ended at ~7 s: disposition wrote [13:37:20.075 d=5], row now [13:37:20.075 d=5 disp=voicemail]
+[seg10-regr]   I5-style: calls this run with telephony_state=ended but ended_at null: 0
+[seg10-regr] == F-24 no queue reads after hangup: when does the lead return to in_queue? ==
+[seg10-regr]   (DB polled directly, no API reads) lead 127: in_queue after 35 s
+[seg10-regr] == F-32 another rep acts on U1's call ==
+[seg10-regr]   U1 dial lead 141 -> 201 (call 9)
+[seg10-regr]   U2 dnc on U1's call     -> 403 This call belongs to another rep. | lead in_progress locked_by=2, on dnc_list=0
+[seg10-regr]   U2 hangup U1's call     -> 403 This call belongs to another rep. | ended_at set=f
+[seg10-regr]   U1 no_answer own call   -> 200 
+[seg10-regr]   U2 undo U1's call       -> 403 This call belongs to another rep.
+[seg10-regr]   U1 undo own call        -> 200 
+[seg10-regr]   SUP contacted U1's call -> 200  | lead contacted locked_by=-
+[seg10-regr]   SUP hangup U1's call    -> 200 
+[seg10-regr]   U2 hangup U1's manual call -> 403 This call belongs to another rep.
+[seg10-regr]   U1 hangup own manual call  -> 200 
+[seg10-regr] == F-32 late disposition after the lead moved to another rep ==
+[seg10-regr]   U1 dialed lead 167, hung up, grace expired: in_queue locked_by=-
+[seg10-regr]   U2 dial lead 167 -> 201: in_progress locked_by=3
+[seg10-regr]   U1 late no_answer on old call -> 409 This lead is now with another rep. | lead in_progress locked_by=3
+[seg10-regr]   U2 hangup own call -> 200
+[seg10-regr] == multi-line regression: one user, 3 lines, forced no_answer, 15 s ==
+[seg10-regr]   SUMMARY sessionId=1 events=60 byStatus={"loading":15,"dialing":15,"ringing":15,"no_answer":12,"dropped":3} maxConcurrentLiveSlots=3 (lineCount=3)
+[seg10-regr]   calls: 15 on 15 leads; ended_at null: 0
+[seg10-regr]   I6 leads with >1 open call: 0
+[seg10-regr] server log: 0 error/warn lines
+[seg10-regr] shutdown (SIGTERM): process gone after 513 ms; log: SIGTERM received — stale-lock sweep and import cleanup stopped, shutting down
+### fix-seg3-ui.sh (403/409 on the call screen)
+[seg10-regr] 409 case, lead 19: UI state before = Connected
+[seg10-regr]    U2 dials lead 19 via API -> 201
+[seg10-regr]    after clicking No Answer: message "This lead is now with another rep." shown = true
+[seg10-regr]    No Answer button enabled again = true
+[seg10-regr]    lead 19 after: in_progress locked_by=3 (U2 = 3)
+[seg10-regr] 403 case, lead 31: UI state before = Connected
+[seg10-regr]    after clicking No Answer: message "This call belongs to another rep." shown = true
+[seg10-regr]    after Hang up: 403 message shown = true, UI state = Connected (still polling: live state kept)
+[seg10-regr]    No Answer button enabled again = true
+[seg10-regr] requests: POST /api/calls/1/hangup -> 200 | POST /api/dispositions -> 409 | POST /api/dispositions -> 403 | POST /api/calls/3/hangup -> 403
+[seg10-regr] page errors: none
+[seg10-regr] backend log error/warn lines: 0
+### fix-seg2-redial.sh (fresh DB)
+[seg10-regr] lead 26: first dial -> [HTTP 201]  attempts=1
+[seg10-regr]   same user, plain repeat {leadId}            -> [HTTP 409] Lead is not dialable (status: in_progress)
+[seg10-regr]   same user, Redial button {leadId,redial:true} -> [HTTP 201]  attempts=2
+[seg10-regr]   OTHER user with redial:true                 -> [HTTP 409] Lead is not dialable (status: in_progress)
+[seg10-regr]   calls on lead 26: 2
+### fix-seg2-f51.sh dev (StrictMode, 1 POST, Connected under npm run dev)
+[seg10-dev] visit /call/90: POST /api/calls sent=1
+[seg10-dev]    201 body={"leadId":"90"} -> lead 90
+[seg10-dev]    UI state at 8s: Connected
+[seg10-dev] page errors: none
+[seg10-dev] DB lead 90: calls=1 (1:answered) attempts 0 -> 1
+
+## Segment 4 repros
+### fix-seg4.sh
+[seg10-regr] == F-21 undo matrix: disposition, then undo within 10 s; lead, callbacks, dnc_list and session stats must be back as before ==
+[seg10-regr]   PASS contacted: disposition 200, undo 200 
+[seg10-regr]        before: in_progress att=1 next=- notes=0 cold=- dnc=false locked_by=2 | callbacks=0 dnc_list=0 session=c0/v0/n0/cb0/d0
+[seg10-regr]        dispo : contacted att=1 next=- notes=1 cold=- dnc=false locked_by=- | callbacks=0 dnc_list=0 session=c1/v0/n0/cb0/d0
+[seg10-regr]        undone: in_progress att=1 next=- notes=0 cold=- dnc=false locked_by=2 | callbacks=0 dnc_list=0 session=c0/v0/n0/cb0/d0
+[seg10-regr]   PASS voicemail: disposition 200, undo 200 
+[seg10-regr]        before: in_progress att=1 next=- notes=0 cold=- dnc=false locked_by=2 | callbacks=0 dnc_list=0 session=c1/v0/n0/cb0/d0
+[seg10-regr]        dispo : voicemail att=1 next=11-13 17:43 notes=1 cold=- dnc=false locked_by=- | callbacks=0 dnc_list=0 session=c1/v1/n0/cb0/d0
+[seg10-regr]        undone: in_progress att=1 next=- notes=0 cold=- dnc=false locked_by=2 | callbacks=0 dnc_list=0 session=c1/v0/n0/cb0/d0
+[seg10-regr]   PASS no_answer: disposition 200, undo 200 
+[seg10-regr]        before: in_progress att=1 next=- notes=0 cold=- dnc=false locked_by=2 | callbacks=0 dnc_list=0 session=c2/v0/n0/cb0/d0
+[seg10-regr]        dispo : no_answer att=1 next=11-13 17:43 notes=1 cold=- dnc=false locked_by=- | callbacks=0 dnc_list=0 session=c2/v0/n1/cb0/d0
+[seg10-regr]        undone: in_progress att=1 next=- notes=0 cold=- dnc=false locked_by=2 | callbacks=0 dnc_list=0 session=c2/v0/n0/cb0/d0
+[seg10-regr]   PASS callback_scheduled: disposition 200, undo 200 
+[seg10-regr]        before: in_progress att=1 next=- notes=0 cold=- dnc=false locked_by=2 | callbacks=0 dnc_list=0 session=c3/v0/n0/cb0/d0
+[seg10-regr]        dispo : callback_scheduled att=1 next=11-15 13:43 notes=1 cold=- dnc=false locked_by=- | callbacks=1 dnc_list=0 session=c3/v0/n0/cb1/d0
+[seg10-regr]        undone: in_progress att=1 next=- notes=0 cold=- dnc=false locked_by=2 | callbacks=0 dnc_list=0 session=c3/v0/n0/cb0/d0
+[seg10-regr]   PASS no_contact_number: disposition 200, undo 200 
+[seg10-regr]        before: in_progress att=1 next=- notes=0 cold=- dnc=false locked_by=2 | callbacks=0 dnc_list=0 session=c4/v0/n0/cb0/d0
+[seg10-regr]        dispo : no_contact_number att=1 next=- notes=1 cold=- dnc=false locked_by=- | callbacks=0 dnc_list=0 session=c4/v0/n0/cb0/d0
+[seg10-regr]        undone: in_progress att=1 next=- notes=0 cold=- dnc=false locked_by=2 | callbacks=0 dnc_list=0 session=c4/v0/n0/cb0/d0
+[seg10-regr]   PASS no_contact_person: disposition 200, undo 200 
+[seg10-regr]        before: in_progress att=1 next=- notes=0 cold=- dnc=false locked_by=2 | callbacks=0 dnc_list=0 session=c5/v0/n0/cb0/d0
+[seg10-regr]        dispo : cold att=1 next=- notes=1 cold=no_contact_person dnc=false locked_by=- | callbacks=0 dnc_list=0 session=c5/v0/n0/cb0/d0
+[seg10-regr]        undone: in_progress att=1 next=- notes=0 cold=- dnc=false locked_by=2 | callbacks=0 dnc_list=0 session=c5/v0/n0/cb0/d0
+[seg10-regr]   PASS dnc: disposition 200, undo 200 
+[seg10-regr]        before: in_progress att=1 next=- notes=0 cold=- dnc=false locked_by=2 | callbacks=0 dnc_list=0 session=c6/v0/n0/cb0/d0
+[seg10-regr]        dispo : dnc att=1 next=- notes=1 cold=- dnc=true locked_by=- | callbacks=0 dnc_list=1 session=c6/v0/n0/cb0/d1
+[seg10-regr]        undone: in_progress att=1 next=- notes=0 cold=- dnc=false locked_by=2 | callbacks=0 dnc_list=0 session=c6/v0/n0/cb0/d0
+[seg10-regr]   PASS cold: disposition 200, undo 200 
+[seg10-regr]        before: in_progress att=5 next=- notes=0 cold=- dnc=false locked_by=2 | callbacks=0 dnc_list=0 session=c7/v0/n0/cb0/d0
+[seg10-regr]        dispo : cold att=5 next=- notes=1 cold=max_attempts dnc=false locked_by=- | callbacks=0 dnc_list=0 session=c7/v0/n1/cb0/d0
+[seg10-regr]        undone: in_progress att=5 next=- notes=0 cold=- dnc=false locked_by=2 | callbacks=0 dnc_list=0 session=c7/v0/n0/cb0/d0
+[seg10-regr] == F-17 three leads named the same in TX, FL, AZ (AZ has a scheduled callback); no_contact_person on the TX one ==
+[seg10-regr]   no_contact_person on TX lead 5020 -> 200, cascadedLeadIds=undefined
+[seg10-regr]   TX 5020: cold att=1 next=- notes=0 cold=no_contact_person dnc=false locked_by=-
+[seg10-regr]   FL 5021: in_queue att=0 next=- notes=0 cold=- dnc=false locked_by=-
+[seg10-regr]   AZ 5022: callback_scheduled att=0 next=11-14 13:43 notes=0 cold=- dnc=false locked_by=-, open callbacks=1
+[seg10-regr]   undo -> 200
+[seg10-regr]   after undo: TX in_progress | FL in_queue/- | AZ callback_scheduled/-
+[seg10-regr] == F-35 callback time on the disposition path ==
+[seg10-regr]   scheduledAt "next tuesday" -> 400 A valid callback date and time is required | lead in_progress next=-
+[seg10-regr]   scheduledAt "2020-01-01" -> 400 That callback time is in the past — pick a time from now on | lead in_progress next=-
+[seg10-regr]   scheduledAt "2026-11-13T13:43:02Z" -> 200  | lead callback_scheduled next=2026-11-13 13:43
+[seg10-regr]   scheduledAt "2026-11-16T13:43:32Z" -> 200  | lead callback_scheduled next=2026-11-16 13:43
+[seg10-regr]   lead-page route for comparison: POST /api/leads/:id/callback "next tuesday" -> 400 A valid callback date and time is required
+[seg10-regr] == F-36 note linked to a call of another lead ==
+[seg10-regr]   note on lead 137 with lead 147's call 15 -> 400 That call isn't one of this lead's calls | stored rows: 0
+[seg10-regr]   note on lead 137 with its own call 14 -> 201
+[seg10-regr]   note on lead 137 without a call -> 201
+[seg10-regr]   note with a call id that doesn't exist -> 400 That call isn't one of this lead's calls
+[seg10-regr] == F-23 no_contact_number recovery by fixing the phone ==
+[seg10-regr]   lead 157 after no_contact_number: no_contact_number att=1 next=- notes=0 cold=- dnc=false locked_by=-
+[seg10-regr]   PUT phone "abc" -> 400 Enter a valid 10-digit US phone number | no_contact_number
+[seg10-regr]   PUT a DNC-listed phone -> 409 This number is on the DNC list and cannot be added as a lead | no_contact_number
+[seg10-regr]   PUT a valid new phone -> 200 | in_queue att=1 next=- notes=1 cold=- dnc=false locked_by=-
+[seg10-regr]   timeline notes: Number changed, back in queue
+[seg10-regr]   dial by id -> 201 
+[seg10-regr] == F-55 phoneless lead (imported without a number) gets a number ==
+[seg10-regr]   lead 5023: new phone=NULL missing_phone=true
+[seg10-regr]   dial before -> 409 This lead has no phone number yet — add one before calling.
+[seg10-regr]   PUT name with phone "" (what the edit form sends) -> 200 
+[seg10-regr]   PUT phone "(469) 555-6791" -> 200 | new phone=+14695556791 missing_phone=false
+[seg10-regr]   timeline notes: Number added, lead is now dialable
+[seg10-regr]   dial after -> 201 
+[seg10-regr] == DNC lead: phone edits blocked, other edits allowed ==
+[seg10-regr]   lead 167: dnc att=1 next=- notes=0 cold=- dnc=true locked_by=- phone=+13125551014
+[seg10-regr]   PUT a new phone -> 409 This lead is on the DNC list; its number can't be changed | phone now +13125551014
+[seg10-regr]   PUT name only -> 200 
+[seg10-regr]   PUT only its current phone -> 200 
+[seg10-regr]   PUT whole edit form, phone unchanged -> 200 
+[seg10-regr]   lead after: dnc att=1 next=- notes=0 cold=- dnc=true locked_by=- phone=+13125551014
+[seg10-regr] server log: 0 error/warn lines
+### fix-seg4-ui.sh
+[seg10-regr] leads: call=19 dnc=31 (dnc) phoneless=5020 ncn=46 (no_contact_number) plain=61
+[seg10-regr] call screen lead 19: Connected
+[seg10-regr]   past callback (2020-01-01 09:00): message "That callback time is in the past" shown = true; No Answer enabled = true
+[seg10-regr]   valid callback (tomorrow): lead callback_scheduled, open callbacks=1
+[seg10-regr]   Undo: lead in_progress, open callbacks=0, error text shown = false
+[seg10-regr] DNC lead 31: new phone -> message "This lead is on the DNC list; its number can't be changed" shown = true; phone in DB +17135551001
+[seg10-regr]   same phone + new name -> "Saved." shown = true; name in DB "Seg4 UI DNC renamed"
+[seg10-regr] phoneless lead 5020: edit brokerage with phone empty -> Saved shown = true, error shown = false
+[seg10-regr]   add phone -> Saved shown = true; DB new phone=+14695550177 missing_phone=false
+[seg10-regr] plain lead 61: phone "abc" -> message "Enter a valid 10-digit US phone number" shown = true; Save enabled = true
+[seg10-regr] no_contact_number lead 46: new phone -> Saved shown = true; DB in_queue phone=+14695550188
+[seg10-regr] requests: POST /api/dispositions -> 400 | POST /api/dispositions -> 200 | POST /api/dispositions/3/undo -> 200 | PUT /api/leads/31 -> 409 | PUT /api/leads/31 -> 200 | PUT /api/leads/5020 -> 200 | PUT /api/leads/5020 -> 200 | PUT /api/leads/61 -> 400 | PUT /api/leads/46 -> 200
+[seg10-regr] page errors: none
+[seg10-regr] backend log error/warn lines: 0
+
+## Segment 5 Part A repros
+### fix-seg5-import.sh 300 csv
+[seg10-regr-300-csv] gen: wrote /var/tmp/audit-scratch/seg5/leads-300.csv: 300 rows (a), 32981 bytes; expected {"totalRows":300,"imported":249,"merged":11,"alreadyInList":9,"dncBlocked":9,"noNumber":15,"unreadable":6,"invalid":7,"withExtension":12}
+[seg10-regr-300-csv] file leads-300.csv: 300 rows, 32981 bytes; leads in DB before: 5019; backend RSS before 115 MB
+[seg10-regr-300-csv] upload -> HTTP 201
+[seg10-regr-300-csv] auto mapping (AI off): {"phone":"Mobile","email":"Email","name":"Name","brokerage":"Office","address":"Street","city":"City","state":"State","zip":"Zip","source":"Source"}
+[seg10-regr-300-csv] auto mapping matches the expected columns: yes
+[seg10-regr-300-csv] process -> HTTP 200; final status=completed after 1.1 s, 3 requests (1 status polls)
+[seg10-regr-300-csv] summary: {"totalRows":300,"imported":249,"merged":11,"alreadyInList":9,"dncBlocked":9,"noNumber":15,"invalid":7,"unreadable":6,"withExtension":12,"skippedDnc":9,"skippedDuplicate":9,"skippedInvalid":7,"mergedDuplicates":11,"importedWithoutPhone":15}
+[seg10-regr-300-csv] expected: {"totalRows":300,"imported":249,"merged":11,"alreadyInList":9,"dncBlocked":9,"noNumber":15,"invalid":7,"unreadable":6,"withExtension":12}
+[seg10-regr-300-csv] accounting rule: imported + merged + alreadyInList + dncBlocked + noNumber + invalid = 300 vs total 300 -> OK
+[seg10-regr-300-csv] buckets vs expected: all equal
+[seg10-regr-300-csv] skipped-rows CSV: HTTP 200, 36 rows (skipped buckets: 36) -> OK; header: Sheet,Row,Outcome,Reason,City,Email,Mobile,Name,Office,Source,State,Street,Zip
+[seg10-regr-300-csv] invalid reasons: [{"count":3,"reason":"Could not determine a US state for this lead"},{"count":3,"reason":"Missing name"},{"count":1,"reason":"No state, and the same name appears in 2 different places in this file — not merged into any of them"}]
+[seg10-regr-300-csv] DB: leads +264; peak backend RSS 127 MB (was 115 MB before the import)
+[seg10-regr-300-csv] DB: new leads with an extension: 12 (expected 12); phoneless leads keeping their unreadable raw text: 6 (expected 6)
+[seg10-regr-300-csv] DB: dialable leads whose phone is on the DNC list: 0
+[seg10-regr-300-csv] re-import same file: status=completed in 1.0 s; new leads in DB: 0; summary {"imported":0,"merged":11,"alreadyInList":273,"dncBlocked":9,"noNumber":0,"invalid":7} sum=300/300
+[seg10-regr-300-csv] cancel test: cancel sent at [0.1s 100% saving Done status=completed] -> HTTP 409 {"cancelled":false,"tooLate":true,"jobId":3,"status":"completed","written":276,"message":"Too late to cancel — this import is already completed.","reason":"too_late","error":"Too late to cancel — this
+[seg10-regr-300-csv] cancel test: job ended status=completed; leads written by this job: 276; reported written: 276
+[seg10-regr-300-csv] dial sample (5 imported leads): 5047 (ext 685):201 5086 (ext 241):201 5153 (ext 785):201 5163 (ext 543):201 5182 (ext 482):201
+[seg10-regr-300-csv] requests in total: 21
+[seg10-regr-300-csv] invariants (I1-I9):
+[seg10-regr-300-csv] server log: 0 error/warn lines
+### fix-seg5-import.sh 300 xlsx
+[seg10-regr-300-xlsx] gen: wrote /var/tmp/audit-scratch/seg5/leads-300.xlsx: 300 rows (b), 144960 bytes; expected {"totalRows":300,"imported":249,"merged":11,"alreadyInList":9,"dncBlocked":9,"noNumber":15,"unreadable":6,"invalid":7,"withExtension":12}
+[seg10-regr-300-xlsx] file leads-300.xlsx: 300 rows, 144960 bytes; leads in DB before: 5019; backend RSS before 114 MB
+[seg10-regr-300-xlsx] upload -> HTTP 201
+[seg10-regr-300-xlsx] auto mapping (AI off): {"phone":"Phone Number","email":"E-mail","first_name":"First Name","last_name":"Last Name","brokerage":"Company","address":"Address","city":"City","state":"State","zip":"Postal Code","source":"Website"}
+[seg10-regr-300-xlsx] auto mapping matches the expected columns: yes
+[seg10-regr-300-xlsx] process -> HTTP 200; final status=completed after 1.1 s, 3 requests (1 status polls)
+[seg10-regr-300-xlsx] summary: {"totalRows":300,"imported":249,"merged":11,"alreadyInList":9,"dncBlocked":9,"noNumber":15,"invalid":7,"unreadable":6,"withExtension":12,"skippedDnc":9,"skippedDuplicate":9,"skippedInvalid":7,"mergedDuplicates":11,"importedWithoutPhone":15}
+[seg10-regr-300-xlsx] expected: {"totalRows":300,"imported":249,"merged":11,"alreadyInList":9,"dncBlocked":9,"noNumber":15,"invalid":7,"unreadable":6,"withExtension":12}
+[seg10-regr-300-xlsx] accounting rule: imported + merged + alreadyInList + dncBlocked + noNumber + invalid = 300 vs total 300 -> OK
+[seg10-regr-300-xlsx] buckets vs expected: all equal
+[seg10-regr-300-xlsx] skipped-rows CSV: HTTP 200, 36 rows (skipped buckets: 36) -> OK; header: Sheet,Row,Outcome,Reason,Address,City,Company,E-mail,First Name,Last Name,Phone Number,Pos
+[seg10-regr-300-xlsx] invalid reasons: [{"count":3,"reason":"Could not determine a US state for this lead"},{"count":3,"reason":"Missing name"},{"count":1,"reason":"No state, and the same name appears in 2 different places in this file — not merged into any of them"}]
+[seg10-regr-300-xlsx] DB: leads +264; peak backend RSS 128 MB (was 114 MB before the import)
+[seg10-regr-300-xlsx] DB: new leads with an extension: 12 (expected 12); phoneless leads keeping their unreadable raw text: 6 (expected 6)
+[seg10-regr-300-xlsx] DB: dialable leads whose phone is on the DNC list: 0
+[seg10-regr-300-xlsx] re-import same file: status=completed in 1.0 s; new leads in DB: 0; summary {"imported":0,"merged":11,"alreadyInList":273,"dncBlocked":9,"noNumber":0,"invalid":7} sum=300/300
+[seg10-regr-300-xlsx] cancel test: cancel sent at [0.1s 100% saving Done status=completed] -> HTTP 409 {"cancelled":false,"tooLate":true,"jobId":3,"status":"completed","written":276,"message":"Too late to cancel — this import is already completed.","reason":"too_late","error":"Too late to cancel — this
+[seg10-regr-300-xlsx] cancel test: job ended status=completed; leads written by this job: 276; reported written: 276
+[seg10-regr-300-xlsx] dial sample (5 imported leads): 5047 (ext 685):201 5086 (ext 241):201 5153 (ext 785):201 5163 (ext 543):201 5182 (ext 482):201
+[seg10-regr-300-xlsx] requests in total: 21
+[seg10-regr-300-xlsx] invariants (I1-I9):
+[seg10-regr-300-xlsx] server log: 0 error/warn lines
+### fix-seg5-import.sh 4000 csv
+[seg10-regr-4000-csv] gen: wrote /var/tmp/audit-scratch/seg5/leads-4000.csv: 4000 rows (a), 434912 bytes; expected {"totalRows":4000,"imported":3300,"merged":160,"alreadyInList":120,"dncBlocked":120,"noNumber":200,"unreadable":80,"invalid":100,"withExtension":160}
+[seg10-regr-4000-csv] file leads-4000.csv: 4000 rows, 434912 bytes; leads in DB before: 5019; backend RSS before 114 MB
+[seg10-regr-4000-csv] upload -> HTTP 201
+[seg10-regr-4000-csv] auto mapping (AI off): {"phone":"Mobile","email":"Email","name":"Name","brokerage":"Office","address":"Street","city":"City","state":"State","zip":"Zip","source":"Source"}
+[seg10-regr-4000-csv] auto mapping matches the expected columns: yes
+[seg10-regr-4000-csv] process -> HTTP 200; final status=completed after 1.2 s, 3 requests (1 status polls)
+[seg10-regr-4000-csv] summary: {"totalRows":4000,"imported":3300,"merged":160,"alreadyInList":120,"dncBlocked":120,"noNumber":200,"invalid":100,"unreadable":80,"withExtension":160,"skippedDnc":120,"skippedDuplicate":120,"skippedInvalid":100,"mergedDuplicates":160,"importedWithoutPhone":200}
+[seg10-regr-4000-csv] expected: {"totalRows":4000,"imported":3300,"merged":160,"alreadyInList":120,"dncBlocked":120,"noNumber":200,"invalid":100,"unreadable":80,"withExtension":160}
+[seg10-regr-4000-csv] accounting rule: imported + merged + alreadyInList + dncBlocked + noNumber + invalid = 4000 vs total 4000 -> OK
+[seg10-regr-4000-csv] buckets vs expected: all equal
+[seg10-regr-4000-csv] skipped-rows CSV: HTTP 200, 500 rows (skipped buckets: 500) -> OK; header: Sheet,Row,Outcome,Reason,City,Email,Mobile,Name,Office,Source,State,Street,Zip
+[seg10-regr-4000-csv] invalid reasons: [{"count":40,"reason":"Could not determine a US state for this lead"},{"count":40,"reason":"Missing name"},{"count":20,"reason":"No state, and the same name appears in 2 different places in this file — not merged into any of them"}]
+[seg10-regr-4000-csv] DB: leads +3500; peak backend RSS 143 MB (was 114 MB before the import)
+[seg10-regr-4000-csv] DB: new leads with an extension: 160 (expected 160); phoneless leads keeping their unreadable raw text: 80 (expected 80)
+[seg10-regr-4000-csv] DB: dialable leads whose phone is on the DNC list: 0
+[seg10-regr-4000-csv] re-import same file: status=completed in 1.1 s; new leads in DB: 0; summary {"imported":0,"merged":160,"alreadyInList":3620,"dncBlocked":120,"noNumber":0,"invalid":100} sum=4000/4000
+[seg10-regr-4000-csv] cancel test: cancel sent at [0.3s 56% saving Saving 500 / 3,840 rows status=processing] -> HTTP 200 {"cancelled":true,"jobId":3,"phase":"saving","written":953,"message":"Stopping. 953 leads were already saved and stay; no further rows will be saved after the batch in progress."}
+[seg10-regr-4000-csv] cancel test: job ended status=cancelled; leads written by this job: 1431; reported written: 1431
+[seg10-regr-4000-csv] dial sample (5 imported leads): 5031 (ext 110):201 5055 (ext 457):201 5229 (ext 5):201 5267 (ext 500):201 5278 (ext 462):201
+[seg10-regr-4000-csv] requests in total: 23
+[seg10-regr-4000-csv] invariants (I1-I9):
+[seg10-regr-4000-csv] server log: 0 error/warn lines
+### fix-seg5-import.sh 4000 xlsx
+[seg10-regr-4000-xlsx] gen: wrote /var/tmp/audit-scratch/seg5/leads-4000.xlsx: 4000 rows (b), 1774616 bytes; expected {"totalRows":4000,"imported":3300,"merged":160,"alreadyInList":120,"dncBlocked":120,"noNumber":200,"unreadable":80,"invalid":100,"withExtension":160}
+[seg10-regr-4000-xlsx] file leads-4000.xlsx: 4000 rows, 1774616 bytes; leads in DB before: 5019; backend RSS before 118 MB
+[seg10-regr-4000-xlsx] upload -> HTTP 201
+[seg10-regr-4000-xlsx] auto mapping (AI off): {"phone":"Phone Number","email":"E-mail","first_name":"First Name","last_name":"Last Name","brokerage":"Company","address":"Address","city":"City","state":"State","zip":"Postal Code","source":"Website"}
+[seg10-regr-4000-xlsx] auto mapping matches the expected columns: yes
+[seg10-regr-4000-xlsx] process -> HTTP 200; final status=completed after 1.2 s, 3 requests (1 status polls)
+[seg10-regr-4000-xlsx] summary: {"totalRows":4000,"imported":3300,"merged":160,"alreadyInList":120,"dncBlocked":120,"noNumber":200,"invalid":100,"unreadable":80,"withExtension":160,"skippedDnc":120,"skippedDuplicate":120,"skippedInvalid":100,"mergedDuplicates":160,"importedWithoutPhone":200}
+[seg10-regr-4000-xlsx] expected: {"totalRows":4000,"imported":3300,"merged":160,"alreadyInList":120,"dncBlocked":120,"noNumber":200,"invalid":100,"unreadable":80,"withExtension":160}
+[seg10-regr-4000-xlsx] accounting rule: imported + merged + alreadyInList + dncBlocked + noNumber + invalid = 4000 vs total 4000 -> OK
+[seg10-regr-4000-xlsx] buckets vs expected: all equal
+[seg10-regr-4000-xlsx] skipped-rows CSV: HTTP 200, 500 rows (skipped buckets: 500) -> OK; header: Sheet,Row,Outcome,Reason,Address,City,Company,E-mail,First Name,Last Name,Phone Number,Pos
+[seg10-regr-4000-xlsx] invalid reasons: [{"count":40,"reason":"Could not determine a US state for this lead"},{"count":40,"reason":"Missing name"},{"count":20,"reason":"No state, and the same name appears in 2 different places in this file — not merged into any of them"}]
+[seg10-regr-4000-xlsx] DB: leads +3500; peak backend RSS 157 MB (was 118 MB before the import)
+[seg10-regr-4000-xlsx] DB: new leads with an extension: 160 (expected 160); phoneless leads keeping their unreadable raw text: 80 (expected 80)
+[seg10-regr-4000-xlsx] DB: dialable leads whose phone is on the DNC list: 0
+[seg10-regr-4000-xlsx] re-import same file: status=completed in 1.2 s; new leads in DB: 0; summary {"imported":0,"merged":160,"alreadyInList":3620,"dncBlocked":120,"noNumber":0,"invalid":100} sum=4000/4000
+[seg10-regr-4000-xlsx] cancel test: cancel sent at [0.4s 69% saving Saving 1,500 / 3,840 rows status=processing] -> HTTP 200 {"cancelled":true,"jobId":3,"phase":"saving","written":1431,"message":"Stopping. 1431 leads were already saved and stay; no further rows will be saved after the batch in progress."}
+[seg10-regr-4000-xlsx] cancel test: job ended status=cancelled; leads written by this job: 1904; reported written: 1904
+[seg10-regr-4000-xlsx] dial sample (5 imported leads): 5031 (ext 110):201 5055 (ext 457):201 5229 (ext 5):201 5267 (ext 500):201 5278 (ext 462):201
+[seg10-regr-4000-xlsx] requests in total: 23
+[seg10-regr-4000-xlsx] invariants (I1-I9):
+[seg10-regr-4000-xlsx] server log: 0 error/warn lines
+### fix-seg5-import.sh 30000 csv
+[seg10-regr-30000-csv] gen: wrote /var/tmp/audit-scratch/seg5/leads-30000.csv: 30000 rows (a), 3266194 bytes; expected {"totalRows":30000,"imported":24750,"merged":1200,"alreadyInList":900,"dncBlocked":900,"noNumber":1500,"unreadable":600,"invalid":750,"withExtension":1200}
+[seg10-regr-30000-csv] file leads-30000.csv: 30000 rows, 3266194 bytes; leads in DB before: 5019; backend RSS before 113 MB
+[seg10-regr-30000-csv] upload -> HTTP 201
+[seg10-regr-30000-csv] auto mapping (AI off): {"phone":"Mobile","email":"Email","name":"Name","brokerage":"Office","address":"Street","city":"City","state":"State","zip":"Zip","source":"Source"}
+[seg10-regr-30000-csv] auto mapping matches the expected columns: yes
+[seg10-regr-30000-csv] process -> HTTP 200; final status=completed after 4.7 s, 6 requests (4 status polls)
+[seg10-regr-30000-csv] summary: {"totalRows":30000,"imported":24750,"merged":1200,"alreadyInList":900,"dncBlocked":900,"noNumber":1500,"invalid":750,"unreadable":600,"withExtension":1200,"skippedDnc":900,"skippedDuplicate":900,"skippedInvalid":750,"mergedDuplicates":1200,"importedWithoutPhone":1500}
+[seg10-regr-30000-csv] expected: {"totalRows":30000,"imported":24750,"merged":1200,"alreadyInList":900,"dncBlocked":900,"noNumber":1500,"invalid":750,"unreadable":600,"withExtension":1200}
+[seg10-regr-30000-csv] accounting rule: imported + merged + alreadyInList + dncBlocked + noNumber + invalid = 30000 vs total 30000 -> OK
+[seg10-regr-30000-csv] buckets vs expected: all equal
+[seg10-regr-30000-csv] skipped-rows CSV: HTTP 200, 3750 rows (skipped buckets: 3750) -> OK; header: Sheet,Row,Outcome,Reason,City,Email,Mobile,Name,Office,Source,State,Street,Zip
+[seg10-regr-30000-csv] invalid reasons: [{"count":300,"reason":"Could not determine a US state for this lead"},{"count":300,"reason":"Missing name"},{"count":150,"reason":"No state, and the same name appears in 2 different places in this file — not merged into any of them"}]
+[seg10-regr-30000-csv] DB: leads +26250; peak backend RSS 178 MB (was 113 MB before the import)
+[seg10-regr-30000-csv] DB: new leads with an extension: 1200 (expected 1200); phoneless leads keeping their unreadable raw text: 600 (expected 600)
+[seg10-regr-30000-csv] DB: dialable leads whose phone is on the DNC list: 0
+[seg10-regr-30000-csv] re-import same file: status=completed in 3.6 s; new leads in DB: 0; summary {"imported":0,"merged":1200,"alreadyInList":27150,"dncBlocked":900,"noNumber":0,"invalid":750} sum=30000/30000
+[seg10-regr-30000-csv] cancel test: cancel sent at [1.7s 51% saving Saving 1,000 / 28,800 rows status=processing] -> HTTP 200 {"cancelled":true,"jobId":3,"phase":"saving","written":956,"message":"Stopping. 956 leads were already saved and stay; no further rows will be saved after the batch in progress."}
+[seg10-regr-30000-csv] cancel test: job ended status=cancelled; leads written by this job: 1436; reported written: 1436
+[seg10-regr-30000-csv] dial sample (5 imported leads): 5097 (ext 653):201 5105 (ext 722):201 5149 (ext 535):201 5156 (ext 547):201 5177 (ext 93):201
+[seg10-regr-30000-csv] requests in total: 36
+[seg10-regr-30000-csv] invariants (I1-I9):
+[seg10-regr-30000-csv] server log: 0 error/warn lines
+### fix-seg5-import.sh 30000 xlsx
+[seg10-regr-30000-xlsx] gen: wrote /var/tmp/audit-scratch/seg5/leads-30000.xlsx: 30000 rows (b), 13510489 bytes; expected {"totalRows":30000,"imported":24750,"merged":1200,"alreadyInList":900,"dncBlocked":900,"noNumber":1500,"unreadable":600,"invalid":750,"withExtension":1200}
+[seg10-regr-30000-xlsx] file leads-30000.xlsx: 30000 rows, 13510489 bytes; leads in DB before: 5019; backend RSS before 113 MB
+[seg10-regr-30000-xlsx] upload -> HTTP 201
+[seg10-regr-30000-xlsx] auto mapping (AI off): {"phone":"Phone Number","email":"E-mail","first_name":"First Name","last_name":"Last Name","brokerage":"Company","address":"Address","city":"City","state":"State","zip":"Postal Code","source":"Website"}
+[seg10-regr-30000-xlsx] auto mapping matches the expected columns: yes
+[seg10-regr-30000-xlsx] process -> HTTP 200; final status=completed after 5.2 s, 6 requests (4 status polls)
+[seg10-regr-30000-xlsx] summary: {"totalRows":30000,"imported":24750,"merged":1200,"alreadyInList":900,"dncBlocked":900,"noNumber":1500,"invalid":750,"unreadable":600,"withExtension":1200,"skippedDnc":900,"skippedDuplicate":900,"skippedInvalid":750,"mergedDuplicates":1200,"importedWithoutPhone":1500}
+[seg10-regr-30000-xlsx] expected: {"totalRows":30000,"imported":24750,"merged":1200,"alreadyInList":900,"dncBlocked":900,"noNumber":1500,"invalid":750,"unreadable":600,"withExtension":1200}
+[seg10-regr-30000-xlsx] accounting rule: imported + merged + alreadyInList + dncBlocked + noNumber + invalid = 30000 vs total 30000 -> OK
+[seg10-regr-30000-xlsx] buckets vs expected: all equal
+[seg10-regr-30000-xlsx] skipped-rows CSV: HTTP 200, 3750 rows (skipped buckets: 3750) -> OK; header: Sheet,Row,Outcome,Reason,Address,City,Company,E-mail,First Name,Last Name,Phone Number,Pos
+[seg10-regr-30000-xlsx] invalid reasons: [{"count":300,"reason":"Could not determine a US state for this lead"},{"count":300,"reason":"Missing name"},{"count":150,"reason":"No state, and the same name appears in 2 different places in this file — not merged into any of them"}]
+[seg10-regr-30000-xlsx] DB: leads +26250; peak backend RSS 243 MB (was 113 MB before the import)
+[seg10-regr-30000-xlsx] DB: new leads with an extension: 1200 (expected 1200); phoneless leads keeping their unreadable raw text: 600 (expected 600)
+[seg10-regr-30000-xlsx] DB: dialable leads whose phone is on the DNC list: 0
+[seg10-regr-30000-xlsx] re-import same file: status=completed in 4.1 s; new leads in DB: 0; summary {"imported":0,"merged":1200,"alreadyInList":27150,"dncBlocked":900,"noNumber":0,"invalid":750} sum=30000/30000
+[seg10-regr-30000-xlsx] cancel test: cancel sent at [2.1s 50% saving Saving 500 / 28,800 rows status=processing] -> HTTP 200 {"cancelled":true,"jobId":3,"phase":"saving","written":476,"message":"Stopping. 476 leads were already saved and stay; no further rows will be saved after the batch in progress."}
+[seg10-regr-30000-xlsx] cancel test: job ended status=cancelled; leads written by this job: 956; reported written: 956
+[seg10-regr-30000-xlsx] dial sample (5 imported leads): 5097 (ext 653):201 5105 (ext 722):201 5149 (ext 535):201 5156 (ext 547):201 5177 (ext 93):201
+[seg10-regr-30000-xlsx] requests in total: 36
+[seg10-regr-30000-xlsx] invariants (I1-I9):
+[seg10-regr-30000-xlsx] server log: 0 error/warn lines
+### imported leads got their time zones (last import DB)
+vortex_seg5_imp: leads 32225, tz_zones NULL 0, unknown {} 0, multi-zone 0
+### fix-seg5-upload.sh
+[seg10-regr] jobs before start: old-pending.csv=pending, fresh-pending.csv=pending, cut-off.csv=processing
+[seg10-regr] jobs after start:  fresh-pending.csv=pending, cut-off.csv=failed
+[seg10-regr] cut-off job message: The server restarted during this import. The 0 leads it had saved are kept. Upload the file again to import the rest — rows already in your list are skipped.
+[seg10-regr] upload fake.pdf (26 bytes) -> [HTTP 400] "error":"Only CSV or Excel (.xlsx) files can be imported. Save the list as CSV or .xlsx and try again."
+[seg10-regr] upload list.txt (779 bytes) -> [HTTP 400] "error":"Only CSV or Excel (.xlsx) files can be imported. Save the list as CSV or .xlsx and try again."
+[seg10-regr] upload renamed-csv.xlsx (779 bytes) -> [HTTP 400] "error":"This file is named .xlsx but isn't an Excel workbook. Re-save it from Excel or as CSV."
+[seg10-regr] upload renamed-xlsx.csv (18166 bytes) -> [HTTP 400] "error":"This file is named .csv but isn't plain text (it may be an Excel file or a PDF). Re-save it as CSV."
+[seg10-regr] upload ok.csv (779 bytes) -> [HTTP 201] 
+[seg10-regr] upload ok.xlsx (18166 bytes) -> [HTTP 201] 
+[seg10-regr] upload big.csv (1128907 bytes) -> [HTTP 413] "error":"That file is larger than 1 MB. Split it into smaller files (for example by state or by sheet) and upload them one at a time."
+[seg10-regr] upload huge.csv (16933605 bytes) -> [HTTP 413] "error":"That file is larger than 1 MB. Split it into smaller files (for example by state or by sheet) and upload them one at a time."
+[seg10-regr] temp upload files left behind: 0
+[seg10-regr] server log: 0 error/warn lines; startup lines: Marked 1 import(s) interrupted by the restart as failed Import cleanup: deleted 1 unprocessed upload(s) older than 24 h 
+[seg10-regr] shutdown line: SIGTERM received — stale-lock sweep and import cleanup stopped, shutting down
+### fix-seg5-ui-import.sh
+[seg10-regr] gen: wrote /var/tmp/audit-scratch/seg5-ui/ui-leads.csv: 300 rows (a), 32857 bytes; expected {"totalRows":300,"imported":249,"merged":11,"alreadyInList":9,"dncBlocked":9,"noNumber":15,"unr
+[seg10-regr] mapping screen: AI-off note shown = true
+[seg10-regr] mapping shown (11 fields): Name=Name, Phone=Mobile, Email=Email, Address=Street, Brokerage=Office, State=State, First Name=—, Last Name=—, City=City, Zip / Postal=Zip, Source / Website=Source
+[seg10-regr] changed "source" to: — none — (user can edit)
+[seg10-regr] report: rows=300 imported=249 noNumber=15 merged=11 already=9 dnc=9 invalid=7
+[seg10-regr] report: "All 300 rows are accounted for."
+[seg10-regr] report: invalid reasons listed = true; unreadable note = true
+[seg10-regr] skipped CSV downloaded: 36 rows; header: Sheet,Row,Outcome,Reason,City,Email,Mobile,Name,Office,Source,State,Street,Zip
+[seg10-regr] page errors: none; 4xx/5xx responses: none
+[seg10-regr] expected buckets: {"total":300,"imported":249,"noNumber":15,"merged":11,"alreadyInList":9,"dncBlocked":9,"invalid":7}
+[seg10-regr] backend log error/warn lines: 0
+
+## Segment 5 Part B repros
+# fix-seg5b-dial.sh runs with twilio only: TELEPHONY_PROVIDER=bogus now stops startup (F-31, tested in fix-seg10.sh providers)
+### fix-seg5b-dial.sh twilio
+[seg10-regr-twilio] TELEPHONY_PROVIDER=twilio
+[seg10-regr-twilio] single-line: lead 1 before: in_queue attempts=0 locked_by=-; call rows: 0
+[seg10-regr-twilio]   POST /api/calls {leadId:1} -> [HTTP 502] "error":"The call couldn't be placed — the phone service returned an error. No attempt was counted and the lead is free again."
+[seg10-regr-twilio]   lead after: in_queue attempts=0 locked_by=-; call rows: failed ended=true
+[seg10-regr-twilio]   same lead again -> [HTTP 502] (a burned lock would give 409); lead: in_queue attempts=0 locked_by=-
+[seg10-regr-twilio]   POST /api/calls {} (next in queue) -> [HTTP 502] "error":"The call couldn't be placed — the phone service returned an error. No attempt was counted and the lead is free again."; in_progress leads now: 0; ringing rows: 0
+[seg10-regr-twilio] manual dial pad -> [HTTP 502] "error":"The call couldn't be placed — the phone service returned an error."; manual rows: failed ended=true
+[seg10-regr-twilio] multi-line, 3 lines, 12 s: SUMMARY sessionId=1 events=12 byStatus={"loading":3,"dialing":3,"failed":3,"idle":3} maxConcurrentLiveSlots=3 (lineCount=3)
+[seg10-regr-twilio]   start: -> 201 {"lineCount":3,"slots":[]}
+[seg10-regr-twilio]   line messages:  3 msg=Stopped dialing: the phone service refused 3 calls in a row. Check the phone settings, then start again.; 3 msg=The call couldn't be placed — the phone service returned an error. No attempt was counted and the lead is free again.;
+[seg10-regr-twilio]   after: call rows by state: failed=6; leads in_progress: 0; attempts burned: 0
+[seg10-regr-twilio] server log: 4 error/warn lines; first: ApiError: The call couldn't be placed — the phone service returned an error. No attempt was counted and the lead is fr
+### fix-seg5b-sessions.sh
+[seg10-regr] == F-28 browser goes away: SSE closed at 4 s, never reopened; 30 s ==
+[seg10-regr]   calls placed: 0-4 s: 6; 4-15 s: 9; 15-30 s: 0
+[seg10-regr]   5 s after the script ended: new calls 0; open calls=0 answered/held open=0 abandoned=3 leads in_progress=0 open sessions=0
+[seg10-regr]   server log: Multi-line session of user 1 stopped: browser disconnected for 10 s
+[seg10-regr] == F-28 reconnect within the grace period: SSE closed at 4 s, reopened at 9 s; 30 s ==
+[seg10-regr]   calls placed: 0-15 s: 15; 15-29 s: 15 (dialing kept going)
+[seg10-regr] == F-28/F-29 browser goes away with live calls: 3 lines answered (1 active + 2 held), SSE closed at 6 s; 25 s ==
+[seg10-regr]    1 slot 1 answered; 1 slot 2 held; 1 slot 3 held;
+[seg10-regr]   after: open calls=0 answered/held open=0 abandoned=3 leads in_progress=0 open sessions=0
+[seg10-regr]   calls: 1:answered ended=true abandoned=true, 2:answered ended=true abandoned=true, 3:answered ended=true abandoned=true
+[seg10-regr] == F-29 audit §5.2: 3 lines answered -> 1 active + 2 held; manual Stop at 6 s, then /api/sessions/end ==
+[seg10-regr]   stop -> multiline/stop {} -> 200 {"abandonedCount":2,"keptLive":{"slotNumber":1,"callId":1,"leadId":1}}
+[seg10-regr]   sessions/end -> [HTTP 200]
+[seg10-regr]   calls: 1:answered ended=false abandoned=false, 2:answered ended=true abandoned=true, 3:answered ended=true abandoned=true
+[seg10-regr]   after stop: open calls=1 answered/held open=1 abandoned=2 leads in_progress=1 open sessions=0
+[seg10-regr]   rep finishes the active call 1: disposition -> [HTTP 200]; then: open calls=0 answered/held open=0 abandoned=2 leads in_progress=0 open sessions=0
+[seg10-regr]   I6 leads with >1 open call: 0
+[seg10-regr] == F-29 audit §5.5: 3 lines answered, server killed (SIGKILL) at 6 s, restarted ==
+[seg10-regr]   after the kill: open calls=3 answered/held open=3 abandoned=0 leads in_progress=3 open sessions=1
+[seg10-regr]   2 s after restart: open calls=0 answered/held open=0 abandoned=3 leads in_progress=0 open sessions=0
+[seg10-regr]   server log: After restart: closed 1 dialing session(s) and 3 open call(s); 3 lead(s) back in the queue 
+[seg10-regr] server log: 0 error/warn lines
+### fix-seg5b-b6.sh (RACE_TRIES=20)
+[seg10-regr] == lead-page Schedule callback (POST /api/leads/:id/callback) ==
+[seg10-regr]   "next tuesday" -> 400 "error":"A valid callback date and time is required" | lead in_queue next=-, open callbacks 0
+[seg10-regr]   "2020-01-01" -> 400 "error":"That callback time is in the past — pick a time from now on" | lead in_queue next=-, open callbacks 0
+[seg10-regr]   "2026-11-13T13:53:59Z" -> 200  | lead callback_scheduled next=2026-11-13 13:53, open callbacks 1
+[seg10-regr]   "2026-11-15T13:54:29Z" -> 200  | lead callback_scheduled next=2026-11-15 13:54, open callbacks 1
+[seg10-regr]   DNC lead 25, future time -> 409 "error":"This lead is on the DNC list — it can't be scheduled for a callback" | lead dnc dnc_flag=true
+[seg10-regr] == Redial vs the stale-lock sweep, 20 tries (lock backdated 31 s: expired, not yet swept; timer sweep off, sweeps fired by GET /api/leads) ==
+[seg10-regr]   Redial status codes:  20 201;
+[seg10-regr]   result: Redial 201 with the lead still locked to the rep: 20; Redial not 201: 0; Redial 201 but the lead was left unlocked: 0
+[seg10-regr] server log: 0 error/warn lines
+### fix-seg5b-ui.sh notes
+[seg10-notes] call 1: mid-call note saved ("Note saved" shown = true)
+[seg10-notes] call 1 finished: lead_notes rows 1; calls contacted
+[seg10-notes] call 2, Previous Notes: mid-call note shown = true; call 1's disposition note shown = true; labels: Note ×1, Call ×1
+[seg10-notes] page errors: none
+[seg10-notes] backend log error/warn lines: 1
+### fix-seg5b-ui.sh stop
+[seg10-stop] before Stop: 1:answered/open/- 2:answered/open/- 3:answered/open/-
+[seg10-stop] after Stop: banner "Dialing stopped. Finish the call you're on" shown = true; summary already open = false; End session button still shown = false
+[seg10-stop] after Stop: 1:answered/ended/abandoned/- 2:answered/open/- 3:answered/ended/abandoned/-
+[seg10-stop] after logging the kept call: summary shown = true; abandoned note: "2 calls were abandoned when a live contact was found."
+[seg10-stop] after logging: 1:answered/ended/abandoned/- 2:answered/ended/contacted 3:answered/ended/abandoned/-
+[seg10-stop] DB: open dialing sessions 0; leads in_progress 0; page errors: none
+[seg10-stop] backend log error/warn lines: 0
+
+## Segment 6 repros (calling hours)
+### fix-seg6-zones.js (boundary table, split places, unknown state)
+  wrong cells: 0
+  slots allowed outside the real 8am–9pm: 0
+  state ""     -> refused 422: "Time zone unknown, set the state first"
+  state "  "   -> refused 422: "Time zone unknown, set the state first"
+### fix-seg6.sh (paths, elpaso, starvation, toggle, default, perf)
+[seg10-regr] == paths: controlled clock 2026-11-13 13:30 UTC = 08:30 New York, 07:30 Chicago (CT closed); enforcement ON
+[seg10-regr] -- by lead id (POST /api/calls {leadId})
+[seg10-regr]   #5020 NY open (NY +12125550111) -> 201 
+[seg10-regr]   #5021 IL closed (IL +13125550111) -> 422 "error":"Outside calling hours (8am–9pm local time; it's 7:30 AM CST there). Try again later."
+[seg10-regr]   #5022 Pensacola (FL +18505550111) -> 422 "error":"Outside calling hours (8am–9pm local time; it's 7:30 AM CST there). Try again later."
+[seg10-regr]   #5023 Gary (IN +12195550111) -> 422 "error":"Outside calling hours (8am–9pm local time; it's 7:30 AM CST there). Try again later."
+[seg10-regr]   #5024 Bowling Green (KY +12705550111) -> 422 "error":"Outside calling hours (8am–9pm local time; it's 7:30 AM CST there). Try again later."
+[seg10-regr]   #5025 No state (no state +12125550112) -> 422 "error":"Time zone unknown, set the state first"
+[seg10-regr] -- Redial of a closed-zone lead still locked to the rep (lock set by DIRECT SQL: a call started at 20:59, Redial after 21:00)
+[seg10-regr]   #5026 Redial IL (IL +13125550112) redial -> 422 "error":"Outside calling hours (8am–9pm local time; it's 7:30 AM CST there). Try again later."
+[seg10-regr] -- multi-line, selected leads [5031 Chicago, 5032 Pensacola], 6 s
+[seg10-regr]   calls placed: 0 — to: none
+[seg10-regr] -- queue (Start Dialing, POST /api/calls {}) once: due Chicago callback + due Chicago retry + 2 due Pensacola callbacks
+[seg10-regr]   next lead -> 404 "error":"No dialable leads in queue right now" 
+[seg10-regr] -- multi-line, queue mode, 3 lines, 6 s
+[seg10-regr]   calls placed: 0 — to: none
+[seg10-regr] -- dial pad (POST /api/calls/manual/start)
+[seg10-regr]   212-555-0177 -> 201 
+[seg10-regr]   312-555-0177 -> 422 "error":"Outside calling hours (8am–9pm local time; it's 7:30 AM CST there). Try again later."
+[seg10-regr]   850-555-0177 -> 422 "error":"Outside calling hours (8am–9pm local time; it's 7:30 AM CST / 8:30 AM EST there). Try again later."
+[seg10-regr]   416-555-0177 -> 422 "error":"Time zone unknown for this number's area code — calling hours can't be checked, so it can't be dialed while they're enforced."
+[seg10-regr]   no lead lost: test leads by status: callback_scheduled=3, contacted=1, in_queue=1, new=7, no_answer=1
+[seg10-regr]   in_progress with no open call: 0; open calls: 0
+[seg10-regr]   server log (paths): 0 error/warn lines
+[seg10-regr] == elpaso: controlled clock 2026-11-13 14:30 UTC = 07:30 El Paso (MT), 08:30 Dallas (CT)
+[seg10-regr]   by id #5020 El Paso (TX +19155550111) -> 422 "error":"Outside calling hours (8am–9pm local time; it's 7:30 AM MST there). Try again later."
+[seg10-regr]   by id #5022 Dallas (TX +12145550111) -> 201 
+[seg10-regr]   queue next (El Paso callback due) -> 404 "error":"No dialable leads in queue right now" 
+[seg10-regr]   dial pad 915-555-0177 -> 422 "error":"Outside calling hours (8am–9pm local time; it's 7:30 AM MST there). Try again later."
+[seg10-regr]   no lead lost: test leads by status: callback_scheduled=1, contacted=1, new=1
+[seg10-regr]   in_progress with no open call: 0; open calls: 0
+[seg10-regr]   server log (elpaso): 0 error/warn lines
+[seg10-regr] == starvation: controlled clock 2026-11-14 02:30 UTC = 21:30 New York (closed), 20:30 Dallas, 19:30 Denver; 70 New York callbacks at the front, 5 Dallas + 3 Denver + 1 Knoxville behind
+[seg10-regr]   queue order, first 3: NY callback_scheduled, NY callback_scheduled, NY callback_scheduled
+[seg10-regr]   by id #5098 Knoxville (TN +18655550111) (Knoxville is Eastern: 21:30) -> 422 "error":"Outside calling hours (8am–9pm local time; it's 9:30 PM EST there). Try again later."
+[seg10-regr] -- single-line Start Dialing, 3 times
+[seg10-regr]   next lead #1 -> 201  #5090 Dallas 1 (TX +12145550211)
+[seg10-regr]   next lead #2 -> 201  #5091 Dallas 2 (TX +12145550212)
+[seg10-regr]   next lead #3 -> 201  #5092 Dallas 3 (TX +12145550213)
+[seg10-regr] -- counts (GET /api/leads/state-counts), totals over all states
+[seg10-regr] dialable=76 dialable_now=5 waiting_for_hours=71 unknown_zone=0 next_opens_at=2026-11-14T13:00:00.000Z
+[seg10-regr] -- multi-line, queue mode, 3 lines, 8 s
+[seg10-regr]   calls placed: 5 — by state: CO=3, TX=2; session summary: byStatus={"loading":8,"dialing":5,"ringing":5,"no_answer":5,"idle":3}
+[seg10-regr]   New York callbacks still waiting (callback_scheduled, never dialed): 70 of 70
+[seg10-regr]   no lead lost: test leads by status: callback_scheduled=70, contacted=3, new=1, no_answer=5
+[seg10-regr]   in_progress with no open call: 0; open calls: 0
+[seg10-regr]   server log (starvation): 0 error/warn lines
+[seg10-regr] == toggle: 07:30 Chicago (closed). PUT the setting, then try a closed Chicago lead every 100 ms (server restarted per cycle: per-user rate limit)
+[seg10-regr]   cycle 1: setting ON at startup: calls placed before the first refusal: 0
+[seg10-regr]   cycle 1: OFF -> first dial allowed after 19 ms (0 refused first)
+[seg10-regr]   cycle 1: ON  -> first refusal after 15 ms (0 call(s) placed after the switch)
+[seg10-regr]   cycle 2: setting ON at startup: calls placed before the first refusal: 0
+[seg10-regr]   cycle 2: OFF -> first dial allowed after 18 ms (0 refused first)
+[seg10-regr]   cycle 2: ON  -> first refusal after 13 ms (0 call(s) placed after the switch)
+[seg10-regr]   cycle 3: setting ON at startup: calls placed before the first refusal: 0
+[seg10-regr]   cycle 3: OFF -> first dial allowed after 18 ms (0 refused first)
+[seg10-regr]   cycle 3: ON  -> first refusal after 14 ms (0 call(s) placed after the switch)
+[seg10-regr]   no lead lost: test leads by status: contacted=3, new=397
+[seg10-regr]   in_progress with no open call: 0; open calls: 0
+[seg10-regr]   server log (toggle): 0 error/warn lines
+[seg10-regr] == default: no 'calling_hours_enforced' row in settings; 07:30 Chicago
+[seg10-regr]   GET setting -> 200 {"key":"calling_hours_enforced","value":null}
+[seg10-regr]   dial a closed Chicago lead -> 422 "error":"Outside calling hours (8am–9pm local time; it's 7:30 AM CST there). Try again later."
+[seg10-regr]   no lead lost: test leads by status: new=1
+[seg10-regr]   in_progress with no open call: 0; open calls: 0
+[seg10-regr]   server log (default): 0 error/warn lines
+[seg10-regr] == perf: 100,000 leads (+5,000 NY callbacks at the front), 21:30 New York; server ready after 1252 ms
+[seg10-regr]   zones stored: 27019 of 105019
+[seg10-regr]   GET /api/leads?pageSize=50 x15: median 0.073548s, max 1.378016s
+[seg10-regr]   GET /api/leads/state-counts x15: median 0.031412s, max 0.035531s
+[seg10-regr]   POST /api/calls {} (next lead) x10: codes 10 201;, median 0.042697s, max 0.053020s
+[seg10-regr]   dialed: AK=1, AZ=1, CA=1, CO=2, IL=2, OK=1, TX=2
+[seg10-regr]   server log (perf): 0 error/warn lines
+
+## Segment 7 repros (reports, PDF, reporting day)
+[seg10-regr] == 5 periods: dashboard/report API (/reports/today) | PDF headline vs PDF table | DB count (dials contacts vm na dnc), Asia/Karachi
+[seg10-regr]   empty past day (2026-11-05 00:00 -> 2026-11-06 00:00)
+[seg10-regr]     DB:        0 0 0 0 0
+[seg10-regr]     API:       0 0 cr=0% [Thu, Nov 5, 2026, Asia/Karachi]
+[seg10-regr]     PDF:       headline 0 0 0 0 0 cr=0% | table rows 0 (contacted 0, vm 0, na 0, dnc 0) | says: No calls recorded | header: Thu, Nov 5, 2026 · Times in Asia/Karachi · Talha Arif
+[seg10-regr]   past day, known mix (2026-11-10 00:00 -> 2026-11-11 00:00)
+[seg10-regr]     DB:        11 3 2 4 1
+[seg10-regr]     API:       11 3 cr=27% [Tue, Nov 10, 2026, Asia/Karachi]
+[seg10-regr]     PDF:       headline 11 3 2 4 1 cr=27% | table rows 11 (contacted 3, vm 2, na 4, dnc 1) | header: Tue, Nov 10, 2026 · Times in Asia/Karachi · Talha Arif
+[seg10-regr]   today (2026-11-13, Karachi) (2026-11-13 00:00 -> 2026-11-14 00:00)
+[seg10-regr]     DB:        4 1 1 1 0
+[seg10-regr]     API:       4 1 cr=25% [Fri, Nov 13, 2026, Asia/Karachi]
+[seg10-regr]     PDF:       headline 4 1 1 1 0 cr=25% | table rows 4 (contacted 1, vm 1, na 1, dnc 0) | header: Fri, Nov 13, 2026 · Times in Asia/Karachi · Talha Arif
+[seg10-regr]   1,500-call day (2026-11-03 00:00 -> 2026-11-04 00:00)
+[seg10-regr]     DB:        1500 300 300 300 300
+[seg10-regr]     API:       1500 300 cr=20% [Tue, Nov 3, 2026, Asia/Karachi]
+[seg10-regr]     PDF:       headline 1500 300 300 300 300 cr=20% | table rows 1500 (contacted 300, vm 300, na 300, dnc 300) | header: Tue, Nov 3, 2026 · Times in Asia/Karachi · Talha Arif
+[seg10-regr]   range across midnight (2026-11-07 22:00 -> 2026-11-08 04:00)
+[seg10-regr]     DB:        3 1 1 1 0
+[seg10-regr]     API:       3 1 cr=33% [Sat, Nov 7, 2026, 22:00 to Sun, Nov 8, 2026, 04:00, Asia/Karachi]
+[seg10-regr]     PDF:       headline 3 1 1 1 0 cr=33% | table rows 3 (contacted 1, vm 1, na 1, dnc 0) | header: From Sat, Nov 7, 2026, 22:00 to Sun, Nov 8, 2026, 04:00 · Times in Asia/Karachi · Talha Arif
+[seg10-regr]   server log (periods): 0 error/warn lines
+[seg10-regr] == midnight in Asia/Karachi: a contacted call at 23:59:30 Nov 10, a voicemail at 00:00:30 Nov 11 (= 18:59:30 / 19:00:30 UTC Nov 10)
+[seg10-regr]   date=2026-11-10: API 1 1 cr=100% [Tue, Nov 10, 2026, Asia/Karachi] | PDF headline 1 1 0 0 0 cr=100% | table rows 1 (contacted 1, vm 0, na 0, dnc 0) | header: Tue, Nov 10, 2026 · Times in Asia/Karachi · Talha Arif
+[seg10-regr]   date=2026-11-11: API 1 0 cr=0% [Wed, Nov 11, 2026, Asia/Karachi] | PDF headline 1 0 1 0 0 cr=0% | table rows 1 (contacted 0, vm 1, na 0, dnc 0) | header: Wed, Nov 11, 2026 · Times in Asia/Karachi · Talha Arif
+[seg10-regr]   server log (boundary): 0 error/warn lines
+[seg10-regr] == reporting_timezone = America/Chicago; calls at 23:59:30 Nov 10 and 00:00:30 Nov 11 Chicago time (= 05:59:30 / 06:00:30 UTC Nov 11)
+[seg10-regr]   setting via API: PUT reporting_timezone=America/Chicago -> HTTP 200
+[seg10-regr]   date=2026-11-10: API 1 1 cr=100% [Tue, Nov 10, 2026, America/Chicago] | PDF headline 1 1 0 0 0 cr=100% | table rows 1 (contacted 1, vm 0, na 0, dnc 0) | header: Tue, Nov 10, 2026 · Times in America/Chicago · Talha Arif | DB 1 1 0 0 0
+[seg10-regr]   date=2026-11-11: API 1 0 cr=0% [Wed, Nov 11, 2026, America/Chicago] | PDF headline 1 0 1 0 0 cr=0% | table rows 1 (contacted 0, vm 1, na 0, dnc 0) | header: Wed, Nov 11, 2026 · Times in America/Chicago · Talha Arif | DB 1 0 1 0 0
+[seg10-regr]   server log (tz): 0 error/warn lines
+[seg10-regr] == day_start_time = 06:00 (Karachi): calls at Nov 10 05:59:30 / 06:00:30 and Nov 11 05:59:30 / 06:00:30
+[seg10-regr]   PUT day_start_time=06:00 -> HTTP 200
+[seg10-regr]   date=2026-11-10: API 2 0 cr=0% [Tue, Nov 10, 2026, 06:00 to Wed, Nov 11, 2026, 06:00, Asia/Karachi] | PDF headline 2 0 1 1 0 cr=0% | table rows 2 (contacted 0, vm 1, na 1, dnc 0) | header: Tue, Nov 10, 2026, 06:00 to Wed, Nov 11, 2026, 06:00 · Times in Asia/Karachi · Talha Arif | DB (06:00 -> 06:00) 2 0 1 1 0
+[seg10-regr]   back to 00:00: date=2026-11-10: API 2 1 cr=50% [Tue, Nov 10, 2026, Asia/Karachi] | DB 2 1 1 0 0
+[seg10-regr]   server log (daystart): 0 error/warn lines
+[seg10-regr] == 3 queue dials + 1 dial-pad dial with TELEPHONY_PROVIDER=twilio:  HTTP 502 HTTP 502 HTTP 502 / dial pad HTTP 502
+[seg10-regr]   call_history: before 0 rows, 0 failed; after 4 rows, 4 failed
+[seg10-regr]   today, API: before 0 0 cr=0% [Fri, Nov 13, 2026, Asia/Karachi] | after 0 0 cr=0% [Fri, Nov 13, 2026, Asia/Karachi]
+[seg10-regr]   today, PDF: before headline 0 0 0 0 0 cr=0% | table rows 0 (contacted 0, vm 0, na 0, dnc 0) | says: No calls recorded | header: Fri, Nov 13, 2026 · Times in Asia/Karachi · Talha Arif
+[seg10-regr]                after headline 0 0 0 0 0 cr=0% | table rows 0 (contacted 0, vm 0, na 0, dnc 0) | says: No calls recorded | header: Fri, Nov 13, 2026 · Times in Asia/Karachi · Talha Arif
+[seg10-regr]   per-state report total dials: 0; manual-calls list: 0 row(s)
+[seg10-regr]   lead attempts on the 5 leads: 0,0,0,0,0
+[seg10-regr]   server log (failed): 4 error/warn lines
+[seg10-regr] == validation (HTTP code + message)
+[seg10-regr]   ?date=not-a-date -> today HTTP 400 "error":"date must be a date like 2026-11-12" | PDF HTTP 400
+[seg10-regr]   ?date=2026-02-30 -> today HTTP 400 "error":"date is not a real date: 2026-02-30" | PDF HTTP 400
+[seg10-regr]   ?date=2026-13-01 -> today HTTP 400 "error":"date is not a real date: 2026-13-01" | PDF HTTP 400
+[seg10-regr]   ?from=2026-11-10T10:00 -> today HTTP 400 "error":"A custom range needs both from and to" | PDF HTTP 400
+[seg10-regr]   ?from=2026-11-10T10:00&to=2026-11-10T09:00 -> today HTTP 400 "error":"\" | PDF HTTP 400
+[seg10-regr]   ?from=2025-01-01T00:00&to=2026-11-10T00:00 -> today HTTP 400 "error":"A range can be at most 366 days" | PDF HTTP 400
+[seg10-regr]   ?from=garbage&to=2026-11-10T00:00 -> today HTTP 400 "error":"from must be a date and time like 2026-11-12T22:00" | PDF HTTP 400
+[seg10-regr]   ?date=2026-11-10&from=2026-11-10T00:00&to=2026-11-11T00:00 -> today HTTP 400 "error":"Give either date or from/to, not both" | PDF HTTP 400
+[seg10-regr]   ?date=2026-11-10 -> today HTTP 200  | PDF HTTP 200
+[seg10-regr]   PUT reporting_timezone="Mars/Olympus" -> HTTP 400; PUT day_start_time="Mars/Olympus" -> HTTP 400
+[seg10-regr]   PUT reporting_timezone="" -> HTTP 400; PUT day_start_time="" -> HTTP 400
+[seg10-regr]   PUT reporting_timezone="25:00" -> HTTP 400; PUT day_start_time="25:00" -> HTTP 400
+[seg10-regr]   PUT reporting_timezone="6am" -> HTTP 400; PUT day_start_time="6am" -> HTTP 400
+[seg10-regr]   settings now: day_start_time=00:00, reporting_timezone=Asia/Karachi
+[seg10-regr]   server log (validate): 0 error/warn lines
+[seg10-regr] == daily goal counter (/reports/today, what the dashboard polls), controlled clock (Node only), day start 00:00 Karachi
+[seg10-regr]    calls: Nov 10 22:00 and 23:00, Nov 11 02:00 Karachi
+[seg10-regr]   at 23:59:00 Nov 10 Karachi: dials 2 1 cr=50% [Tue, Nov 10, 2026, Asia/Karachi]
+[seg10-regr]   at 00:00:30 Nov 11 Karachi (midnight passed): dials 1 0 cr=0% [Wed, Nov 11, 2026, Asia/Karachi]
+[seg10-regr]   at 04:59:00 Nov 11 Karachi (= 23:59 UTC): dials 1 0 cr=0% [Wed, Nov 11, 2026, Asia/Karachi]
+[seg10-regr]   at 05:00:30 Nov 11 Karachi (= 00:00:30 UTC): dials 1 0 cr=0% [Wed, Nov 11, 2026, Asia/Karachi]
+[seg10-regr]   server log (goal): 0 error/warn lines
+[seg10-regr] == fonts: PDF text (pdftotext) for the two rows
+[seg10-regr]   1   José Hernández-Muñoz           Ünïcödé ñ façade Realty        (415) 555-0101     Contacted     Señora Muñoz: call back after 3pm 👍 — café 🏠☎️   1:05         10:00 AM
+[seg10-regr]                                      <script>alert(1)</script>                                       <b>not bold</b>
+[seg10-regr]   2   Zoë Ångström 😀                 Café Olé Homes                 (310) 555-0102     Voicemail     Left VM for Zoë 😀👨‍👩‍👧 — Ünïcödé ñ façade        1:05         11:00 AM
+[seg10-regr]   fonts embedded: NotoEmoji-Regular NotoSans-Bold NotoSans-Regular 
+[seg10-regr]   page image: /var/tmp/audit-scratch/seg7-seg10-regr/fonts-page-1.png
+[seg10-regr]   server log (fonts): 0 error/warn lines
+[seg10-regr] == browser (production build): today has 4 calls (2 contacted); range Nov 7 22:00 -> Nov 8 04:00 has 3 (1 contacted)
+[seg10-regr]   API today: 4 2 cr=50% [Fri, Nov 13, 2026, Asia/Karachi] | API range: 3 1 cr=33% [Sat, Nov 7, 2026, 22:00 to Sun, Nov 8, 2026, 04:00, Asia/Karachi] | DB range: 3 1 1 1 0
+[seg10-regr]   dashboard: Dials today 4, Contacts today 2, Connect rate 50%; goal text: 4 / 100 dials today
+[seg10-regr]   reports, today: period "Fri, Nov 13, 2026 (Asia/Karachi)"; Dials 4, Contacts 2
+[seg10-regr]   reports, 2026-11-07T22:00 -> 2026-11-08T04:00: period "Sat, Nov 7, 2026, 22:00 to Sun, Nov 8, 2026, 04:00 (Asia/Karachi)"; Dials 3, Contacts 1, Connect rate 33%
+[seg10-regr]   reports, Download PDF for the range: file vortex-dialer-2026-11-07T2200_to_2026-11-08T0400.pdf
+[seg10-regr]   settings: Reporting timezone "Asia/Karachi", Day starts at "00:00"
+[seg10-regr]   page errors: none; 4xx/5xx: none
+[seg10-regr]   PDF downloaded from the Reports page: headline dials 3, contacts 1; table rows 3; header: From Sat, Nov 7, 2026, 22:00 to Sun, Nov 8, 2026, 04:00 · Times in Asia/Karachi · Talha Arif
+[seg10-regr]   server log (ui): 0 error/warn lines
+
+## Segment 8 repros (SMS and email)
+[seg10-regr] == inbound texts (POST /api/sms/inbound, secret header); lead ANA 5020, phone (212) 555-7701
+[seg10-regr]   "STOP" -> HTTP 201 action opt_out; opt_out/dnc after: true/dnc=false | then START -> HTTP 201, after: false/dnc=false
+[seg10-regr]   "stop" -> HTTP 201 action opt_out; opt_out/dnc after: true/dnc=false | then START -> HTTP 201, after: false/dnc=false
+[seg10-regr]   "Stop." -> HTTP 201 action opt_out; opt_out/dnc after: true/dnc=false | then START -> HTTP 201, after: false/dnc=false
+[seg10-regr]   " STOP " -> HTTP 201 action opt_out; opt_out/dnc after: true/dnc=false | then START -> HTTP 201, after: false/dnc=false
+[seg10-regr]   "StopAll" -> HTTP 201 action opt_out; opt_out/dnc after: true/dnc=false | then START -> HTTP 201, after: false/dnc=false
+[seg10-regr]   "UNSUBSCRIBE" -> HTTP 201 action opt_out; opt_out/dnc after: true/dnc=false | then START -> HTTP 201, after: false/dnc=false
+[seg10-regr]   "cancel" -> HTTP 201 action opt_out; opt_out/dnc after: true/dnc=false | then START -> HTTP 201, after: false/dnc=false
+[seg10-regr]   "End!" -> HTTP 201 action opt_out; opt_out/dnc after: true/dnc=false | then START -> HTTP 201, after: false/dnc=false
+[seg10-regr]   "quit" -> HTTP 201 action opt_out; opt_out/dnc after: true/dnc=false | then START -> HTTP 201, after: false/dnc=false
+[seg10-regr]   STOP then "UNSTOP" -> HTTP 201, opt_out/dnc after: false/dnc=false
+[seg10-regr]   STOP then "start" -> HTTP 201, opt_out/dnc after: false/dnc=false
+[seg10-regr]   STOP then "Start." -> HTTP 201, opt_out/dnc after: false/dnc=false
+[seg10-regr]   sentence with 'stop' -> HTTP 201 action "action":null; opt_out after: false/dnc=false
+[seg10-regr]   duplicate delivery (providerMessageId prov-123 twice): HTTP 201 then HTTP 200 "duplicate":true; rows with that id: 1; confirmations sent: +1 then +0
+[seg10-regr]   unknown number (312) 555-9999: "Who is this? STOP" -> HTTP 201; "stop" -> HTTP 201 "confirmationSent":true; stored with no lead: 2
+[seg10-regr]   two leads, one phone: insert a 2nd lead with ANA's phone -> blocked by leads_phone_key (one lead per number) duplicate key value violates unique constraint 
+[seg10-regr]   DNC lead FAY: STOP -> opt_out/dnc true/dnc=true; START -> false/dnc=true; status dnc; dnc_list rows unchanged: 0
+[seg10-regr]   secret: none -> HTTP 401; wrong -> HTTP 401; ANA opt_out still: false/dnc=false
+[seg10-regr]   server started WITHOUT SMS_WEBHOOK_SECRET: correct-looking secret -> HTTP 401; ANA opt_out still: false/dnc=false
+[seg10-regr]   inbox: leads with unread Bob Empty=1, Fay Dnc=2, Ana María López=27; unmatched list: +13125559999 "stop", +13125559999 "Who is this? STOP"
+[seg10-regr]   timeline ANA: {"sms/outbound":26,"sms_opt/opt_in":13,"sms/inbound":27,"sms_opt/opt_out":13}
+[seg10-regr]   totals: inbound rows 32, confirmations 29, opt events 28
+[seg10-regr]   server log (inbound): 0 error/warn lines
+[seg10-regr] == templates (save-time check), leads ANA (all fields) / BOB (no brokerage) / HAL (no address = no city)
+[seg10-regr]   save "Hi {{first_name}} at {{brokerage}} in {{city}}, {{state}} ({{name}})" -> 201 
+[seg10-regr]   save "Hi {{ Name }} / {{FIRST_NAME}} / {{  state }} / {first_name}" -> 201 
+[seg10-regr]   save "Hi {{zip}}" -> 400 "error":"Unsupported placeholder {{zip}}. Use only {{name}}, {{first_name}}, {{brokerage}}, {{state}}, {{city}}."
+[seg10-regr]   save "Hi {first name} {{name}" -> 400 "error":"Unsupported placeholder {first name}, a stray { or }. Use only {{name}}, {{first_name}}, {{brokerage}}, {{state}}, {{city}}."
+[seg10-regr]   save "Hi {{name}} from {{ Brokerage }} {unknown}" -> 400 "error":"Unsupported placeholder {unknown}. Use only {{name}}, {{first_name}}, {{brokerage}}, {{state}}, {{city}}."
+[seg10-regr]   send GOOD to Ana María López -> 201  "body":"Hi Ana at Café Realty in Albany, NY (Ana María López)"
+[seg10-regr]   send ODD to Ana María López -> 201  "body":"Hi Ana María López / Ana / NY / Ana"
+[seg10-regr]   send GOOD to Bob Empty -> 422 "error":"Not sent: this lead has no brokerage (used in the message)" 
+[seg10-regr]   send GOOD to Hal Nocity -> 422 "error":"Not sent: this lead has no city (used in the message)" 
+[seg10-regr]   send OLD to Ana María López -> 422 "error":"Not sent: the message uses {{zip}}, which isn't a supported field ({{name}}, {{first_name}}, {{brokerage}}, {{state}}, {{city}})" 
+[seg10-regr]   free text with {{nickname}} -> 422 "error":"Not sent: the message uses {{nickname}}, which isn't a supported field ({{name}}, {{first_name}}, {{brokerage}}, {{state}}, {{city}})" 
+[seg10-regr]   template list flags: old bad NEEDS FIXING ({{zip}}); t; t
+[seg10-regr]   bulk GOOD to ANA, BOB, HAL -> 200 {"total":3,"sent":1,"opted_out":0,"dnc":0,"outside_hours":0,"missing_field":2,"invalid_number":0,"not_found":0,"failed":0}
+[seg10-regr]   bulk with the old bad template -> 422 "error":"This template needs fixing before it can be sent: {{zip}} isn't a supported field ({{name}}, {{first_name}}, {{brokerage}}, {{state}}, {{city}})"
+[seg10-regr]   outbound bodies containing { or } : 0; containing ' at in ' or ' at ,': 0
+[seg10-regr]   server log (templates): 0 error/warn lines
+[seg10-regr] == texts and calling hours (08:30 New York open, 05:30 Los Angeles closed, Dan has no state)
+[seg10-regr]   single to Ana María López (NY) -> 201 
+[seg10-regr]   single to Cara West (CA) -> 422 "error":"Outside calling hours (8am–9pm local time; it's 5:30 AM PST there). Try again later."
+[seg10-regr]   single to Dan Nostate (no state) -> 422 "error":"Time zone unknown, set the state first"
+[seg10-regr]   bulk ANA, CARA, DAN -> 200 {"total":3,"sent":1,"opted_out":0,"dnc":0,"outside_hours":2,"missing_field":0,"invalid_number":0,"not_found":0,"failed":0}
+[seg10-regr]   CARA texts on record: 0
+[seg10-regr]   STOP from CARA at 05:30 her time -> HTTP 201 "confirmationSent":true (the confirmation is exempt); CARA opt_out: true/dnc=false
+[seg10-regr]   calling hours OFF: single to CARA -> 201 
+[seg10-regr]   server log (hours): 0 error/warn lines
+[seg10-regr] == safety: single sends to EVE (opted out) and FAY (DNC); bulk to every kind of lead
+[seg10-regr]   single to Eve Optout -> 400 "error":"This lead has opted out of SMS"
+[seg10-regr]   single to Fay Dnc -> 400 "error":"This lead is on the Do Not Call list"
+[seg10-regr]   single to Gus Nophone -> 400 "error":"This lead has no phone number yet — add one before texting."
+[seg10-regr]   bulk to ANA (ok), BOB (no brokerage), CARA (closed), DAN (no state), EVE (opted out), FAY (DNC), GUS (no phone), 99999999 (no such lead) -> 200
+[seg10-regr]     summary: {"total":8,"sent":1,"opted_out":1,"dnc":1,"outside_hours":2,"missing_field":1,"invalid_number":1,"not_found":1,"failed":0}
+[seg10-regr]     adds up: sent=1 + opted_out=1 + dnc=1 + outside_hours=2 + missing_field=1 + invalid_number=1 + not_found=1 + failed=0 = 8 of total 8
+[seg10-regr]     outbound rows written: Ana María López
+[seg10-regr]   server log (safety): 0 error/warn lines
+[seg10-regr] == email subject (lead ANA)
+[seg10-regr]   subject "" -> 400 "error":"Email subject is required" 
+[seg10-regr]   subject "   " -> 400 "error":"Email subject is required" 
+[seg10-regr]   subject null -> 400 "error":"Email subject is required" 
+[seg10-regr]   subject "Quick question, {{first_name}}" -> 201  "subject":"Quick question, Ana"
+[seg10-regr]   email rows stored: 1 ('Quick question, Ana')
+[seg10-regr]   mock adapter log lines: 1 — [mockEmailAdapter] would send to ana@example.test | subject: Quick question, Ana;
+[seg10-regr]   server log (email): 0 error/warn lines
+[seg10-regr] == provider names at startup (env value -> what happens)
+[seg10-regr]   TELEPHONY_PROVIDER=bogus -> started: no, process: exited; log: Startup stopped: TELEPHONY_PROVIDER="bogus" is not a known provider. Allowed values: mock, twilio. 
+[seg10-regr]   SMS_PROVIDER=bogus -> started: no, process: exited; log: Startup stopped: SMS_PROVIDER="bogus" is not a known provider. Allowed values: mock. 
+[seg10-regr]   EMAIL_PROVIDER=bogus -> started: no, process: exited; log: Startup stopped: EMAIL_PROVIDER="bogus" is not a known provider. Allowed values: mock. 
+[seg10-regr]   TELEPHONY_PROVIDER=mock -> started: yes, process: running; log: Vortex Dialer API listening on port 4000 (telephony: mock) Calling hours: worked out the time zone of 8 lead(s) 
+[seg10-regr]   TELEPHONY_PROVIDER=twilio -> started: yes, process: running; log: Vortex Dialer API listening on port 4000 (telephony: twilio) 
+[seg10-regr]   SMS_PROVIDER=mock -> started: yes, process: running; log: Vortex Dialer API listening on port 4000 (telephony: mock) 
+[seg10-regr]   EMAIL_PROVIDER=mock -> started: yes, process: running; log: Vortex Dialer API listening on port 4000 (telephony: mock) 
+[seg10-regr]   server log (providers): 0 error/warn lines
+
+## Segment 9 repros (settings, uploads, opt-out list)
+[seg10-regr] == settings API: owner = supervisor (tokS), rep2 = rep (tokA); groq-key set by the owner to a FAKE test key
+[seg10-regr]   owner PUT groq-key -> 200
+[seg10-regr]   rep GET groq-key -> 200; full key in the response: no; response: {"key":"groq-key","configured":true,"last4":"WXYZ"}
+[seg10-regr]   owner GET groq-key -> 200; full key in the response: no; response: {"key":"groq-key","configured":true,"last4":"WXYZ"}
+[seg10-regr]   rep PUT calling_hours_enforced=false -> 403 "error":"Only a supervisor can change settings"; stored now: true
+[seg10-regr]   rep PUT groq-key -> 403 "error":"Only a supervisor can change settings"; stored key still the owner's: t
+[seg10-regr]   owner PUT reporting_timezone=America/Chicago -> 200
+[seg10-regr]   report period timezone now: "timezone":"America/Chicago"
+[seg10-regr]   owner PUT calling_hours_enforced=false -> 200; GET as rep -> 200 {"key":"calling_hours_enforced","value":"false"}
+[seg10-regr]   owner PUT unknown key anything-at-all -> 400 "error":"Unknown setting \"
+[seg10-regr]   owner GET unknown key -> 400 "error":"Unknown setting \"
+[seg10-regr]   owner PUT a 101-char key -> 400 "error":"Setting names are at most 100 characters"
+[seg10-regr]   owner PUT calling_hours_enforced = 3,000 chars -> 400 "error":"That value is too long (5 characters max)"
+[seg10-regr]   owner PUT groq-key = 3,000 chars -> 400 "error":"That value is too long (200 characters max)"
+[seg10-regr]   AI feature (expand note) still reads the stored key: requests to the fake Groq server:  3 stored-key;
+[seg10-regr]   settings rows now: calling_hours_enforced, day_start_time, groq-key, reporting_timezone
+[seg10-regr]   server log: 'CORS'/'value too long' lines: 0
+[seg10-regr]   server log (settings): 4 error/warn lines
+[seg10-regr] == per-user settings (API) and default max attempts
+[seg10-regr]   rep PUT /settings/me/daily_goal="150" -> 200 
+[seg10-regr]   rep PUT /settings/me/default_lines="2" -> 200 
+[seg10-regr]   rep PUT /settings/me/pitch_script="Hi, this is Rep Two from Vortexone" -> 200 
+[seg10-regr]   rep GET /settings/me -> 200 {"settings":{"daily_goal":"150","default_lines":"2","pitch_script":"Hi, this is Rep Two from Vortexone"}}
+[seg10-regr]   owner GET /settings/me -> 200 {"settings":{}}
+[seg10-regr]   rep PUT /settings/me/not_a_pref -> 400 "error":"Unknown preference \"
+[seg10-regr]   after a server restart, rep GET /settings/me -> 200 {"settings":{"daily_goal":"150","default_lines":"2","pitch_script":"Hi, this is Rep Two from Vortexone"}}
+[seg10-regr]   rep PUT default_max_attempts=8 -> 403 "error":"Only a supervisor can change settings"
+[seg10-regr]   owner PUT default_max_attempts=0 -> 400 "error":"Default max attempts must be a whole number from 1 to 10"
+[seg10-regr]   owner PUT default_max_attempts=8 -> 200 
+[seg10-regr]   lead created via POST /api/leads -> 201, its max_attempts: 8
+[seg10-regr]   import of 2 leads -> imported "imported":2; their max_attempts: 8,8
+[seg10-regr]   the 5019 leads that existed before: max_attempts values 5 (were 5)
+[seg10-regr]   server log (prefs): 0 error/warn lines
+[seg10-regr] == browser (production build)
+[seg10-regr]   1a. browser A had local goal 777 / script / lines 2, server had none -> server now: daily_goal=777, default_lines=2, pitch_script=Local script from browser A; local goal left in A: null; dashboard: 0 / 777 dials today
+[seg10-regr]   1b. browser A2 had local goal 555, server already 777 -> server now: daily_goal=777, default_lines=2, pitch_script=Local script from browser A; dashboard in A2: 0 / 777 dials today
+[seg10-regr]   2a. saved in browser A (goal 321, lines 1, script) -> server: daily_goal=321, default_lines=1, pitch_script=Script saved in browser A
+[seg10-regr]   2b. a second browser profile B: dashboard 0 / 321 dials today
+[seg10-regr]   2c. B Settings: script box "Script saved in browser A", goal field 321, lines 1
+[seg10-regr]   3a. owner Settings: Groq key status "Configured ✓ (ending ····WXYZ)"; key field holds a value: no
+[seg10-regr]   3b. rep Settings: calling-hours switch disabled: true; max attempts disabled: true; Groq field disabled: true; reporting timezone disabled: true
+[seg10-regr]   page errors: none
+[seg10-regr]   server log (ui): 0 error/warn lines
+[seg10-regr] == uploads (POST /api/sms/upload-media as rep)
+[seg10-regr]   real.png (image/png) -> HTTP 201  url png file served image/png nosniff=yes (no token needed: HTTP/1.1 200)
+[seg10-regr]   real.jpg (image/jpeg) -> HTTP 201  url jpg file served image/jpeg nosniff=yes (no token needed: HTTP/1.1 200)
+[seg10-regr]   real.gif (image/gif) -> HTTP 201  url gif file served image/gif nosniff=yes (no token needed: HTTP/1.1 200)
+[seg10-regr]   page.html (text/html) -> HTTP 400 "error":"Only JPEG, PNG and GIF images can be attached"  
+[seg10-regr]   tool.exe (application/x-dosexec) -> HTTP 400 "error":"Only JPEG, PNG and GIF images can be attached"  
+[seg10-regr]   pic.svg (image/svg+xml) -> HTTP 400 "error":"Only JPEG, PNG and GIF images can be attached"  
+[seg10-regr]   fake.png (text/html) -> HTTP 400 "error":"Only JPEG, PNG and GIF images can be attached"  
+[seg10-regr]   fake.jpg (image/gif) -> HTTP 400 "error":"Only JPEG, PNG and GIF images can be attached"  
+[seg10-regr]   old uploaded HTML file still on disk -> GET 404 
+[seg10-regr]   send with mediaUrl "/uploads/727e94ddaef65d1aa92615dbf74d8bac.png" -> 201 
+[seg10-regr]   send with mediaUrl "https://evil.example.com/x.png" -> 400 "error":"The attachment must be an image uploaded here (use Attach image)"
+[seg10-regr]   send with mediaUrl "/uploads/does-not-exist.png" -> 400 "error":"The attachment must be an image uploaded here (use Attach image)"
+[seg10-regr]   send with mediaUrl "/uploads/../package.json" -> 400 "error":"The attachment must be an image uploaded here (use Attach image)"
+[seg10-regr]   server log (uploads): 0 error/warn lines
+[seg10-regr] == CORS (allowed origin http://localhost:5173)
+[seg10-regr]   origin http://localhost:5173: GET -> 200, allow-origin: http://localhost:5173; preflight -> 204, allow-origin: http://localhost:5173
+[seg10-regr]   origin https://evil.example.com: GET -> 200, allow-origin: ; preflight -> 401, allow-origin: 
+[seg10-regr]   origin <none>: GET -> 200, allow-origin: ; preflight -> 204, allow-origin: 
+[seg10-regr]   server log: 'Not allowed by CORS' lines 0, stack-trace lines 0
+[seg10-regr]   server log (cors): 0 error/warn lines
+[seg10-regr] == SMS opt-out by phone number
+[seg10-regr]   backfill: old opted-out lead's phone in sms_suppressions: 0
+[seg10-regr]   STOP twice from unknown (212) 555-8830 -> HTTP 201, HTTP 201; suppression rows for it: 1
+[seg10-regr]   lead created later with that number -> 201; sms_opt_out: t; dnc_flag: f
+[seg10-regr]   import of 2 leads, one with a STOPped number -> summary "imported":2 "smsOptedOut":1 "importedTotal":2 ; sms_opt_out: Imported Later=true/dnc=false, Imported Normal=false/dnc=false
+[seg10-regr]   single text to the suppressed lead -> 400 "error":"This lead has opted out of SMS"
+[seg10-regr]   same, with only the phone suppressed (lead flag cleared by DIRECT SQL) -> 400 "error":"This number has opted out of texts (replied STOP)"
+[seg10-regr]   bulk to both -> 200 {"total":2,"sent":0,"opted_out":2,"dnc":0,"outside_hours":0,"missing_field":0,"invalid_number":0,"not_found":0,"failed":0}
+[seg10-regr]   START from (212) 555-8830 -> suppression rows: 0; lead sms_opt_out: f
+[seg10-regr]   text after START -> 201 
+[seg10-regr]   calls not blocked: dial the imported STOPped lead -> 201 
+[seg10-regr]   server log (suppress): 0 error/warn lines
+[seg10-regr] == texts from unknown numbers: mark read
+[seg10-regr]   inbox before: leads unread Known Sender=1; unknown-number messages 2 (unread 2); unmatchedUnread=2
+[seg10-regr]   mark one unknown-number message read -> 200 
+[seg10-regr]   the new route on a KNOWN lead's message -> 404 "error":"Message not found"
+[seg10-regr]   mark the known lead read (unchanged route) -> 200
+[seg10-regr]   inbox after: leads unread none; unknown-number messages 2 (unread 1); unmatchedUnread=1
+[seg10-regr]   DB: unread inbound with no lead: 1
+[seg10-regr]   server log (unmatched): 0 error/warn lines
+
+## routes, schema, auth matrix (paced), smoke
+### routes.js: base ad8c0b2 vs HEAD — 0 diff lines (83 lines)
+### schema-check.js
+  values (6): $1, 'outbound', $2, 'sent', $3, $4   count match: true
+  params: [leadIds[0] || null, reply, segmentCount(reply), fromNumber]
+
+== column/table problems: 0
+### auth-matrix: after:  protected routes tested: 80 (+ SSE); routes not returning 401 for every bad token: 0 ; base:  protected routes tested: 80 (+ SSE); routes not returning 401 for every bad token: 0 ; diff 0 lines
+### production build ui-smoke.js
+  text: Vortex Outreach Dashboard Dialer Inbox Import Reports Settings EST 9:15am · CST 8:15am · MST 7:15am · PST 6:15am Talha Arif Log out BRIEF First call · local time 8:15am BA Bulk Agent 1 Office 1 (713) 555-1000 TX Attempt 1 / 5 8:15 AM CST Voicemail 0:02 Office 
+  buttons: Dial a number / Switch to dark mode / Log out / BRIEF
+First call · local time 8:15am / Add tag / Add note / Open this lead in a new tab / Quick SMS / Mute (audio muting arrives with Twilio in phase 2) / Hold (real hold arrives with Twilio in phase 2) / Objection / End call / ✨ Expand / Spoke / Interested / Voicemail / No Answer / No Contact — Number / No Contact — Person / DNC / Previous Notes
+▶ / Pitch script
+▶ / Schedule callback
+  after pressing 'n': No Answer
+No Contact — Number
+No Contact — Person
+
+### unknown-route (/this-does-not-exist) -> final URL /
+  text: Vortex Outreach Dashboard Dialer Inbox Import Reports Settings EST 9:15am · CST 8:15am · MST 7:15am · PST 6:15am Talha Arif Log out DIALS TODAY 1 CONTACTS TODAY 0 CONNECT RATE 0% DIALABLE NOW 5018 Inside 8am–9pm their time WAITING FOR THEIR HOURS 0 DAILY GOAL 
+
+===== console errors and 4xx/5xx per page =====
+unauth-root: console=0 http=0
+dashboard: console=0 http=0
+lead-detail: console=0 http=0
+inbox: console=0 http=0
+sms-templates: console=0 http=0
+import: console=0 http=0
+reports: console=0 http=0
+settings: console=0 http=0
+dialer: console=0 http=0
+manual-dial: console=0 http=0
+call-screen: console=0 http=0
+unknown-route: console=0 http=0
+backend log error/warn lines: 0
+REGR-DONE
