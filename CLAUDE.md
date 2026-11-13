@@ -70,6 +70,8 @@ placeCall(fromNumber, toNumber, onEvent) → callId
 - `{ type: 'answered' }`
 - `{ type: 'voicemail_detected' }`
 - `{ type: 'ended', duration: <seconds> }`
+- optional: `{ type: 'busy' }` (followed by `ended`). An adapter that never sends it still works: a call
+  that ends without being answered is handled exactly like a busy one (counted as a no-answer, requeued).
 
 `mockAdapter.js` fires these on a timer (3s ring, then randomly answered / voicemail /
 no_answer). The route handler in `routes/calls.js` reads which adapter to use from
