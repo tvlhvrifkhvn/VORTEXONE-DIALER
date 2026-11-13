@@ -3,6 +3,7 @@ const { ApiError } = require('../middleware/errorHandler');
 const smsAdapter = require('../telephony/smsIndex');
 const { normalizePhone } = require('../utils/phoneNormalize');
 const callingHours = require('./callingHours');
+const mediaUpload = require('./mediaUpload');
 
 const SEGMENT_SIZE = 160;
 const BULK_DELAY_MS = 1500;
@@ -176,6 +177,8 @@ async function sendSingleSms(leadId, { templateId, rawBody, mediaUrl } = {}) {
   // same check (unknown zone -> refused while calling hours are enforced).
   await callingHours.assertCallingHours(lead);
 
+  // Only one of our own uploaded images can be attached (F-40).
+  if (mediaUrl) mediaUpload.assertOwnMediaUrl(mediaUrl);
   const { merged, templateId: resolvedTemplateId } = await resolveBody({ templateId, rawBody }, lead);
   await smsAdapter.sendSms(lead.phone, merged, mediaUrl);
 
