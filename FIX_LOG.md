@@ -603,7 +603,7 @@ Extra files touched, and why:
 
 | ID | Finding | Status |
 |---|---|---|
-| F-01 | Groq key hardcoded | **Separate last PR** (Segment 11, `claude/fix-seg11-groq-key`). The owner must revoke the old key |
+| F-01 | Groq key hardcoded | Fixed in code (S11, separate PR). **The owner must revoke the old key** (it stays in git history) |
 | F-02 | npm advisories | **Partly fixed** (S10): 1 left, `xlsx` (no npm fix; see 1.1) |
 | F-03 | SQL in routes | Fixed (S5, verified S10) |
 | F-04 | Status written outside leadLifecycle | Fixed (S1, S5, S10) |
@@ -681,6 +681,21 @@ Extra files touched, and why:
 - **Check settings after deploying:** calling hours ON, the reporting timezone, the day start, and default max attempts.
 - **Set `trust proxy`** if a reverse proxy is put in front of the VPS.
 - **Merge the stacked PRs in order:** #21 → #22 → #23 → #24 → #25 → this one; then the F-01 PR.
+
+## Segment 11 — F-01, the Groq key — branch `claude/fix-seg11-groq-key` (separate last PR, base `claude/fix-seg10-final-cleanup`)
+
+| Item | Status | File:function | Before → after (3 runs each; `audit/logs/fix-seg11.txt`) |
+|---|---|---|---|
+| F-01 Groq key in the code | **Fixed in code; the owner must revoke the old key** | `config/index.js` (`groqApiKey = process.env.GROQ_API_KEY \|\| null`), `noteExpander.expandNote` | **Old key in tracked files:** before 1 file, after **0**. Also 0 in the audit logs, screenshots, FIX_LOG and AUDIT_REPORT. It is still in **2 commits of git history**, so it must be revoked.<br>**With `GROQ_API_KEY` empty:** the server starts (health 200).<br>**"Expand note":** before, 500 "Something went wrong" (the hardcoded key was tried against a closed port) with 8 error lines in the log; after, **503 "AI is not configured…"**.<br>**Import of 2 leads:** imported 2 both times; before it took 12 s of AI retries, after 1 s with the non-AI mapper. The pre-call brief returns 200.<br>**A key saved in Settings** is still used (a local fake Groq server saw it) |
+
+The 503 is logged on the server like any deliberate 5xx (one line per request).
+
+**Owner steps:**
+1. **Revoke the old key** in the Groq console (it is public in the repo history).
+2. **Create a new key** and set it as `GROQ_API_KEY` where the app runs, or save it under Settings → Integrations.
+3. **Merge this PR.**
+
+**Recommended:** make the repository private.
 
 ## New findings (not in the audit)
 

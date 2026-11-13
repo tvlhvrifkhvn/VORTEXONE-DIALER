@@ -1,0 +1,104 @@
+# Segment 11 — F-01, the Groq key. Branch claude/fix-seg11-groq-key, base bf24248. The real Groq API is never called; the old key is never printed (only counted). 3 runs each, identical.
+
+######## base run 1
+[base] == GROQ_API_KEY empty, no key saved in Settings
+[base]   server started: health 200
+[base]   POST /api/ai/expand-note -> HTTP 500 "error":"Something went wrong"
+[base]   import of 2 leads (AI mapping on, no key) -> "invalid":0 "imported":2 in 12 s
+[base]   pre-call brief -> HTTP 200, instant part present: yes
+[base]   server log: 8 error lines; startup notes: GROQ_API_KEY not set — AI CSV mapping will be unavailable GROQ_API_KEY not set — AI rebuttal suggestions will be unavailable 
+[base]   server log (nokey): 8 error/warn lines
+[base] == a key saved in Settings (FAKE test value) is still used
+[base]   expand-note -> HTTP 200 "note":"Called; left a voicemail. Try again Friday."
+[base]   fake Groq server saw:  1 saved-key;
+[base]   server log (stored): 0 error/warn lines
+[base] == search for the old key (value never printed; length 56)
+[base]   in this checkout's tracked files: 1 file(s)
+[base]   in audit/logs, audit/screenshots, FIX_LOG.md, AUDIT_REPORT.md (working tree): 0 file(s)
+[base]   in git history (all branches): 2 commit(s) touch it (history keeps it: the key must be revoked)
+[base]   server log (search): 0 error/warn lines
+######## after run 1
+[after] == GROQ_API_KEY empty, no key saved in Settings
+[after]   server started: health 200
+[after]   POST /api/ai/expand-note -> HTTP 503 "error":"AI is not configured: set GROQ_API_KEY on the server, or add a key under Settings → Integrations."
+[after]   import of 2 leads (AI mapping on, no key) -> "invalid":0 "imported":2 in 1 s
+[after]   pre-call brief -> HTTP 200, instant part present: yes
+[after]   server log: 1 error lines; startup notes: GROQ_API_KEY not set — AI CSV mapping will be unavailable GROQ_API_KEY not set — AI rebuttal suggestions will be unavailable 
+[after]   server log (nokey): 1 error/warn lines
+[after] == a key saved in Settings (FAKE test value) is still used
+[after]   expand-note -> HTTP 200 "note":"Called; left a voicemail. Try again Friday."
+[after]   fake Groq server saw:  1 saved-key;
+[after]   server log (stored): 0 error/warn lines
+[after] == search for the old key (value never printed; length 56)
+[after]   in this checkout's tracked files: 0 file(s)
+[after]   in audit/logs, audit/screenshots, FIX_LOG.md, AUDIT_REPORT.md (working tree): 0 file(s)
+[after]   in git history (all branches): 2 commit(s) touch it (history keeps it: the key must be revoked)
+[after]   server log (search): 0 error/warn lines
+######## base run 2
+[base] == GROQ_API_KEY empty, no key saved in Settings
+[base]   server started: health 200
+[base]   POST /api/ai/expand-note -> HTTP 500 "error":"Something went wrong"
+[base]   import of 2 leads (AI mapping on, no key) -> "invalid":0 "imported":2 in 12 s
+[base]   pre-call brief -> HTTP 200, instant part present: yes
+[base]   server log: 8 error lines; startup notes: GROQ_API_KEY not set — AI CSV mapping will be unavailable GROQ_API_KEY not set — AI rebuttal suggestions will be unavailable 
+[base]   server log (nokey): 8 error/warn lines
+[base] == a key saved in Settings (FAKE test value) is still used
+[base]   expand-note -> HTTP 200 "note":"Called; left a voicemail. Try again Friday."
+[base]   fake Groq server saw:  1 saved-key;
+[base]   server log (stored): 0 error/warn lines
+[base] == search for the old key (value never printed; length 56)
+[base]   in this checkout's tracked files: 1 file(s)
+[base]   in audit/logs, audit/screenshots, FIX_LOG.md, AUDIT_REPORT.md (working tree): 0 file(s)
+[base]   in git history (all branches): 2 commit(s) touch it (history keeps it: the key must be revoked)
+[base]   server log (search): 0 error/warn lines
+######## after run 2
+[after] == GROQ_API_KEY empty, no key saved in Settings
+[after]   server started: health 200
+[after]   POST /api/ai/expand-note -> HTTP 503 "error":"AI is not configured: set GROQ_API_KEY on the server, or add a key under Settings → Integrations."
+[after]   import of 2 leads (AI mapping on, no key) -> "invalid":0 "imported":2 in 1 s
+[after]   pre-call brief -> HTTP 200, instant part present: yes
+[after]   server log: 1 error lines; startup notes: GROQ_API_KEY not set — AI CSV mapping will be unavailable GROQ_API_KEY not set — AI rebuttal suggestions will be unavailable 
+[after]   server log (nokey): 1 error/warn lines
+[after] == a key saved in Settings (FAKE test value) is still used
+[after]   expand-note -> HTTP 200 "note":"Called; left a voicemail. Try again Friday."
+[after]   fake Groq server saw:  1 saved-key;
+[after]   server log (stored): 0 error/warn lines
+[after] == search for the old key (value never printed; length 56)
+[after]   in this checkout's tracked files: 0 file(s)
+[after]   in audit/logs, audit/screenshots, FIX_LOG.md, AUDIT_REPORT.md (working tree): 0 file(s)
+[after]   in git history (all branches): 2 commit(s) touch it (history keeps it: the key must be revoked)
+[after]   server log (search): 0 error/warn lines
+######## base run 3
+[base] == GROQ_API_KEY empty, no key saved in Settings
+[base]   server started: health 200
+[base]   POST /api/ai/expand-note -> HTTP 500 "error":"Something went wrong"
+[base]   import of 2 leads (AI mapping on, no key) -> "invalid":0 "imported":2 in 11 s
+[base]   pre-call brief -> HTTP 200, instant part present: yes
+[base]   server log: 8 error lines; startup notes: GROQ_API_KEY not set — AI CSV mapping will be unavailable GROQ_API_KEY not set — AI rebuttal suggestions will be unavailable 
+[base]   server log (nokey): 8 error/warn lines
+[base] == a key saved in Settings (FAKE test value) is still used
+[base]   expand-note -> HTTP 200 "note":"Called; left a voicemail. Try again Friday."
+[base]   fake Groq server saw:  1 saved-key;
+[base]   server log (stored): 0 error/warn lines
+[base] == search for the old key (value never printed; length 56)
+[base]   in this checkout's tracked files: 1 file(s)
+[base]   in audit/logs, audit/screenshots, FIX_LOG.md, AUDIT_REPORT.md (working tree): 0 file(s)
+[base]   in git history (all branches): 2 commit(s) touch it (history keeps it: the key must be revoked)
+[base]   server log (search): 0 error/warn lines
+######## after run 3
+[after] == GROQ_API_KEY empty, no key saved in Settings
+[after]   server started: health 200
+[after]   POST /api/ai/expand-note -> HTTP 503 "error":"AI is not configured: set GROQ_API_KEY on the server, or add a key under Settings → Integrations."
+[after]   import of 2 leads (AI mapping on, no key) -> "invalid":0 "imported":2 in 0 s
+[after]   pre-call brief -> HTTP 200, instant part present: yes
+[after]   server log: 1 error lines; startup notes: GROQ_API_KEY not set — AI CSV mapping will be unavailable GROQ_API_KEY not set — AI rebuttal suggestions will be unavailable 
+[after]   server log (nokey): 1 error/warn lines
+[after] == a key saved in Settings (FAKE test value) is still used
+[after]   expand-note -> HTTP 200 "note":"Called; left a voicemail. Try again Friday."
+[after]   fake Groq server saw:  1 saved-key;
+[after]   server log (stored): 0 error/warn lines
+[after] == search for the old key (value never printed; length 56)
+[after]   in this checkout's tracked files: 0 file(s)
+[after]   in audit/logs, audit/screenshots, FIX_LOG.md, AUDIT_REPORT.md (working tree): 0 file(s)
+[after]   in git history (all branches): 2 commit(s) touch it (history keeps it: the key must be revoked)
+[after]   server log (search): 0 error/warn lines
