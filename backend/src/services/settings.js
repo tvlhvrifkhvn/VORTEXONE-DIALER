@@ -1,4 +1,12 @@
+const { EventEmitter } = require('events');
 const db = require('../db');
+
+// Services that cache a setting (callingHours) subscribe here, so a change
+// saved through setSetting() applies at once instead of after their cache expires.
+const changes = new EventEmitter();
+function onSettingChanged(key, listener) {
+  changes.on(key, listener);
+}
 
 /** Simple key/value store backing runtime-configurable settings (e.g. the
  * Groq API key) that shouldn't require editing .env by hand. See CLAUDE.md
@@ -15,7 +23,8 @@ async function setSetting(key, value) {
      RETURNING key, value, updated_at`,
     [key, value]
   );
+  changes.emit(key, rows[0].value);
   return rows[0];
 }
 
-module.exports = { getSetting, setSetting };
+module.exports = { getSetting, setSetting, onSettingChanged };

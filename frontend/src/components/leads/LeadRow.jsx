@@ -5,6 +5,7 @@ import StatusBadge from './StatusBadge';
 import AttemptBadge from './AttemptBadge';
 import { formatPhone, formatDateTime } from '../../lib/format';
 import { DIAL_MODE_KEY } from '../../hooks/useCall';
+import LeadLocalTime from './LeadLocalTime';
 
 // Subtle post-disposition background tint — CSS-transitioned via the
 // `transition-colors` class on the row, so the color change is smooth.
@@ -98,7 +99,10 @@ export default function LeadRow({
           )}
         </div>
       </td>
-      <td className="px-3 py-3 text-text-primary">{lead.state}</td>
+      <td className="px-3 py-3 text-text-primary">
+        <div>{lead.state}</div>
+        <LeadLocalTime lead={lead} />
+      </td>
       <td className="px-3 py-3">
         <AttemptBadge attempts={lead.attempts} maxAttempts={lead.max_attempts} />
       </td>

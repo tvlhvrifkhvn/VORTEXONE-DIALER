@@ -1,5 +1,6 @@
 import NeuCard from '../ui/NeuCard';
 import CallHeader from './CallHeader';
+import LeadLocalTime from '../leads/LeadLocalTime';
 import { formatPhone } from '../../lib/format';
 
 function initials(name) {
@@ -38,6 +39,7 @@ export default function CallContactHeader({ lead, call, ended = false }) {
             <span className="text-xs text-text-secondary">
               Attempt {lead.attempts} / {lead.max_attempts}
             </span>
+            <LeadLocalTime lead={lead} />
           </div>
         </div>
       </div>

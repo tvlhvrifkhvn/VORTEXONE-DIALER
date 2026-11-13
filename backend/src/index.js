@@ -113,6 +113,24 @@ async function assertSchemaIsMigrated() {
     }
     process.exit(1);
   }
+
+  // Migration 027: calling hours read each lead's stored time zone(s).
+  const { rows: zoneColumn } = await db.query(
+    "SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'leads' AND column_name = 'tz_zones'"
+  );
+  if (zoneColumn.length === 0) {
+    console.error('Missing column: leads.tz_zones — run npm run migrate before starting the server');
+    process.exit(1);
+  }
+}
+
+/** Work out the time zone(s) of leads that don't have them yet (see leadQueue.backfillZones). */
+function backfillLeadZones() {
+  if (require.main !== module) return;
+  leadQueue
+    .backfillZones()
+    .then((n) => n > 0 && console.log(`Calling hours: worked out the time zone of ${n} lead(s)`))
+    .catch((err) => console.error('Could not work out lead time zones:', err.message));
 }
 
 // Background stale-lock sweep (leadQueue.releaseStaleLocks). Queue reads
@@ -187,6 +205,7 @@ assertSchemaIsMigrated()
       startStaleLockSweep();
       startImportHousekeeping();
       recoverCallsAfterRestart();
+      backfillLeadZones();
     });
     process.once('SIGTERM', shutdown);
     process.once('SIGINT', shutdown);

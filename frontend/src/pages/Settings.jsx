@@ -85,18 +85,36 @@ function DialingDefaultsSection() {
   const [defaultLines, setDefaultLines] = useState(() => readLocalNumber(DEFAULT_LINES_KEY, DEFAULT_LINES));
   // Server-backed (settings table) since callingHours.js reads it directly —
   // unlike the fields above, this isn't a localStorage-only preference.
-  const [enforceHours, setEnforceHours] = useState(false);
+  // ON unless the stored value is exactly 'false' — a missing setting is ON
+  // (same rule as the server). The switch saves at once and the server
+  // applies it to the next dial.
+  const [enforceHours, setEnforceHours] = useState(true);
   const [loadingToggle, setLoadingToggle] = useState(true);
+  const [savingToggle, setSavingToggle] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState(null);
 
   useEffect(() => {
     api
       .getSetting(CALLING_HOURS_KEY)
-      .then(({ value }) => setEnforceHours(value === 'true'))
+      .then(({ value }) => setEnforceHours(value !== 'false'))
       .catch(() => {})
       .finally(() => setLoadingToggle(false));
   }, []);
+
+  const handleToggleHours = async () => {
+    const next = !enforceHours;
+    setError(null);
+    setSavingToggle(true);
+    try {
+      await api.putSetting(CALLING_HOURS_KEY, String(next));
+      setEnforceHours(next);
+    } catch (err) {
+      setError(`Calling hours not changed: ${err.message}`);
+    } finally {
+      setSavingToggle(false);
+    }
+  };
 
   const handleSave = async (e) => {
     e.preventDefault();
@@ -158,14 +176,24 @@ function DialingDefaultsSection() {
             How many leads a dialing session rings at once. Adjustable per session on the dashboard.
           </p>
         </div>
-        <div>
+        <div
+          className={`rounded-input border-2 p-3 ${enforceHours ? 'border-action-contacted' : 'border-action-hangup'}`}
+          data-testid="calling-hours-state"
+        >
+          <p className={`mb-2 text-sm font-semibold ${enforceHours ? 'text-action-contacted' : 'text-action-hangup'}`}>
+            {loadingToggle
+              ? 'Calling hours: checking…'
+              : enforceHours
+                ? 'Calling hours are ON — leads are only dialed 8am–9pm their local time'
+                : 'Calling hours are OFF — leads can be dialed at any hour'}
+          </p>
           <label className="flex cursor-pointer items-center gap-3">
             <button
               type="button"
               role="switch"
               aria-checked={enforceHours}
-              onClick={() => setEnforceHours((v) => !v)}
-              disabled={loadingToggle}
+              onClick={handleToggleHours}
+              disabled={loadingToggle || savingToggle}
               className={`relative h-6 w-11 shrink-0 rounded-full transition-colors duration-200 disabled:opacity-50 ${
                 enforceHours ? 'bg-action-call' : 'bg-shadow/40'
               }`}
@@ -179,8 +207,10 @@ function DialingDefaultsSection() {
             <span className="text-xs font-medium text-text-secondary">Enforce calling hours (8am–9pm local)</span>
           </label>
           <p className="mt-1 text-xs text-text-secondary">
-            Testing phase: off by default so leads can be dialed at any time. Turn on to block calls
-            outside 8am–9pm local time for the lead's state.
+            On by default. Saved as soon as you flip it. When on, the dialer never calls a lead outside
+            8am–9pm in any time zone the lead could be in (from the phone's area code, the address and
+            the state); a lead whose time zone is unknown is not dialed until its state is set. The dial
+            pad uses the number's area code.
           </p>
         </div>
         <div className="rounded-input bg-surface p-3 text-xs text-text-secondary shadow-neu-inset">

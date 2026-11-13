@@ -8,6 +8,7 @@ const dialingSession = require('./dialingSession');
 const dncCheck = require('./dncCheck');
 const { ApiError } = require('../middleware/errorHandler');
 const { normalizePhone } = require('../utils/phoneNormalize');
+const callingHours = require('./callingHours');
 
 // Reserved-for-fiction NANP range (555-0100 through 555-0199) — safe
 // placeholder until phone_numbers is populated with real numbers in phase 2.
@@ -117,6 +118,11 @@ async function startManual({ userId, toNumberRaw }) {
   if (await dncCheck.isOnDncList(toNumber)) {
     throw new ApiError(409, 'This number is on the DNC list and cannot be dialed');
   }
+
+  // Calling hours apply to the dial pad too (F-19): the zone comes from the
+  // number's area code; an area code that can't be placed is refused while
+  // calling hours are enforced.
+  await callingHours.assertNumberCallingHours(toNumber);
 
   const fromNumber = MOCK_FROM_NUMBER;
 

@@ -306,6 +306,81 @@ Still open (later segments):
 - Calling hours F-18/F-19/F-26, reports F-34/F-45 (Segment 7), SMS/email items, settings/upload-permission items (F-07, F-40, F-47, F-48).
 - Phase C: ending a call at a real phone provider (needed for abandoned calls on Stop / disconnect / restart).
 
+## Segment 6 — calling hours — branch `claude/fix-seg6-calling-hours` (base `claude/fix-seg5-import-and-sessions` @ `6cdc127`, since PR #21 is not merged yet)
+
+Migration: `027_lead_time_zones.sql` adds `leads.tz_zones TEXT[]` plus a partial index on the rows that still need it. It is idempotent.
+- `{}` means the time zone is unknown; `NULL` means it hasn't been worked out yet.
+- No SQL backfill: the server works out the zones at startup and before every queue read (`leadQueue.backfillZones`), in batches of 2,000, without touching `updated_at`.
+- The server refuses to start without the column ("run npm run migrate").
+
+| Item | Status | Commit | File:function | Before → after (3 runs each, controlled clock) |
+|---|---|---|---|---|
+| 2.1 F-18 Time zone per lead | **Fixed** | `0ee62ee` | `utils/timeZones.js` (new); `callingHours.zonesForLead` / `assertCallingHours` / `zonesOpen`; migration 027; `leadQueue.backfillZones` / `create` / `updateFields`; `csvImport` insert; `index.js` (column check, startup backfill); `LeadLocalTime.jsx` (new), `LeadRow`, `CallContactHeader` | `fix-seg6-zones.js`.<br>**Boundary table** (07:59 / 08:00 / 20:59 / 21:00, summer and winter; ET, CT, MT, PT, AK, HI, AZ, PR, VI, GU, MP, AS): before 16 wrong cells (every territory used New York time); after 0.<br>**23 split places, every 15 min over two days:** before, 132 slots allowed outside the real 8am–9pm (El Paso, Van Horn, Pensacola, Bowling Green, Gary, Evansville, Ontario OR, Knoxville, Chattanooga, Coeur d'Alene, Rapid City, Iron Mountain, Adak, Window Rock); after 0. Two cases are refused on the safe side: Pensacola with no city, and a TX lead with a Denver cell number.<br>**Unknown state** ("", blanks, ZZ, XX, null): before, treated as New York and allowed; after, 422 "Time zone unknown, set the state first" |
+| 2.2 F-19 Every outbound path | **Fixed** | `a17f4f1` | `leadQueue.refreshOwnLock` (Redial); `callSession.startManual` → `callingHours.assertNumberCallingHours` | `fix-seg6.sh paths` / `elpaso`, at 07:30 Chicago (and 07:30 El Paso).<br>**Before**, these were placed out of hours: by lead id (Pensacola, Gary, Bowling Green, a no-state lead, El Paso); **Redial**; the queue (Pensacola and El Paso callbacks); multi-line with selected leads (Pensacola) and in queue mode (Pensacola callback); and the dial pad (312, 850, 915, and the Canadian 416).<br>**After**, every one of those is 422 or 404, and 0 multi-line calls are placed; Redial is 422.<br>The dial pad: 312, 850 and 915 → 422 with the local time; 416 → 422 "Time zone unknown for this number's area code"; 212 (open) → 201. Open leads (NY by id, Dallas) are still 201 |
+| 2.3 F-20 Queue starvation | **Fixed** | `49e7055` | `leadQueue.candidates` (open zones are a query parameter), `peekNext`, `lockNext`, `countsByState`; `callingHours.openZones` / `openZonesNow` / `nextOpensAt`; `QueueHoursCards.jsx` (new), `Dashboard` | `fix-seg6.sh starvation`, at 21:30 New York, 20:30 Dallas: 70 due New York callbacks at the front, with Dallas, Denver and Knoxville leads behind them.<br>**Before:** Start Dialing gave 404 ×3, multi-line placed 0 calls, Knoxville (Eastern, 21:30) was dialed by id.<br>**After:** Start Dialing serves Dallas 1, 2, 3; multi-line placed 5 calls (CO 3, TX 2); Knoxville → 422. The 70 NY callbacks wait untouched (70/70). The counts report `dialable_now` 5, `waiting_for_hours` 71, `next_opens_at` 13:00 UTC (08:00 ET).<br>**100,000 leads** (5,000 NY callbacks at the front): before, Start Dialing gave 404 on 10 of 10 tries; after, 201 on 10 of 10 |
+| 2.4 F-26 Toggle acts at once, default ON | **Fixed** | `37a1517` | `settings.setSetting` emits the change (`onSettingChanged`, new); `callingHours.isEnforced` (awaits a stale refresh), the cache is set from the event, missing = ON; `Settings.jsx` (switch saves on click, ON/OFF line) | `fix-seg6.sh toggle`, 3 cycles × 3 runs.<br>**Before:** OFF applied after 5.0–5.1 s (43–44 refusals first); ON applied after 4.8–5.1 s, with 29–35 out-of-hours calls placed in between; 1 call placed right after every restart with the setting ON.<br>**After:** OFF applied after 15–31 ms, ON after 12–18 ms, 0 calls after switching ON, 0 at startup.<br>**Missing setting** (`default`): before, a closed lead dialed (201); after, 422.<br>**UI** (`fix-seg6-ui.sh`): before, no ON/OFF line, the switch showed OFF for a missing setting, and flipping it stored nothing until "Save defaults". After, it says "Calling hours are ON — …" and each click stores false / true at once |
+
+**Queue performance, 100,000 leads, 21:30 New York, 15 calls each** (`fix-seg6.sh perf`):
+
+| Call | Base | HEAD |
+|---|---|---|
+| `GET /api/leads?pageSize=50` | median 85 ms | median 62–77 ms. The first read after startup waited 1.25–1.4 s for the one-off backfill of 105,019 leads |
+| `GET /api/leads/state-counts` | median 17 ms | median 24–27 ms (groups by state and zone) |
+| `POST /api/calls {}` (next lead) | 38 ms, but **404** every time (starved) | 40 ms, 201 every time |
+
+Server logs: 0 errors or warnings in every Segment 6 run.
+
+Regression (`audit/logs/fix-seg6-regression.txt`). The test templates were migrated to 027 and given `calling_hours_enforced = false`, which is how the Segment 1–5 repros ran before, when a missing setting meant OFF.
+- **Segment 1–4 repros:** same results as the Segment 5 Part B regression, including:
+  - the DNC guards; the f06 seed password (the line that tries the old default password was not run this time);
+  - F-14 / F-27; multi-line 15 calls on 15 leads;
+  - the live-call lock and 403/409 checks; Redial;
+  - F-51 under `vite dev` (1 POST, "Connected");
+  - the undo matrix and the Segment 4 UI.
+- **Segment 5 Part A:** imports at 300 / 4,000 / 30,000 rows (every row accounted for, re-import 0), upload validation, the import UI. Imported leads all got zones (0 `NULL`).
+- **Segment 5 Part B:** the failed dial (twilio, bogus), the sessions tests (disconnect, reconnect, live calls, Stop, restart), the callback checks, Redial vs the sweep (20/20 kept the lock), Previous Notes, the Stop UI.
+- **Routes:** identical (79 lines, no new routes). **Schema check:** 0 problems. **Auth matrix:** identical (76 + SSE, all 401). **Invariants:** unchanged.
+- **Frontend:** build passes. **Production ui-smoke:** 0 console errors and 0 4xx/5xx on all 12 views.
+- **Server logs:** 0 errors or warnings. The only lines are the expected ones: the deliberate refused dials in the B.1 test, and the pre-call brief's "AI skipped" while AI is off.
+- **Old `calling-hours.js` script:** its output now differs from the base on purpose (Segment 6 changes the rule). It is replaced by `fix-seg6-zones.js`.
+
+Decisions:
+- **Which zone a lead is in:**
+  - The phone's area code decides first (a table of area codes in a different zone from their state, or split between two), then a known place in the address or city, then every zone of the state.
+  - If the area code belongs to another state than the lead (a moved or ported number), the lead counts as being in both, and the call waits until both are inside 8am–9pm.
+  - A lead's zone list is stored, and the rule is "all of them open".
+- **Safety margin:** a call is allowed only if the lead is inside hours now and still will be 5 s later, so nothing is placed in the last instant before 9pm.
+- **Unknown zone:** never dialed while calling hours are on, by id, by the queue or by multi-line. It is counted on the dashboard as waiting ("set the state").
+- **Dial pad:** the zone comes from the dialled number's area code. A code that isn't a known US or territory one is refused while calling hours are on.
+- **Redial:**
+  - It is checked like any dial.
+  - When refused, the lead stays locked to the rep (they can still log the previous call), and the stale-lock sweep frees it as before.
+- **Toggle:** a missing setting means ON, and only the exact value `false` turns it off. No owner override.
+- **Counts:** the state-counts response keeps its fields and types and gains `dialable_now`, `waiting_for_hours`, `unknown_zone` and `next_opens_at` per state. Same route.
+
+Extra files touched, and why:
+- `backend/src/index.js`: the startup check for `leads.tz_zones` and the startup backfill.
+- `backend/src/services/csvImport.js`: imported leads get their zones on insert.
+- `backend/src/services/settings.js`: the change event behind F-26.
+- `audit/scripts/sse-session.js`: optional `LEAD_IDS`, for the selected-lead multi-line test.
+
+Known limitations:
+- **Mobile numbers:** a mobile number keeps its area code when its owner moves. When the area code's state matches the lead's state but the person now lives in another zone, the area code wins and can be wrong. (When the states differ, both zones are required.)
+- **Area codes that straddle two zones** (432, 850, 270/364, 606, 812/930, 931, 208, 541/458, 605, 701, 308, 620/785, 906, 907, 928, 775) are narrowed only by a city in the place table. Without a match, the lead waits for both zones, which shortens its window by an hour.
+- **The place table** holds the main cities of each split area, not every town.
+- **Territories:** zones are correct for PR, VI, GU, MP and AS (dial pad and boundary table), but a lead's state can't be set to a territory yet: the state list (`utils/usStates.js`) is US-only, and changing it changes import behaviour. Left for an owner decision.
+- **Several servers:** a toggle change applies at once on the server that saved it. Another server process would pick it up within 5 s. There is only one server today.
+- **Display:** the local time on the call screen and in the list uses the browser's clock; the server decides what dials.
+- **Test template change:** for the Segment 1–5 regression, the test templates were given `calling_hours_enforced = false`, because those tests were written when a missing setting meant OFF.
+- **The 2.1 commit** checked zones in JavaScript; the move into SQL is in 2.3. 2.1 and 2.2 alone still starve (they are not meant to ship without 2.3).
+
+Still open (later segments):
+- **F-01** Groq key, deferred by the owner to the last segment.
+- **Segment 7:** reports, the PDF and the "today" timezone (F-34/F-45).
+- SMS/email items (F-37 inbound STOP, F-39 SMS calling hours).
+- Settings/upload-permission items (F-07, F-40, F-47, F-48).
+- **Phase C:** ending a call at a real phone provider.
+
 ## New findings (not in the audit)
 
 | ID | Found in | Description | Planned |

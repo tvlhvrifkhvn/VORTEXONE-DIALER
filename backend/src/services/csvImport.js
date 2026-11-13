@@ -7,6 +7,7 @@ const { stateFromAddressText } = require('../utils/stateFromAddressText');
 const { buildOfficeKey } = require('../utils/officeKey');
 const { US_STATES } = require('../utils/usStates');
 const aiCsvMapper = require('./aiCsvMapper');
+const callingHours = require('./callingHours');
 
 /** Collapses runs of whitespace and trims — every text field gets this, not
  * just name, since scraped CSVs routinely have double spaces/newlines baked in. */
@@ -571,10 +572,11 @@ async function savePhase(jobId, state) {
       if (inserts.length > 0) {
         const cols = inserts.map((r) => r.prep);
         const { rows: insertedRows } = await client.query(
-          `INSERT INTO leads (name, phone, email, address, brokerage, state, status, missing_phone, office_key, original_phone, extension)
-           SELECT t.name, t.phone, t.email, t.address, t.brokerage, t.state, 'new', t.phone IS NULL, t.office_key, t.original_phone, t.extension
-           FROM unnest($1::text[], $2::text[], $3::text[], $4::text[], $5::text[], $6::text[], $7::text[], $8::text[], $9::text[])
-             AS t(name, phone, email, address, brokerage, state, office_key, original_phone, extension)
+          `INSERT INTO leads (name, phone, email, address, brokerage, state, status, missing_phone, office_key, original_phone, extension, tz_zones)
+           SELECT t.name, t.phone, t.email, t.address, t.brokerage, t.state, 'new', t.phone IS NULL, t.office_key, t.original_phone, t.extension,
+                  string_to_array(t.tz_zones, ',')
+           FROM unnest($1::text[], $2::text[], $3::text[], $4::text[], $5::text[], $6::text[], $7::text[], $8::text[], $9::text[], $10::text[])
+             AS t(name, phone, email, address, brokerage, state, office_key, original_phone, extension, tz_zones)
            ON CONFLICT (phone) DO NOTHING
            RETURNING phone`,
           [
@@ -587,6 +589,8 @@ async function savePhase(jobId, state) {
             cols.map((p) => buildOfficeKey({ brokerage: p.brokerage, address: p.address, city: p.city, state: p.state })),
             cols.map((p) => p.originalPhone || null),
             cols.map((p) => p.extension || null),
+            // Time zone(s) for calling hours, joined with ',' ('' = unknown).
+            cols.map((p) => callingHours.zonesForLead(p).join(',')),
           ]
         );
         const insertedPhones = new Set(insertedRows.map((r) => r.phone));
