@@ -254,7 +254,10 @@ async function reviewableSuggestions(objectionTypeId) {
   const { rows } = await db.query(
     `SELECT id, suggestion, status, review_note, based_on_count, generated_at
      FROM rebuttal_suggestions
-     WHERE objection_type_id = $1 AND status IN ('approved', 'pending')
+     WHERE objection_type_id = $1
+       AND (status = 'approved'
+            OR (status = 'pending' AND generated_at = (SELECT max(generated_at) FROM rebuttal_suggestions
+                                                        WHERE objection_type_id = $1 AND status = 'pending')))
      ORDER BY (status = 'approved') DESC, generated_at DESC, id ASC
      LIMIT 12`,
     [objectionTypeId]
@@ -388,6 +391,11 @@ async function generateAndStore(objectionTypeId, label, groq, instanceCount) {
   // Column order: objection_type_id ($1), based_on_count ($2), then pairs of
   // (suggestion, review_note).
   const values = rows.map((_, i) => `($1, $2, $${i * 2 + 3}, $${i * 2 + 4}, 'pending')`).join(', ');
+  // F-44: the new batch replaces any older one still waiting for review.
+  await db.query(
+    `UPDATE rebuttal_suggestions SET status = 'expired' WHERE objection_type_id = $1 AND status = 'pending'`,
+    [objectionTypeId]
+  );
   await db.query(
     `INSERT INTO rebuttal_suggestions (objection_type_id, based_on_count, suggestion, review_note, status)
      VALUES ${values}`,
@@ -443,6 +451,18 @@ async function listPending() {
 
 async function reviewSuggestion(id, status) {
   if (!['approved', 'rejected'].includes(status)) throw new ApiError(400, "status must be 'approved' or 'rejected'");
+  if (status === 'approved') {
+    // F-43: a suggestion that breaks the rules (banned phrase, length) can't
+    // be approved as it is: it would become the call-screen hint and a
+    // few-shot example. The check is re-run on approval, not just trusted.
+    const { rows: current } = await db.query('SELECT suggestion, review_note, status FROM rebuttal_suggestions WHERE id = $1', [id]);
+    if (!current[0]) throw new ApiError(404, 'Suggestion not found');
+    if (current[0].status === 'expired') throw new ApiError(409, 'This suggestion was replaced by a newer batch');
+    const problems = findViolations(current[0].suggestion);
+    if (problems.length || /^needs manual rewrite/i.test(current[0].review_note || '')) {
+      throw new ApiError(409, `This suggestion needs a manual rewrite before it can be approved (${problems.join('; ') || current[0].review_note}). Reject it instead.`);
+    }
+  }
   const { rows } = await db.query(
     `UPDATE rebuttal_suggestions SET status = $2, reviewed_at = now()
      WHERE id = $1
