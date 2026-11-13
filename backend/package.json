@@ -9,7 +9,9 @@
     "start": "node src/index.js",
     "dev": "node --watch src/index.js",
     "migrate": "node src/db/migrate.js",
-    "seed": "node src/db/seeds/run.js"
+    "seed": "node src/db/seeds/run.js",
+    "backfill:office-keys": "node src/db/seeds/backfillOfficeKeys.js",
+    "seed:objection-demo": "node src/db/seeds/seedObjectionDemo.js"
   },
   "dependencies": {
     "bcrypt": "^6.0.0",
@@ -17,9 +19,12 @@
     "csv-parse": "^7.0.2",
     "dotenv": "^16.4.5",
     "express": "^5.1.0",
+    "express-rate-limit": "^7.5.1",
+    "groq-sdk": "^0.5.0",
     "jsonwebtoken": "^9.0.2",
     "multer": "^2.0.0",
     "pdfkit": "^0.15.0",
-    "pg": "^8.12.0"
+    "pg": "^8.12.0",
+    "xlsx": "^0.18.5"
   }
 }

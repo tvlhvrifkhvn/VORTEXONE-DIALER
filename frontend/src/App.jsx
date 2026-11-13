@@ -2,9 +2,15 @@ import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth } from './hooks/useAuth';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
+import DialerSession from './pages/DialerSession';
+import SmsTemplates from './pages/SmsTemplates';
+import Inbox from './pages/Inbox';
 import CallScreen from './pages/CallScreen';
+import ManualCall from './pages/ManualCall';
+import LeadDetail from './pages/LeadDetail';
 import Import from './pages/Import';
 import Reports from './pages/Reports';
+import Settings from './pages/Settings';
 
 function RequireAuth({ children }) {
   const { isAuthenticated, loading } = useAuth();
@@ -32,10 +38,52 @@ function AppRoutes() {
         }
       />
       <Route
+        path="/dialer"
+        element={
+          <RequireAuth>
+            <DialerSession />
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/sms/templates"
+        element={
+          <RequireAuth>
+            <SmsTemplates />
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/inbox"
+        element={
+          <RequireAuth>
+            <Inbox />
+          </RequireAuth>
+        }
+      />
+      {/* Must precede /call/:leadId, which would otherwise match "manual"
+          as a lead id. */}
+      <Route
+        path="/call/manual"
+        element={
+          <RequireAuth>
+            <ManualCall />
+          </RequireAuth>
+        }
+      />
+      <Route
         path="/call/:leadId"
         element={
           <RequireAuth>
             <CallScreen />
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/leads/:id"
+        element={
+          <RequireAuth>
+            <LeadDetail />
           </RequireAuth>
         }
       />
@@ -52,6 +100,14 @@ function AppRoutes() {
         element={
           <RequireAuth>
             <Reports />
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/settings"
+        element={
+          <RequireAuth>
+            <Settings />
           </RequireAuth>
         }
       />

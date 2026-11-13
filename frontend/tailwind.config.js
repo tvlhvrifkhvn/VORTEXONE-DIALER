@@ -4,12 +4,12 @@ export default {
   theme: {
     extend: {
       colors: {
-        base: '#E4E9F0',
-        surface: '#E4E9F0',
-        'text-primary': '#3E4C63',
-        'text-secondary': '#6A7A94',
-        highlight: '#FFFFFF',
-        shadow: '#A3B1C6',
+        base: 'rgb(var(--color-base) / <alpha-value>)',
+        surface: 'rgb(var(--color-surface) / <alpha-value>)',
+        'text-primary': 'rgb(var(--color-text-primary) / <alpha-value>)',
+        'text-secondary': 'rgb(var(--color-text-secondary) / <alpha-value>)',
+        highlight: 'rgb(var(--color-highlight) / <alpha-value>)',
+        shadow: 'rgb(var(--color-shadow) / <alpha-value>)',
         action: {
           call: '#3B82F6',
           hangup: '#EF4444',
@@ -27,10 +27,11 @@ export default {
         sans: ['Inter', 'system-ui', 'sans-serif'],
       },
       boxShadow: {
-        neu: '-6px -6px 12px #FFFFFF, 6px 6px 12px #A3B1C6',
-        'neu-sm': '-3px -3px 6px #FFFFFF, 3px 3px 6px #A3B1C6',
-        'neu-inset': 'inset -4px -4px 8px #FFFFFF, inset 4px 4px 8px #A3B1C6',
-        'neu-pressed': 'inset -2px -2px 5px #FFFFFF, inset 2px 2px 5px #A3B1C6',
+        neu: '-6px -6px 12px rgb(var(--color-highlight)), 6px 6px 12px rgb(var(--color-shadow))',
+        'neu-sm': '-3px -3px 6px rgb(var(--color-highlight)), 3px 3px 6px rgb(var(--color-shadow))',
+        'neu-inset': 'inset -4px -4px 8px rgb(var(--color-highlight)), inset 4px 4px 8px rgb(var(--color-shadow))',
+        'neu-pressed': 'inset -2px -2px 5px rgb(var(--color-highlight)), inset 2px 2px 5px rgb(var(--color-shadow))',
+        'neu-lift': '-8px -8px 18px rgb(var(--color-highlight)), 8px 8px 18px rgb(var(--color-shadow))',
       },
     },
   },

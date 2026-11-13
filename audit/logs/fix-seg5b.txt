@@ -1,0 +1,458 @@
+# Segment 5 Part B — call screen and sessions (branch claude/fix-seg5-import-and-sessions, base latest fb49172)
+# Mock telephony; outcomes forced by audit/stubs/force-outcome.js (stub); test-only DIRECT SQL is labelled in each script.
+
+## B.1 F-30 — fix-seg5b-dial.sh
+### base
+[pre-twilio] TELEPHONY_PROVIDER=twilio
+[pre-twilio] single-line: lead 1 before: in_queue attempts=0 locked_by=-; call rows: 0
+[pre-twilio]   POST /api/calls {leadId:1} -> [HTTP 500] "error":"twilioAdapter is not implemented yet — set TELEPHONY_PROVIDER=mock"
+[pre-twilio]   lead after: in_progress attempts=1 locked_by=2; call rows: ringing ended=false
+[pre-twilio]   same lead again -> [HTTP 409] (a burned lock would give 409); lead: in_progress attempts=1 locked_by=2
+[pre-twilio]   POST /api/calls {} (next in queue) -> [HTTP 500] "error":"twilioAdapter is not implemented yet — set TELEPHONY_PROVIDER=mock"; in_progress leads now: 2; ringing rows: 2
+[pre-twilio] manual dial pad -> [HTTP 500] "error":"twilioAdapter is not implemented yet — set TELEPHONY_PROVIDER=mock"; manual rows: ringing ended=false
+[pre-twilio] multi-line, 3 lines, 12 s: SUMMARY sessionId=1 events=9 byStatus={"loading":3,"dialing":3,"dropped":3} maxConcurrentLiveSlots=3 (lineCount=3)
+[pre-twilio]   start: -> 500 {"error":"twilioAdapter is not implemented yet — set TELEPHONY_PROVIDER=mock"}
+[pre-twilio]   line messages: 
+[pre-twilio]   after: call rows by state: ringing=5; leads in_progress: 2; attempts burned: 3
+[pre-twilio] server log: 4 error/warn lines; first: Error: twilioAdapter is not implemented yet — set TELEPHONY_PROVIDER=mock
+[pre-bogus] TELEPHONY_PROVIDER=bogus
+[pre-bogus] single-line: lead 1 before: in_queue attempts=0 locked_by=-; call rows: 0
+[pre-bogus]   POST /api/calls {leadId:1} -> [HTTP 500] "error":"Unknown TELEPHONY_PROVIDER: \"
+[pre-bogus]   lead after: in_progress attempts=1 locked_by=2; call rows: ringing ended=false
+[pre-bogus]   same lead again -> [HTTP 409] (a burned lock would give 409); lead: in_progress attempts=1 locked_by=2
+[pre-bogus]   POST /api/calls {} (next in queue) -> [HTTP 500] "error":"Unknown TELEPHONY_PROVIDER: \"; in_progress leads now: 2; ringing rows: 2
+[pre-bogus] manual dial pad -> [HTTP 500] "error":"Unknown TELEPHONY_PROVIDER: \"; manual rows: ringing ended=false
+[pre-bogus] multi-line, 3 lines, 12 s: SUMMARY sessionId=1 events=9 byStatus={"loading":3,"dialing":3,"dropped":3} maxConcurrentLiveSlots=3 (lineCount=3)
+[pre-bogus]   start: -> 500 {"error":"Unknown TELEPHONY_PROVIDER: \"bogus\". Expected one of: mock, twilio"}
+[pre-bogus]   line messages: 
+[pre-bogus]   after: call rows by state: ringing=5; leads in_progress: 2; attempts burned: 3
+[pre-bogus] server log: 4 error/warn lines; first: Error: Unknown TELEPHONY_PROVIDER: "bogus". Expected one of: mock, twilio
+### fix
+[after-twilio] TELEPHONY_PROVIDER=twilio
+[after-twilio] single-line: lead 1 before: in_queue attempts=0 locked_by=-; call rows: 0
+[after-twilio]   POST /api/calls {leadId:1} -> [HTTP 502] "error":"The call couldn't be placed — the phone service returned an error. No attempt was counted and the lead is free again."
+[after-twilio]   lead after: in_queue attempts=0 locked_by=-; call rows: failed ended=true
+[after-twilio]   same lead again -> [HTTP 502] (a burned lock would give 409); lead: in_queue attempts=0 locked_by=-
+[after-twilio]   POST /api/calls {} (next in queue) -> [HTTP 502] "error":"The call couldn't be placed — the phone service returned an error. No attempt was counted and the lead is free again."; in_progress leads now: 0; ringing rows: 0
+[after-twilio] manual dial pad -> [HTTP 502] "error":"The call couldn't be placed — the phone service returned an error."; manual rows: failed ended=true
+[after-twilio] multi-line, 3 lines, 12 s: SUMMARY sessionId=1 events=12 byStatus={"loading":3,"dialing":3,"failed":3,"idle":3} maxConcurrentLiveSlots=2 (lineCount=3)
+[after-twilio]   start: -> 201 {"lineCount":3,"slots":[]}
+[after-twilio]   line messages:  3 msg=Stopped dialing: the phone service refused 3 calls in a row. Check the phone settings, then start again.; 3 msg=The call couldn't be placed — the phone service returned an error. No attempt was counted and the lead is free again.;
+[after-twilio]   after: call rows by state: failed=6; leads in_progress: 0; attempts burned: 0
+[after-twilio] server log: 4 error/warn lines; first: ApiError: The call couldn't be placed — the phone service returned an error. No attempt was counted and the lead is fr
+[after-bogus] TELEPHONY_PROVIDER=bogus
+[after-bogus] single-line: lead 1 before: in_queue attempts=0 locked_by=-; call rows: 0
+[after-bogus]   POST /api/calls {leadId:1} -> [HTTP 502] "error":"The call couldn't be placed — the phone service returned an error. No attempt was counted and the lead is free again."
+[after-bogus]   lead after: in_queue attempts=0 locked_by=-; call rows: failed ended=true
+[after-bogus]   same lead again -> [HTTP 502] (a burned lock would give 409); lead: in_queue attempts=0 locked_by=-
+[after-bogus]   POST /api/calls {} (next in queue) -> [HTTP 502] "error":"The call couldn't be placed — the phone service returned an error. No attempt was counted and the lead is free again."; in_progress leads now: 0; ringing rows: 0
+[after-bogus] manual dial pad -> [HTTP 502] "error":"The call couldn't be placed — the phone service returned an error."; manual rows: failed ended=true
+[after-bogus] multi-line, 3 lines, 12 s: SUMMARY sessionId=1 events=12 byStatus={"loading":3,"dialing":3,"failed":3,"idle":3} maxConcurrentLiveSlots=2 (lineCount=3)
+[after-bogus]   start: -> 201 {"lineCount":3,"slots":[]}
+[after-bogus]   line messages:  3 msg=Stopped dialing: the phone service refused 3 calls in a row. Check the phone settings, then start again.; 3 msg=The call couldn't be placed — the phone service returned an error. No attempt was counted and the lead is free again.;
+[after-bogus]   after: call rows by state: failed=6; leads in_progress: 0; attempts burned: 0
+[after-bogus] server log: 4 error/warn lines; first: ApiError: The call couldn't be placed — the phone service returned an error. No attempt was counted and the lead is fr
+
+## B.2 F-50 — fix-seg5b-poll.sh
+### base
+[pre-fix] A (click at ~57 s): state at 6 s: Connected
+[pre-fix]   A: state at ~57 s: Connected; GET /api/calls/:id polls so far: 89; responses {"200":94,"201":1,"429":1}; first 429: 53s GET /api/calls/1
+[pre-fix]   A: clicked at 57s; right after: "Too many requests — slow down and try again shortly."; 8 s later: "Too many requests — slow down and try again shortly."
+[pre-fix]   A: POST /api/dispositions seen by the browser: 57.1s 429; DB calls on lead 11: 1:NULL
+[pre-fix]   A: page errors: none
+[pre-fix] B (185 s live call): status every 15 s: 15s:Connected 30s:Connected 45s:Connected 60s:Connected 75s:Connected 90s:Connected 105s:Connected 120s:Connected 135s:Connected 150s:Connected 165s:Connected 180s:Connected
+[pre-fix]   B: GET /api/calls/:id polls in 185 s: 184; responses {"200":194,"201":1,"429":1}; first 429: 110s GET /api/calls/2
+[pre-fix]   B: clicked at 185s; right after: "Logged as Spoke / Interested."; 8 s later: "Logged as Spoke / Interested."
+[pre-fix]   B: POST /api/dispositions seen by the browser: 185.2s 200; DB calls on lead 12: 2:contacted
+[pre-fix]   B: page errors: none
+[pre-fix] C (forced 429, then a network error, on the disposition): state at 6 s: Connected
+[pre-fix]   C: clicked at 6s; right after: "Too many requests — slow down and try again shortly."; 8 s later: "Too many requests — slow down and try again shortly."
+[pre-fix]   C: POST /api/dispositions seen by the browser: 6.2s 429; DB calls on lead 13: 3:NULL
+[pre-fix]   C: disposition POSTs attempted by the page: 1 (1st forced 429, 2nd forced network error)
+[pre-fix]   C: page errors: none
+[pre-fix] backend log error/warn lines: 0
+### fix
+[after-b2] A (click at ~57 s): state at 6 s: Connected
+[after-b2]   A: state at ~57 s: Connected; GET /api/calls/:id polls so far: 18, last at 54s; responses {"200":24,"201":1}; first 429: none
+[after-b2]   A: clicked at 57s; right after: "Logged as Spoke / Interested."; 8 s later: "Logged as Spoke / Interested."
+[after-b2]   A: POST /api/dispositions seen by the browser: 57.1s 200; DB calls on lead 11: 1:contacted
+[after-b2]   A: page errors: none
+[after-b2] B (185 s live call): status every 15 s: 15s:Connected 30s:Connected 45s:Connected 60s:Connected 75s:Connected 90s:Connected 105s:Connected 120s:Connected 135s:Connected 150s:Connected 165s:Connected 180s:Connected
+[after-b2]   B: GET /api/calls/:id polls in 185 s: 61, last one at 183s; responses {"200":72,"201":1}; first 429: none
+[after-b2]   B: clicked at 185s; right after: "Logged as Spoke / Interested."; 8 s later: "Logged as Spoke / Interested."
+[after-b2]   B: POST /api/dispositions seen by the browser: 185.1s 200; DB calls on lead 12: 2:contacted
+[after-b2]   B: page errors: none
+[after-b2] C (forced 429, then a network error, on the disposition): state at 6 s: Connected
+[after-b2]   C: clicked at 6s; right after: "Not saved yet — retrying (3 of 5)…"; 8 s later: "Logged as Spoke / Interested."
+[after-b2]   C: POST /api/dispositions seen by the browser: 6.2s 429, 9.2s 200; DB calls on lead 13: 3:contacted
+[after-b2]   C: disposition POSTs attempted by the page: 3 (1st forced 429, 2nd forced network error)
+[after-b2]   C: page errors: none
+[after-b2] backend log error/warn lines: 0
+
+## B.3/B.4 F-28/F-29 — fix-seg5b-sessions.sh
+### base
+[pre-fix] == F-28 browser goes away: SSE closed at 4 s, never reopened; 30 s ==
+[pre-fix]   calls placed: 0-4 s: 6; 4-15 s: 9; 15-30 s: 17
+[pre-fix]   5 s after the script ended: new calls 6; open calls=3 answered/held open=0 abandoned=0 leads in_progress=3 open sessions=1
+[pre-fix]   server log: 
+[pre-fix] == F-28 reconnect within the grace period: SSE closed at 4 s, reopened at 9 s; 30 s ==
+[pre-fix]   calls placed: 0-15 s: 15; 15-29 s: 15 (dialing kept going)
+[pre-fix] == F-28/F-29 browser goes away with live calls: 3 lines answered (1 active + 2 held), SSE closed at 6 s; 25 s ==
+[pre-fix]    1 slot 1 answered; 1 slot 2 held; 1 slot 3 held;
+[pre-fix]   after: open calls=3 answered/held open=3 abandoned=0 leads in_progress=3 open sessions=1
+[pre-fix]   calls: 1:answered ended=false abandoned=false, 2:answered ended=false abandoned=false, 3:answered ended=false abandoned=false
+[pre-fix] == F-29 audit §5.2: 3 lines answered -> 1 active + 2 held; manual Stop at 6 s, then /api/sessions/end ==
+[pre-fix]   stop -> multiline/stop {} -> 200 {"abandonedCount":0}
+[pre-fix]   sessions/end -> [HTTP 200]
+[pre-fix]   calls: 1:answered ended=false abandoned=false, 2:answered ended=false abandoned=false, 3:answered ended=false abandoned=false
+[pre-fix]   after stop: open calls=3 answered/held open=3 abandoned=0 leads in_progress=3 open sessions=0
+[pre-fix]   rep finishes the active call 1: disposition -> [HTTP 200]; then: open calls=2 answered/held open=2 abandoned=0 leads in_progress=2 open sessions=0
+[pre-fix]   I6 leads with >1 open call: 0
+[pre-fix] == F-29 audit §5.5: 3 lines answered, server killed (SIGKILL) at 6 s, restarted ==
+[pre-fix]   after the kill: open calls=3 answered/held open=3 abandoned=0 leads in_progress=3 open sessions=1
+[pre-fix]   2 s after restart: open calls=3 answered/held open=3 abandoned=0 leads in_progress=3 open sessions=1
+[pre-fix]   server log: 
+[pre-fix] server log: 0 error/warn lines
+### fix
+[after-b34] == F-28 browser goes away: SSE closed at 4 s, never reopened; 30 s ==
+[after-b34]   calls placed: 0-4 s: 6; 4-15 s: 9; 15-30 s: 0
+[after-b34]   5 s after the script ended: new calls 0; open calls=0 answered/held open=0 abandoned=3 leads in_progress=0 open sessions=0
+[after-b34]   server log: Multi-line session of user 1 stopped: browser disconnected for 10 s
+[after-b34] == F-28 reconnect within the grace period: SSE closed at 4 s, reopened at 9 s; 30 s ==
+[after-b34]   calls placed: 0-15 s: 15; 15-29 s: 15 (dialing kept going)
+[after-b34] == F-28/F-29 browser goes away with live calls: 3 lines answered (1 active + 2 held), SSE closed at 6 s; 25 s ==
+[after-b34]    1 slot 1 held; 1 slot 2 answered; 1 slot 3 held;
+[after-b34]   after: open calls=0 answered/held open=0 abandoned=3 leads in_progress=0 open sessions=0
+[after-b34]   calls: 1:answered ended=true abandoned=true, 2:answered ended=true abandoned=true, 3:answered ended=true abandoned=true
+[after-b34] == F-29 audit §5.2: 3 lines answered -> 1 active + 2 held; manual Stop at 6 s, then /api/sessions/end ==
+[after-b34]   stop -> multiline/stop {} -> 200 {"abandonedCount":2,"keptLive":{"slotNumber":2,"callId":2,"leadId":2}}
+[after-b34]   sessions/end -> [HTTP 200]
+[after-b34]   calls: 1:answered ended=true abandoned=true, 2:answered ended=false abandoned=false, 3:answered ended=true abandoned=true
+[after-b34]   after stop: open calls=1 answered/held open=1 abandoned=2 leads in_progress=1 open sessions=0
+[after-b34]   rep finishes the active call 2: disposition -> [HTTP 200]; then: open calls=0 answered/held open=0 abandoned=2 leads in_progress=0 open sessions=0
+[after-b34]   I6 leads with >1 open call: 0
+[after-b34] == F-29 audit §5.5: 3 lines answered, server killed (SIGKILL) at 6 s, restarted ==
+[after-b34]   after the kill: open calls=3 answered/held open=3 abandoned=0 leads in_progress=3 open sessions=1
+[after-b34]   2 s after restart: open calls=0 answered/held open=0 abandoned=3 leads in_progress=0 open sessions=0
+[after-b34]   server log: After restart: closed 1 dialing session(s) and 3 open call(s); 3 lead(s) back in the queue 
+[after-b34] server log: 0 error/warn lines
+
+## B.4 UI — fix-seg5b-stop-ui.js
+[stopui-pre] before Stop: 1:answered/open/- 2:answered/open/- 3:answered/open/-
+[stopui-pre] after Stop: banner "Dialing stopped. Finish the call you're on" shown = false; summary already open = true; End session button still shown = false
+[stopui-pre] after Stop: 1:answered/open/- 2:answered/open/- 3:answered/open/-
+[stopui-pre] FAILED: locator.click: Timeout 15000ms exceeded.
+[stopui-pre] backend log error/warn lines: 0
+[stopui-after] before Stop: 1:answered/open/- 2:answered/open/- 3:answered/open/-
+[stopui-after] after Stop: banner "Dialing stopped. Finish the call you're on" shown = true; summary already open = false; End session button still shown = false
+[stopui-after] after Stop: 1:answered/open/- 2:answered/ended/abandoned/- 3:answered/ended/abandoned/-
+[stopui-after] after logging the kept call: summary shown = true; abandoned note: "2 calls were abandoned when a live contact was found."
+[stopui-after] after logging: 1:answered/ended/contacted 2:answered/ended/abandoned/- 3:answered/ended/abandoned/-
+[stopui-after] DB: open dialing sessions 0; leads in_progress 0; page errors: none
+[stopui-after] backend log error/warn lines: 0
+
+## B.5 F-33 — fix-seg5b-notes-ui.js
+### base
+[notes-pre] call 1: mid-call note saved ("Note saved" shown = true)
+[notes-pre] call 1 finished: lead_notes rows 1; calls contacted
+[notes-pre] call 2, Previous Notes: mid-call note shown = false; call 1's disposition note shown = true; labels: Note=false Call=false
+[notes-pre] page errors: none
+[notes-pre] backend log error/warn lines: 1
+### fix
+[notes-after] call 1: mid-call note saved ("Note saved" shown = true)
+[notes-after] call 1 finished: lead_notes rows 1; calls contacted
+[notes-after] call 2, Previous Notes: mid-call note shown = true; call 1's disposition note shown = true; labels: Note ×1, Call ×1
+[notes-after] page errors: none
+[notes-after] backend log error/warn lines: 1
+
+## B.6 — fix-seg5b-b6.sh
+### base
+[pre-fix] == lead-page Schedule callback (POST /api/leads/:id/callback) ==
+[pre-fix]   "next tuesday" -> 400 "error":"A valid callback date and time is required" | lead in_queue next=-, open callbacks 0
+[pre-fix]   "2020-01-01" -> 200  | lead callback_scheduled next=2020-01-01 00:00, open callbacks 1
+[pre-fix]   "2026-11-12T10:34:33Z" -> 200  | lead callback_scheduled next=2026-11-12 10:34, open callbacks 1
+[pre-fix]   "2026-11-14T10:35:03Z" -> 200  | lead callback_scheduled next=2026-11-14 10:35, open callbacks 1
+[pre-fix]   DNC lead 26, future time -> 200  | lead callback_scheduled dnc_flag=true
+[pre-fix] server log: 0 error/warn lines
+[pre-fix] == Redial vs the stale-lock sweep, 40 tries (lock backdated 31 s: expired, not yet swept; timer sweep off, sweeps fired by GET /api/leads) ==
+[pre-fix]   try 5 lead 27: Redial 201 but lead is in_queue|- with 1 open call(s)  <-- lock lost
+[pre-fix]   try 19 lead 121: Redial 201 but lead is in_queue|- with 1 open call(s)  <-- lock lost
+[pre-fix]   try 28 lead 181: Redial 201 but lead is in_queue|- with 1 open call(s)  <-- lock lost
+[pre-fix]   Redial status codes:  40 201;
+[pre-fix]   result: Redial 201 with the lead still locked to the rep: 37; Redial not 201: 0; Redial 201 but the lead was left unlocked: 3
+[pre-fix] server log: 0 error/warn lines
+### fix
+[after-b6] == lead-page Schedule callback (POST /api/leads/:id/callback) ==
+[after-b6]   "next tuesday" -> 400 "error":"A valid callback date and time is required" | lead in_queue next=-, open callbacks 0
+[after-b6]   "2020-01-01" -> 400 "error":"That callback time is in the past — pick a time from now on" | lead in_queue next=-, open callbacks 0
+[after-b6]   "2026-11-12T10:40:44Z" -> 200  | lead callback_scheduled next=2026-11-12 10:40, open callbacks 1
+[after-b6]   "2026-11-14T10:41:14Z" -> 200  | lead callback_scheduled next=2026-11-14 10:41, open callbacks 1
+[after-b6]   DNC lead 25, future time -> 409 "error":"This lead is on the DNC list — it can't be scheduled for a callback" | lead dnc dnc_flag=true
+[after-b6] == Redial vs the stale-lock sweep, 40 tries (lock backdated 31 s: expired, not yet swept; timer sweep off, sweeps fired by GET /api/leads) ==
+[after-b6]   Redial status codes:  40 201;
+[after-b6]   result: Redial 201 with the lead still locked to the rep: 40; Redial not 201: 0; Redial 201 but the lead was left unlocked: 0
+[after-b6] server log: 0 error/warn lines
+
+## 3 consecutive runs of every Part B test on HEAD (+ one more base run of the notes test)
+######## RUN 1
+[r1-twilio] TELEPHONY_PROVIDER=twilio
+[r1-twilio] single-line: lead 1 before: in_queue attempts=0 locked_by=-; call rows: 0
+[r1-twilio]   POST /api/calls {leadId:1} -> [HTTP 502] "error":"The call couldn't be placed — the phone service returned an error. No attempt was counted and the lead is free again."
+[r1-twilio]   lead after: in_queue attempts=0 locked_by=-; call rows: failed ended=true
+[r1-twilio]   same lead again -> [HTTP 502] (a burned lock would give 409); lead: in_queue attempts=0 locked_by=-
+[r1-twilio]   POST /api/calls {} (next in queue) -> [HTTP 502] "error":"The call couldn't be placed — the phone service returned an error. No attempt was counted and the lead is free again."; in_progress leads now: 0; ringing rows: 0
+[r1-twilio] manual dial pad -> [HTTP 502] "error":"The call couldn't be placed — the phone service returned an error."; manual rows: failed ended=true
+[r1-twilio] multi-line, 3 lines, 12 s: SUMMARY sessionId=1 events=12 byStatus={"loading":3,"dialing":3,"failed":3,"idle":3} maxConcurrentLiveSlots=3 (lineCount=3)
+[r1-twilio]   start: -> 201 {"lineCount":3,"slots":[]}
+[r1-twilio]   line messages:  3 msg=Stopped dialing: the phone service refused 3 calls in a row. Check the phone settings, then start again.; 3 msg=The call couldn't be placed — the phone service returned an error. No attempt was counted and the lead is free again.;
+[r1-twilio]   after: call rows by state: failed=6; leads in_progress: 0; attempts burned: 0
+[r1-twilio] server log: 4 error/warn lines; first: ApiError: The call couldn't be placed — the phone service returned an error. No attempt was counted and the lead is fr
+[r1-bogus] TELEPHONY_PROVIDER=bogus
+[r1-bogus] single-line: lead 1 before: in_queue attempts=0 locked_by=-; call rows: 0
+[r1-bogus]   POST /api/calls {leadId:1} -> [HTTP 502] "error":"The call couldn't be placed — the phone service returned an error. No attempt was counted and the lead is free again."
+[r1-bogus]   lead after: in_queue attempts=0 locked_by=-; call rows: failed ended=true
+[r1-bogus]   same lead again -> [HTTP 502] (a burned lock would give 409); lead: in_queue attempts=0 locked_by=-
+[r1-bogus]   POST /api/calls {} (next in queue) -> [HTTP 502] "error":"The call couldn't be placed — the phone service returned an error. No attempt was counted and the lead is free again."; in_progress leads now: 0; ringing rows: 0
+[r1-bogus] manual dial pad -> [HTTP 502] "error":"The call couldn't be placed — the phone service returned an error."; manual rows: failed ended=true
+[r1-bogus] multi-line, 3 lines, 12 s: SUMMARY sessionId=1 events=12 byStatus={"loading":3,"dialing":3,"failed":3,"idle":3} maxConcurrentLiveSlots=2 (lineCount=3)
+[r1-bogus]   start: -> 201 {"lineCount":3,"slots":[]}
+[r1-bogus]   line messages:  3 msg=Stopped dialing: the phone service refused 3 calls in a row. Check the phone settings, then start again.; 3 msg=The call couldn't be placed — the phone service returned an error. No attempt was counted and the lead is free again.;
+[r1-bogus]   after: call rows by state: failed=6; leads in_progress: 0; attempts burned: 0
+[r1-bogus] server log: 4 error/warn lines; first: ApiError: The call couldn't be placed — the phone service returned an error. No attempt was counted and the lead is fr
+[r1-poll] A (click at ~57 s): state at 6 s: Connected
+[r1-poll]   A: state at ~57 s: Connected; GET /api/calls/:id polls so far: 18, last at 54s; responses {"200":24,"201":1}; first 429: none
+[r1-poll]   A: clicked at 57s; right after: "Logged as Spoke / Interested."; 8 s later: "Logged as Spoke / Interested."
+[r1-poll]   A: POST /api/dispositions seen by the browser: 57.1s 200; DB calls on lead 11: 1:contacted
+[r1-poll]   A: page errors: none
+[r1-poll] B (185 s live call): status every 15 s: 15s:Connected 30s:Connected 45s:Connected 60s:Connected 75s:Connected 90s:Connected 105s:Connected 120s:Connected 135s:Connected 150s:Connected 165s:Connected 180s:Connected
+[r1-poll]   B: GET /api/calls/:id polls in 185 s: 61, last one at 183s; responses {"200":72,"201":1}; first 429: none
+[r1-poll]   B: clicked at 185s; right after: "Logged as Spoke / Interested."; 8 s later: "Logged as Spoke / Interested."
+[r1-poll]   B: POST /api/dispositions seen by the browser: 185.1s 200; DB calls on lead 12: 2:contacted
+[r1-poll]   B: page errors: none
+[r1-poll] C (forced 429, then a network error, on the disposition): state at 6 s: Connected
+[r1-poll]   C: clicked at 6s; right after: "Not saved yet — retrying (3 of 5)…"; 8 s later: "Logged as Spoke / Interested."
+[r1-poll]   C: POST /api/dispositions seen by the browser: 6.2s 429, 9.3s 200; DB calls on lead 13: 3:contacted
+[r1-poll]   C: disposition POSTs attempted by the page: 3 (1st forced 429, 2nd forced network error)
+[r1-poll]   C: page errors: none
+[r1-poll] backend log error/warn lines: 0
+[r1-sess] == F-28 browser goes away: SSE closed at 4 s, never reopened; 30 s ==
+[r1-sess]   calls placed: 0-4 s: 6; 4-15 s: 9; 15-30 s: 0
+[r1-sess]   5 s after the script ended: new calls 0; open calls=0 answered/held open=0 abandoned=3 leads in_progress=0 open sessions=0
+[r1-sess]   server log: Multi-line session of user 1 stopped: browser disconnected for 10 s
+[r1-sess] == F-28 reconnect within the grace period: SSE closed at 4 s, reopened at 9 s; 30 s ==
+[r1-sess]   calls placed: 0-15 s: 15; 15-29 s: 15 (dialing kept going)
+[r1-sess] == F-28/F-29 browser goes away with live calls: 3 lines answered (1 active + 2 held), SSE closed at 6 s; 25 s ==
+[r1-sess]    1 slot 1 held; 1 slot 2 answered; 1 slot 3 held;
+[r1-sess]   after: open calls=0 answered/held open=0 abandoned=3 leads in_progress=0 open sessions=0
+[r1-sess]   calls: 1:answered ended=true abandoned=true, 2:answered ended=true abandoned=true, 3:answered ended=true abandoned=true
+[r1-sess] == F-29 audit §5.2: 3 lines answered -> 1 active + 2 held; manual Stop at 6 s, then /api/sessions/end ==
+[r1-sess]   stop -> multiline/stop {} -> 200 {"abandonedCount":2,"keptLive":{"slotNumber":1,"callId":1,"leadId":1}}
+[r1-sess]   sessions/end -> [HTTP 200]
+[r1-sess]   calls: 1:answered ended=false abandoned=false, 2:answered ended=true abandoned=true, 3:answered ended=true abandoned=true
+[r1-sess]   after stop: open calls=1 answered/held open=1 abandoned=2 leads in_progress=1 open sessions=0
+[r1-sess]   rep finishes the active call 1: disposition -> [HTTP 200]; then: open calls=0 answered/held open=0 abandoned=2 leads in_progress=0 open sessions=0
+[r1-sess]   I6 leads with >1 open call: 0
+[r1-sess] == F-29 audit §5.5: 3 lines answered, server killed (SIGKILL) at 6 s, restarted ==
+[r1-sess]   after the kill: open calls=3 answered/held open=3 abandoned=0 leads in_progress=3 open sessions=1
+[r1-sess]   2 s after restart: open calls=0 answered/held open=0 abandoned=3 leads in_progress=0 open sessions=0
+[r1-sess]   server log: After restart: closed 1 dialing session(s) and 3 open call(s); 3 lead(s) back in the queue 
+[r1-sess] server log: 0 error/warn lines
+[r1-stopui] before Stop: 1:answered/open/- 2:answered/open/- 3:answered/open/-
+[r1-stopui] after Stop: banner "Dialing stopped. Finish the call you're on" shown = true; summary already open = false; End session button still shown = false
+[r1-stopui] after Stop: 1:answered/open/- 2:answered/ended/abandoned/- 3:answered/ended/abandoned/-
+[r1-stopui] after logging the kept call: summary shown = true; abandoned note: "2 calls were abandoned when a live contact was found."
+[r1-stopui] after logging: 1:answered/ended/contacted 2:answered/ended/abandoned/- 3:answered/ended/abandoned/-
+[r1-stopui] DB: open dialing sessions 0; leads in_progress 0; page errors: none
+[r1-stopui] backend log error/warn lines: 0
+[r1-notes] call 1: mid-call note saved ("Note saved" shown = true)
+[r1-notes] call 1 finished: lead_notes rows 1; calls contacted
+[r1-notes] call 2, Previous Notes: mid-call note shown = true; call 1's disposition note shown = true; labels: Note ×1, Call ×1
+[r1-notes] page errors: none
+[r1-notes] backend log error/warn lines: 1
+[r1-b6] == lead-page Schedule callback (POST /api/leads/:id/callback) ==
+[r1-b6]   "next tuesday" -> 400 "error":"A valid callback date and time is required" | lead in_queue next=-, open callbacks 0
+[r1-b6]   "2020-01-01" -> 400 "error":"That callback time is in the past — pick a time from now on" | lead in_queue next=-, open callbacks 0
+[r1-b6]   "2026-11-12T10:53:20Z" -> 200  | lead callback_scheduled next=2026-11-12 10:53, open callbacks 1
+[r1-b6]   "2026-11-14T10:53:50Z" -> 200  | lead callback_scheduled next=2026-11-14 10:53, open callbacks 1
+[r1-b6]   DNC lead 25, future time -> 409 "error":"This lead is on the DNC list — it can't be scheduled for a callback" | lead dnc dnc_flag=true
+[r1-b6] == Redial vs the stale-lock sweep, 40 tries (lock backdated 31 s: expired, not yet swept; timer sweep off, sweeps fired by GET /api/leads) ==
+[r1-b6]   Redial status codes:  40 201;
+[r1-b6]   result: Redial 201 with the lead still locked to the rep: 40; Redial not 201: 0; Redial 201 but the lead was left unlocked: 0
+[r1-b6] server log: 0 error/warn lines
+######## RUN 2
+[r2-twilio] TELEPHONY_PROVIDER=twilio
+[r2-twilio] single-line: lead 1 before: in_queue attempts=0 locked_by=-; call rows: 0
+[r2-twilio]   POST /api/calls {leadId:1} -> [HTTP 502] "error":"The call couldn't be placed — the phone service returned an error. No attempt was counted and the lead is free again."
+[r2-twilio]   lead after: in_queue attempts=0 locked_by=-; call rows: failed ended=true
+[r2-twilio]   same lead again -> [HTTP 502] (a burned lock would give 409); lead: in_queue attempts=0 locked_by=-
+[r2-twilio]   POST /api/calls {} (next in queue) -> [HTTP 502] "error":"The call couldn't be placed — the phone service returned an error. No attempt was counted and the lead is free again."; in_progress leads now: 0; ringing rows: 0
+[r2-twilio] manual dial pad -> [HTTP 502] "error":"The call couldn't be placed — the phone service returned an error."; manual rows: failed ended=true
+[r2-twilio] multi-line, 3 lines, 12 s: SUMMARY sessionId=1 events=12 byStatus={"loading":3,"dialing":3,"failed":3,"idle":3} maxConcurrentLiveSlots=3 (lineCount=3)
+[r2-twilio]   start: -> 201 {"lineCount":3,"slots":[]}
+[r2-twilio]   line messages:  3 msg=Stopped dialing: the phone service refused 3 calls in a row. Check the phone settings, then start again.; 3 msg=The call couldn't be placed — the phone service returned an error. No attempt was counted and the lead is free again.;
+[r2-twilio]   after: call rows by state: failed=6; leads in_progress: 0; attempts burned: 0
+[r2-twilio] server log: 4 error/warn lines; first: ApiError: The call couldn't be placed — the phone service returned an error. No attempt was counted and the lead is fr
+[r2-bogus] TELEPHONY_PROVIDER=bogus
+[r2-bogus] single-line: lead 1 before: in_queue attempts=0 locked_by=-; call rows: 0
+[r2-bogus]   POST /api/calls {leadId:1} -> [HTTP 502] "error":"The call couldn't be placed — the phone service returned an error. No attempt was counted and the lead is free again."
+[r2-bogus]   lead after: in_queue attempts=0 locked_by=-; call rows: failed ended=true
+[r2-bogus]   same lead again -> [HTTP 502] (a burned lock would give 409); lead: in_queue attempts=0 locked_by=-
+[r2-bogus]   POST /api/calls {} (next in queue) -> [HTTP 502] "error":"The call couldn't be placed — the phone service returned an error. No attempt was counted and the lead is free again."; in_progress leads now: 0; ringing rows: 0
+[r2-bogus] manual dial pad -> [HTTP 502] "error":"The call couldn't be placed — the phone service returned an error."; manual rows: failed ended=true
+[r2-bogus] multi-line, 3 lines, 12 s: SUMMARY sessionId=1 events=12 byStatus={"loading":3,"dialing":3,"failed":3,"idle":3} maxConcurrentLiveSlots=3 (lineCount=3)
+[r2-bogus]   start: -> 201 {"lineCount":3,"slots":[]}
+[r2-bogus]   line messages:  3 msg=Stopped dialing: the phone service refused 3 calls in a row. Check the phone settings, then start again.; 3 msg=The call couldn't be placed — the phone service returned an error. No attempt was counted and the lead is free again.;
+[r2-bogus]   after: call rows by state: failed=6; leads in_progress: 0; attempts burned: 0
+[r2-bogus] server log: 4 error/warn lines; first: ApiError: The call couldn't be placed — the phone service returned an error. No attempt was counted and the lead is fr
+[r2-poll] A (click at ~57 s): state at 6 s: Connected
+[r2-poll]   A: state at ~57 s: Connected; GET /api/calls/:id polls so far: 18, last at 54s; responses {"200":24,"201":1}; first 429: none
+[r2-poll]   A: clicked at 57s; right after: "Logged as Spoke / Interested."; 8 s later: "Logged as Spoke / Interested."
+[r2-poll]   A: POST /api/dispositions seen by the browser: 57.1s 200; DB calls on lead 11: 1:contacted
+[r2-poll]   A: page errors: none
+[r2-poll] B (185 s live call): status every 15 s: 15s:Connected 30s:Connected 45s:Connected 60s:Connected 75s:Connected 90s:Connected 105s:Connected 120s:Connected 135s:Connected 150s:Connected 165s:Connected 180s:Connected
+[r2-poll]   B: GET /api/calls/:id polls in 185 s: 61, last one at 183s; responses {"200":72,"201":1}; first 429: none
+[r2-poll]   B: clicked at 185s; right after: "Logged as Spoke / Interested."; 8 s later: "Logged as Spoke / Interested."
+[r2-poll]   B: POST /api/dispositions seen by the browser: 185.1s 200; DB calls on lead 12: 2:contacted
+[r2-poll]   B: page errors: none
+[r2-poll] C (forced 429, then a network error, on the disposition): state at 6 s: Connected
+[r2-poll]   C: clicked at 6s; right after: "Not saved yet — retrying (3 of 5)…"; 8 s later: "Logged as Spoke / Interested."
+[r2-poll]   C: POST /api/dispositions seen by the browser: 6.2s 429, 9.2s 200; DB calls on lead 13: 3:contacted
+[r2-poll]   C: disposition POSTs attempted by the page: 3 (1st forced 429, 2nd forced network error)
+[r2-poll]   C: page errors: none
+[r2-poll] backend log error/warn lines: 0
+[r2-sess] == F-28 browser goes away: SSE closed at 4 s, never reopened; 30 s ==
+[r2-sess]   calls placed: 0-4 s: 6; 4-15 s: 9; 15-30 s: 0
+[r2-sess]   5 s after the script ended: new calls 0; open calls=0 answered/held open=0 abandoned=3 leads in_progress=0 open sessions=0
+[r2-sess]   server log: Multi-line session of user 1 stopped: browser disconnected for 10 s
+[r2-sess] == F-28 reconnect within the grace period: SSE closed at 4 s, reopened at 9 s; 30 s ==
+[r2-sess]   calls placed: 0-15 s: 15; 15-29 s: 15 (dialing kept going)
+[r2-sess] == F-28/F-29 browser goes away with live calls: 3 lines answered (1 active + 2 held), SSE closed at 6 s; 25 s ==
+[r2-sess]    1 slot 1 answered; 1 slot 2 held; 1 slot 3 held;
+[r2-sess]   after: open calls=0 answered/held open=0 abandoned=3 leads in_progress=0 open sessions=0
+[r2-sess]   calls: 1:answered ended=true abandoned=true, 2:answered ended=true abandoned=true, 3:answered ended=true abandoned=true
+[r2-sess] == F-29 audit §5.2: 3 lines answered -> 1 active + 2 held; manual Stop at 6 s, then /api/sessions/end ==
+[r2-sess]   stop -> multiline/stop {} -> 200 {"abandonedCount":2,"keptLive":{"slotNumber":2,"callId":2,"leadId":2}}
+[r2-sess]   sessions/end -> [HTTP 200]
+[r2-sess]   calls: 1:answered ended=true abandoned=true, 2:answered ended=false abandoned=false, 3:answered ended=true abandoned=true
+[r2-sess]   after stop: open calls=1 answered/held open=1 abandoned=2 leads in_progress=1 open sessions=0
+[r2-sess]   rep finishes the active call 2: disposition -> [HTTP 200]; then: open calls=0 answered/held open=0 abandoned=2 leads in_progress=0 open sessions=0
+[r2-sess]   I6 leads with >1 open call: 0
+[r2-sess] == F-29 audit §5.5: 3 lines answered, server killed (SIGKILL) at 6 s, restarted ==
+[r2-sess]   after the kill: open calls=3 answered/held open=3 abandoned=0 leads in_progress=3 open sessions=1
+[r2-sess]   2 s after restart: open calls=0 answered/held open=0 abandoned=3 leads in_progress=0 open sessions=0
+[r2-sess]   server log: After restart: closed 1 dialing session(s) and 3 open call(s); 3 lead(s) back in the queue 
+[r2-sess] server log: 0 error/warn lines
+[r2-stopui] before Stop: 1:answered/open/- 2:answered/open/- 3:answered/open/-
+[r2-stopui] after Stop: banner "Dialing stopped. Finish the call you're on" shown = true; summary already open = false; End session button still shown = false
+[r2-stopui] after Stop: 1:answered/open/- 2:answered/ended/abandoned/- 3:answered/ended/abandoned/-
+[r2-stopui] after logging the kept call: summary shown = true; abandoned note: "2 calls were abandoned when a live contact was found."
+[r2-stopui] after logging: 1:answered/ended/contacted 2:answered/ended/abandoned/- 3:answered/ended/abandoned/-
+[r2-stopui] DB: open dialing sessions 0; leads in_progress 0; page errors: none
+[r2-stopui] backend log error/warn lines: 0
+[r2-notes] call 1: mid-call note saved ("Note saved" shown = true)
+[r2-notes] call 1 finished: lead_notes rows 1; calls contacted
+[r2-notes] call 2, Previous Notes: mid-call note shown = true; call 1's disposition note shown = true; labels: Note ×1, Call ×1
+[r2-notes] page errors: none
+[r2-notes] backend log error/warn lines: 1
+[r2-b6] == lead-page Schedule callback (POST /api/leads/:id/callback) ==
+[r2-b6]   "next tuesday" -> 400 "error":"A valid callback date and time is required" | lead in_queue next=-, open callbacks 0
+[r2-b6]   "2020-01-01" -> 400 "error":"That callback time is in the past — pick a time from now on" | lead in_queue next=-, open callbacks 0
+[r2-b6]   "2026-11-12T11:05:56Z" -> 200  | lead callback_scheduled next=2026-11-12 11:05, open callbacks 1
+[r2-b6]   "2026-11-14T11:06:26Z" -> 200  | lead callback_scheduled next=2026-11-14 11:06, open callbacks 1
+[r2-b6]   DNC lead 25, future time -> 409 "error":"This lead is on the DNC list — it can't be scheduled for a callback" | lead dnc dnc_flag=true
+[r2-b6] == Redial vs the stale-lock sweep, 40 tries (lock backdated 31 s: expired, not yet swept; timer sweep off, sweeps fired by GET /api/leads) ==
+[r2-b6]   Redial status codes:  40 201;
+[r2-b6]   result: Redial 201 with the lead still locked to the rep: 40; Redial not 201: 0; Redial 201 but the lead was left unlocked: 0
+[r2-b6] server log: 0 error/warn lines
+######## RUN 3
+[r3-twilio] TELEPHONY_PROVIDER=twilio
+[r3-twilio] single-line: lead 1 before: in_queue attempts=0 locked_by=-; call rows: 0
+[r3-twilio]   POST /api/calls {leadId:1} -> [HTTP 502] "error":"The call couldn't be placed — the phone service returned an error. No attempt was counted and the lead is free again."
+[r3-twilio]   lead after: in_queue attempts=0 locked_by=-; call rows: failed ended=true
+[r3-twilio]   same lead again -> [HTTP 502] (a burned lock would give 409); lead: in_queue attempts=0 locked_by=-
+[r3-twilio]   POST /api/calls {} (next in queue) -> [HTTP 502] "error":"The call couldn't be placed — the phone service returned an error. No attempt was counted and the lead is free again."; in_progress leads now: 0; ringing rows: 0
+[r3-twilio] manual dial pad -> [HTTP 502] "error":"The call couldn't be placed — the phone service returned an error."; manual rows: failed ended=true
+[r3-twilio] multi-line, 3 lines, 12 s: SUMMARY sessionId=1 events=12 byStatus={"loading":3,"dialing":3,"failed":3,"idle":3} maxConcurrentLiveSlots=3 (lineCount=3)
+[r3-twilio]   start: -> 201 {"lineCount":3,"slots":[]}
+[r3-twilio]   line messages:  3 msg=Stopped dialing: the phone service refused 3 calls in a row. Check the phone settings, then start again.; 3 msg=The call couldn't be placed — the phone service returned an error. No attempt was counted and the lead is free again.;
+[r3-twilio]   after: call rows by state: failed=6; leads in_progress: 0; attempts burned: 0
+[r3-twilio] server log: 4 error/warn lines; first: ApiError: The call couldn't be placed — the phone service returned an error. No attempt was counted and the lead is fr
+[r3-bogus] TELEPHONY_PROVIDER=bogus
+[r3-bogus] single-line: lead 1 before: in_queue attempts=0 locked_by=-; call rows: 0
+[r3-bogus]   POST /api/calls {leadId:1} -> [HTTP 502] "error":"The call couldn't be placed — the phone service returned an error. No attempt was counted and the lead is free again."
+[r3-bogus]   lead after: in_queue attempts=0 locked_by=-; call rows: failed ended=true
+[r3-bogus]   same lead again -> [HTTP 502] (a burned lock would give 409); lead: in_queue attempts=0 locked_by=-
+[r3-bogus]   POST /api/calls {} (next in queue) -> [HTTP 502] "error":"The call couldn't be placed — the phone service returned an error. No attempt was counted and the lead is free again."; in_progress leads now: 0; ringing rows: 0
+[r3-bogus] manual dial pad -> [HTTP 502] "error":"The call couldn't be placed — the phone service returned an error."; manual rows: failed ended=true
+[r3-bogus] multi-line, 3 lines, 12 s: SUMMARY sessionId=1 events=12 byStatus={"loading":3,"dialing":3,"failed":3,"idle":3} maxConcurrentLiveSlots=3 (lineCount=3)
+[r3-bogus]   start: -> 201 {"lineCount":3,"slots":[]}
+[r3-bogus]   line messages:  3 msg=Stopped dialing: the phone service refused 3 calls in a row. Check the phone settings, then start again.; 3 msg=The call couldn't be placed — the phone service returned an error. No attempt was counted and the lead is free again.;
+[r3-bogus]   after: call rows by state: failed=6; leads in_progress: 0; attempts burned: 0
+[r3-bogus] server log: 4 error/warn lines; first: ApiError: The call couldn't be placed — the phone service returned an error. No attempt was counted and the lead is fr
+[r3-poll] A (click at ~57 s): state at 6 s: Connected
+[r3-poll]   A: state at ~57 s: Connected; GET /api/calls/:id polls so far: 18, last at 54s; responses {"200":24,"201":1}; first 429: none
+[r3-poll]   A: clicked at 57s; right after: "Logged as Spoke / Interested."; 8 s later: "Logged as Spoke / Interested."
+[r3-poll]   A: POST /api/dispositions seen by the browser: 57.1s 200; DB calls on lead 11: 1:contacted
+[r3-poll]   A: page errors: none
+[r3-poll] B (185 s live call): status every 15 s: 15s:Connected 30s:Connected 45s:Connected 60s:Connected 75s:Connected 90s:Connected 105s:Connected 120s:Connected 135s:Connected 150s:Connected 165s:Connected 180s:Connected
+[r3-poll]   B: GET /api/calls/:id polls in 185 s: 61, last one at 183s; responses {"200":72,"201":1}; first 429: none
+[r3-poll]   B: clicked at 185s; right after: "Logged as Spoke / Interested."; 8 s later: "Logged as Spoke / Interested."
+[r3-poll]   B: POST /api/dispositions seen by the browser: 185.1s 200; DB calls on lead 12: 2:contacted
+[r3-poll]   B: page errors: none
+[r3-poll] C (forced 429, then a network error, on the disposition): state at 6 s: Connected
+[r3-poll]   C: clicked at 6s; right after: "Not saved yet — retrying (3 of 5)…"; 8 s later: "Logged as Spoke / Interested."
+[r3-poll]   C: POST /api/dispositions seen by the browser: 6.2s 429, 9.2s 200; DB calls on lead 13: 3:contacted
+[r3-poll]   C: disposition POSTs attempted by the page: 3 (1st forced 429, 2nd forced network error)
+[r3-poll]   C: page errors: none
+[r3-poll] backend log error/warn lines: 0
+[r3-sess] == F-28 browser goes away: SSE closed at 4 s, never reopened; 30 s ==
+[r3-sess]   calls placed: 0-4 s: 6; 4-15 s: 9; 15-30 s: 0
+[r3-sess]   5 s after the script ended: new calls 0; open calls=0 answered/held open=0 abandoned=3 leads in_progress=0 open sessions=0
+[r3-sess]   server log: Multi-line session of user 1 stopped: browser disconnected for 10 s
+[r3-sess] == F-28 reconnect within the grace period: SSE closed at 4 s, reopened at 9 s; 30 s ==
+[r3-sess]   calls placed: 0-15 s: 15; 15-29 s: 15 (dialing kept going)
+[r3-sess] == F-28/F-29 browser goes away with live calls: 3 lines answered (1 active + 2 held), SSE closed at 6 s; 25 s ==
+[r3-sess]    1 slot 1 held; 1 slot 2 answered; 1 slot 3 held;
+[r3-sess]   after: open calls=0 answered/held open=0 abandoned=3 leads in_progress=0 open sessions=0
+[r3-sess]   calls: 1:answered ended=true abandoned=true, 2:answered ended=true abandoned=true, 3:answered ended=true abandoned=true
+[r3-sess] == F-29 audit §5.2: 3 lines answered -> 1 active + 2 held; manual Stop at 6 s, then /api/sessions/end ==
+[r3-sess]   stop -> multiline/stop {} -> 200 {"abandonedCount":2,"keptLive":{"slotNumber":2,"callId":2,"leadId":2}}
+[r3-sess]   sessions/end -> [HTTP 200]
+[r3-sess]   calls: 1:answered ended=true abandoned=true, 2:answered ended=false abandoned=false, 3:answered ended=true abandoned=true
+[r3-sess]   after stop: open calls=1 answered/held open=1 abandoned=2 leads in_progress=1 open sessions=0
+[r3-sess]   rep finishes the active call 2: disposition -> [HTTP 200]; then: open calls=0 answered/held open=0 abandoned=2 leads in_progress=0 open sessions=0
+[r3-sess]   I6 leads with >1 open call: 0
+[r3-sess] == F-29 audit §5.5: 3 lines answered, server killed (SIGKILL) at 6 s, restarted ==
+[r3-sess]   after the kill: open calls=3 answered/held open=3 abandoned=0 leads in_progress=3 open sessions=1
+[r3-sess]   2 s after restart: open calls=0 answered/held open=0 abandoned=3 leads in_progress=0 open sessions=0
+[r3-sess]   server log: After restart: closed 1 dialing session(s) and 3 open call(s); 3 lead(s) back in the queue 
+[r3-sess] server log: 0 error/warn lines
+[r3-stopui] before Stop: 1:answered/open/- 2:answered/open/- 3:answered/open/-
+[r3-stopui] after Stop: banner "Dialing stopped. Finish the call you're on" shown = true; summary already open = false; End session button still shown = false
+[r3-stopui] after Stop: 1:answered/ended/abandoned/- 2:answered/open/- 3:answered/ended/abandoned/-
+[r3-stopui] after logging the kept call: summary shown = true; abandoned note: "2 calls were abandoned when a live contact was found."
+[r3-stopui] after logging: 1:answered/ended/abandoned/- 2:answered/ended/contacted 3:answered/ended/abandoned/-
+[r3-stopui] DB: open dialing sessions 0; leads in_progress 0; page errors: none
+[r3-stopui] backend log error/warn lines: 0
+[r3-notes] call 1: mid-call note saved ("Note saved" shown = true)
+[r3-notes] call 1 finished: lead_notes rows 1; calls contacted
+[r3-notes] call 2, Previous Notes: mid-call note shown = true; call 1's disposition note shown = true; labels: Note ×1, Call ×1
+[r3-notes] page errors: none
+[r3-notes] backend log error/warn lines: 1
+[r3-b6] == lead-page Schedule callback (POST /api/leads/:id/callback) ==
+[r3-b6]   "next tuesday" -> 400 "error":"A valid callback date and time is required" | lead in_queue next=-, open callbacks 0
+[r3-b6]   "2020-01-01" -> 400 "error":"That callback time is in the past — pick a time from now on" | lead in_queue next=-, open callbacks 0
+[r3-b6]   "2026-11-12T11:18:31Z" -> 200  | lead callback_scheduled next=2026-11-12 11:18, open callbacks 1
+[r3-b6]   "2026-11-14T11:19:01Z" -> 200  | lead callback_scheduled next=2026-11-14 11:19, open callbacks 1
+[r3-b6]   DNC lead 25, future time -> 409 "error":"This lead is on the DNC list — it can't be scheduled for a callback" | lead dnc dnc_flag=true
+[r3-b6] == Redial vs the stale-lock sweep, 40 tries (lock backdated 31 s: expired, not yet swept; timer sweep off, sweeps fired by GET /api/leads) ==
+[r3-b6]   Redial status codes:  40 201;
+[r3-b6]   result: Redial 201 with the lead still locked to the rep: 40; Redial not 201: 0; Redial 201 but the lead was left unlocked: 0
+[r3-b6] server log: 0 error/warn lines
+######## BASE notes + stop UI reruns (before evidence, x1 already; one more each)
+[pre2-notes] call 1: mid-call note saved ("Note saved" shown = true)
+[pre2-notes] call 1 finished: lead_notes rows 1; calls contacted
+[pre2-notes] call 2, Previous Notes: mid-call note shown = false; call 1's disposition note shown = true; labels: Note ×0, Call ×0
+[pre2-notes] page errors: none
+[pre2-notes] backend log error/warn lines: 1
+VERIFY-B-DONE

@@ -1,99 +1,233 @@
 const { ApiError } = require('../middleware/errorHandler');
+const settingsStore = require('./settings');
+const { STATE_ZONES, ALL_ZONES, zonesForAreaCode, stateForAreaCode, zonesForPlace } = require('../utils/timeZones');
 
 const CALLING_HOURS_START = 8; // 8am inclusive
 const CALLING_HOURS_END = 21; // 9pm exclusive
+const ENFORCEMENT_SETTING_KEY = 'calling_hours_enforced';
+// A dial is allowed only if the lead's zones are open now AND a few seconds
+// from now, so a call can't be placed in the last instant before 9pm.
+const DIAL_MARGIN_MS = 5000;
 
-// One representative IANA time zone per state. A few states technically
-// straddle two zones (e.g. FL panhandle, western TX) — this is a documented
-// phase-1 simplification; the important part is that every state maps to
-// *some* zone so calling hours are always enforced.
-const STATE_TIMEZONES = {
-  AL: 'America/Chicago',
-  AK: 'America/Anchorage',
-  AZ: 'America/Phoenix',
-  AR: 'America/Chicago',
-  CA: 'America/Los_Angeles',
-  CO: 'America/Denver',
-  CT: 'America/New_York',
-  DE: 'America/New_York',
-  DC: 'America/New_York',
-  FL: 'America/New_York',
-  GA: 'America/New_York',
-  HI: 'Pacific/Honolulu',
-  ID: 'America/Boise',
-  IL: 'America/Chicago',
-  IN: 'America/Indiana/Indianapolis',
-  IA: 'America/Chicago',
-  KS: 'America/Chicago',
-  KY: 'America/New_York',
-  LA: 'America/Chicago',
-  ME: 'America/New_York',
-  MD: 'America/New_York',
-  MA: 'America/New_York',
-  MI: 'America/Detroit',
-  MN: 'America/Chicago',
-  MS: 'America/Chicago',
-  MO: 'America/Chicago',
-  MT: 'America/Denver',
-  NE: 'America/Chicago',
-  NV: 'America/Los_Angeles',
-  NH: 'America/New_York',
-  NJ: 'America/New_York',
-  NM: 'America/Denver',
-  NY: 'America/New_York',
-  NC: 'America/New_York',
-  ND: 'America/Chicago',
-  OH: 'America/New_York',
-  OK: 'America/Chicago',
-  OR: 'America/Los_Angeles',
-  PA: 'America/New_York',
-  RI: 'America/New_York',
-  SC: 'America/New_York',
-  SD: 'America/Chicago',
-  TN: 'America/Chicago',
-  TX: 'America/Chicago',
-  UT: 'America/Denver',
-  VT: 'America/New_York',
-  VA: 'America/New_York',
-  WA: 'America/Los_Angeles',
-  WV: 'America/New_York',
-  WI: 'America/Chicago',
-  WY: 'America/Denver',
-};
+// Settings → "Enforce calling hours". ON unless the setting is exactly
+// 'false' (a missing setting means ON). The value is cached for
+// CACHE_REFRESH_MS; settings.setSetting() pushes every change here at once
+// (onSettingChanged below), and the async checks await a refresh when the
+// cache is stale, so a flip of the toggle applies to the very next dial.
+const CACHE_REFRESH_MS = 5000;
+let cachedEnforced = true;
+let lastRefreshAt = 0;
+let refreshPromise = null;
+let changeVersion = 0; // bumped by every saved change; a DB read that started earlier is ignored
 
-function timezoneForState(state) {
-  return STATE_TIMEZONES[state] || 'America/New_York';
+const enforcedFromValue = (value) => value !== 'false';
+
+function refreshEnforcedCache() {
+  if (refreshPromise) return refreshPromise;
+  const startedAt = changeVersion;
+  refreshPromise = settingsStore
+    .getSetting(ENFORCEMENT_SETTING_KEY)
+    .then((value) => {
+      if (startedAt !== changeVersion) return;
+      cachedEnforced = enforcedFromValue(value);
+      lastRefreshAt = Date.now();
+    })
+    .catch(() => {
+      // Keep the cached value on a transient DB error (it starts as ON).
+    })
+    .finally(() => {
+      refreshPromise = null;
+    });
+  return refreshPromise;
 }
 
-function localHour(state, date = new Date()) {
-  const timeZone = timezoneForState(state);
-  const formatted = new Intl.DateTimeFormat('en-US', {
-    hour: 'numeric',
-    hour12: false,
-    timeZone,
-  }).format(date);
-  const hour = Number(formatted);
-  return hour === 24 ? 0 : hour; // ICU quirk: midnight can format as "24"
+/** The current setting, refreshed from the DB first when the cache is stale. */
+async function isEnforced() {
+  if (Date.now() - lastRefreshAt >= CACHE_REFRESH_MS) await refreshEnforcedCache();
+  return cachedEnforced;
 }
 
-function isWithinCallingHours(state, date = new Date()) {
-  const hour = localHour(state, date);
+/** Synchronous read of the cached value (starts a background refresh when stale). */
+function isCallingHoursEnforced() {
+  if (Date.now() - lastRefreshAt >= CACHE_REFRESH_MS) refreshEnforcedCache();
+  return cachedEnforced;
+}
+
+settingsStore.onSettingChanged(ENFORCEMENT_SETTING_KEY, (value) => {
+  changeVersion += 1;
+  cachedEnforced = enforcedFromValue(value);
+  lastRefreshAt = Date.now();
+});
+
+// ---- zones -----------------------------------------------------------------
+
+function cleanState(state) {
+  return String(state || '').trim().toUpperCase();
+}
+
+function areaCodeOf(phone) {
+  let digits = String(phone || '').replace(/\D/g, '');
+  if (digits.length === 11 && digits[0] === '1') digits = digits.slice(1);
+  return digits.length === 10 ? digits.slice(0, 3) : null;
+}
+
+const union = (...lists) => [...new Set(lists.flat())].sort();
+
+/**
+ * Every IANA zone the lead could be in. Order: (1) the phone's area code,
+ * (2) a known place in the lead's address when the area code (or the state)
+ * spans two zones, (3) all zones of the state. When the area code belongs to
+ * another state than the lead (a moved or ported number), both are kept —
+ * the dial then waits until every one of them is inside calling hours.
+ * Returns [] when the state is missing or not a known US state/territory:
+ * the time zone is unknown and the lead is never dialed while enforced.
+ */
+function zonesForLead({ phone, state, address, city } = {}) {
+  const st = cleanState(state);
+  const stateZones = STATE_ZONES[st];
+  if (!stateZones) return [];
+
+  const placeZones = zonesForPlace(st, [address, city].filter(Boolean).join(', '));
+  const areaCode = areaCodeOf(phone);
+  const codeZones = zonesForAreaCode(areaCode);
+  if (codeZones && stateForAreaCode(areaCode) === st) {
+    if (codeZones.length > 1 && placeZones) {
+      const narrowed = codeZones.filter((z) => placeZones.includes(z));
+      if (narrowed.length) return union(narrowed);
+    }
+    return union(codeZones);
+  }
+  const fromState = placeZones || stateZones;
+  return codeZones ? union(codeZones, fromState) : union(fromState);
+}
+
+/** Zones for a bare number (the dial pad): from its area code only, [] if unknown. */
+function zonesForNumber(phone) {
+  return union(zonesForAreaCode(areaCodeOf(phone)) || []);
+}
+
+function localParts(zone, date) {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: zone, hour: 'numeric', minute: '2-digit', hourCycle: 'h23',
+  }).formatToParts(date);
+  const get = (type) => Number(parts.find((p) => p.type === type).value);
+  return { hour: get('hour') % 24, minute: get('minute') };
+}
+
+function isZoneOpenAt(zone, date) {
+  const { hour } = localParts(zone, date);
   return hour >= CALLING_HOURS_START && hour < CALLING_HOURS_END;
 }
 
-function assertCallingHours(state, date = new Date()) {
-  if (!isWithinCallingHours(state, date)) {
+function isZoneOpen(zone, date = new Date()) {
+  return isZoneOpenAt(zone, date) && isZoneOpenAt(zone, new Date(date.getTime() + DIAL_MARGIN_MS));
+}
+
+function zonesOpen(zones, date = new Date()) {
+  return Array.isArray(zones) && zones.length > 0 && zones.every((z) => isZoneOpen(z, date));
+}
+
+/** The zones inside calling hours at `date` — the queue's SQL filter. */
+function openZones(date = new Date()) {
+  return ALL_ZONES.filter((z) => isZoneOpen(z, date));
+}
+
+/** null when calling hours are off (no filter), else the open zones. */
+async function openZonesNow(date = new Date()) {
+  return (await isEnforced()) ? openZones(date) : null;
+}
+
+/**
+ * The next moment every zone in `zones` is open (all zones are whole-hour
+ * offsets, so local hours change only at the top of a UTC hour). null if
+ * the zones are unknown or never open together within two days.
+ */
+function nextOpensAt(zones, date = new Date()) {
+  if (!Array.isArray(zones) || zones.length === 0) return null;
+  if (zonesOpen(zones, date)) return date;
+  const t = new Date(date);
+  t.setUTCMinutes(0, 0, 0);
+  for (let i = 1; i <= 48; i++) {
+    const candidate = new Date(t.getTime() + i * 3600e3);
+    if (zonesOpen(zones, candidate)) return candidate;
+  }
+  return null;
+}
+
+function describeLocalTime(zones, date) {
+  return zones
+    .map((z) => new Intl.DateTimeFormat('en-US', { timeZone: z, hour: 'numeric', minute: '2-digit', timeZoneName: 'short' }).format(date))
+    .filter((v, i, all) => all.indexOf(v) === i)
+    .join(' / ');
+}
+
+/**
+ * The one check every outbound path uses. Pass the lead (its stored
+ * tz_zones are used when present) or { zones }. Throws 422 when calling
+ * hours are enforced and the lead's local time is outside 8am–9pm in any of
+ * its zones, or when its zone is unknown.
+ */
+async function assertCallingHours(target, date = new Date()) {
+  if (!(await isEnforced())) return;
+  const zones = zonesOf(target);
+  if (zones.length === 0) {
+    throw new ApiError(422, target?.phoneOnly
+      ? "Time zone unknown for this number's area code — calling hours can't be checked, so it can't be dialed while they're enforced."
+      : 'Time zone unknown, set the state first');
+  }
+  if (!zonesOpen(zones, date)) {
     throw new ApiError(
       422,
-      `Outside calling hours for ${state} (8am-9pm local time). Try again later.`
+      `Outside calling hours (8am–9pm local time; it's ${describeLocalTime(zones, date)} there). Try again later.`
     );
   }
 }
 
+/** The dial pad: the zone comes from the dialled number's area code. */
+async function assertNumberCallingHours(phone, date = new Date()) {
+  return assertCallingHours({ zones: zonesForNumber(phone), phoneOnly: true }, date);
+}
+
+function zonesOf(target) {
+  if (!target) return [];
+  if (Array.isArray(target.zones)) return target.zones;
+  if (Array.isArray(target.tz_zones)) return target.tz_zones;
+  return zonesForLead(target);
+}
+
+// ---- kept for existing callers ----------------------------------------------
+
+/** The state's main zone, for display (preCallBrief). Not used for the dialing check. */
+function timezoneForState(state) {
+  const zones = STATE_ZONES[cleanState(state)];
+  return zones ? zones[0] : 'America/New_York';
+}
+
+function localHour(state, date = new Date()) {
+  return localParts(timezoneForState(state), date).hour;
+}
+
+/** Synchronous, state-only form of the same rule (every zone of the state must be open). */
+function isWithinCallingHours(state, date = new Date()) {
+  if (!isCallingHoursEnforced()) return true;
+  return zonesOpen(zonesForLead({ state }), date);
+}
+
 module.exports = {
-  isWithinCallingHours,
   assertCallingHours,
+  assertNumberCallingHours,
+  zonesForLead,
+  zonesForNumber,
+  openZones,
+  openZonesNow,
+  zonesOpen,
+  nextOpensAt,
+  isEnforced,
+  isCallingHoursEnforced,
+  isWithinCallingHours,
   timezoneForState,
   localHour,
-  STATE_TIMEZONES,
+  ENFORCEMENT_SETTING_KEY,
+  CALLING_HOURS_START,
+  CALLING_HOURS_END,
 };

@@ -1,0 +1,56 @@
+# dev.sh test — non-root user 'codespace' (sudo needs a password), ~/pgdata cluster on 5433, Postgres stopped at start
+
+## ORIGINAL dev.sh (origin/latest)
+==> Postgres
+    Postgres isn't installed/configured yet — running one-time setup...
+sudo: a terminal is required to read the password; ...
+sudo: a password is required
+    16/main (port 5432): down
+==> Backend: migrate + start
+Error: connect ECONNREFUSED 127.0.0.1:5433
+
+## UPDATED dev.sh
+### 1) ./dev.sh  (Postgres stopped, nothing running)
+==> Postgres
+    started (/home/codespace/pgdata, port 5433)
+==> Clearing anything already on 4000/5173
+==> Backend: migrate + start
+Migrations up to date.
+    Backend up: {"status":"ok"}
+==> Frontend: start
+    Frontend up on http://localhost:5173
+Everything is up.
+Backend log:  ./dev.sh logs backend
+Frontend log: ./dev.sh logs frontend
+exit=0
+### 2) ./dev.sh status
+--- Postgres ---
+running (/home/codespace/pgdata, port 5433)
+--- Backend (http://localhost:4000) ---
+{"status":"ok"}
+--- Frontend (http://localhost:5173) ---
+up
+### 3) ./dev.sh again while running
+==> Postgres
+    already running (/home/codespace/pgdata, port 5433)
+==> Clearing anything already on 4000/5173
+==> Backend: migrate + start
+Migrations up to date.
+    Backend up: {"status":"ok"}
+==> Frontend: start
+    Frontend up on http://localhost:5173
+Everything is up.
+Backend log:  ./dev.sh logs backend
+Frontend log: ./dev.sh logs frontend
+exit=0
+processes listening: 4000=1 5173=1 (1 each = no doubling)
+### 4) ./dev.sh stop; ./dev.sh status
+Stopped backend and frontend.
+--- Postgres ---
+running (/home/codespace/pgdata, port 5433)
+--- Backend (http://localhost:4000) ---
+not responding
+--- Frontend (http://localhost:5173) ---
+not responding
+Terminated
+Terminated

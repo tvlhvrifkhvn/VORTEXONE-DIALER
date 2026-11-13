@@ -1,0 +1,494 @@
+## 4.1 concurrency: 20 parallel POST /api/calls {} ("next lead") — backend restarted fresh
+  HTTP      20 400
+calls created: 0   distinct leads: 0
+leads that got more than one call from this burst:
+ lead_id | calls | call_ids 
+---------+-------+----------
+(0 rows)
+
+attempts on those leads:
+ id | name | attempts | status 
+----+------+----------+--------
+(0 rows)
+
+(first attempt above was invalid: xargs -I{} substituted the {} JSON body, so all 20 got 400; re-run with -I%)
+## 4.1 concurrency re-run: 20 parallel POST /api/calls {}
+  HTTP       1 10{http_code}
+  HTTP       1 11{http_code}
+  HTTP       1 12{http_code}
+  HTTP       1 13{http_code}
+  HTTP       1 14{http_code}
+  HTTP       1 15{http_code}
+  HTTP       1 16{http_code}
+  HTTP       1 17{http_code}
+  HTTP       1 18{http_code}
+  HTTP       1 19{http_code}
+  HTTP       1 1{http_code}
+  HTTP       1 20{http_code}
+  HTTP       1 2{http_code}
+  HTTP       1 3{http_code}
+  HTTP       1 4{http_code}
+  HTTP       1 5{http_code}
+  HTTP       1 6{http_code}
+  HTTP       1 7{http_code}
+  HTTP       1 8{http_code}
+  HTTP       1 9{http_code}
+calls created: 20   distinct leads: 4
+leads that got more than one call from this burst:
+ lead_id | calls |          call_ids           
+---------+-------+-----------------------------
+       2 |     2 | {3,5}
+       4 |    10 | {6,7,8,9,10,11,12,13,14,15}
+       5 |     7 | {16,17,18,19,20,21,22}
+(3 rows)
+
+ id |      name       | attempts |   status    
+----+-----------------+----------+-------------
+  4 | James Whitfield |       10 | in_progress
+  2 | David Chen      |        2 | in_progress
+  5 | Angela Rossi    |        7 | in_progress
+(3 rows)
+
+## 4.1b by-id race: 10 parallel POST /api/calls {leadId:X} for the same fresh lead
+  HTTP       1 10{http_code}
+  HTTP       1 1{http_code}
+  HTTP       1 2{http_code}
+  HTTP       1 3{http_code}
+  HTTP       1 4{http_code}
+  HTTP       1 5{http_code}
+  HTTP       1 6{http_code}
+  HTTP       1 7{http_code}
+  HTTP       1 8{http_code}
+  HTTP       1 9{http_code}
+calls on lead 98: 10  attempts now: 10
+
+## 4.2 hang up without disposition -> back to in_queue? (real timing)
+lead 52 call 33 started
+ id |   status    | locked_by |           locked_at           | attempts 
+----+-------------+-----------+-------------------------------+----------
+ 52 | in_progress |         1 | 2026-11-11 10:51:53.806313+00 |        1
+(1 row)
+
+hangup: {"gracePeriodSeconds":30} [HTTP 200]
+-- (a) without any queue read: DB status after 40s
+status=in_progress locked_at age=40s
+-- (b) one queue read (GET /api/leads/state-counts) triggers the lazy sweep:
+status=in_queue locked_by=null
+-- (c) measure precise release time on a second lead, polling the list endpoint every 2s
+-- call_history rows for these two calls (never dispositioned):
+ id | lead_id | disposition | ended | was_abandoned 
+----+---------+-------------+-------+---------------
+ 33 |      52 |             | t     | t
+ 34 |      53 |             | t     | t
+(2 rows)
+
+-- (c) result: GET /api/leads/search did NOT release lead 53 within 60s (search() doesn't call releaseStaleLocks): in_progress
+-- (c2) re-measure on a third lead polling GET /api/leads?pageSize=1 (list() sweeps) every 1s
+lead 54 back to in_queue after 31s (target 30s)
+lead 52 attempts=1 status=in_queue
+lead 53 attempts=1 status=in_queue
+lead 54 attempts=1 status=in_queue
+
+## 4.3 a LIVE call (no hangup, no disposition) older than 30s — does the sweep release the lead mid-call?
+user: {"id":2,"email":"rep2@example.com","role":"rep"}
+user1 starts call 36 on lead 55 (no hangup)
+after 33s: ended (telephony_state of call 36)
+after a dashboard read: lead 55 = in_queue locked_by=null
+user2 dials the same lead by id: "call":{"id":37 [HTTP 201] 
+ id | lead_id | user_id | disposition | still_open 
+----+---------+---------+-------------+------------
+ 36 |      55 |       1 |             | t
+ 37 |      55 |       1 |             | t
+(2 rows)
+
+user1 now submits a disposition on the original call: "status":"contacted" [HTTP 200] 
+ id |  status   | locked_by | attempts 
+----+-----------+-----------+----------
+ 55 | contacted |           |        2
+(1 row)
+
+(4.3 above was flawed: the token-file argument was misplaced so 'user2' was really user1, and the mock call randomly ended unanswered. Re-run below with a forced ANSWERED outcome and the real second user.)
+## 4.3 re-run — backend restarted with audit/stubs/force-outcome.js preloaded (forced outcome = answered)
+user1 (id 1) starts call 38 on lead 56, no hangup
+t=5s telephony_state=answered
+t=33s telephony_state=answered (still a live answered call)
+after one dashboard read: lead 56 = in_queue locked_by=null
+user2 (id 2) dials the same lead: "call":{"id":39 [HTTP 201] 
+ id | lead_id | user_id | telephony_state | disposition 
+----+---------+---------+-----------------+-------------
+ 38 |      56 |       1 | answered        | 
+ 39 |      56 |       1 | answered        | 
+(2 rows)
+
+ id |   status    | locked_by | attempts 
+----+-------------+-----------+----------
+ 56 | in_progress |         1 |        2
+(1 row)
+
+(second 4.3 attempt also misused the helper: extra empty arg put token2 in position 5, so it ran as user1 again — but it DID show user1 re-dialing a lead whose answered call was still live. Correct two-user run below.)
+## 4.3 third run — forced ANSWERED, user1 then real user2 (api ... token2 verified = id 2)
+user1 starts call 40 on lead 57, no hangup
+t=33s call 40 telephony_state=answered
+after one dashboard read: lead 57 = in_queue locked_by=null
+user2 dials the same lead: "call":{"id":41 [HTTP 201] 
+ id | lead_id | user_id | telephony_state | disposition 
+----+---------+---------+-----------------+-------------
+ 40 |      57 |       1 | answered        | 
+ 41 |      57 |       2 | answered        | 
+(2 rows)
+
+ id |   status    | locked_by | attempts 
+----+-------------+-----------+----------
+ 57 | in_progress |         2 |        2
+(1 row)
+
+user1 dispositions the original call while user2 is on the lead: "status":"voicemail" [HTTP 200] 
+ id |  status   | locked_by | attempts |       next_action_at       
+----+-----------+-----------+----------+----------------------------
+ 57 | voicemail |           |        2 | 2026-11-11 14:56:55.163+00
+(1 row)
+
+
+## 4.4 voicemail / no_answer requeue + max_attempts boundary (force-outcome file removed: real random mock)
+lead 58 (max_attempts=5)
+dial #1 + voicemail : status=voicemail attempts=1/5 cold_reason=null next_action_in=4.00h
+immediate re-dial while not due: {"error":"Lead is not due yet (next action at Wed Nov 11 2026 14:57:07 GMT+0000 (Coordinated Universal Time))"} [HTTP 409]
+dial #2 + no_answer: status=no_answer attempts=2/5 cold_reason=null next_action_in=4.00h
+dial #3 + no_answer: status=no_answer attempts=3/5 cold_reason=null next_action_in=4.00h
+dial #4 + no_answer: status=no_answer attempts=4/5 cold_reason=null next_action_in=4.00h
+dial #5 + no_answer: status=cold attempts=5/5 cold_reason=max_attempts next_action_in=null
+dial #6 + no_answer: ERROR Unexpected token 'u', ..."{"callId":undefined,"... is not valid JSON
+(next_action_at was moved into the past via SQL between dials to simulate the 4h wait — labelled)
+where max_attempts is configured:
+backend/src/db/migrations/002_create_leads.sql:14:  max_attempts INTEGER NOT NULL DEFAULT 5,
+backend/src/db/migrations/002_create_leads.sql:18:  cold_reason TEXT CHECK (cold_reason IN ('max_attempts', 'no_contact_person')),
+backend/src/services/callSession.js:258: * lifecycle rules (attempts, 4h requeue, cold at max_attempts), then pull the
+backend/src/services/leadLifecycle.js:79:      if (lead.attempts >= lead.max_attempts) {
+backend/src/services/leadLifecycle.js:81:          status: 'cold', cold_at: now, cold_reason: 'max_attempts',
+frontend/src/pages/Settings.jsx:9:const MAX_ATTEMPTS_KEY = 'vortex_dialer_default_max_attempts';
+frontend/src/pages/Settings.jsx:83:  const [maxAttempts, setMaxAttempts] = useState(() => readLocalNumber(MAX_ATTEMPTS_KEY, DEFAULT_MAX_ATTEMPTS));
+frontend/src/pages/Settings.jsx:104:    localStorage.setItem(MAX_ATTEMPTS_KEY, String(maxAttempts));
+dial #6 on the cold lead 58 explicitly: {"error":"Lead is not dialable (status: cold)"} [HTTP 409]
+
+## 4.5 callback_scheduled resurfaces at its due time with priority
+lead 59 callback at 2026-11-11T10:57:31Z: "status":"callback_scheduled" "next_action_at":"2026-11-11T10:57:31.000Z" [HTTP 200] 
+before due: next lead served = 1 (should NOT be 59)
+after due:  next lead served = 59 (should be 59 — callback has priority 0)
+CANDIDATE order SQL:
+const CANDIDATE_ORDER_SQL = `
+  ORDER BY CASE status WHEN 'callback_scheduled' THEN 0 ELSE 1 END,
+           next_action_at ASC NULLS FIRST,
+           created_at ASC
+`;
+
+## 4.6 no_contact_number
+ id |      status       |    phone     | missing_phone | next_action_at | cold_reason 
+----+-------------------+--------------+---------------+----------------+-------------
+ 60 | no_contact_number | +17135551001 | f             |                | 
+(1 row)
+
+re-dial: {"error":"Lead is not dialable (status: no_contact_number)"} [HTTP 409]
+schema: phone columns on leads = missing_phone,phone
+phone_numbers table columns = id,e164,area_code,state,provider,active,retired_at,created_at
+is there any path out of no_contact_number? grep:
+backend/src/services/preCallBrief.js:31:  no_contact_number: 'bad number',
+backend/src/services/dialingSession.js:16:// no_contact_number/no_contact_person have no dedicated column in this
+backend/src/services/leadLifecycle.js:18:  'no_contact_number',
+backend/src/services/leadLifecycle.js:91:    } else if (disposition === 'no_contact_number') {
+backend/src/services/leadLifecycle.js:92:      Object.assign(updates, { status: 'no_contact_number', next_action_at: null, locked_by: null, locked_at: null });
+backend/src/services/colleagueIntel.js:11:// no_contact_number did not reach anyone, so they are not "contacted".
+backend/src/services/pdfExport.js:36:  no_contact_number: 'Bad Number',
+frontend/src/styles/theme.js:49:  no_contact_number: 'Bad number',
+frontend/src/pages/CallScreen.jsx:20:  no_contact_number: 'No Contact — Number',
+
+## 4.7 no_contact_person + name cascade (two different people, same name, different states)
+inserted leads a=15049
+INSERT 0 1 (TX) b=15050
+INSERT 0 1 (FL) c=15051
+INSERT 0 1 (AZ, callback_scheduled) — synthetic rows via SQL
+dispo: [HTTP 400] 
+ERROR:  syntax error at or near "INSERT"
+LINE 2: INSERT 0 1,15050
+        ^
+ERROR:  syntax error at or near "INSERT"
+LINE 2: INSERT 0 1 and done=false
+        ^
+(4.7 first attempt: psql printed the INSERT tag into the ids; rows 15049-15051 were inserted. helper fixed with -q; re-run below)
+## 4.6b does editing the phone of a no_contact_number lead make it workable again?
+PUT phone: "phone":"(713) 555-7777" "status":"no_contact_number" [HTTP 200] 
+re-dial: {"error":"Lead is not dialable (status: no_contact_number)"} [HTTP 409]
+## 4.7 no_contact_person + name cascade
+  id   |    name     | state |       status       
+-------+-------------+-------+--------------------
+ 15049 | Sam Same    | TX    | new
+ 15050 | Sam Same    | FL    | in_queue
+ 15051 |   sam same  | AZ    | callback_scheduled
+(3 rows)
+
+call 51 dispo no_contact_person: "cascadedLeadIds":[15050,15051] [HTTP 200] 
+  id   |    name     | state | status |    cold_reason    
+-------+-------------+-------+--------+-------------------
+ 15049 | Sam Same    | TX    | cold   | no_contact_person
+ 15050 | Sam Same    | FL    | cold   | no_contact_person
+ 15051 |   sam same  | AZ    | cold   | no_contact_person
+(3 rows)
+
+open callbacks rows left for lead 15051 after cascade: 0 (it had none: status set via SQL)
+undo of that disposition (within 10s) restores siblings?
+"status":"in_progress" [HTTP 200] 
+  id   | state |   status    |    cold_reason    
+-------+-------+-------------+-------------------
+ 15049 | TX    | in_progress | 
+ 15050 | FL    | cold        | no_contact_person
+ 15051 | AZ    | cold        | no_contact_person
+(3 rows)
+
+
+## 4.8 DNC
+lead 11 (Alice Archer, DNC'd in §3): dnc dnc_flag=true phone=+12145550101
+a) queue never serves it: candidates containing DNC leads = 0 ; lead 11 status not dialable
+b) POST /api/calls {leadId:11}: {"error":"Lead is not dialable (status: dnc)"} [HTTP 409]
+c) POST /api/calls/manual/start with the DNC number +12145550101: "error":"This number is on the DNC list and cannot be dialed" [HTTP 409] 
+   callSession.js 7:const dncCheck = require('./dncCheck');
+   callSession.js 77: * already on the DNC list, so the dial pad can't be used to route around
+   callSession.js 84:  if (await dncCheck.isOnDncList(toNumber)) {
+   callSession.js 85:    throw new ApiError(409, 'This number is on the DNC list and cannot be dialed');
+   callSession.js 374:  // A DNC number must never be dialed. The import already blocks them, but a
+   callSession.js 375:  // lead can be added to the list after import (a rep pressing DNC on an
+d) a second lead row with the same DNC number can't exist (leads.phone UNIQUE): 1 unique index
+e) Undo a DNC disposition inside the 10s window
+   after DNC: lead=dnc/dnc_flag=true dnc_list rows for +13055551001 = 1
+   undo: "status":"in_progress" [HTTP 200] 
+   after undo: lead=in_progress/dnc_flag=false dnc_list rows for +13055551001 = 0
+f) undo DNC deletes by lead_id — a number that was on the list BEFORE (e.g. imported list) and then dispositioned DNC again:
+   lead 15052 phone already on dnc_list (source imported, synthetic SQL); dnc_flag=f status=new
+   queue/by-id dial of a lead whose number is on dnc_list but dnc_flag=false: "call":{"id":53 [HTTP 201] 
+g) soft-deleted lead dialable by id?
+   delete: [HTTP 200]  deleted_at set=t
+   dial by id: "call":{"id":54 [HTTP 201] 
+## 4.8h API-only path to dialing a DNC'd number (no SQL)
+1. DNC lead 11 holds +12145550101 (on dnc_list). Edit lead 11's phone (e.g. a typo fix): "phone":"(214) 555-0199" "dnc_flag":true [HTTP 200] 
+2. Edit another lead 63's phone to the DNC'd number: "phone":"(214) 555-0101" "dnc_flag":false [HTTP 200] 
+   dnc_list still has +12145550101: 1
+3. Dial lead 63 (single-line path): "call":{"id":55 [HTTP 201] 
+4. Create a NEW lead with a DNC'd number via POST /api/leads: (first free the number from lead 63 by editing it back)
+   "error":"This number is on the DNC list and cannot be added as a lead" [HTTP 409] 
+grep createLead/updateFields for a DNC check:
+   dnc mentions in createLead+updateFields: 0
+## 4.8i stored phone values after PUT (not normalised)
+ id |     name      |     phone      | dnc_flag |   status    
+----+---------------+----------------+----------+-------------
+ 11 | Alice Archer  | (214) 555-0199 | t        | dnc
+ 63 | Bulk Agent 14 | (214) 555-0102 | f        | in_progress
+(2 rows)
+
+call 55 to_number/lead phone at dial time: (to_number null — lead dial)
+duplicate person check: two leads that are the same E.164 number once normalised:
+ id |     name      |       phone       
+----+---------------+-------------------
+ 14 | Dan Diaz      | +16025550104
+ 63 | Bulk Agent 14 | +1 (602) 555-0104
+(2 rows)
+
+updateFields source:
+const EDITABLE_FIELDS = ['name', 'phone', 'email', 'address', 'brokerage', 'state'];
+
+/** Applies an inline edit from the lead detail slide-in panel. Only the six
+ * plain contact fields are editable this way — lifecycle fields (status,
+ * attempts, etc.) go through leadLifecycle instead. */
+async function updateFields(leadId, fields) {
+  const keys = EDITABLE_FIELDS.filter((f) => fields[f] !== undefined);
+  if (keys.length === 0) throw new ApiError(400, 'No editable fields provided');
+
+  const setSql = keys.map((key, i) => `${key} = $${i + 2}`).join(', ');
+  const { rows } = await db.query(
+    `UPDATE leads SET ${setSql}, updated_at = now() WHERE id = $1 AND deleted_at IS NULL RETURNING *`,
+    [leadId, ...keys.map((k) => fields[k])]
+  );
+
+## 4.9 Undo
+before dial: status=new attempts=0
+after dial:  status=in_progress attempts=1
+after voicemail: status=voicemail attempts=1 next_action_at set=true history: dispo=voicemail note=left vm
+undo #1: "status":"in_progress" "attempts":1 [HTTP 200] 
+after undo: lead status=in_progress attempts=1 locked_by=1 history: dispo=null note=null
+undo #2 (twice): {"error":"Nothing to undo for this call"} [HTTP 409]
+re-dispo then wait 11s then undo:
+  {"error":"Undo window has expired"} [HTTP 410]
+notes_count after note+undo+re-dispo: 0
+-- undo after callback_scheduled
+"status":"callback_scheduled" [HTTP 200] 
+  undo: {"error":"syntax error at or near \"ORDER\""} [HTTP 500]
+  lead after failed undo: callback_scheduled ; callbacks rows: 1
+  leadLifecycle.js:218:        'DELETE FROM callbacks WHERE lead_id = $1 AND done = false ORDER BY created_at DESC LIMIT 1',
+  server log line:
+error: syntax error at or near "ORDER"
+
+## 4.10 calling hours — controlled clock (audit/scripts/calling-hours.js)
+toggle ON (was null); enforced=true
+
+== boundaries in each state's mapped zone (2026-11-11, standard time)
+FL  America/New_York     07:59=block  08:00=ALLOW  20:59=ALLOW  21:00=ALLOW
+AZ  America/Phoenix      07:59=block  08:00=ALLOW  20:59=ALLOW  21:00=ALLOW
+HI  Pacific/Honolulu     07:59=block  08:00=ALLOW  20:59=ALLOW  21:00=ALLOW
+CA  America/Los_Angeles  07:59=block  08:00=ALLOW  20:59=ALLOW  21:00=ALLOW
+TX  America/Chicago      07:59=block  08:00=ALLOW  20:59=ALLOW  21:00=ALLOW
+NY  America/New_York     07:59=block  08:00=ALLOW  20:59=ALLOW  21:00=ALLOW
+AK  America/Anchorage    07:59=block  08:00=ALLOW  20:59=ALLOW  21:00=ALLOW
+
+== DST: same UTC instant before/after the change (expected: local hour shifts, AZ does not)
+2026-03-07 13:00Z (before spring-forward)    NY 8:00 AM EST ALLOW | AZ 6:00 AM MST block | CA 5:00 AM PST block
+2026-03-08 13:00Z (after spring-forward)     NY 9:00 AM EDT ALLOW | AZ 6:00 AM MST block | CA 6:00 AM PDT block
+2026-10-31 12:30Z (before fall-back)         NY 8:30 AM EDT ALLOW | AZ 5:30 AM MST block | CA 5:30 AM PDT block
+2026-11-01 12:30Z (after fall-back)          NY 7:30 AM EST block | AZ 5:30 AM MST block | CA 4:30 AM PST block
+
+localHour at the 2026-03-08 02:00 gap and 2026-11-01 01:00 overlap in NY:
+  2026-03-08T06:59:00Z -> NY local 1:59 AM EST localHour=1
+  2026-03-08T07:00:00Z -> NY local 3:00 AM EDT localHour=3
+  2026-11-01T05:30:00Z -> NY local 1:30 AM EDT localHour=1
+  2026-11-01T06:30:00Z -> NY local 1:30 AM EST localHour=1
+
+== multi-zone states: mapped zone vs the real zone of a city in that state, at 8:00 mapped-zone time
+TX El Paso        mapped America/Chicago      allowed from 8:00 AM CST = 7:00 AM MST in El Paso; last allowed 6:00 PM CST = 5:00 PM MST in El Paso
+FL Pensacola      mapped America/New_York     allowed from 8:00 AM EST = 7:00 AM CST in Pensacola; last allowed 8:59 PM EST = 7:59 PM CST in Pensacola
+ID Coeur d'Alene  mapped America/Boise        allowed from 8:00 AM MST = 7:00 AM PST in Coeur d'Alene; last allowed 5:00 PM MST = 4:00 PM PST in Coeur d'Alene
+OR Ontario        mapped America/Los_Angeles  allowed from 8:00 AM PST = 9:00 AM MST in Ontario; last allowed 4:00 PM PST = 5:00 PM MST in Ontario
+KY Bowling Green  mapped America/New_York     allowed from 8:00 AM EST = 7:00 AM CST in Bowling Green; last allowed 8:59 PM EST = 7:59 PM CST in Bowling Green
+TN Knoxville      mapped America/Chicago      allowed from 8:00 AM CST = 9:00 AM EST in Knoxville; last allowed 6:00 PM CST = 7:00 PM EST in Knoxville
+IN Gary           mapped America/Indiana/Indianapolis allowed from 8:00 AM EST = 7:00 AM CST in Gary; last allowed 8:59 PM EST = 7:59 PM CST in Gary
+
+== unknown / invalid state code falls back to: America/New_York  | PR: America/New_York  | GU: America/New_York
+toggle restored to false
+
+## 4.10 RE-RUN — the first run above is INVALID: utcFor()'s search window (+40h) missed evening local times west of UTC, returned null, and isWithinCallingHours(state, null) then evaluated the Unix epoch. Window widened to +64h and null now throws.
+toggle ON (was false); enforced=true
+
+== boundaries in each state's mapped zone (2026-11-11, standard time)
+FL  America/New_York     07:59=block  08:00=ALLOW  20:59=ALLOW  21:00=block
+AZ  America/Phoenix      07:59=block  08:00=ALLOW  20:59=ALLOW  21:00=block
+HI  Pacific/Honolulu     07:59=block  08:00=ALLOW  20:59=ALLOW  21:00=block
+CA  America/Los_Angeles  07:59=block  08:00=ALLOW  20:59=ALLOW  21:00=block
+TX  America/Chicago      07:59=block  08:00=ALLOW  20:59=ALLOW  21:00=block
+NY  America/New_York     07:59=block  08:00=ALLOW  20:59=ALLOW  21:00=block
+AK  America/Anchorage    07:59=block  08:00=ALLOW  20:59=ALLOW  21:00=block
+
+== DST: same UTC instant before/after the change (expected: local hour shifts, AZ does not)
+2026-03-07 13:00Z (before spring-forward)    NY 8:00 AM EST ALLOW | AZ 6:00 AM MST block | CA 5:00 AM PST block
+2026-03-08 13:00Z (after spring-forward)     NY 9:00 AM EDT ALLOW | AZ 6:00 AM MST block | CA 6:00 AM PDT block
+2026-10-31 12:30Z (before fall-back)         NY 8:30 AM EDT ALLOW | AZ 5:30 AM MST block | CA 5:30 AM PDT block
+2026-11-01 12:30Z (after fall-back)          NY 7:30 AM EST block | AZ 5:30 AM MST block | CA 4:30 AM PST block
+
+localHour at the 2026-03-08 02:00 gap and 2026-11-01 01:00 overlap in NY:
+  2026-03-08T06:59:00Z -> NY local 1:59 AM EST localHour=1
+  2026-03-08T07:00:00Z -> NY local 3:00 AM EDT localHour=3
+  2026-11-01T05:30:00Z -> NY local 1:30 AM EDT localHour=1
+  2026-11-01T06:30:00Z -> NY local 1:30 AM EST localHour=1
+
+== multi-zone states: mapped zone vs the real zone of a city in that state, at 8:00 mapped-zone time
+TX El Paso        mapped America/Chicago      allowed from 8:00 AM CST = 7:00 AM MST in El Paso; last allowed 8:59 PM CST = 7:59 PM MST in El Paso
+FL Pensacola      mapped America/New_York     allowed from 8:00 AM EST = 7:00 AM CST in Pensacola; last allowed 8:59 PM EST = 7:59 PM CST in Pensacola
+ID Coeur d'Alene  mapped America/Boise        allowed from 8:00 AM MST = 7:00 AM PST in Coeur d'Alene; last allowed 8:59 PM MST = 7:59 PM PST in Coeur d'Alene
+OR Ontario        mapped America/Los_Angeles  allowed from 8:00 AM PST = 9:00 AM MST in Ontario; last allowed 8:59 PM PST = 9:59 PM MST in Ontario
+KY Bowling Green  mapped America/New_York     allowed from 8:00 AM EST = 7:00 AM CST in Bowling Green; last allowed 8:59 PM EST = 7:59 PM CST in Bowling Green
+TN Knoxville      mapped America/Chicago      allowed from 8:00 AM CST = 9:00 AM EST in Knoxville; last allowed 8:59 PM CST = 9:59 PM EST in Knoxville
+IN Gary           mapped America/Indiana/Indianapolis allowed from 8:00 AM EST = 7:00 AM CST in Gary; last allowed 8:59 PM EST = 7:59 PM CST in Gary
+
+== unknown / invalid state code falls back to: America/New_York  | PR: America/New_York  | GU: America/New_York
+toggle restored to false
+
+## 4.11 calling hours at the API with the REAL clock (now 11:00Z = 06:00 ET / 01:00 HI: every US state is outside 8am-9pm)
+toggle ON via API: [HTTP 200]
+before: lead 219 TX status=new attempts=0
+POST /api/calls {leadId:219}: {"error":"Outside calling hours for TX (8am-9pm local time). Try again later."} [HTTP 422]
+after:  lead 219 TX status=new attempts=0 locked_by=null
+POST /api/calls {} (next lead): {"error":"No dialable leads in queue right now"} [HTTP 404]
+manual dial pad, a TX number: "id":58 [HTTP 201] 
+toggle OFF: [HTTP 200]
+immediately after OFF: "error":"Outside calling hours for TX (8am-9pm local time). Try again later." [HTTP 422] 
+6s after OFF: "error":"Outside calling hours for TX (8am-9pm local time). Try again later." [HTTP 422] 
+settings row: calling_hours_enforced=false updated 13s ago
++2s: "call":{"id":59 [HTTP 201] 
++5s: "call":{"id":60 [HTTP 201] 
++10s: "call":{"id":61 [HTTP 201] 
++20s: "call":{"id":62 [HTTP 201] 
+
+## 4.12 queue starvation: backend with controlled clock FAKE_NOW=2026-11-11T15:30Z (10:30 ET, 9:30 CT allowed; 7:30 PT, 5:30 HI blocked)
+control: next lead with toggle ON before adding CA callbacks: TX (an in-hours state)
+inserted 60 CA callback_scheduled leads due now (synthetic SQL). Dialable in-hours (ET/CT) leads still in queue: 10518
+POST /api/calls {} : {"error":"No dialable leads in queue right now"} [HTTP 404]
+candidates() returns only the first 50 by priority, then peekNext filters by hours:
+async function peekNext() {
+  const rows = await candidates();
+  return rows.find((lead) => callingHours.isWithinCallingHours(lead.state)) || null;
+}
+cleanup: synthetic CA rows deleted (0 left)
+after cleanup: TX
+
+## 4.13 invariants at end of §4 (audit/scripts/invariants.sql)
+-- I1 every lead has exactly one status from the allowed list (violations):
+ status | count 
+--------+-------
+(0 rows)
+
+-- I2 leads in_progress, and whether each has an open (undispositioned) call:
+ id | locked_by | lock_age_s | open_calls 
+----+-----------+------------+------------
+  3 |         1 |         16 |          2
+  4 |         1 |         16 |         11
+(2 rows)
+
+-- I3 in_progress with lock older than 30s (should be swept on next queue read):
+ stale_locks 
+-------------
+           0
+(1 row)
+
+-- I4 orphan call rows (lead_id not in leads; manual calls have NULL lead_id by design):
+ orphan_calls 
+--------------
+            0
+(1 row)
+
+-- I5 calls never dispositioned and never ended, older than 5 minutes:
+ dangling_calls 
+----------------
+             35
+(1 row)
+
+-- I6 leads with more open (undispositioned) calls than one:
+ lead_id | open_calls 
+---------+------------
+       4 |         11
+      98 |         10
+       5 |          7
+     219 |          4
+       1 |          2
+       2 |          2
+       3 |          2
+      56 |          2
+(8 rows)
+
+-- I7 attempts above max_attempts:
+ id | attempts | max_attempts |   status    
+----+----------+--------------+-------------
+  4 |       11 |            5 | in_progress
+ 98 |       10 |            5 | in_queue
+  5 |        7 |            5 | in_queue
+(3 rows)
+
+-- I8 dnc consistency: dnc_flag vs status vs dnc_list
+                      kind                       | count 
+-------------------------------------------------+-------
+ flag without status                             |     0
+ status without flag                             |     0
+ lead whose phone is on dnc_list but not flagged |     1
+ phones not in E.164 (+1 and 10 digits)          |     3
+(4 rows)
+
+-- I9 lead counts:
+ total | soft_deleted 
+-------+--------------
+ 15052 |            1
+(1 row)
+
+expected total = §3 baseline 15048 + 4 synthetic SQL rows (Sam Same x3, Pre Listed) = 15052; 60 synthetic starvation rows were inserted and deleted

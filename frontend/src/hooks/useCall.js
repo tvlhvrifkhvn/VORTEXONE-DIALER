@@ -1,15 +1,112 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import * as api from '../lib/api';
+import { sendWithRetry } from '../lib/retry';
 
-const POLL_MS = 600;
+// Live call status is polled every 3 s: ~20 requests a minute, well inside the
+// API's per-user limit even on a long call. A failed poll never stops polling
+// for good — it waits (Retry-After on a 429, else a growing backoff up to
+// POLL_MAX_BACKOFF_MS) and tries again.
+const POLL_MS = 3000;
+const POLL_MAX_BACKOFF_MS = 30_000;
+const UNDO_WINDOW_MS = 10_000;
+export const DIAL_MODE_KEY = 'vortex_dialer_dial_mode';
+export const SESSION_ID_KEY = 'vortex_dialer_session_id';
+export const SESSION_STARTED_AT_KEY = 'vortex_dialer_session_started_at';
+export const SESSION_PAUSED_KEY = 'vortex_dialer_session_paused';
+export const SELECTED_QUEUE_KEY = 'vortex_dialer_selected_queue';
+export const SELECTED_SESSION_KEY = 'vortex_dialer_selected_session';
+export const PENDING_SUMMARY_KEY = 'vortex_dialer_pending_summary';
+
+/** Backend-tracked dialing session id, or null if none is active. */
+export function getActiveSessionId() {
+  const id = localStorage.getItem(SESSION_ID_KEY);
+  return id ? Number(id) : null;
+}
+
+export function isSessionPaused() {
+  return localStorage.getItem(SESSION_PAUSED_KEY) === 'true';
+}
+
+export function setSessionPaused(paused) {
+  if (paused) localStorage.setItem(SESSION_PAUSED_KEY, 'true');
+  else localStorage.removeItem(SESSION_PAUSED_KEY);
+}
+
+/** The ordered queue of lead ids for a "Start Power Dial" over a manual
+ * selection (see LeadTable.jsx's checkboxes) — empty when the current
+ * session is just dialing the regular in_queue queue. */
+export function getSelectedQueue() {
+  try {
+    const raw = localStorage.getItem(SELECTED_QUEUE_KEY);
+    const parsed = raw ? JSON.parse(raw) : [];
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function setSelectedQueue(ids) {
+  if (!ids || ids.length === 0) localStorage.removeItem(SELECTED_QUEUE_KEY);
+  else localStorage.setItem(SELECTED_QUEUE_KEY, JSON.stringify(ids));
+}
+
+/** Pops the next id off the selected-leads queue, persisting what's left. */
+function shiftSelectedQueue() {
+  const queue = getSelectedQueue();
+  const next = queue.shift();
+  setSelectedQueue(queue);
+  return next;
+}
+
+function isSelectedSession() {
+  return localStorage.getItem(SELECTED_SESSION_KEY) === 'true';
+}
+
+/** Starts a backend dialing session (Dashboard's Start Dialing / Start Power
+ * Dial buttons). When selectedLeadIds is given, the session dials through
+ * exactly those leads in order instead of pulling from the regular queue. */
+export async function startDialingSession(mode = 'power', selectedLeadIds = null) {
+  const { sessionId } = await api.startSession(mode);
+  localStorage.setItem(SESSION_ID_KEY, String(sessionId));
+  localStorage.setItem(SESSION_STARTED_AT_KEY, String(Date.now()));
+  setSessionPaused(false);
+
+  if (selectedLeadIds && selectedLeadIds.length > 0) {
+    const { leads } = await api.batchQueueLeads(selectedLeadIds);
+    setSelectedQueue(leads.map((l) => l.id));
+    localStorage.setItem(SELECTED_SESSION_KEY, 'true');
+  } else {
+    setSelectedQueue([]);
+    localStorage.removeItem(SELECTED_SESSION_KEY);
+  }
+
+  return sessionId;
+}
+
+/** Ends the active dialing session and returns its final stats (Dashboard's
+ * Stop Dialing button uses these to populate the session summary modal). */
+export async function endDialingSession() {
+  const sessionId = getActiveSessionId();
+  if (!sessionId) return null;
+  const { stats } = await api.endSession(sessionId);
+  localStorage.removeItem(SESSION_ID_KEY);
+  localStorage.removeItem(SESSION_STARTED_AT_KEY);
+  setSessionPaused(false);
+  setSelectedQueue([]);
+  localStorage.removeItem(SELECTED_SESSION_KEY);
+  return stats;
+}
 
 /**
  * Drives one call screen visit: starts the call (locks the lead + places it
  * via the configured telephony adapter), polls for live progress, and wraps
- * hangup/disposition/undo. See telephony/index.js on the backend for what
- * "live progress" means — this hook just reflects call_history as polled.
+ * hangup/disposition/undo/redial. See telephony/index.js on the backend for
+ * what "live progress" means — this hook just reflects call_history as
+ * polled.
  */
 export function useCall(leadId) {
+  const navigate = useNavigate();
   const [call, setCall] = useState(null);
   const [lead, setLead] = useState(null);
   const [error, setError] = useState(null);
@@ -20,7 +117,8 @@ export function useCall(leadId) {
 
   const stopPolling = useCallback(() => {
     if (pollRef.current) {
-      clearInterval(pollRef.current);
+      clearTimeout(pollRef.current.timer);
+      pollRef.current.stopped = true;
       pollRef.current = null;
     }
   }, []);
@@ -28,59 +126,147 @@ export function useCall(leadId) {
   const pollCall = useCallback(
     (callId) => {
       stopPolling();
-      pollRef.current = setInterval(async () => {
+      const poll = { stopped: false, timer: null, failures: 0 };
+      pollRef.current = poll;
+      const schedule = (ms) => {
+        if (!poll.stopped) poll.timer = setTimeout(tick, ms);
+      };
+      async function tick() {
         try {
           const { call: latest } = await api.getCall(callId);
+          if (poll.stopped) return;
+          poll.failures = 0;
           setCall(latest);
-          if (latest.telephony_state === 'ended') stopPolling();
-        } catch {
-          stopPolling();
+          if (['ended', 'failed'].includes(latest.telephony_state)) return;
+          schedule(POLL_MS);
+        } catch (err) {
+          if (poll.stopped || err.status === 404 || err.status === 401) return;
+          poll.failures += 1;
+          const wait = err.retryAfter ? err.retryAfter * 1000 : POLL_MS * 2 ** poll.failures;
+          schedule(Math.min(wait, POLL_MAX_BACKOFF_MS));
         }
-      }, POLL_MS);
+      }
+      schedule(POLL_MS);
     },
     [stopPolling]
   );
 
-  useEffect(() => {
-    let cancelled = false;
-    setStarting(true);
-    setError(null);
-    setUndoInfo(null);
+  // isCurrent() lets the caller drop a response that arrives after this
+  // screen moved on (real unmount or a different lead), so a stale start can
+  // neither overwrite the new call nor stop its polling.
+  const startCallFor = useCallback(
+    (id, opts = {}, isCurrent = () => true) => {
+      setStarting(true);
+      setError(null);
+      setUndoInfo(null);
+      return api
+        .startCall(id, getActiveSessionId(), opts)
+        .then(({ call: newCall, lead: newLead }) => {
+          if (!isCurrent()) return;
+          setCall(newCall);
+          setLead(newLead);
+          pollCall(newCall.id);
+        })
+        .catch((err) => {
+          if (isCurrent()) setError(err.message);
+        })
+        .finally(() => {
+          if (isCurrent()) setStarting(false);
+        });
+    },
+    [pollCall]
+  );
 
-    api
-      .startCall(leadId)
-      .then(({ call: newCall, lead: newLead }) => {
-        if (cancelled) return;
-        setCall(newCall);
-        setLead(newLead);
-        pollCall(newCall.id);
-      })
-      .catch((err) => {
-        if (!cancelled) setError(err.message);
-      })
-      .finally(() => {
-        if (!cancelled) setStarting(false);
-      });
+  // One call per visit. React StrictMode (dev) runs this effect, its cleanup,
+  // then the effect again on the SAME mounted instance; refs survive that, so
+  // startedForRef makes the second run a no-op instead of a second POST, and
+  // activeRef tells a real unmount / lead change apart from that simulated one.
+  const startedForRef = useRef(null);
+  const activeRef = useRef(null);
+
+  useEffect(() => {
+    const key = leadId ?? 'next';
+    activeRef.current = key;
+    if (startedForRef.current !== key) {
+      startedForRef.current = key;
+      // "/call/next" (no explicit leadId): if a selected-leads queue is active,
+      // it drives which lead comes up next instead of the regular in_queue pick.
+      const targetId = leadId || shiftSelectedQueue() || undefined;
+      startCallFor(targetId, {}, () => activeRef.current === key);
+    }
 
     return () => {
-      cancelled = true;
+      activeRef.current = null;
       stopPolling();
       clearTimeout(undoTimeoutRef.current);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [leadId]);
 
-  const hangup = useCallback(async () => {
-    if (!call) return;
-    stopPolling();
-    await api.hangupCall(call.id);
-  }, [call, stopPolling]);
+  // A refused hangup/disposition (403 another rep's call, 409 the lead moved
+  // on) is shown by the caller via err.message; resume live progress so the
+  // screen doesn't sit frozen on the last polled state.
+  const resumePolling = useCallback(() => {
+    if (call && call.telephony_state !== 'ended') pollCall(call.id);
+  }, [call, pollCall]);
+
+  const hangup = useCallback(
+    async ({ onRetrying } = {}) => {
+      if (!call) return;
+      stopPolling();
+      try {
+        // Retried on a 429 / network error; hanging up twice is harmless.
+        await sendWithRetry(() => api.hangupCall(call.id), { onRetrying });
+      } catch (err) {
+        resumePolling();
+        throw err;
+      }
+    },
+    [call, stopPolling, resumePolling]
+  );
+
+  /** Redials the same lead immediately, before any disposition has been
+   * submitted on the previous attempt (backend allows re-locking a lead
+   * that's already in_progress and locked to this same user). */
+  const redial = useCallback(() => {
+    if (!lead) return Promise.resolve();
+    const key = activeRef.current;
+    return startCallFor(lead.id, { redial: true }, () => activeRef.current === key);
+  }, [lead, startCallFor]);
 
   const submitDisposition = useCallback(
-    async ({ disposition, note, scheduledAt }) => {
+    async ({ disposition, note, scheduledAt, onRetrying }) => {
       if (!call) return null;
       stopPolling();
-      const result = await api.submitDisposition({ callId: call.id, disposition, note, scheduledAt });
+      // If an earlier try did reach the server (the response was lost), the
+      // call already carries the disposition: use it instead of sending again.
+      const alreadySaved = async () => {
+        const { call: latest } = await api.getCall(call.id);
+        if (!latest.disposition) return null;
+        const { lead: savedLead } = await api.getLead(latest.lead_id);
+        return { lead: savedLead, undoExpiresAt: new Date(new Date(latest.disposition_at).getTime() + UNDO_WINDOW_MS) };
+      };
+      let result;
+      try {
+        result = await sendWithRetry(
+          async (attempt) => {
+            try {
+              return await api.submitDisposition({ callId: call.id, disposition, note, scheduledAt });
+            } catch (err) {
+              // A resend refused because the first try was saved after all.
+              if (attempt > 1 && err.status === 409 && /already has a disposition/i.test(err.message)) {
+                const saved = await alreadySaved();
+                if (saved) return saved;
+              }
+              throw err;
+            }
+          },
+          { alreadySaved, onRetrying }
+        );
+      } catch (err) {
+        resumePolling();
+        throw err;
+      }
       setLead(result.lead);
 
       const callId = call.id;
@@ -92,9 +278,23 @@ export function useCall(leadId) {
         setUndoInfo((current) => (current && current.callId === callId ? null : current));
       }, Math.max(0, remainingMs));
 
+      // Power Dial mode: advance to the next lead instantly, no countdown —
+      // unless the session is paused, in which case just stop here.
+      if (localStorage.getItem(DIAL_MODE_KEY) === 'power' && !isSessionPaused()) {
+        if (isSelectedSession() && getSelectedQueue().length === 0) {
+          // The selected-leads queue is exhausted — end the session and let
+          // the dashboard show the summary automatically.
+          const stats = await endDialingSession();
+          if (stats) localStorage.setItem(PENDING_SUMMARY_KEY, JSON.stringify(stats));
+          navigate('/');
+        } else {
+          navigate('/call/next');
+        }
+      }
+
       return result;
     },
-    [call, stopPolling]
+    [call, stopPolling, resumePolling, navigate]
   );
 
   const undo = useCallback(async () => {
@@ -105,5 +305,15 @@ export function useCall(leadId) {
     setUndoInfo(null);
   }, [undoInfo]);
 
-  return { call, lead, error, starting, undoInfo, hangup, submitDisposition, undo };
+  return {
+    call,
+    lead,
+    error,
+    starting,
+    undoInfo,
+    hangup,
+    submitDisposition,
+    undo,
+    redial,
+  };
 }

@@ -1,0 +1,24 @@
+Vortex Dialer API listening on port 4000 (telephony: mock)
+error: value too long for type character varying(100)
+    at /home/user/vortexone-dialer/backend/node_modules/pg-pool/index.js:45:11
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async Object.setSetting (/home/user/vortexone-dialer/backend/src/services/settings.js:12:20)
+    at async /home/user/vortexone-dialer/backend/src/routes/settings.js:20:21 {
+  length: 99,
+  severity: 'ERROR',
+  code: '22001',
+  detail: undefined,
+  hint: undefined,
+  position: undefined,
+  internalPosition: undefined,
+  internalQuery: undefined,
+  where: undefined,
+  schema: undefined,
+  table: undefined,
+  column: undefined,
+  dataType: undefined,
+  constraint: undefined,
+  file: 'varchar.c',
+  line: '638',
+  routine: 'varchar'
+}

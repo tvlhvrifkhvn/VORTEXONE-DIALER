@@ -6,8 +6,8 @@ export default function ContactCard({ lead }) {
 
   return (
     <NeuCard className="p-5">
-      <h2 className="text-lg font-semibold text-text-primary">{lead.name}</h2>
-      <p className="mt-1 text-sm text-text-secondary">{lead.brokerage || 'No brokerage on file'}</p>
+      <h2 className="truncate text-lg font-semibold text-text-primary" title={lead.name}>{lead.name}</h2>
+      <p className="mt-1 truncate text-sm text-text-secondary" title={lead.brokerage || ''}>{lead.brokerage || 'No brokerage on file'}</p>
       <dl className="mt-4 space-y-2 text-sm">
         <div className="flex justify-between gap-4">
           <dt className="text-text-secondary">Phone</dt>

@@ -1,0 +1,1859 @@
+# Segment 5 Part A — import readiness (branch claude/fix-seg5-import-and-sessions, base origin/latest d3ccb9f)
+# Generated data only (audit/scripts/gen-leads.js); AI forced off unless a section says 'stubbed'.
+
+## BASE (d3ccb9f) — audit/scripts/fix-seg5-import.sh
+### base small CSV, AI unreachable, auto mapping
+[base-small-auto] gen: wrote /var/tmp/audit-scratch/seg5/leads-300.csv: 300 rows (a), 32981 bytes; expected {"totalRows":300,"imported":249,"merged":11,"alreadyInList":9,"dncBlocked":9,"noNumber":15,"unreadable":6,"invalid":7,"withExtension":12}
+[base-small-auto] file leads-300.csv: 300 rows, 32981 bytes; leads in DB before: 5019; backend RSS before 111 MB
+[base-small-auto] upload -> HTTP 201
+[base-small-auto] auto mapping (AI off): {"name":"Name","email":"Email","state":"State","city":"City","source":"Source"}
+[base-small-auto] auto mapping matches the expected columns: NO
+[base-small-auto] process -> HTTP 200; final status=failed after 53.7 s, 54 requests (52 status polls)
+[base-small-auto]    poll 2.5s 0% status=processing
+[base-small-auto]    poll 3.5s 0% status=processing
+[base-small-auto]    poll 4.5s 0% status=processing
+[base-small-auto]    poll 5.5s 0% status=processing
+[base-small-auto]    poll 6.5s 0% status=processing
+[base-small-auto]    poll 7.5s 0% status=processing
+[base-small-auto]    poll …
+[base-small-auto]    poll 49.7s 80% status=processing
+[base-small-auto]    poll 50.7s 80% status=processing
+[base-small-auto]    poll 51.7s 80% status=processing
+[base-small-auto]    poll 52.7s 80% status=processing
+[base-small-auto]    poll 53.7s 100% status=failed
+[base-small-auto] summary: "mapping must include at least name and phone"
+[base-small-auto] expected: {"totalRows":300,"imported":249,"merged":11,"alreadyInList":9,"dncBlocked":9,"noNumber":15,"invalid":7,"unreadable":6,"withExtension":12}
+[base-small-auto] DB: leads +0; peak backend RSS 123 MB (was 111 MB before the import)
+[base-small-auto] DB: leads has no extension/original_phone columns (pre-fix schema)
+[base-small-auto] DB: dialable leads whose phone is on the DNC list: 0
+[base-small-auto] cancel test: cancel sent at [22.6s 40% status=processing] -> HTTP 200 {"cancelled":true,"jobId":2}
+[base-small-auto] cancel test: job ended status=cancelled; leads written by this job: 0; reported written: n/a
+[base-small-auto] dial sample (0 imported leads): none
+[base-small-auto] requests in total: 89
+[base-small-auto] invariants (I1-I9):
+[base-small-auto]   -- I1 every lead has exactly one status from the allowed list (violations):
+[base-small-auto]    status | count 
+[base-small-auto]   --------+-------
+[base-small-auto]   (0 rows)
+[base-small-auto]   -- I2 leads in_progress, and whether each has an open (undispositioned) call:
+[base-small-auto]    id | locked_by | lock_age_s | open_calls 
+[base-small-auto]   ----+-----------+------------+------------
+[base-small-auto]   (0 rows)
+[base-small-auto]   -- I3 in_progress with lock older than 30s (should be swept on next queue read):
+[base-small-auto]    stale_locks 
+[base-small-auto]   -------------
+[base-small-auto]              0
+[base-small-auto]   (1 row)
+[base-small-auto]   -- I4 orphan call rows (lead_id not in leads; manual calls have NULL lead_id by design):
+[base-small-auto]    orphan_calls 
+[base-small-auto]   --------------
+[base-small-auto]               0
+[base-small-auto]   (1 row)
+[base-small-auto]   -- I5 calls never dispositioned and never ended, older than 5 minutes:
+[base-small-auto]    dangling_calls 
+[base-small-auto]   ----------------
+[base-small-auto]                 0
+[base-small-auto]   (1 row)
+[base-small-auto]   -- I6 leads with more open (undispositioned) calls than one:
+[base-small-auto]    lead_id | open_calls 
+[base-small-auto]   ---------+------------
+[base-small-auto]   (0 rows)
+[base-small-auto]   -- I7 attempts above max_attempts:
+[base-small-auto]    id | attempts | max_attempts | status 
+[base-small-auto]   ----+----------+--------------+--------
+[base-small-auto]   (0 rows)
+[base-small-auto]   -- I8 dnc consistency: dnc_flag vs status vs dnc_list
+[base-small-auto]                         kind                       | count 
+[base-small-auto]   -------------------------------------------------+-------
+[base-small-auto]    flag without status                             |     0
+[base-small-auto]    status without flag                             |     0
+[base-small-auto]    lead whose phone is on dnc_list but not flagged |     0
+[base-small-auto]    phones not in E.164 (+1 and 10 digits)          |     0
+[base-small-auto]   (4 rows)
+[base-small-auto]   -- I9 lead counts:
+[base-small-auto]    total | soft_deleted 
+[base-small-auto]   -------+--------------
+[base-small-auto]     5019 |            0
+[base-small-auto]   (1 row)
+[base-small-auto] server log: 24 error/warn lines |      24 Import chunk failed after 3 attempts: Connection error. 
+### base small CSV, AI unreachable, mapping fixed by hand
+[base-small-manual] gen: wrote /var/tmp/audit-scratch/seg5/leads-300.csv: 300 rows (a), 32981 bytes; expected {"totalRows":300,"imported":249,"merged":11,"alreadyInList":9,"dncBlocked":9,"noNumber":15,"unreadable":6,"invalid":7,"withExtension":12}
+[base-small-manual] file leads-300.csv: 300 rows, 32981 bytes; leads in DB before: 5019; backend RSS before 112 MB
+[base-small-manual] upload -> HTTP 201
+[base-small-manual] auto mapping (AI off): {"name":"Name","email":"Email","state":"State","city":"City","source":"Source"}
+[base-small-manual] auto mapping matches the expected columns: NO (MANUAL_MAPPING=1: processed with a hand-picked mapping)
+[base-small-manual] process -> HTTP 200; final status=completed after 55.7 s, 56 requests (54 status polls)
+[base-small-manual]    poll 2.5s 0% status=processing
+[base-small-manual]    poll 3.5s 0% status=processing
+[base-small-manual]    poll 4.5s 0% status=processing
+[base-small-manual]    poll 5.5s 0% status=processing
+[base-small-manual]    poll 6.5s 0% status=processing
+[base-small-manual]    poll 7.5s 0% status=processing
+[base-small-manual]    poll …
+[base-small-manual]    poll 51.7s 80% status=processing
+[base-small-manual]    poll 52.7s 80% status=processing
+[base-small-manual]    poll 53.7s 100% status=processing
+[base-small-manual]    poll 54.7s 100% status=processing
+[base-small-manual]    poll 55.7s 100% status=completed
+[base-small-manual] summary: {"totalRows":300,"imported":264,"skippedDnc":6,"skippedDuplicate":12,"skippedInvalid":11,"mergedDuplicates":7,"importedWithoutPhone":36}
+[base-small-manual] expected: {"totalRows":300,"imported":249,"merged":11,"alreadyInList":9,"dncBlocked":9,"noNumber":15,"invalid":7,"unreadable":6,"withExtension":12}
+[base-small-manual] DB: leads +264; peak backend RSS 120 MB (was 112 MB before the import)
+[base-small-manual] DB: leads has no extension/original_phone columns (pre-fix schema)
+[base-small-manual] DB: dialable leads whose phone is on the DNC list: 0
+[base-small-manual] re-import same file: status=completed in 55.7 s; new leads in DB: 0; summary {"imported":0} imported=0
+[base-small-manual] cancel test: cancel sent at [22.6s 40% status=processing] -> HTTP 200 {"cancelled":true,"jobId":3}
+[base-small-manual] cancel test: job ended status=cancelled; leads written by this job: 0; reported written: n/a
+[base-small-manual] dial sample (5 imported leads): 5020:201 5022:201 5023:201 5026:201 5027:201
+[base-small-manual] requests in total: 157
+[base-small-manual] invariants (I1-I9):
+[base-small-manual]   -- I1 every lead has exactly one status from the allowed list (violations):
+[base-small-manual]    status | count 
+[base-small-manual]   --------+-------
+[base-small-manual]   (0 rows)
+[base-small-manual]   -- I2 leads in_progress, and whether each has an open (undispositioned) call:
+[base-small-manual]    id | locked_by | lock_age_s | open_calls 
+[base-small-manual]   ----+-----------+------------+------------
+[base-small-manual]   (0 rows)
+[base-small-manual]   -- I3 in_progress with lock older than 30s (should be swept on next queue read):
+[base-small-manual]    stale_locks 
+[base-small-manual]   -------------
+[base-small-manual]              0
+[base-small-manual]   (1 row)
+[base-small-manual]   -- I4 orphan call rows (lead_id not in leads; manual calls have NULL lead_id by design):
+[base-small-manual]    orphan_calls 
+[base-small-manual]   --------------
+[base-small-manual]               0
+[base-small-manual]   (1 row)
+[base-small-manual]   -- I5 calls never dispositioned and never ended, older than 5 minutes:
+[base-small-manual]    dangling_calls 
+[base-small-manual]   ----------------
+[base-small-manual]                 0
+[base-small-manual]   (1 row)
+[base-small-manual]   -- I6 leads with more open (undispositioned) calls than one:
+[base-small-manual]    lead_id | open_calls 
+[base-small-manual]   ---------+------------
+[base-small-manual]   (0 rows)
+[base-small-manual]   -- I7 attempts above max_attempts:
+[base-small-manual]    id | attempts | max_attempts | status 
+[base-small-manual]   ----+----------+--------------+--------
+[base-small-manual]   (0 rows)
+[base-small-manual]   -- I8 dnc consistency: dnc_flag vs status vs dnc_list
+[base-small-manual]                         kind                       | count 
+[base-small-manual]   -------------------------------------------------+-------
+[base-small-manual]    flag without status                             |     0
+[base-small-manual]    status without flag                             |     0
+[base-small-manual]    lead whose phone is on dnc_list but not flagged |     0
+[base-small-manual]    phones not in E.164 (+1 and 10 digits)          |     0
+[base-small-manual]   (4 rows)
+[base-small-manual]   -- I9 lead counts:
+[base-small-manual]    total | soft_deleted 
+[base-small-manual]   -------+--------------
+[base-small-manual]     5283 |            0
+[base-small-manual]   (1 row)
+[base-small-manual] server log: 39 error/warn lines |      39 Import chunk failed after 3 attempts: Connection error. 
+### base medium CSV, AI stubbed pass-through, mapping fixed by hand
+[base-medium-stub] gen: wrote /var/tmp/audit-scratch/seg5/leads-4000.csv: 4000 rows (a), 434912 bytes; expected {"totalRows":4000,"imported":3300,"merged":160,"alreadyInList":120,"dncBlocked":120,"noNumber":200,"unreadable":80,"invalid":100,"withExtension":160}
+[base-medium-stub] file leads-4000.csv: 4000 rows, 434912 bytes; leads in DB before: 5019; backend RSS before 111 MB
+[base-medium-stub] upload -> HTTP 201
+[base-medium-stub] auto mapping (AI off): {"name":"Name","phone":"Mobile","email":"Email","address":"Street","brokerage":"Office","state":"State","city":"City","source":"Source"}
+[base-medium-stub] auto mapping matches the expected columns: NO (MANUAL_MAPPING=1: processed with a hand-picked mapping)
+[base-medium-stub] process -> HTTP 200; final status=completed after 3.1 s, 5 requests (3 status polls)
+[base-medium-stub]    poll 1.1s 100% status=processing
+[base-medium-stub]    poll 2.1s 100% status=processing
+[base-medium-stub]    poll 3.1s 100% status=completed
+[base-medium-stub] summary: {"totalRows":4000,"imported":3500,"skippedDnc":80,"skippedDuplicate":160,"skippedInvalid":160,"mergedDuplicates":100,"importedWithoutPhone":480}
+[base-medium-stub] expected: {"totalRows":4000,"imported":3300,"merged":160,"alreadyInList":120,"dncBlocked":120,"noNumber":200,"invalid":100,"unreadable":80,"withExtension":160}
+[base-medium-stub] DB: leads +3500; peak backend RSS 148 MB (was 111 MB before the import)
+[base-medium-stub] DB: leads has no extension/original_phone columns (pre-fix schema)
+[base-medium-stub] DB: dialable leads whose phone is on the DNC list: 0
+[base-medium-stub] re-import same file: status=completed in 1.1 s; new leads in DB: 0; summary {"imported":0} imported=0
+[base-medium-stub] cancel test: cancel sent at [1.1s 100% status=processing] -> HTTP 200 {"cancelled":true,"jobId":3}
+[base-medium-stub] cancel test: job ended status=completed; leads written by this job: 3659; reported written: 3659
+[base-medium-stub] dial sample (5 imported leads): 5023:201 5024:201 5025:201 5026:201 5027:201
+[base-medium-stub] requests in total: 23
+[base-medium-stub] invariants (I1-I9):
+[base-medium-stub]   -- I1 every lead has exactly one status from the allowed list (violations):
+[base-medium-stub]    status | count 
+[base-medium-stub]   --------+-------
+[base-medium-stub]   (0 rows)
+[base-medium-stub]   -- I2 leads in_progress, and whether each has an open (undispositioned) call:
+[base-medium-stub]    id | locked_by | lock_age_s | open_calls 
+[base-medium-stub]   ----+-----------+------------+------------
+[base-medium-stub]   (0 rows)
+[base-medium-stub]   -- I3 in_progress with lock older than 30s (should be swept on next queue read):
+[base-medium-stub]    stale_locks 
+[base-medium-stub]   -------------
+[base-medium-stub]              0
+[base-medium-stub]   (1 row)
+[base-medium-stub]   -- I4 orphan call rows (lead_id not in leads; manual calls have NULL lead_id by design):
+[base-medium-stub]    orphan_calls 
+[base-medium-stub]   --------------
+[base-medium-stub]               0
+[base-medium-stub]   (1 row)
+[base-medium-stub]   -- I5 calls never dispositioned and never ended, older than 5 minutes:
+[base-medium-stub]    dangling_calls 
+[base-medium-stub]   ----------------
+[base-medium-stub]                 0
+[base-medium-stub]   (1 row)
+[base-medium-stub]   -- I6 leads with more open (undispositioned) calls than one:
+[base-medium-stub]    lead_id | open_calls 
+[base-medium-stub]   ---------+------------
+[base-medium-stub]   (0 rows)
+[base-medium-stub]   -- I7 attempts above max_attempts:
+[base-medium-stub]    id | attempts | max_attempts | status 
+[base-medium-stub]   ----+----------+--------------+--------
+[base-medium-stub]   (0 rows)
+[base-medium-stub]   -- I8 dnc consistency: dnc_flag vs status vs dnc_list
+[base-medium-stub]                         kind                       | count 
+[base-medium-stub]   -------------------------------------------------+-------
+[base-medium-stub]    flag without status                             |     0
+[base-medium-stub]    status without flag                             |     0
+[base-medium-stub]    lead whose phone is on dnc_list but not flagged |     0
+[base-medium-stub]    phones not in E.164 (+1 and 10 digits)          |     0
+[base-medium-stub]   (4 rows)
+[base-medium-stub]   -- I9 lead counts:
+[base-medium-stub]    total | soft_deleted 
+[base-medium-stub]   -------+--------------
+[base-medium-stub]    12178 |            0
+[base-medium-stub]   (1 row)
+[base-medium-stub] server log: 0 error/warn lines
+### base small XLSX, AI stubbed pass-through, mapping fixed by hand
+[base-small-xlsx-stub] gen: wrote /var/tmp/audit-scratch/seg5/leads-300.xlsx: 300 rows (b), 144960 bytes; expected {"totalRows":300,"imported":249,"merged":11,"alreadyInList":9,"dncBlocked":9,"noNumber":15,"unreadable":6,"invalid":7,"withExtension":12}
+[base-small-xlsx-stub] file leads-300.xlsx: 300 rows, 144960 bytes; leads in DB before: 5019; backend RSS before 113 MB
+[base-small-xlsx-stub] upload -> HTTP 201
+[base-small-xlsx-stub] auto mapping (AI off): {"name":"First Name","phone":"Phone Number","email":"E-mail","address":"Address","brokerage":"Company","state":"State","city":"City","source":null}
+[base-small-xlsx-stub] auto mapping matches the expected columns: NO (MANUAL_MAPPING=1: processed with a hand-picked mapping)
+[base-small-xlsx-stub] process -> HTTP 200; final status=completed after 1.1 s, 3 requests (1 status polls)
+[base-small-xlsx-stub]    poll 1.1s 100% status=completed
+[base-small-xlsx-stub] summary: {"totalRows":300,"imported":261,"skippedDnc":6,"skippedDuplicate":12,"skippedInvalid":11,"mergedDuplicates":10,"importedWithoutPhone":36}
+[base-small-xlsx-stub] expected: {"totalRows":300,"imported":249,"merged":11,"alreadyInList":9,"dncBlocked":9,"noNumber":15,"invalid":7,"unreadable":6,"withExtension":12}
+[base-small-xlsx-stub] DB: leads +261; peak backend RSS 129 MB (was 113 MB before the import)
+[base-small-xlsx-stub] DB: leads has no extension/original_phone columns (pre-fix schema)
+[base-small-xlsx-stub] DB: dialable leads whose phone is on the DNC list: 0
+[base-small-xlsx-stub] re-import same file: status=completed in 1.0 s; new leads in DB: 0; summary {"imported":0} imported=0
+[base-small-xlsx-stub] cancel test: cancel sent at [1.0s 100% status=completed] -> HTTP 200 {"cancelled":true,"jobId":3}
+[base-small-xlsx-stub] cancel test: job ended status=completed; leads written by this job: 272; reported written: 272
+[base-small-xlsx-stub] dial sample (5 imported leads): 5020:201 5022:201 5023:201 5026:201 5027:201
+[base-small-xlsx-stub] requests in total: 20
+[base-small-xlsx-stub] invariants (I1-I9):
+[base-small-xlsx-stub]   -- I1 every lead has exactly one status from the allowed list (violations):
+[base-small-xlsx-stub]    status | count 
+[base-small-xlsx-stub]   --------+-------
+[base-small-xlsx-stub]   (0 rows)
+[base-small-xlsx-stub]   -- I2 leads in_progress, and whether each has an open (undispositioned) call:
+[base-small-xlsx-stub]    id | locked_by | lock_age_s | open_calls 
+[base-small-xlsx-stub]   ----+-----------+------------+------------
+[base-small-xlsx-stub]   (0 rows)
+[base-small-xlsx-stub]   -- I3 in_progress with lock older than 30s (should be swept on next queue read):
+[base-small-xlsx-stub]    stale_locks 
+[base-small-xlsx-stub]   -------------
+[base-small-xlsx-stub]              0
+[base-small-xlsx-stub]   (1 row)
+[base-small-xlsx-stub]   -- I4 orphan call rows (lead_id not in leads; manual calls have NULL lead_id by design):
+[base-small-xlsx-stub]    orphan_calls 
+[base-small-xlsx-stub]   --------------
+[base-small-xlsx-stub]               0
+[base-small-xlsx-stub]   (1 row)
+[base-small-xlsx-stub]   -- I5 calls never dispositioned and never ended, older than 5 minutes:
+[base-small-xlsx-stub]    dangling_calls 
+[base-small-xlsx-stub]   ----------------
+[base-small-xlsx-stub]                 0
+[base-small-xlsx-stub]   (1 row)
+[base-small-xlsx-stub]   -- I6 leads with more open (undispositioned) calls than one:
+[base-small-xlsx-stub]    lead_id | open_calls 
+[base-small-xlsx-stub]   ---------+------------
+[base-small-xlsx-stub]   (0 rows)
+[base-small-xlsx-stub]   -- I7 attempts above max_attempts:
+[base-small-xlsx-stub]    id | attempts | max_attempts | status 
+[base-small-xlsx-stub]   ----+----------+--------------+--------
+[base-small-xlsx-stub]   (0 rows)
+[base-small-xlsx-stub]   -- I8 dnc consistency: dnc_flag vs status vs dnc_list
+[base-small-xlsx-stub]                         kind                       | count 
+[base-small-xlsx-stub]   -------------------------------------------------+-------
+[base-small-xlsx-stub]    flag without status                             |     0
+[base-small-xlsx-stub]    status without flag                             |     0
+[base-small-xlsx-stub]    lead whose phone is on dnc_list but not flagged |     0
+[base-small-xlsx-stub]    phones not in E.164 (+1 and 10 digits)          |     0
+[base-small-xlsx-stub]   (4 rows)
+[base-small-xlsx-stub]   -- I9 lead counts:
+[base-small-xlsx-stub]    total | soft_deleted 
+[base-small-xlsx-stub]   -------+--------------
+[base-small-xlsx-stub]     5552 |            0
+[base-small-xlsx-stub]   (1 row)
+[base-small-xlsx-stub] server log: 0 error/warn lines
+### base large CSV (30000 rows)
+[base-large] gen: wrote /var/tmp/audit-scratch/seg5/leads-30000.csv: 30000 rows (a), 3254412 bytes; expected {"totalRows":30000,"imported":24750,"merged":1200,"alreadyInList":900,"dncBlocked":900,"noNumber":1500,"unreadable":600,"invalid":750,"withExtension":1200}
+[base-large] file leads-30000.csv: 30000 rows, 3254412 bytes; leads in DB before: 5019; backend RSS before 112 MB
+[base-large] upload -> HTTP 400 {"error":"Files over 5,000 leads should be split into smaller files for now."}
+[base-large] HARNESS ERROR: Cannot read properties of undefined (reading 'status')
+[base-large] invariants (I1-I9):
+[base-large]   -- I1 every lead has exactly one status from the allowed list (violations):
+[base-large]    status | count 
+[base-large]   --------+-------
+[base-large]   (0 rows)
+[base-large]   -- I2 leads in_progress, and whether each has an open (undispositioned) call:
+[base-large]    id | locked_by | lock_age_s | open_calls 
+[base-large]   ----+-----------+------------+------------
+[base-large]   (0 rows)
+[base-large]   -- I3 in_progress with lock older than 30s (should be swept on next queue read):
+[base-large]    stale_locks 
+[base-large]   -------------
+[base-large]              0
+[base-large]   (1 row)
+[base-large]   -- I4 orphan call rows (lead_id not in leads; manual calls have NULL lead_id by design):
+[base-large]    orphan_calls 
+[base-large]   --------------
+[base-large]               0
+[base-large]   (1 row)
+[base-large]   -- I5 calls never dispositioned and never ended, older than 5 minutes:
+[base-large]    dangling_calls 
+[base-large]   ----------------
+[base-large]                 0
+[base-large]   (1 row)
+[base-large]   -- I6 leads with more open (undispositioned) calls than one:
+[base-large]    lead_id | open_calls 
+[base-large]   ---------+------------
+[base-large]   (0 rows)
+[base-large]   -- I7 attempts above max_attempts:
+[base-large]    id | attempts | max_attempts | status 
+[base-large]   ----+----------+--------------+--------
+[base-large]   (0 rows)
+[base-large]   -- I8 dnc consistency: dnc_flag vs status vs dnc_list
+[base-large]                         kind                       | count 
+[base-large]   -------------------------------------------------+-------
+[base-large]    flag without status                             |     0
+[base-large]    status without flag                             |     0
+[base-large]    lead whose phone is on dnc_list but not flagged |     0
+[base-large]    phones not in E.164 (+1 and 10 digits)          |     0
+[base-large]   (4 rows)
+[base-large]   -- I9 lead counts:
+[base-large]    total | soft_deleted 
+[base-large]   -------+--------------
+[base-large]     5019 |            0
+[base-large]   (1 row)
+[base-large] server log: 0 error/warn lines
+BASE-DONE
+
+## A.1 — audit fixture f_phones.csv imported on HEAD (commitImport, AI off)
+         name         |    phone     | extension |  original_phone   | missing_phone 
+----------------------+--------------+-----------+-------------------+---------------
+ Phone Plus One       | +16025550601 |           | +1 (602) 555-0601 | f
+ Phone Parens         | +16025550602 |           | (602) 555-0602    | f
+ Phone Dashes         | +16025550603 |           | 602-555-0603      | f
+ Phone TenDigit       | +16025550604 |           | 6025550604        | f
+ Phone Extension      | +16025550605 | 123       | 602-555-0605 x123 | f
+ Phone Letters        | +16025552255 |           | 602-555-CALL      | f
+ Phone Junk           |              |           | not a phone       | t
+ Phone Short          |              |           | 555-0608          | t
+ Phone Eleven No Plus | +16025550609 |           | 16025550609       | f
+ Phone Intl           |              |           | +44 20 7946 0610  | t
+(10 rows)
+
+
+## A.5 — b_scrape.csv (audit fixture) and planted same-name cases on HEAD
+b_scrape.csv {"total":4,"imported":2,"merged":2,"invalid":0,"ambiguous":0}
+    Joshua Barkes -> Same person as Sheet1 row 1 — merged into it
+    Kara Knox -> Same person as Sheet1 row 3 — merged into it
+f12-cases.csv {"total":7,"imported":3,"merged":2,"invalid":2,"ambiguous":1}
+    Joshua Barkes -> Same person as Sheet1 row 1 — merged into it
+    Twin Name -> No state, and the same name appears in 2 different places in this file — not merged into any of them
+    Lonely Blank -> Could not determine a US state for this lead
+    Lonely Blank -> Same person as Sheet1 row 6 — merged into it
+
+## A.6 — audit/scripts/fix-seg5-upload.sh
+### base
+[pre-fix] jobs before start: old-pending.csv=pending, fresh-pending.csv=pending, cut-off.csv=processing
+[pre-fix] jobs after start:  old-pending.csv=pending, fresh-pending.csv=pending, cut-off.csv=processing
+[pre-fix] cut-off job message: (none)
+[pre-fix] upload fake.pdf (26 bytes) -> [HTTP 201] 
+[pre-fix] upload list.txt (779 bytes) -> [HTTP 201] 
+[pre-fix] upload renamed-csv.xlsx (779 bytes) -> [HTTP 201] 
+[pre-fix] upload renamed-xlsx.csv (18166 bytes) -> [HTTP 400] "error":"Could not parse CSV: Invalid Opening Quote: a quote is found on field 0 at line 1, value is \"
+[pre-fix] upload ok.csv (779 bytes) -> [HTTP 201] 
+[pre-fix] upload ok.xlsx (18166 bytes) -> [HTTP 201] 
+[pre-fix] upload big.csv (1128907 bytes) -> [HTTP 400] "error":"Files over 5,000 leads should be split into smaller files for now."
+[pre-fix] upload huge.csv (16933605 bytes) -> [HTTP 500] "error":"File too large"
+[pre-fix] temp upload files left behind: 0
+[pre-fix] server log: 2 error/warn lines; startup lines: 
+[pre-fix] shutdown line: SIGTERM received — stale-lock sweep stopped, shutting down
+### HEAD
+[after-a6] jobs before start: old-pending.csv=pending, fresh-pending.csv=pending, cut-off.csv=processing
+[after-a6] jobs after start:  fresh-pending.csv=pending, cut-off.csv=failed
+[after-a6] cut-off job message: The server restarted during this import. The 0 leads it had saved are kept. Upload the file again to import the rest — rows already in your list are skipped.
+[after-a6] upload fake.pdf (26 bytes) -> [HTTP 400] "error":"Only CSV or Excel (.xlsx) files can be imported. Save the list as CSV or .xlsx and try again."
+[after-a6] upload list.txt (779 bytes) -> [HTTP 400] "error":"Only CSV or Excel (.xlsx) files can be imported. Save the list as CSV or .xlsx and try again."
+[after-a6] upload renamed-csv.xlsx (779 bytes) -> [HTTP 400] "error":"This file is named .xlsx but isn't an Excel workbook. Re-save it from Excel or as CSV."
+[after-a6] upload renamed-xlsx.csv (18166 bytes) -> [HTTP 400] "error":"This file is named .csv but isn't plain text (it may be an Excel file or a PDF). Re-save it as CSV."
+[after-a6] upload ok.csv (779 bytes) -> [HTTP 201] 
+[after-a6] upload ok.xlsx (18166 bytes) -> [HTTP 201] 
+[after-a6] upload big.csv (1128907 bytes) -> [HTTP 413] "error":"That file is larger than 1 MB. Split it into smaller files (for example by state or by sheet) and upload them one at a time."
+[after-a6] upload huge.csv (16933605 bytes) -> [HTTP 413] "error":"That file is larger than 1 MB. Split it into smaller files (for example by state or by sheet) and upload them one at a time."
+[after-a6] temp upload files left behind: 0
+[after-a6] server log: 0 error/warn lines; startup lines: Marked 1 import(s) interrupted by the restart as failed Import cleanup: deleted 1 unprocessed upload(s) older than 24 h 
+[after-a6] shutdown line: SIGTERM received — stale-lock sweep and import cleanup stopped, shutting down
+
+## A.8 — scripts/normalize-existing-phones.js on a test DB with planted leads
+Leads with a phone not in the canonical +1XXXXXXXXXX form: 7
+
+Can be fixed safely (3):
+  lead 5020 "Odd Parens" (new): "(602) 555-0700" -> +16025550700
+  lead 5021 "Odd Ext" (in_queue): "602.555.0701 x12" -> +16025550701 ext. 12
+  lead 5026 "Odd Eleven" (new): "16025550703" -> +16025550703
+
+Collisions — NOT changed, review by hand (3):
+  lead 5022 "Odd Collides Existing" (new): "(415) 555-0101" -> +14155550101   <- lead 1 already has +14155550101
+  lead 5023 "Odd Twin A" (new): "480-555-0702" -> +14805550702   <- leads 5023, 5024 would all become +14805550702
+  lead 5024 "Odd Twin B" (cold): "4805550702" -> +14805550702   <- leads 5023, 5024 would all become +14805550702
+
+Unreadable — NOT changed, edit by hand (1):
+  lead 5025 "Odd Garbage" (new): "call office"
+
+Dry run — nothing was changed. Run with --apply to fix the safe ones (a backup is taken first).
+===== APPLY
+
+Taking a backup first (scripts/backup-db.sh)…
+Backup written: /var/tmp/audit-scratch/backups/vortex-20261112-084637.dump (168K, 5026 leads)
+Restore with:   pg_restore --clean --if-exists --no-owner -d "$DATABASE_URL" /var/tmp/audit-scratch/backups/vortex-20261112-084637.dump
+
+Changed 3 leads. Every change is logged in /var/tmp/audit-scratch/backups/normalize-phones-2026-11-12T08-46-37-435Z.log
+===== DRY RUN AGAIN
+Leads with a phone not in the canonical +1XXXXXXXXXX form: 4
+
+Can be fixed safely (0):
+         name          |     phone      |  original_phone  | extension |  status  
+-----------------------+----------------+------------------+-----------+----------
+ Odd Parens            | +16025550700   | (602) 555-0700   |           | new
+ Odd Ext               | +16025550701   | 602.555.0701 x12 | 12        | in_queue
+ Odd Collides Existing | (415) 555-0101 |                  |           | new
+ Odd Twin A            | 480-555-0702   |                  |           | new
+ Odd Twin B            | 4805550702     |                  |           | cold
+ Odd Garbage           | call office    |                  |           | new
+ Odd Eleven            | +16025550703   | 16025550703      |           | new
+(7 rows)
+
+2026-11-12T08:46:37.438Z lead 5020: "(602) 555-0700" -> +16025550700
+2026-11-12T08:46:37.439Z lead 5021: "602.555.0701 x12" -> +16025550701 ext 12
+2026-11-12T08:46:37.439Z lead 5026: "16025550703" -> +16025550703
+===== APPLY with a backup that cannot be written
+Taking a backup first (scripts/backup-db.sh)…
+mkdir: cannot create directory '/proc/no-such-dir': No such file or directory
+Backup failed — nothing was changed.
+Odd Late phone now: (602) 555-0704
+
+## Development checks after A.3, A.4 and A.7 (medium / large files)
+[a3-medium] gen: wrote /var/tmp/audit-scratch/seg5/leads-4000.csv: 4000 rows (a), 434912 bytes; expected {"totalRows":4000,"imported":3300,"merged":160,"alreadyInList":120,"dncBlocked":120,"noNumber":200,"unreadable":80,"invalid":100,"withExtension":160}
+[a3-medium] file leads-4000.csv: 4000 rows, 434912 bytes; leads in DB before: 5019; backend RSS before 113 MB
+[a3-medium] upload -> HTTP 201
+[a3-medium] auto mapping (AI off): {"phone":"Mobile","email":"Email","name":"Name","brokerage":"Office","address":"Street","city":"City","state":"State","zip":"Zip","source":"Source"}
+[a3-medium] auto mapping matches the expected columns: yes
+[a3-medium] process -> HTTP 200; final status=completed after 2.1 s, 4 requests (2 status polls)
+[a3-medium] summary: {"totalRows":4000,"imported":3500,"unreadable":80,"withExtension":160,"skippedDnc":80,"skippedDuplicate":160,"skippedInvalid":160,"mergedDuplicates":100,"importedWithoutPhone":200}
+[a3-medium] expected: {"totalRows":4000,"imported":3300,"merged":160,"alreadyInList":120,"dncBlocked":120,"noNumber":200,"invalid":100,"unreadable":80,"withExtension":160}
+[a3-medium] DB: leads +3500; peak backend RSS 155 MB (was 113 MB before the import)
+[a3-medium] DB: new leads with an extension: 160 (expected 160); phoneless leads keeping their unreadable raw text: 80 (expected 80)
+[a3-medium] DB: dialable leads whose phone is on the DNC list: 0
+[a3-medium] re-import same file: status=completed in 1.1 s; new leads in DB: 0; summary {"imported":0} imported=0
+[a3-medium] cancel test: cancel sent at [1.1s 81% saving Saving 2,500 / 3,900 rows status=processing] -> HTTP 200 {"cancelled":true,"jobId":3,"phase":"saving","written":2351,"message":"Stopping. 2351 leads were already saved and stay; no further rows will be saved after the batch in progress."}
+[a3-medium] cancel test: job ended status=cancelled; leads written by this job: 2828; reported written: 2828
+[a3-medium] dial sample (5 imported leads): 5031 (ext 110):201 5055 (ext 457):201 5229 (ext 5):201 5267 (ext 500):201 5278 (ext 462):201
+[a3-medium] requests in total: 22
+[a3-medium] invariants (I1-I9):
+[a3-medium] server log: 0 error/warn lines
+[a4-medium] gen: wrote /var/tmp/audit-scratch/seg5/leads-4000.csv: 4000 rows (a), 434912 bytes; expected {"totalRows":4000,"imported":3300,"merged":160,"alreadyInList":120,"dncBlocked":120,"noNumber":200,"unreadable":80,"invalid":100,"withExtension":160}
+[a4-medium] file leads-4000.csv: 4000 rows, 434912 bytes; leads in DB before: 5019; backend RSS before 113 MB
+[a4-medium] upload -> HTTP 201
+[a4-medium] auto mapping (AI off): {"phone":"Mobile","email":"Email","name":"Name","brokerage":"Office","address":"Street","city":"City","state":"State","zip":"Zip","source":"Source"}
+[a4-medium] auto mapping matches the expected columns: yes
+[a4-medium] process -> HTTP 200; final status=completed after 1.2 s, 3 requests (1 status polls)
+[a4-medium] summary: {"totalRows":4000,"imported":3500,"unreadable":80,"withExtension":160,"skippedDnc":80,"skippedDuplicate":160,"skippedInvalid":160,"mergedDuplicates":100,"importedWithoutPhone":200}
+[a4-medium] expected: {"totalRows":4000,"imported":3300,"merged":160,"alreadyInList":120,"dncBlocked":120,"noNumber":200,"invalid":100,"unreadable":80,"withExtension":160}
+[a4-medium] DB: leads +3500; peak backend RSS 139 MB (was 113 MB before the import)
+[a4-medium] DB: new leads with an extension: 160 (expected 160); phoneless leads keeping their unreadable raw text: 80 (expected 80)
+[a4-medium] DB: dialable leads whose phone is on the DNC list: 0
+[a4-medium] re-import same file: status=completed in 1.1 s; new leads in DB: 0; summary {"imported":0} imported=0
+[a4-medium] cancel test: cancel sent at [1.1s 100% saving Done status=completed] -> HTTP 409 {"cancelled":false,"tooLate":true,"jobId":3,"status":"completed","written":3659,"message":"Too late to cancel — this import is already completed.","reason":"too_late","error":"Too late to cancel — thi
+[a4-medium] cancel test: job ended status=completed; leads written by this job: 3659; reported written: 3659
+[a4-medium] dial sample (5 imported leads): 5031 (ext 110):201 5055 (ext 457):201 5229 (ext 5):201 5267 (ext 500):201 5278 (ext 462):201
+[a4-medium] requests in total: 20
+[a4-medium] invariants (I1-I9):
+[a4-medium] server log: 0 error/warn lines
+[a4-large] gen: wrote /var/tmp/audit-scratch/seg5/leads-30000.csv: 30000 rows (a), 3254412 bytes; expected {"totalRows":30000,"imported":24750,"merged":1200,"alreadyInList":900,"dncBlocked":900,"noNumber":1500,"unreadable":600,"invalid":750,"withExtension":1200}
+[a4-large] file leads-30000.csv: 30000 rows, 3254412 bytes; leads in DB before: 5019; backend RSS before 113 MB
+[a4-large] upload -> HTTP 201
+[a4-large] auto mapping (AI off): {"phone":"Mobile","email":"Email","name":"Name","brokerage":"Office","address":"Street","city":"City","state":"State","zip":"Zip","source":"Source"}
+[a4-large] auto mapping matches the expected columns: yes
+[a4-large] process -> HTTP 200; final status=completed after 4.7 s, 6 requests (4 status polls)
+[a4-large] summary: {"totalRows":30000,"imported":26250,"unreadable":600,"withExtension":1200,"skippedDnc":600,"skippedDuplicate":1200,"skippedInvalid":1200,"mergedDuplicates":750,"importedWithoutPhone":1500}
+[a4-large] expected: {"totalRows":30000,"imported":24750,"merged":1200,"alreadyInList":900,"dncBlocked":900,"noNumber":1500,"invalid":750,"unreadable":600,"withExtension":1200}
+[a4-large] DB: leads +26250; peak backend RSS 175 MB (was 113 MB before the import)
+[a4-large] DB: new leads with an extension: 1200 (expected 1200); phoneless leads keeping their unreadable raw text: 600 (expected 600)
+[a4-large] DB: dialable leads whose phone is on the DNC list: 0
+[a4-large] re-import same file: status=completed in 3.6 s; new leads in DB: 0; summary {"imported":0} imported=0
+[a4-large] cancel test: cancel sent at [(cancel sent)] -> HTTP 200 {"cancelled":true,"jobId":3,"phase":"saving","written":942,"message":"Stopping. 942 leads were already saved and stay; no further rows will be saved after the batch in progress."}
+[a4-large] cancel test: job ended status=cancelled; leads written by this job: 1409; reported written: 1409
+[a4-large] dial sample (5 imported leads): 5104 (ext 887):201 5127 (ext 807):201 5145 (ext 328):201 5154 (ext 31):201 5156 (ext 916):201
+[a4-large] requests in total: 37
+[a4-large] invariants (I1-I9):
+[a4-large] server log: 0 error/warn lines
+[a4-large-xlsx] gen: wrote /var/tmp/audit-scratch/seg5/leads-30000.xlsx: 30000 rows (b), 13498854 bytes; expected {"totalRows":30000,"imported":24750,"merged":1200,"alreadyInList":900,"dncBlocked":900,"noNumber":1500,"unreadable":600,"invalid":750,"withExtension":1200}
+[a4-large-xlsx] file leads-30000.xlsx: 30000 rows, 13498854 bytes; leads in DB before: 5019; backend RSS before 112 MB
+[a4-large-xlsx] upload -> HTTP 201
+[a4-large-xlsx] auto mapping (AI off): {"phone":"Phone Number","email":"E-mail","first_name":"First Name","last_name":"Last Name","brokerage":"Company","address":"Address","city":"City","state":"State","zip":"Postal Code","source":"Website"}
+[a4-large-xlsx] auto mapping matches the expected columns: yes
+[a4-large-xlsx] process -> HTTP 200; final status=completed after 5.2 s, 6 requests (4 status polls)
+[a4-large-xlsx] summary: {"totalRows":30000,"imported":26250,"unreadable":600,"withExtension":1200,"skippedDnc":600,"skippedDuplicate":1200,"skippedInvalid":1200,"mergedDuplicates":750,"importedWithoutPhone":1500}
+[a4-large-xlsx] expected: {"totalRows":30000,"imported":24750,"merged":1200,"alreadyInList":900,"dncBlocked":900,"noNumber":1500,"invalid":750,"unreadable":600,"withExtension":1200}
+[a4-large-xlsx] DB: leads +26250; peak backend RSS 243 MB (was 112 MB before the import)
+[a4-large-xlsx] DB: new leads with an extension: 1200 (expected 1200); phoneless leads keeping their unreadable raw text: 600 (expected 600)
+[a4-large-xlsx] DB: dialable leads whose phone is on the DNC list: 0
+[a4-large-xlsx] re-import same file: status=completed in 5.2 s; new leads in DB: 0; summary {"imported":0} imported=0
+[a4-large-xlsx] cancel test: cancel sent at [2.1s 51% saving Saving 1,000 / 29,250 rows status=processing] -> HTTP 200 {"cancelled":true,"jobId":3,"phase":"saving","written":942,"message":"Stopping. 942 leads were already saved and stay; no further rows will be saved after the batch in progress."}
+[a4-large-xlsx] cancel test: job ended status=cancelled; leads written by this job: 1409; reported written: 1409
+[a4-large-xlsx] dial sample (5 imported leads): 5104 (ext 887):201 5127 (ext 807):201 5145 (ext 328):201 5154 (ext 31):201 5156 (ext 916):201
+[a4-large-xlsx] requests in total: 36
+[a4-large-xlsx] invariants (I1-I9):
+[a4-large-xlsx] server log: 0 error/warn lines
+[a7-medium] gen: wrote /var/tmp/audit-scratch/seg5/leads-4000.csv: 4000 rows (a), 434912 bytes; expected {"totalRows":4000,"imported":3300,"merged":160,"alreadyInList":120,"dncBlocked":120,"noNumber":200,"unreadable":80,"invalid":100,"withExtension":160}
+[a7-medium] file leads-4000.csv: 4000 rows, 434912 bytes; leads in DB before: 5019; backend RSS before 118 MB
+[a7-medium] upload -> HTTP 201
+[a7-medium] auto mapping (AI off): {"phone":"Mobile","email":"Email","name":"Name","brokerage":"Office","address":"Street","city":"City","state":"State","zip":"Zip","source":"Source"}
+[a7-medium] auto mapping matches the expected columns: yes
+[a7-medium] process -> HTTP 200; final status=completed after 1.2 s, 3 requests (1 status polls)
+[a7-medium] summary: {"totalRows":4000,"imported":3300,"merged":160,"alreadyInList":120,"dncBlocked":120,"noNumber":200,"invalid":100,"unreadable":80,"withExtension":160,"skippedDnc":120,"skippedDuplicate":120,"skippedInvalid":100,"mergedDuplicates":160,"importedWithoutPhone":200}
+[a7-medium] expected: {"totalRows":4000,"imported":3300,"merged":160,"alreadyInList":120,"dncBlocked":120,"noNumber":200,"invalid":100,"unreadable":80,"withExtension":160}
+[a7-medium] accounting rule: imported + merged + alreadyInList + dncBlocked + noNumber + invalid = 4000 vs total 4000 -> OK
+[a7-medium] buckets vs expected: all equal
+[a7-medium] skipped-rows CSV: HTTP 200, 500 rows (skipped buckets: 500) -> OK; header: Sheet,Row,Outcome,Reason,City,Email,Mobile,Name,Office,Source,State,Street,Zip
+[a7-medium] invalid reasons: [{"count":40,"reason":"Could not determine a US state for this lead"},{"count":40,"reason":"Missing name"},{"count":20,"reason":"No state, and the same name appears in 2 different places in this file — not merged into any of them"}]
+[a7-medium] DB: leads +3500; peak backend RSS 141 MB (was 118 MB before the import)
+[a7-medium] DB: new leads with an extension: 160 (expected 160); phoneless leads keeping their unreadable raw text: 80 (expected 80)
+[a7-medium] DB: dialable leads whose phone is on the DNC list: 0
+[a7-medium] re-import same file: status=completed in 1.1 s; new leads in DB: 0; summary {"imported":0,"merged":160,"alreadyInList":3620,"dncBlocked":120,"noNumber":0,"invalid":100} sum=4000/4000
+[a7-medium] cancel test: cancel sent at [0.3s 69% saving Saving 1,500 / 3,840 rows status=processing] -> HTTP 200 {"cancelled":true,"jobId":3,"phase":"saving","written":1431,"message":"Stopping. 1431 leads were already saved and stay; no further rows will be saved after the batch in progress."}
+[a7-medium] cancel test: job ended status=cancelled; leads written by this job: 1904; reported written: 1904
+[a7-medium] dial sample (5 imported leads): 5031 (ext 110):201 5055 (ext 457):201 5229 (ext 5):201 5267 (ext 500):201 5278 (ext 462):201
+[a7-medium] requests in total: 23
+[a7-medium] invariants (I1-I9):
+[a7-medium] server log: 0 error/warn lines
+
+## A.9 — 3 runs × {300, 4000, 30000} rows × {CSV, XLSX} on HEAD (full output, invariants included)
+### run 1 — 300 rows — csv
+[r1-300-csv] gen: wrote /var/tmp/audit-scratch/seg5/leads-300.csv: 300 rows (a), 32981 bytes; expected {"totalRows":300,"imported":249,"merged":11,"alreadyInList":9,"dncBlocked":9,"noNumber":15,"unreadable":6,"invalid":7,"withExtension":12}
+[r1-300-csv] file leads-300.csv: 300 rows, 32981 bytes; leads in DB before: 5019; backend RSS before 116 MB
+[r1-300-csv] upload -> HTTP 201
+[r1-300-csv] auto mapping (AI off): {"phone":"Mobile","email":"Email","name":"Name","brokerage":"Office","address":"Street","city":"City","state":"State","zip":"Zip","source":"Source"}
+[r1-300-csv] auto mapping matches the expected columns: yes
+[r1-300-csv] process -> HTTP 200; final status=completed after 1.1 s, 3 requests (1 status polls)
+[r1-300-csv]    poll 1.1s 100% saving Done status=completed
+[r1-300-csv] summary: {"totalRows":300,"imported":249,"merged":11,"alreadyInList":9,"dncBlocked":9,"noNumber":15,"invalid":7,"unreadable":6,"withExtension":12,"skippedDnc":9,"skippedDuplicate":9,"skippedInvalid":7,"mergedDuplicates":11,"importedWithoutPhone":15}
+[r1-300-csv] expected: {"totalRows":300,"imported":249,"merged":11,"alreadyInList":9,"dncBlocked":9,"noNumber":15,"invalid":7,"unreadable":6,"withExtension":12}
+[r1-300-csv] accounting rule: imported + merged + alreadyInList + dncBlocked + noNumber + invalid = 300 vs total 300 -> OK
+[r1-300-csv] buckets vs expected: all equal
+[r1-300-csv] skipped-rows CSV: HTTP 200, 36 rows (skipped buckets: 36) -> OK; header: Sheet,Row,Outcome,Reason,City,Email,Mobile,Name,Office,Source,State,Street,Zip
+[r1-300-csv] invalid reasons: [{"count":3,"reason":"Could not determine a US state for this lead"},{"count":3,"reason":"Missing name"},{"count":1,"reason":"No state, and the same name appears in 2 different places in this file — not merged into any of them"}]
+[r1-300-csv] DB: leads +264; peak backend RSS 126 MB (was 116 MB before the import)
+[r1-300-csv] DB: new leads with an extension: 12 (expected 12); phoneless leads keeping their unreadable raw text: 6 (expected 6)
+[r1-300-csv] DB: dialable leads whose phone is on the DNC list: 0
+[r1-300-csv] re-import same file: status=completed in 1.0 s; new leads in DB: 0; summary {"imported":0,"merged":11,"alreadyInList":273,"dncBlocked":9,"noNumber":0,"invalid":7} sum=300/300
+[r1-300-csv] cancel test: cancel sent at [0.1s 100% saving Done status=completed] -> HTTP 409 {"cancelled":false,"tooLate":true,"jobId":3,"status":"completed","written":276,"message":"Too late to cancel — this import is already completed.","reason":"too_late","error":"Too late to cancel — this
+[r1-300-csv] cancel test: job ended status=completed; leads written by this job: 276; reported written: 276
+[r1-300-csv] dial sample (5 imported leads): 5047 (ext 685):201 5086 (ext 241):201 5153 (ext 785):201 5163 (ext 543):201 5182 (ext 482):201
+[r1-300-csv] requests in total: 21
+[r1-300-csv] invariants (I1-I9):
+[r1-300-csv]   -- I1 every lead has exactly one status from the allowed list (violations):
+[r1-300-csv]    status | count 
+[r1-300-csv]   --------+-------
+[r1-300-csv]   (0 rows)
+[r1-300-csv]   -- I2 leads in_progress, and whether each has an open (undispositioned) call:
+[r1-300-csv]    id | locked_by | lock_age_s | open_calls 
+[r1-300-csv]   ----+-----------+------------+------------
+[r1-300-csv]   (0 rows)
+[r1-300-csv]   -- I3 in_progress with lock older than 30s (should be swept on next queue read):
+[r1-300-csv]    stale_locks 
+[r1-300-csv]   -------------
+[r1-300-csv]              0
+[r1-300-csv]   (1 row)
+[r1-300-csv]   -- I4 orphan call rows (lead_id not in leads; manual calls have NULL lead_id by design):
+[r1-300-csv]    orphan_calls 
+[r1-300-csv]   --------------
+[r1-300-csv]               0
+[r1-300-csv]   (1 row)
+[r1-300-csv]   -- I5 calls never dispositioned and never ended, older than 5 minutes:
+[r1-300-csv]    dangling_calls 
+[r1-300-csv]   ----------------
+[r1-300-csv]                 0
+[r1-300-csv]   (1 row)
+[r1-300-csv]   -- I6 leads with more open (undispositioned) calls than one:
+[r1-300-csv]    lead_id | open_calls 
+[r1-300-csv]   ---------+------------
+[r1-300-csv]   (0 rows)
+[r1-300-csv]   -- I7 attempts above max_attempts:
+[r1-300-csv]    id | attempts | max_attempts | status 
+[r1-300-csv]   ----+----------+--------------+--------
+[r1-300-csv]   (0 rows)
+[r1-300-csv]   -- I8 dnc consistency: dnc_flag vs status vs dnc_list
+[r1-300-csv]                         kind                       | count 
+[r1-300-csv]   -------------------------------------------------+-------
+[r1-300-csv]    flag without status                             |     0
+[r1-300-csv]    status without flag                             |     0
+[r1-300-csv]    lead whose phone is on dnc_list but not flagged |     0
+[r1-300-csv]    phones not in E.164 (+1 and 10 digits)          |     0
+[r1-300-csv]   (4 rows)
+[r1-300-csv]   -- I9 lead counts:
+[r1-300-csv]    total | soft_deleted 
+[r1-300-csv]   -------+--------------
+[r1-300-csv]     5559 |            0
+[r1-300-csv]   (1 row)
+[r1-300-csv] server log: 0 error/warn lines
+### run 1 — 300 rows — xlsx
+[r1-300-xlsx] gen: wrote /var/tmp/audit-scratch/seg5/leads-300.xlsx: 300 rows (b), 144960 bytes; expected {"totalRows":300,"imported":249,"merged":11,"alreadyInList":9,"dncBlocked":9,"noNumber":15,"unreadable":6,"invalid":7,"withExtension":12}
+[r1-300-xlsx] file leads-300.xlsx: 300 rows, 144960 bytes; leads in DB before: 5019; backend RSS before 117 MB
+[r1-300-xlsx] upload -> HTTP 201
+[r1-300-xlsx] auto mapping (AI off): {"phone":"Phone Number","email":"E-mail","first_name":"First Name","last_name":"Last Name","brokerage":"Company","address":"Address","city":"City","state":"State","zip":"Postal Code","source":"Website"}
+[r1-300-xlsx] auto mapping matches the expected columns: yes
+[r1-300-xlsx] process -> HTTP 200; final status=completed after 1.1 s, 3 requests (1 status polls)
+[r1-300-xlsx]    poll 1.1s 100% saving Done status=completed
+[r1-300-xlsx] summary: {"totalRows":300,"imported":249,"merged":11,"alreadyInList":9,"dncBlocked":9,"noNumber":15,"invalid":7,"unreadable":6,"withExtension":12,"skippedDnc":9,"skippedDuplicate":9,"skippedInvalid":7,"mergedDuplicates":11,"importedWithoutPhone":15}
+[r1-300-xlsx] expected: {"totalRows":300,"imported":249,"merged":11,"alreadyInList":9,"dncBlocked":9,"noNumber":15,"invalid":7,"unreadable":6,"withExtension":12}
+[r1-300-xlsx] accounting rule: imported + merged + alreadyInList + dncBlocked + noNumber + invalid = 300 vs total 300 -> OK
+[r1-300-xlsx] buckets vs expected: all equal
+[r1-300-xlsx] skipped-rows CSV: HTTP 200, 36 rows (skipped buckets: 36) -> OK; header: Sheet,Row,Outcome,Reason,Address,City,Company,E-mail,First Name,Last Name,Phone Number,Pos
+[r1-300-xlsx] invalid reasons: [{"count":3,"reason":"Could not determine a US state for this lead"},{"count":3,"reason":"Missing name"},{"count":1,"reason":"No state, and the same name appears in 2 different places in this file — not merged into any of them"}]
+[r1-300-xlsx] DB: leads +264; peak backend RSS 134 MB (was 117 MB before the import)
+[r1-300-xlsx] DB: new leads with an extension: 12 (expected 12); phoneless leads keeping their unreadable raw text: 6 (expected 6)
+[r1-300-xlsx] DB: dialable leads whose phone is on the DNC list: 0
+[r1-300-xlsx] re-import same file: status=completed in 1.0 s; new leads in DB: 0; summary {"imported":0,"merged":11,"alreadyInList":273,"dncBlocked":9,"noNumber":0,"invalid":7} sum=300/300
+[r1-300-xlsx] cancel test: cancel sent at [0.1s 100% saving Done status=completed] -> HTTP 409 {"cancelled":false,"tooLate":true,"jobId":3,"status":"completed","written":276,"message":"Too late to cancel — this import is already completed.","reason":"too_late","error":"Too late to cancel — this
+[r1-300-xlsx] cancel test: job ended status=completed; leads written by this job: 276; reported written: 276
+[r1-300-xlsx] dial sample (5 imported leads): 5047 (ext 685):201 5086 (ext 241):201 5153 (ext 785):201 5163 (ext 543):201 5182 (ext 482):201
+[r1-300-xlsx] requests in total: 21
+[r1-300-xlsx] invariants (I1-I9):
+[r1-300-xlsx]   -- I1 every lead has exactly one status from the allowed list (violations):
+[r1-300-xlsx]    status | count 
+[r1-300-xlsx]   --------+-------
+[r1-300-xlsx]   (0 rows)
+[r1-300-xlsx]   -- I2 leads in_progress, and whether each has an open (undispositioned) call:
+[r1-300-xlsx]    id | locked_by | lock_age_s | open_calls 
+[r1-300-xlsx]   ----+-----------+------------+------------
+[r1-300-xlsx]   (0 rows)
+[r1-300-xlsx]   -- I3 in_progress with lock older than 30s (should be swept on next queue read):
+[r1-300-xlsx]    stale_locks 
+[r1-300-xlsx]   -------------
+[r1-300-xlsx]              0
+[r1-300-xlsx]   (1 row)
+[r1-300-xlsx]   -- I4 orphan call rows (lead_id not in leads; manual calls have NULL lead_id by design):
+[r1-300-xlsx]    orphan_calls 
+[r1-300-xlsx]   --------------
+[r1-300-xlsx]               0
+[r1-300-xlsx]   (1 row)
+[r1-300-xlsx]   -- I5 calls never dispositioned and never ended, older than 5 minutes:
+[r1-300-xlsx]    dangling_calls 
+[r1-300-xlsx]   ----------------
+[r1-300-xlsx]                 0
+[r1-300-xlsx]   (1 row)
+[r1-300-xlsx]   -- I6 leads with more open (undispositioned) calls than one:
+[r1-300-xlsx]    lead_id | open_calls 
+[r1-300-xlsx]   ---------+------------
+[r1-300-xlsx]   (0 rows)
+[r1-300-xlsx]   -- I7 attempts above max_attempts:
+[r1-300-xlsx]    id | attempts | max_attempts | status 
+[r1-300-xlsx]   ----+----------+--------------+--------
+[r1-300-xlsx]   (0 rows)
+[r1-300-xlsx]   -- I8 dnc consistency: dnc_flag vs status vs dnc_list
+[r1-300-xlsx]                         kind                       | count 
+[r1-300-xlsx]   -------------------------------------------------+-------
+[r1-300-xlsx]    flag without status                             |     0
+[r1-300-xlsx]    status without flag                             |     0
+[r1-300-xlsx]    lead whose phone is on dnc_list but not flagged |     0
+[r1-300-xlsx]    phones not in E.164 (+1 and 10 digits)          |     0
+[r1-300-xlsx]   (4 rows)
+[r1-300-xlsx]   -- I9 lead counts:
+[r1-300-xlsx]    total | soft_deleted 
+[r1-300-xlsx]   -------+--------------
+[r1-300-xlsx]     5559 |            0
+[r1-300-xlsx]   (1 row)
+[r1-300-xlsx] server log: 0 error/warn lines
+### run 1 — 4000 rows — csv
+[r1-4000-csv] gen: wrote /var/tmp/audit-scratch/seg5/leads-4000.csv: 4000 rows (a), 434912 bytes; expected {"totalRows":4000,"imported":3300,"merged":160,"alreadyInList":120,"dncBlocked":120,"noNumber":200,"unreadable":80,"invalid":100,"withExtension":160}
+[r1-4000-csv] file leads-4000.csv: 4000 rows, 434912 bytes; leads in DB before: 5019; backend RSS before 115 MB
+[r1-4000-csv] upload -> HTTP 201
+[r1-4000-csv] auto mapping (AI off): {"phone":"Mobile","email":"Email","name":"Name","brokerage":"Office","address":"Street","city":"City","state":"State","zip":"Zip","source":"Source"}
+[r1-4000-csv] auto mapping matches the expected columns: yes
+[r1-4000-csv] process -> HTTP 200; final status=completed after 1.1 s, 3 requests (1 status polls)
+[r1-4000-csv]    poll 1.1s 100% saving Done status=completed
+[r1-4000-csv] summary: {"totalRows":4000,"imported":3300,"merged":160,"alreadyInList":120,"dncBlocked":120,"noNumber":200,"invalid":100,"unreadable":80,"withExtension":160,"skippedDnc":120,"skippedDuplicate":120,"skippedInvalid":100,"mergedDuplicates":160,"importedWithoutPhone":200}
+[r1-4000-csv] expected: {"totalRows":4000,"imported":3300,"merged":160,"alreadyInList":120,"dncBlocked":120,"noNumber":200,"invalid":100,"unreadable":80,"withExtension":160}
+[r1-4000-csv] accounting rule: imported + merged + alreadyInList + dncBlocked + noNumber + invalid = 4000 vs total 4000 -> OK
+[r1-4000-csv] buckets vs expected: all equal
+[r1-4000-csv] skipped-rows CSV: HTTP 200, 500 rows (skipped buckets: 500) -> OK; header: Sheet,Row,Outcome,Reason,City,Email,Mobile,Name,Office,Source,State,Street,Zip
+[r1-4000-csv] invalid reasons: [{"count":40,"reason":"Could not determine a US state for this lead"},{"count":40,"reason":"Missing name"},{"count":20,"reason":"No state, and the same name appears in 2 different places in this file — not merged into any of them"}]
+[r1-4000-csv] DB: leads +3500; peak backend RSS 140 MB (was 115 MB before the import)
+[r1-4000-csv] DB: new leads with an extension: 160 (expected 160); phoneless leads keeping their unreadable raw text: 80 (expected 80)
+[r1-4000-csv] DB: dialable leads whose phone is on the DNC list: 0
+[r1-4000-csv] re-import same file: status=completed in 1.1 s; new leads in DB: 0; summary {"imported":0,"merged":160,"alreadyInList":3620,"dncBlocked":120,"noNumber":0,"invalid":100} sum=4000/4000
+[r1-4000-csv] cancel test: cancel sent at [0.3s 69% saving Saving 1,500 / 3,840 rows status=processing] -> HTTP 200 {"cancelled":true,"jobId":3,"phase":"saving","written":1904,"message":"Stopping. 1904 leads were already saved and stay; no further rows will be saved after the batch in progress."}
+[r1-4000-csv] cancel test: job ended status=cancelled; leads written by this job: 2387; reported written: 2387
+[r1-4000-csv] dial sample (5 imported leads): 5031 (ext 110):201 5055 (ext 457):201 5229 (ext 5):201 5267 (ext 500):201 5278 (ext 462):201
+[r1-4000-csv] requests in total: 23
+[r1-4000-csv] invariants (I1-I9):
+[r1-4000-csv]   -- I1 every lead has exactly one status from the allowed list (violations):
+[r1-4000-csv]    status | count 
+[r1-4000-csv]   --------+-------
+[r1-4000-csv]   (0 rows)
+[r1-4000-csv]   -- I2 leads in_progress, and whether each has an open (undispositioned) call:
+[r1-4000-csv]    id | locked_by | lock_age_s | open_calls 
+[r1-4000-csv]   ----+-----------+------------+------------
+[r1-4000-csv]   (0 rows)
+[r1-4000-csv]   -- I3 in_progress with lock older than 30s (should be swept on next queue read):
+[r1-4000-csv]    stale_locks 
+[r1-4000-csv]   -------------
+[r1-4000-csv]              0
+[r1-4000-csv]   (1 row)
+[r1-4000-csv]   -- I4 orphan call rows (lead_id not in leads; manual calls have NULL lead_id by design):
+[r1-4000-csv]    orphan_calls 
+[r1-4000-csv]   --------------
+[r1-4000-csv]               0
+[r1-4000-csv]   (1 row)
+[r1-4000-csv]   -- I5 calls never dispositioned and never ended, older than 5 minutes:
+[r1-4000-csv]    dangling_calls 
+[r1-4000-csv]   ----------------
+[r1-4000-csv]                 0
+[r1-4000-csv]   (1 row)
+[r1-4000-csv]   -- I6 leads with more open (undispositioned) calls than one:
+[r1-4000-csv]    lead_id | open_calls 
+[r1-4000-csv]   ---------+------------
+[r1-4000-csv]   (0 rows)
+[r1-4000-csv]   -- I7 attempts above max_attempts:
+[r1-4000-csv]    id | attempts | max_attempts | status 
+[r1-4000-csv]   ----+----------+--------------+--------
+[r1-4000-csv]   (0 rows)
+[r1-4000-csv]   -- I8 dnc consistency: dnc_flag vs status vs dnc_list
+[r1-4000-csv]                         kind                       | count 
+[r1-4000-csv]   -------------------------------------------------+-------
+[r1-4000-csv]    flag without status                             |     0
+[r1-4000-csv]    status without flag                             |     0
+[r1-4000-csv]    lead whose phone is on dnc_list but not flagged |     0
+[r1-4000-csv]    phones not in E.164 (+1 and 10 digits)          |     0
+[r1-4000-csv]   (4 rows)
+[r1-4000-csv]   -- I9 lead counts:
+[r1-4000-csv]    total | soft_deleted 
+[r1-4000-csv]   -------+--------------
+[r1-4000-csv]    10906 |            0
+[r1-4000-csv]   (1 row)
+[r1-4000-csv] server log: 0 error/warn lines
+### run 1 — 4000 rows — xlsx
+[r1-4000-xlsx] gen: wrote /var/tmp/audit-scratch/seg5/leads-4000.xlsx: 4000 rows (b), 1774616 bytes; expected {"totalRows":4000,"imported":3300,"merged":160,"alreadyInList":120,"dncBlocked":120,"noNumber":200,"unreadable":80,"invalid":100,"withExtension":160}
+[r1-4000-xlsx] file leads-4000.xlsx: 4000 rows, 1774616 bytes; leads in DB before: 5019; backend RSS before 118 MB
+[r1-4000-xlsx] upload -> HTTP 201
+[r1-4000-xlsx] auto mapping (AI off): {"phone":"Phone Number","email":"E-mail","first_name":"First Name","last_name":"Last Name","brokerage":"Company","address":"Address","city":"City","state":"State","zip":"Postal Code","source":"Website"}
+[r1-4000-xlsx] auto mapping matches the expected columns: yes
+[r1-4000-xlsx] process -> HTTP 200; final status=completed after 1.2 s, 3 requests (1 status polls)
+[r1-4000-xlsx]    poll 1.2s 100% saving Done status=completed
+[r1-4000-xlsx] summary: {"totalRows":4000,"imported":3300,"merged":160,"alreadyInList":120,"dncBlocked":120,"noNumber":200,"invalid":100,"unreadable":80,"withExtension":160,"skippedDnc":120,"skippedDuplicate":120,"skippedInvalid":100,"mergedDuplicates":160,"importedWithoutPhone":200}
+[r1-4000-xlsx] expected: {"totalRows":4000,"imported":3300,"merged":160,"alreadyInList":120,"dncBlocked":120,"noNumber":200,"invalid":100,"unreadable":80,"withExtension":160}
+[r1-4000-xlsx] accounting rule: imported + merged + alreadyInList + dncBlocked + noNumber + invalid = 4000 vs total 4000 -> OK
+[r1-4000-xlsx] buckets vs expected: all equal
+[r1-4000-xlsx] skipped-rows CSV: HTTP 200, 500 rows (skipped buckets: 500) -> OK; header: Sheet,Row,Outcome,Reason,Address,City,Company,E-mail,First Name,Last Name,Phone Number,Pos
+[r1-4000-xlsx] invalid reasons: [{"count":40,"reason":"Could not determine a US state for this lead"},{"count":40,"reason":"Missing name"},{"count":20,"reason":"No state, and the same name appears in 2 different places in this file — not merged into any of them"}]
+[r1-4000-xlsx] DB: leads +3500; peak backend RSS 153 MB (was 118 MB before the import)
+[r1-4000-xlsx] DB: new leads with an extension: 160 (expected 160); phoneless leads keeping their unreadable raw text: 80 (expected 80)
+[r1-4000-xlsx] DB: dialable leads whose phone is on the DNC list: 0
+[r1-4000-xlsx] re-import same file: status=completed in 1.2 s; new leads in DB: 0; summary {"imported":0,"merged":160,"alreadyInList":3620,"dncBlocked":120,"noNumber":0,"invalid":100} sum=4000/4000
+[r1-4000-xlsx] cancel test: cancel sent at [0.4s 62% saving Saving 1,000 / 3,840 rows status=processing] -> HTTP 200 {"cancelled":true,"jobId":3,"phase":"saving","written":953,"message":"Stopping. 953 leads were already saved and stay; no further rows will be saved after the batch in progress."}
+[r1-4000-xlsx] cancel test: job ended status=cancelled; leads written by this job: 1431; reported written: 1431
+[r1-4000-xlsx] dial sample (5 imported leads): 5031 (ext 110):201 5055 (ext 457):201 5229 (ext 5):201 5267 (ext 500):201 5278 (ext 462):201
+[r1-4000-xlsx] requests in total: 23
+[r1-4000-xlsx] invariants (I1-I9):
+[r1-4000-xlsx]   -- I1 every lead has exactly one status from the allowed list (violations):
+[r1-4000-xlsx]    status | count 
+[r1-4000-xlsx]   --------+-------
+[r1-4000-xlsx]   (0 rows)
+[r1-4000-xlsx]   -- I2 leads in_progress, and whether each has an open (undispositioned) call:
+[r1-4000-xlsx]    id | locked_by | lock_age_s | open_calls 
+[r1-4000-xlsx]   ----+-----------+------------+------------
+[r1-4000-xlsx]   (0 rows)
+[r1-4000-xlsx]   -- I3 in_progress with lock older than 30s (should be swept on next queue read):
+[r1-4000-xlsx]    stale_locks 
+[r1-4000-xlsx]   -------------
+[r1-4000-xlsx]              0
+[r1-4000-xlsx]   (1 row)
+[r1-4000-xlsx]   -- I4 orphan call rows (lead_id not in leads; manual calls have NULL lead_id by design):
+[r1-4000-xlsx]    orphan_calls 
+[r1-4000-xlsx]   --------------
+[r1-4000-xlsx]               0
+[r1-4000-xlsx]   (1 row)
+[r1-4000-xlsx]   -- I5 calls never dispositioned and never ended, older than 5 minutes:
+[r1-4000-xlsx]    dangling_calls 
+[r1-4000-xlsx]   ----------------
+[r1-4000-xlsx]                 0
+[r1-4000-xlsx]   (1 row)
+[r1-4000-xlsx]   -- I6 leads with more open (undispositioned) calls than one:
+[r1-4000-xlsx]    lead_id | open_calls 
+[r1-4000-xlsx]   ---------+------------
+[r1-4000-xlsx]   (0 rows)
+[r1-4000-xlsx]   -- I7 attempts above max_attempts:
+[r1-4000-xlsx]    id | attempts | max_attempts | status 
+[r1-4000-xlsx]   ----+----------+--------------+--------
+[r1-4000-xlsx]   (0 rows)
+[r1-4000-xlsx]   -- I8 dnc consistency: dnc_flag vs status vs dnc_list
+[r1-4000-xlsx]                         kind                       | count 
+[r1-4000-xlsx]   -------------------------------------------------+-------
+[r1-4000-xlsx]    flag without status                             |     0
+[r1-4000-xlsx]    status without flag                             |     0
+[r1-4000-xlsx]    lead whose phone is on dnc_list but not flagged |     0
+[r1-4000-xlsx]    phones not in E.164 (+1 and 10 digits)          |     0
+[r1-4000-xlsx]   (4 rows)
+[r1-4000-xlsx]   -- I9 lead counts:
+[r1-4000-xlsx]    total | soft_deleted 
+[r1-4000-xlsx]   -------+--------------
+[r1-4000-xlsx]     9950 |            0
+[r1-4000-xlsx]   (1 row)
+[r1-4000-xlsx] server log: 0 error/warn lines
+### run 1 — 30000 rows — csv
+[r1-30000-csv] gen: wrote /var/tmp/audit-scratch/seg5/leads-30000.csv: 30000 rows (a), 3254412 bytes; expected {"totalRows":30000,"imported":24750,"merged":1200,"alreadyInList":900,"dncBlocked":900,"noNumber":1500,"unreadable":600,"invalid":750,"withExtension":1200}
+[r1-30000-csv] file leads-30000.csv: 30000 rows, 3254412 bytes; leads in DB before: 5019; backend RSS before 116 MB
+[r1-30000-csv] upload -> HTTP 201
+[r1-30000-csv] auto mapping (AI off): {"phone":"Mobile","email":"Email","name":"Name","brokerage":"Office","address":"Street","city":"City","state":"State","zip":"Zip","source":"Source"}
+[r1-30000-csv] auto mapping matches the expected columns: yes
+[r1-30000-csv] process -> HTTP 200; final status=completed after 4.7 s, 6 requests (4 status polls)
+[r1-30000-csv]    poll 1.7s 50% cleaning Cleaning 30,000 / 30,000 rows status=processing
+[r1-30000-csv]    poll 2.7s 72% saving Saving 13,500 / 28,800 rows status=processing
+[r1-30000-csv]    poll 3.7s 95% saving Saving 27,000 / 28,800 rows status=processing
+[r1-30000-csv]    poll 4.7s 100% saving Done status=completed
+[r1-30000-csv] summary: {"totalRows":30000,"imported":24750,"merged":1200,"alreadyInList":900,"dncBlocked":900,"noNumber":1500,"invalid":750,"unreadable":600,"withExtension":1200,"skippedDnc":900,"skippedDuplicate":900,"skippedInvalid":750,"mergedDuplicates":1200,"importedWithoutPhone":1500}
+[r1-30000-csv] expected: {"totalRows":30000,"imported":24750,"merged":1200,"alreadyInList":900,"dncBlocked":900,"noNumber":1500,"invalid":750,"unreadable":600,"withExtension":1200}
+[r1-30000-csv] accounting rule: imported + merged + alreadyInList + dncBlocked + noNumber + invalid = 30000 vs total 30000 -> OK
+[r1-30000-csv] buckets vs expected: all equal
+[r1-30000-csv] skipped-rows CSV: HTTP 200, 3750 rows (skipped buckets: 3750) -> OK; header: Sheet,Row,Outcome,Reason,City,Email,Mobile,Name,Office,Source,State,Street,Zip
+[r1-30000-csv] invalid reasons: [{"count":300,"reason":"Could not determine a US state for this lead"},{"count":300,"reason":"Missing name"},{"count":150,"reason":"No state, and the same name appears in 2 different places in this file — not merged into any of them"}]
+[r1-30000-csv] DB: leads +26250; peak backend RSS 180 MB (was 116 MB before the import)
+[r1-30000-csv] DB: new leads with an extension: 1200 (expected 1200); phoneless leads keeping their unreadable raw text: 600 (expected 600)
+[r1-30000-csv] DB: dialable leads whose phone is on the DNC list: 0
+[r1-30000-csv] re-import same file: status=completed in 4.6 s; new leads in DB: 0; summary {"imported":0,"merged":1200,"alreadyInList":27150,"dncBlocked":900,"noNumber":0,"invalid":750} sum=30000/30000
+[r1-30000-csv] cancel test: cancel sent at [1.6s 50% saving Saving 500 / 28,800 rows status=processing] -> HTTP 200 {"cancelled":true,"jobId":3,"phase":"saving","written":482,"message":"Stopping. 482 leads were already saved and stay; no further rows will be saved after the batch in progress."}
+[r1-30000-csv] cancel test: job ended status=cancelled; leads written by this job: 962; reported written: 962
+[r1-30000-csv] dial sample (5 imported leads): 5104 (ext 887):201 5127 (ext 807):201 5145 (ext 328):201 5154 (ext 31):201 5156 (ext 916):201
+[r1-30000-csv] requests in total: 37
+[r1-30000-csv] invariants (I1-I9):
+[r1-30000-csv]   -- I1 every lead has exactly one status from the allowed list (violations):
+[r1-30000-csv]    status | count 
+[r1-30000-csv]   --------+-------
+[r1-30000-csv]   (0 rows)
+[r1-30000-csv]   -- I2 leads in_progress, and whether each has an open (undispositioned) call:
+[r1-30000-csv]    id | locked_by | lock_age_s | open_calls 
+[r1-30000-csv]   ----+-----------+------------+------------
+[r1-30000-csv]   (0 rows)
+[r1-30000-csv]   -- I3 in_progress with lock older than 30s (should be swept on next queue read):
+[r1-30000-csv]    stale_locks 
+[r1-30000-csv]   -------------
+[r1-30000-csv]              0
+[r1-30000-csv]   (1 row)
+[r1-30000-csv]   -- I4 orphan call rows (lead_id not in leads; manual calls have NULL lead_id by design):
+[r1-30000-csv]    orphan_calls 
+[r1-30000-csv]   --------------
+[r1-30000-csv]               0
+[r1-30000-csv]   (1 row)
+[r1-30000-csv]   -- I5 calls never dispositioned and never ended, older than 5 minutes:
+[r1-30000-csv]    dangling_calls 
+[r1-30000-csv]   ----------------
+[r1-30000-csv]                 0
+[r1-30000-csv]   (1 row)
+[r1-30000-csv]   -- I6 leads with more open (undispositioned) calls than one:
+[r1-30000-csv]    lead_id | open_calls 
+[r1-30000-csv]   ---------+------------
+[r1-30000-csv]   (0 rows)
+[r1-30000-csv]   -- I7 attempts above max_attempts:
+[r1-30000-csv]    id | attempts | max_attempts | status 
+[r1-30000-csv]   ----+----------+--------------+--------
+[r1-30000-csv]   (0 rows)
+[r1-30000-csv]   -- I8 dnc consistency: dnc_flag vs status vs dnc_list
+[r1-30000-csv]                         kind                       | count 
+[r1-30000-csv]   -------------------------------------------------+-------
+[r1-30000-csv]    status without flag                             |     0
+[r1-30000-csv]    lead whose phone is on dnc_list but not flagged |     0
+[r1-30000-csv]    flag without status                             |     0
+[r1-30000-csv]    phones not in E.164 (+1 and 10 digits)          |     0
+[r1-30000-csv]   (4 rows)
+[r1-30000-csv]   -- I9 lead counts:
+[r1-30000-csv]    total | soft_deleted 
+[r1-30000-csv]   -------+--------------
+[r1-30000-csv]    32231 |            0
+[r1-30000-csv]   (1 row)
+[r1-30000-csv] server log: 0 error/warn lines
+### run 1 — 30000 rows — xlsx
+[r1-30000-xlsx] gen: wrote /var/tmp/audit-scratch/seg5/leads-30000.xlsx: 30000 rows (b), 13498854 bytes; expected {"totalRows":30000,"imported":24750,"merged":1200,"alreadyInList":900,"dncBlocked":900,"noNumber":1500,"unreadable":600,"invalid":750,"withExtension":1200}
+[r1-30000-xlsx] file leads-30000.xlsx: 30000 rows, 13498854 bytes; leads in DB before: 5019; backend RSS before 116 MB
+[r1-30000-xlsx] upload -> HTTP 201
+[r1-30000-xlsx] auto mapping (AI off): {"phone":"Phone Number","email":"E-mail","first_name":"First Name","last_name":"Last Name","brokerage":"Company","address":"Address","city":"City","state":"State","zip":"Postal Code","source":"Website"}
+[r1-30000-xlsx] auto mapping matches the expected columns: yes
+[r1-30000-xlsx] process -> HTTP 200; final status=completed after 5.1 s, 6 requests (4 status polls)
+[r1-30000-xlsx]    poll 2.1s 50% cleaning Cleaning 30,000 / 30,000 rows status=processing
+[r1-30000-xlsx]    poll 3.1s 71% saving Saving 12,500 / 28,800 rows status=processing
+[r1-30000-xlsx]    poll 4.1s 95% saving Saving 27,000 / 28,800 rows status=processing
+[r1-30000-xlsx]    poll 5.1s 100% saving Done status=completed
+[r1-30000-xlsx] summary: {"totalRows":30000,"imported":24750,"merged":1200,"alreadyInList":900,"dncBlocked":900,"noNumber":1500,"invalid":750,"unreadable":600,"withExtension":1200,"skippedDnc":900,"skippedDuplicate":900,"skippedInvalid":750,"mergedDuplicates":1200,"importedWithoutPhone":1500}
+[r1-30000-xlsx] expected: {"totalRows":30000,"imported":24750,"merged":1200,"alreadyInList":900,"dncBlocked":900,"noNumber":1500,"invalid":750,"unreadable":600,"withExtension":1200}
+[r1-30000-xlsx] accounting rule: imported + merged + alreadyInList + dncBlocked + noNumber + invalid = 30000 vs total 30000 -> OK
+[r1-30000-xlsx] buckets vs expected: all equal
+[r1-30000-xlsx] skipped-rows CSV: HTTP 200, 3750 rows (skipped buckets: 3750) -> OK; header: Sheet,Row,Outcome,Reason,Address,City,Company,E-mail,First Name,Last Name,Phone Number,Pos
+[r1-30000-xlsx] invalid reasons: [{"count":300,"reason":"Could not determine a US state for this lead"},{"count":300,"reason":"Missing name"},{"count":150,"reason":"No state, and the same name appears in 2 different places in this file — not merged into any of them"}]
+[r1-30000-xlsx] DB: leads +26250; peak backend RSS 228 MB (was 116 MB before the import)
+[r1-30000-xlsx] DB: new leads with an extension: 1200 (expected 1200); phoneless leads keeping their unreadable raw text: 600 (expected 600)
+[r1-30000-xlsx] DB: dialable leads whose phone is on the DNC list: 0
+[r1-30000-xlsx] re-import same file: status=completed in 5.1 s; new leads in DB: 0; summary {"imported":0,"merged":1200,"alreadyInList":27150,"dncBlocked":900,"noNumber":0,"invalid":750} sum=30000/30000
+[r1-30000-xlsx] cancel test: cancel sent at [2.1s 50% saving Saving 500 / 28,800 rows status=processing] -> HTTP 200 {"cancelled":true,"jobId":3,"phase":"saving","written":482,"message":"Stopping. 482 leads were already saved and stay; no further rows will be saved after the batch in progress."}
+[r1-30000-xlsx] cancel test: job ended status=cancelled; leads written by this job: 962; reported written: 962
+[r1-30000-xlsx] dial sample (5 imported leads): 5104 (ext 887):201 5127 (ext 807):201 5145 (ext 328):201 5154 (ext 31):201 5156 (ext 916):201
+[r1-30000-xlsx] requests in total: 37
+[r1-30000-xlsx] invariants (I1-I9):
+[r1-30000-xlsx]   -- I1 every lead has exactly one status from the allowed list (violations):
+[r1-30000-xlsx]    status | count 
+[r1-30000-xlsx]   --------+-------
+[r1-30000-xlsx]   (0 rows)
+[r1-30000-xlsx]   -- I2 leads in_progress, and whether each has an open (undispositioned) call:
+[r1-30000-xlsx]    id | locked_by | lock_age_s | open_calls 
+[r1-30000-xlsx]   ----+-----------+------------+------------
+[r1-30000-xlsx]   (0 rows)
+[r1-30000-xlsx]   -- I3 in_progress with lock older than 30s (should be swept on next queue read):
+[r1-30000-xlsx]    stale_locks 
+[r1-30000-xlsx]   -------------
+[r1-30000-xlsx]              0
+[r1-30000-xlsx]   (1 row)
+[r1-30000-xlsx]   -- I4 orphan call rows (lead_id not in leads; manual calls have NULL lead_id by design):
+[r1-30000-xlsx]    orphan_calls 
+[r1-30000-xlsx]   --------------
+[r1-30000-xlsx]               0
+[r1-30000-xlsx]   (1 row)
+[r1-30000-xlsx]   -- I5 calls never dispositioned and never ended, older than 5 minutes:
+[r1-30000-xlsx]    dangling_calls 
+[r1-30000-xlsx]   ----------------
+[r1-30000-xlsx]                 0
+[r1-30000-xlsx]   (1 row)
+[r1-30000-xlsx]   -- I6 leads with more open (undispositioned) calls than one:
+[r1-30000-xlsx]    lead_id | open_calls 
+[r1-30000-xlsx]   ---------+------------
+[r1-30000-xlsx]   (0 rows)
+[r1-30000-xlsx]   -- I7 attempts above max_attempts:
+[r1-30000-xlsx]    id | attempts | max_attempts | status 
+[r1-30000-xlsx]   ----+----------+--------------+--------
+[r1-30000-xlsx]   (0 rows)
+[r1-30000-xlsx]   -- I8 dnc consistency: dnc_flag vs status vs dnc_list
+[r1-30000-xlsx]                         kind                       | count 
+[r1-30000-xlsx]   -------------------------------------------------+-------
+[r1-30000-xlsx]    status without flag                             |     0
+[r1-30000-xlsx]    lead whose phone is on dnc_list but not flagged |     0
+[r1-30000-xlsx]    flag without status                             |     0
+[r1-30000-xlsx]    phones not in E.164 (+1 and 10 digits)          |     0
+[r1-30000-xlsx]   (4 rows)
+[r1-30000-xlsx]   -- I9 lead counts:
+[r1-30000-xlsx]    total | soft_deleted 
+[r1-30000-xlsx]   -------+--------------
+[r1-30000-xlsx]    32231 |            0
+[r1-30000-xlsx]   (1 row)
+[r1-30000-xlsx] server log: 0 error/warn lines
+### run 2 — 300 rows — csv
+[r2-300-csv] gen: wrote /var/tmp/audit-scratch/seg5/leads-300.csv: 300 rows (a), 32521 bytes; expected {"totalRows":300,"imported":249,"merged":11,"alreadyInList":9,"dncBlocked":9,"noNumber":15,"unreadable":6,"invalid":7,"withExtension":12}
+[r2-300-csv] file leads-300.csv: 300 rows, 32521 bytes; leads in DB before: 5019; backend RSS before 117 MB
+[r2-300-csv] upload -> HTTP 201
+[r2-300-csv] auto mapping (AI off): {"phone":"Mobile","email":"Email","name":"Name","brokerage":"Office","address":"Street","city":"City","state":"State","zip":"Zip","source":"Source"}
+[r2-300-csv] auto mapping matches the expected columns: yes
+[r2-300-csv] process -> HTTP 200; final status=completed after 1.0 s, 3 requests (1 status polls)
+[r2-300-csv]    poll 1.0s 100% saving Done status=completed
+[r2-300-csv] summary: {"totalRows":300,"imported":249,"merged":11,"alreadyInList":9,"dncBlocked":9,"noNumber":15,"invalid":7,"unreadable":6,"withExtension":12,"skippedDnc":9,"skippedDuplicate":9,"skippedInvalid":7,"mergedDuplicates":11,"importedWithoutPhone":15}
+[r2-300-csv] expected: {"totalRows":300,"imported":249,"merged":11,"alreadyInList":9,"dncBlocked":9,"noNumber":15,"invalid":7,"unreadable":6,"withExtension":12}
+[r2-300-csv] accounting rule: imported + merged + alreadyInList + dncBlocked + noNumber + invalid = 300 vs total 300 -> OK
+[r2-300-csv] buckets vs expected: all equal
+[r2-300-csv] skipped-rows CSV: HTTP 200, 36 rows (skipped buckets: 36) -> OK; header: Sheet,Row,Outcome,Reason,City,Email,Mobile,Name,Office,Source,State,Street,Zip
+[r2-300-csv] invalid reasons: [{"count":3,"reason":"Could not determine a US state for this lead"},{"count":3,"reason":"Missing name"},{"count":1,"reason":"No state, and the same name appears in 2 different places in this file — not merged into any of them"}]
+[r2-300-csv] DB: leads +264; peak backend RSS 127 MB (was 117 MB before the import)
+[r2-300-csv] DB: new leads with an extension: 12 (expected 12); phoneless leads keeping their unreadable raw text: 6 (expected 6)
+[r2-300-csv] DB: dialable leads whose phone is on the DNC list: 0
+[r2-300-csv] re-import same file: status=completed in 1.0 s; new leads in DB: 0; summary {"imported":0,"merged":11,"alreadyInList":273,"dncBlocked":9,"noNumber":0,"invalid":7} sum=300/300
+[r2-300-csv] cancel test: cancel sent at [0.1s 100% saving Done status=completed] -> HTTP 409 {"cancelled":false,"tooLate":true,"jobId":3,"status":"completed","written":276,"message":"Too late to cancel — this import is already completed.","reason":"too_late","error":"Too late to cancel — this
+[r2-300-csv] cancel test: job ended status=completed; leads written by this job: 276; reported written: 276
+[r2-300-csv] dial sample (5 imported leads): 5071 (ext 72):201 5106 (ext 554):201 5126 (ext 313):201 5129 (ext 838):201 5153 (ext 450):201
+[r2-300-csv] requests in total: 21
+[r2-300-csv] invariants (I1-I9):
+[r2-300-csv]   -- I1 every lead has exactly one status from the allowed list (violations):
+[r2-300-csv]    status | count 
+[r2-300-csv]   --------+-------
+[r2-300-csv]   (0 rows)
+[r2-300-csv]   -- I2 leads in_progress, and whether each has an open (undispositioned) call:
+[r2-300-csv]    id | locked_by | lock_age_s | open_calls 
+[r2-300-csv]   ----+-----------+------------+------------
+[r2-300-csv]   (0 rows)
+[r2-300-csv]   -- I3 in_progress with lock older than 30s (should be swept on next queue read):
+[r2-300-csv]    stale_locks 
+[r2-300-csv]   -------------
+[r2-300-csv]              0
+[r2-300-csv]   (1 row)
+[r2-300-csv]   -- I4 orphan call rows (lead_id not in leads; manual calls have NULL lead_id by design):
+[r2-300-csv]    orphan_calls 
+[r2-300-csv]   --------------
+[r2-300-csv]               0
+[r2-300-csv]   (1 row)
+[r2-300-csv]   -- I5 calls never dispositioned and never ended, older than 5 minutes:
+[r2-300-csv]    dangling_calls 
+[r2-300-csv]   ----------------
+[r2-300-csv]                 0
+[r2-300-csv]   (1 row)
+[r2-300-csv]   -- I6 leads with more open (undispositioned) calls than one:
+[r2-300-csv]    lead_id | open_calls 
+[r2-300-csv]   ---------+------------
+[r2-300-csv]   (0 rows)
+[r2-300-csv]   -- I7 attempts above max_attempts:
+[r2-300-csv]    id | attempts | max_attempts | status 
+[r2-300-csv]   ----+----------+--------------+--------
+[r2-300-csv]   (0 rows)
+[r2-300-csv]   -- I8 dnc consistency: dnc_flag vs status vs dnc_list
+[r2-300-csv]                         kind                       | count 
+[r2-300-csv]   -------------------------------------------------+-------
+[r2-300-csv]    flag without status                             |     0
+[r2-300-csv]    status without flag                             |     0
+[r2-300-csv]    lead whose phone is on dnc_list but not flagged |     0
+[r2-300-csv]    phones not in E.164 (+1 and 10 digits)          |     0
+[r2-300-csv]   (4 rows)
+[r2-300-csv]   -- I9 lead counts:
+[r2-300-csv]    total | soft_deleted 
+[r2-300-csv]   -------+--------------
+[r2-300-csv]     5559 |            0
+[r2-300-csv]   (1 row)
+[r2-300-csv] server log: 0 error/warn lines
+### run 2 — 300 rows — xlsx
+[r2-300-xlsx] gen: wrote /var/tmp/audit-scratch/seg5/leads-300.xlsx: 300 rows (b), 144311 bytes; expected {"totalRows":300,"imported":249,"merged":11,"alreadyInList":9,"dncBlocked":9,"noNumber":15,"unreadable":6,"invalid":7,"withExtension":12}
+[r2-300-xlsx] file leads-300.xlsx: 300 rows, 144311 bytes; leads in DB before: 5019; backend RSS before 116 MB
+[r2-300-xlsx] upload -> HTTP 201
+[r2-300-xlsx] auto mapping (AI off): {"phone":"Phone Number","email":"E-mail","first_name":"First Name","last_name":"Last Name","brokerage":"Company","address":"Address","city":"City","state":"State","zip":"Postal Code","source":"Website"}
+[r2-300-xlsx] auto mapping matches the expected columns: yes
+[r2-300-xlsx] process -> HTTP 200; final status=completed after 1.1 s, 3 requests (1 status polls)
+[r2-300-xlsx]    poll 1.1s 100% saving Done status=completed
+[r2-300-xlsx] summary: {"totalRows":300,"imported":249,"merged":11,"alreadyInList":9,"dncBlocked":9,"noNumber":15,"invalid":7,"unreadable":6,"withExtension":12,"skippedDnc":9,"skippedDuplicate":9,"skippedInvalid":7,"mergedDuplicates":11,"importedWithoutPhone":15}
+[r2-300-xlsx] expected: {"totalRows":300,"imported":249,"merged":11,"alreadyInList":9,"dncBlocked":9,"noNumber":15,"invalid":7,"unreadable":6,"withExtension":12}
+[r2-300-xlsx] accounting rule: imported + merged + alreadyInList + dncBlocked + noNumber + invalid = 300 vs total 300 -> OK
+[r2-300-xlsx] buckets vs expected: all equal
+[r2-300-xlsx] skipped-rows CSV: HTTP 200, 36 rows (skipped buckets: 36) -> OK; header: Sheet,Row,Outcome,Reason,Address,City,Company,E-mail,First Name,Last Name,Phone Number,Pos
+[r2-300-xlsx] invalid reasons: [{"count":3,"reason":"Could not determine a US state for this lead"},{"count":3,"reason":"Missing name"},{"count":1,"reason":"No state, and the same name appears in 2 different places in this file — not merged into any of them"}]
+[r2-300-xlsx] DB: leads +264; peak backend RSS 134 MB (was 116 MB before the import)
+[r2-300-xlsx] DB: new leads with an extension: 12 (expected 12); phoneless leads keeping their unreadable raw text: 6 (expected 6)
+[r2-300-xlsx] DB: dialable leads whose phone is on the DNC list: 0
+[r2-300-xlsx] re-import same file: status=completed in 1.0 s; new leads in DB: 0; summary {"imported":0,"merged":11,"alreadyInList":273,"dncBlocked":9,"noNumber":0,"invalid":7} sum=300/300
+[r2-300-xlsx] cancel test: cancel sent at [0.1s 100% saving Done status=completed] -> HTTP 409 {"cancelled":false,"tooLate":true,"jobId":3,"status":"completed","written":276,"message":"Too late to cancel — this import is already completed.","reason":"too_late","error":"Too late to cancel — this
+[r2-300-xlsx] cancel test: job ended status=completed; leads written by this job: 276; reported written: 276
+[r2-300-xlsx] dial sample (5 imported leads): 5071 (ext 72):201 5106 (ext 554):201 5126 (ext 313):201 5129 (ext 838):201 5153 (ext 450):201
+[r2-300-xlsx] requests in total: 21
+[r2-300-xlsx] invariants (I1-I9):
+[r2-300-xlsx]   -- I1 every lead has exactly one status from the allowed list (violations):
+[r2-300-xlsx]    status | count 
+[r2-300-xlsx]   --------+-------
+[r2-300-xlsx]   (0 rows)
+[r2-300-xlsx]   -- I2 leads in_progress, and whether each has an open (undispositioned) call:
+[r2-300-xlsx]    id | locked_by | lock_age_s | open_calls 
+[r2-300-xlsx]   ----+-----------+------------+------------
+[r2-300-xlsx]   (0 rows)
+[r2-300-xlsx]   -- I3 in_progress with lock older than 30s (should be swept on next queue read):
+[r2-300-xlsx]    stale_locks 
+[r2-300-xlsx]   -------------
+[r2-300-xlsx]              0
+[r2-300-xlsx]   (1 row)
+[r2-300-xlsx]   -- I4 orphan call rows (lead_id not in leads; manual calls have NULL lead_id by design):
+[r2-300-xlsx]    orphan_calls 
+[r2-300-xlsx]   --------------
+[r2-300-xlsx]               0
+[r2-300-xlsx]   (1 row)
+[r2-300-xlsx]   -- I5 calls never dispositioned and never ended, older than 5 minutes:
+[r2-300-xlsx]    dangling_calls 
+[r2-300-xlsx]   ----------------
+[r2-300-xlsx]                 0
+[r2-300-xlsx]   (1 row)
+[r2-300-xlsx]   -- I6 leads with more open (undispositioned) calls than one:
+[r2-300-xlsx]    lead_id | open_calls 
+[r2-300-xlsx]   ---------+------------
+[r2-300-xlsx]   (0 rows)
+[r2-300-xlsx]   -- I7 attempts above max_attempts:
+[r2-300-xlsx]    id | attempts | max_attempts | status 
+[r2-300-xlsx]   ----+----------+--------------+--------
+[r2-300-xlsx]   (0 rows)
+[r2-300-xlsx]   -- I8 dnc consistency: dnc_flag vs status vs dnc_list
+[r2-300-xlsx]                         kind                       | count 
+[r2-300-xlsx]   -------------------------------------------------+-------
+[r2-300-xlsx]    flag without status                             |     0
+[r2-300-xlsx]    status without flag                             |     0
+[r2-300-xlsx]    lead whose phone is on dnc_list but not flagged |     0
+[r2-300-xlsx]    phones not in E.164 (+1 and 10 digits)          |     0
+[r2-300-xlsx]   (4 rows)
+[r2-300-xlsx]   -- I9 lead counts:
+[r2-300-xlsx]    total | soft_deleted 
+[r2-300-xlsx]   -------+--------------
+[r2-300-xlsx]     5559 |            0
+[r2-300-xlsx]   (1 row)
+[r2-300-xlsx] server log: 0 error/warn lines
+### run 2 — 4000 rows — csv
+[r2-4000-csv] gen: wrote /var/tmp/audit-scratch/seg5/leads-4000.csv: 4000 rows (a), 433593 bytes; expected {"totalRows":4000,"imported":3300,"merged":160,"alreadyInList":120,"dncBlocked":120,"noNumber":200,"unreadable":80,"invalid":100,"withExtension":160}
+[r2-4000-csv] file leads-4000.csv: 4000 rows, 433593 bytes; leads in DB before: 5019; backend RSS before 115 MB
+[r2-4000-csv] upload -> HTTP 201
+[r2-4000-csv] auto mapping (AI off): {"phone":"Mobile","email":"Email","name":"Name","brokerage":"Office","address":"Street","city":"City","state":"State","zip":"Zip","source":"Source"}
+[r2-4000-csv] auto mapping matches the expected columns: yes
+[r2-4000-csv] process -> HTTP 200; final status=completed after 1.2 s, 3 requests (1 status polls)
+[r2-4000-csv]    poll 1.2s 100% saving Done status=completed
+[r2-4000-csv] summary: {"totalRows":4000,"imported":3300,"merged":160,"alreadyInList":120,"dncBlocked":120,"noNumber":200,"invalid":100,"unreadable":80,"withExtension":160,"skippedDnc":120,"skippedDuplicate":120,"skippedInvalid":100,"mergedDuplicates":160,"importedWithoutPhone":200}
+[r2-4000-csv] expected: {"totalRows":4000,"imported":3300,"merged":160,"alreadyInList":120,"dncBlocked":120,"noNumber":200,"invalid":100,"unreadable":80,"withExtension":160}
+[r2-4000-csv] accounting rule: imported + merged + alreadyInList + dncBlocked + noNumber + invalid = 4000 vs total 4000 -> OK
+[r2-4000-csv] buckets vs expected: all equal
+[r2-4000-csv] skipped-rows CSV: HTTP 200, 500 rows (skipped buckets: 500) -> OK; header: Sheet,Row,Outcome,Reason,City,Email,Mobile,Name,Office,Source,State,Street,Zip
+[r2-4000-csv] invalid reasons: [{"count":40,"reason":"Could not determine a US state for this lead"},{"count":40,"reason":"Missing name"},{"count":20,"reason":"No state, and the same name appears in 2 different places in this file — not merged into any of them"}]
+[r2-4000-csv] DB: leads +3500; peak backend RSS 141 MB (was 115 MB before the import)
+[r2-4000-csv] DB: new leads with an extension: 160 (expected 160); phoneless leads keeping their unreadable raw text: 80 (expected 80)
+[r2-4000-csv] DB: dialable leads whose phone is on the DNC list: 0
+[r2-4000-csv] re-import same file: status=completed in 1.1 s; new leads in DB: 0; summary {"imported":0,"merged":160,"alreadyInList":3620,"dncBlocked":120,"noNumber":0,"invalid":100} sum=4000/4000
+[r2-4000-csv] cancel test: cancel sent at [0.3s 69% saving Saving 1,500 / 3,840 rows status=processing] -> HTTP 200 {"cancelled":true,"jobId":3,"phase":"saving","written":1429,"message":"Stopping. 1429 leads were already saved and stay; no further rows will be saved after the batch in progress."}
+[r2-4000-csv] cancel test: job ended status=cancelled; leads written by this job: 1900; reported written: 1900
+[r2-4000-csv] dial sample (5 imported leads): 5045 (ext 402):201 5057 (ext 454):201 5101 (ext 243):201 5146 (ext 682):201 5167 (ext 313):201
+[r2-4000-csv] requests in total: 23
+[r2-4000-csv] invariants (I1-I9):
+[r2-4000-csv]   -- I1 every lead has exactly one status from the allowed list (violations):
+[r2-4000-csv]    status | count 
+[r2-4000-csv]   --------+-------
+[r2-4000-csv]   (0 rows)
+[r2-4000-csv]   -- I2 leads in_progress, and whether each has an open (undispositioned) call:
+[r2-4000-csv]    id | locked_by | lock_age_s | open_calls 
+[r2-4000-csv]   ----+-----------+------------+------------
+[r2-4000-csv]   (0 rows)
+[r2-4000-csv]   -- I3 in_progress with lock older than 30s (should be swept on next queue read):
+[r2-4000-csv]    stale_locks 
+[r2-4000-csv]   -------------
+[r2-4000-csv]              0
+[r2-4000-csv]   (1 row)
+[r2-4000-csv]   -- I4 orphan call rows (lead_id not in leads; manual calls have NULL lead_id by design):
+[r2-4000-csv]    orphan_calls 
+[r2-4000-csv]   --------------
+[r2-4000-csv]               0
+[r2-4000-csv]   (1 row)
+[r2-4000-csv]   -- I5 calls never dispositioned and never ended, older than 5 minutes:
+[r2-4000-csv]    dangling_calls 
+[r2-4000-csv]   ----------------
+[r2-4000-csv]                 0
+[r2-4000-csv]   (1 row)
+[r2-4000-csv]   -- I6 leads with more open (undispositioned) calls than one:
+[r2-4000-csv]    lead_id | open_calls 
+[r2-4000-csv]   ---------+------------
+[r2-4000-csv]   (0 rows)
+[r2-4000-csv]   -- I7 attempts above max_attempts:
+[r2-4000-csv]    id | attempts | max_attempts | status 
+[r2-4000-csv]   ----+----------+--------------+--------
+[r2-4000-csv]   (0 rows)
+[r2-4000-csv]   -- I8 dnc consistency: dnc_flag vs status vs dnc_list
+[r2-4000-csv]                         kind                       | count 
+[r2-4000-csv]   -------------------------------------------------+-------
+[r2-4000-csv]    flag without status                             |     0
+[r2-4000-csv]    status without flag                             |     0
+[r2-4000-csv]    lead whose phone is on dnc_list but not flagged |     0
+[r2-4000-csv]    phones not in E.164 (+1 and 10 digits)          |     0
+[r2-4000-csv]   (4 rows)
+[r2-4000-csv]   -- I9 lead counts:
+[r2-4000-csv]    total | soft_deleted 
+[r2-4000-csv]   -------+--------------
+[r2-4000-csv]    10419 |            0
+[r2-4000-csv]   (1 row)
+[r2-4000-csv] server log: 0 error/warn lines
+### run 2 — 4000 rows — xlsx
+[r2-4000-xlsx] gen: wrote /var/tmp/audit-scratch/seg5/leads-4000.xlsx: 4000 rows (b), 1773780 bytes; expected {"totalRows":4000,"imported":3300,"merged":160,"alreadyInList":120,"dncBlocked":120,"noNumber":200,"unreadable":80,"invalid":100,"withExtension":160}
+[r2-4000-xlsx] file leads-4000.xlsx: 4000 rows, 1773780 bytes; leads in DB before: 5019; backend RSS before 116 MB
+[r2-4000-xlsx] upload -> HTTP 201
+[r2-4000-xlsx] auto mapping (AI off): {"phone":"Phone Number","email":"E-mail","first_name":"First Name","last_name":"Last Name","brokerage":"Company","address":"Address","city":"City","state":"State","zip":"Postal Code","source":"Website"}
+[r2-4000-xlsx] auto mapping matches the expected columns: yes
+[r2-4000-xlsx] process -> HTTP 200; final status=completed after 1.2 s, 3 requests (1 status polls)
+[r2-4000-xlsx]    poll 1.2s 100% saving Done status=completed
+[r2-4000-xlsx] summary: {"totalRows":4000,"imported":3300,"merged":160,"alreadyInList":120,"dncBlocked":120,"noNumber":200,"invalid":100,"unreadable":80,"withExtension":160,"skippedDnc":120,"skippedDuplicate":120,"skippedInvalid":100,"mergedDuplicates":160,"importedWithoutPhone":200}
+[r2-4000-xlsx] expected: {"totalRows":4000,"imported":3300,"merged":160,"alreadyInList":120,"dncBlocked":120,"noNumber":200,"invalid":100,"unreadable":80,"withExtension":160}
+[r2-4000-xlsx] accounting rule: imported + merged + alreadyInList + dncBlocked + noNumber + invalid = 4000 vs total 4000 -> OK
+[r2-4000-xlsx] buckets vs expected: all equal
+[r2-4000-xlsx] skipped-rows CSV: HTTP 200, 500 rows (skipped buckets: 500) -> OK; header: Sheet,Row,Outcome,Reason,Address,City,Company,E-mail,First Name,Last Name,Phone Number,Pos
+[r2-4000-xlsx] invalid reasons: [{"count":40,"reason":"Could not determine a US state for this lead"},{"count":40,"reason":"Missing name"},{"count":20,"reason":"No state, and the same name appears in 2 different places in this file — not merged into any of them"}]
+[r2-4000-xlsx] DB: leads +3500; peak backend RSS 149 MB (was 116 MB before the import)
+[r2-4000-xlsx] DB: new leads with an extension: 160 (expected 160); phoneless leads keeping their unreadable raw text: 80 (expected 80)
+[r2-4000-xlsx] DB: dialable leads whose phone is on the DNC list: 0
+[r2-4000-xlsx] re-import same file: status=completed in 1.2 s; new leads in DB: 0; summary {"imported":0,"merged":160,"alreadyInList":3620,"dncBlocked":120,"noNumber":0,"invalid":100} sum=4000/4000
+[r2-4000-xlsx] cancel test: cancel sent at [0.4s 69% saving Saving 1,500 / 3,840 rows status=processing] -> HTTP 200 {"cancelled":true,"jobId":3,"phase":"saving","written":1429,"message":"Stopping. 1429 leads were already saved and stay; no further rows will be saved after the batch in progress."}
+[r2-4000-xlsx] cancel test: job ended status=cancelled; leads written by this job: 1900; reported written: 1900
+[r2-4000-xlsx] dial sample (5 imported leads): 5045 (ext 402):201 5057 (ext 454):201 5101 (ext 243):201 5146 (ext 682):201 5167 (ext 313):201
+[r2-4000-xlsx] requests in total: 23
+[r2-4000-xlsx] invariants (I1-I9):
+[r2-4000-xlsx]   -- I1 every lead has exactly one status from the allowed list (violations):
+[r2-4000-xlsx]    status | count 
+[r2-4000-xlsx]   --------+-------
+[r2-4000-xlsx]   (0 rows)
+[r2-4000-xlsx]   -- I2 leads in_progress, and whether each has an open (undispositioned) call:
+[r2-4000-xlsx]    id | locked_by | lock_age_s | open_calls 
+[r2-4000-xlsx]   ----+-----------+------------+------------
+[r2-4000-xlsx]   (0 rows)
+[r2-4000-xlsx]   -- I3 in_progress with lock older than 30s (should be swept on next queue read):
+[r2-4000-xlsx]    stale_locks 
+[r2-4000-xlsx]   -------------
+[r2-4000-xlsx]              0
+[r2-4000-xlsx]   (1 row)
+[r2-4000-xlsx]   -- I4 orphan call rows (lead_id not in leads; manual calls have NULL lead_id by design):
+[r2-4000-xlsx]    orphan_calls 
+[r2-4000-xlsx]   --------------
+[r2-4000-xlsx]               0
+[r2-4000-xlsx]   (1 row)
+[r2-4000-xlsx]   -- I5 calls never dispositioned and never ended, older than 5 minutes:
+[r2-4000-xlsx]    dangling_calls 
+[r2-4000-xlsx]   ----------------
+[r2-4000-xlsx]                 0
+[r2-4000-xlsx]   (1 row)
+[r2-4000-xlsx]   -- I6 leads with more open (undispositioned) calls than one:
+[r2-4000-xlsx]    lead_id | open_calls 
+[r2-4000-xlsx]   ---------+------------
+[r2-4000-xlsx]   (0 rows)
+[r2-4000-xlsx]   -- I7 attempts above max_attempts:
+[r2-4000-xlsx]    id | attempts | max_attempts | status 
+[r2-4000-xlsx]   ----+----------+--------------+--------
+[r2-4000-xlsx]   (0 rows)
+[r2-4000-xlsx]   -- I8 dnc consistency: dnc_flag vs status vs dnc_list
+[r2-4000-xlsx]                         kind                       | count 
+[r2-4000-xlsx]   -------------------------------------------------+-------
+[r2-4000-xlsx]    flag without status                             |     0
+[r2-4000-xlsx]    status without flag                             |     0
+[r2-4000-xlsx]    lead whose phone is on dnc_list but not flagged |     0
+[r2-4000-xlsx]    phones not in E.164 (+1 and 10 digits)          |     0
+[r2-4000-xlsx]   (4 rows)
+[r2-4000-xlsx]   -- I9 lead counts:
+[r2-4000-xlsx]    total | soft_deleted 
+[r2-4000-xlsx]   -------+--------------
+[r2-4000-xlsx]    10419 |            0
+[r2-4000-xlsx]   (1 row)
+[r2-4000-xlsx] server log: 0 error/warn lines
+### run 2 — 30000 rows — csv
+[r2-30000-csv] gen: wrote /var/tmp/audit-scratch/seg5/leads-30000.csv: 30000 rows (a), 3257003 bytes; expected {"totalRows":30000,"imported":24750,"merged":1200,"alreadyInList":900,"dncBlocked":900,"noNumber":1500,"unreadable":600,"invalid":750,"withExtension":1200}
+[r2-30000-csv] file leads-30000.csv: 30000 rows, 3257003 bytes; leads in DB before: 5019; backend RSS before 116 MB
+[r2-30000-csv] upload -> HTTP 201
+[r2-30000-csv] auto mapping (AI off): {"phone":"Mobile","email":"Email","name":"Name","brokerage":"Office","address":"Street","city":"City","state":"State","zip":"Zip","source":"Source"}
+[r2-30000-csv] auto mapping matches the expected columns: yes
+[r2-30000-csv] process -> HTTP 200; final status=completed after 4.6 s, 6 requests (4 status polls)
+[r2-30000-csv]    poll 1.6s 50% cleaning Cleaning 30,000 / 30,000 rows status=processing
+[r2-30000-csv]    poll 2.6s 68% saving Saving 11,000 / 28,800 rows status=processing
+[r2-30000-csv]    poll 3.6s 90% saving Saving 24,000 / 28,800 rows status=processing
+[r2-30000-csv]    poll 4.6s 100% saving Done status=completed
+[r2-30000-csv] summary: {"totalRows":30000,"imported":24750,"merged":1200,"alreadyInList":900,"dncBlocked":900,"noNumber":1500,"invalid":750,"unreadable":600,"withExtension":1200,"skippedDnc":900,"skippedDuplicate":900,"skippedInvalid":750,"mergedDuplicates":1200,"importedWithoutPhone":1500}
+[r2-30000-csv] expected: {"totalRows":30000,"imported":24750,"merged":1200,"alreadyInList":900,"dncBlocked":900,"noNumber":1500,"invalid":750,"unreadable":600,"withExtension":1200}
+[r2-30000-csv] accounting rule: imported + merged + alreadyInList + dncBlocked + noNumber + invalid = 30000 vs total 30000 -> OK
+[r2-30000-csv] buckets vs expected: all equal
+[r2-30000-csv] skipped-rows CSV: HTTP 200, 3750 rows (skipped buckets: 3750) -> OK; header: Sheet,Row,Outcome,Reason,City,Email,Mobile,Name,Office,Source,State,Street,Zip
+[r2-30000-csv] invalid reasons: [{"count":300,"reason":"Could not determine a US state for this lead"},{"count":300,"reason":"Missing name"},{"count":150,"reason":"No state, and the same name appears in 2 different places in this file — not merged into any of them"}]
+[r2-30000-csv] DB: leads +26250; peak backend RSS 179 MB (was 116 MB before the import)
+[r2-30000-csv] DB: new leads with an extension: 1200 (expected 1200); phoneless leads keeping their unreadable raw text: 600 (expected 600)
+[r2-30000-csv] DB: dialable leads whose phone is on the DNC list: 0
+[r2-30000-csv] re-import same file: status=completed in 3.7 s; new leads in DB: 0; summary {"imported":0,"merged":1200,"alreadyInList":27150,"dncBlocked":900,"noNumber":0,"invalid":750} sum=30000/30000
+[r2-30000-csv] cancel test: cancel sent at [1.5s 51% saving Saving 1,000 / 28,800 rows status=processing] -> HTTP 200 {"cancelled":true,"jobId":3,"phase":"saving","written":951,"message":"Stopping. 951 leads were already saved and stay; no further rows will be saved after the batch in progress."}
+[r2-30000-csv] cancel test: job ended status=cancelled; leads written by this job: 1432; reported written: 1432
+[r2-30000-csv] dial sample (5 imported leads): 5032 (ext 684):201 5040 (ext 101):201 5068 (ext 72):201 5080 (ext 237):201 5098 (ext 269):201
+[r2-30000-csv] requests in total: 35
+[r2-30000-csv] invariants (I1-I9):
+[r2-30000-csv]   -- I1 every lead has exactly one status from the allowed list (violations):
+[r2-30000-csv]    status | count 
+[r2-30000-csv]   --------+-------
+[r2-30000-csv]   (0 rows)
+[r2-30000-csv]   -- I2 leads in_progress, and whether each has an open (undispositioned) call:
+[r2-30000-csv]    id | locked_by | lock_age_s | open_calls 
+[r2-30000-csv]   ----+-----------+------------+------------
+[r2-30000-csv]   (0 rows)
+[r2-30000-csv]   -- I3 in_progress with lock older than 30s (should be swept on next queue read):
+[r2-30000-csv]    stale_locks 
+[r2-30000-csv]   -------------
+[r2-30000-csv]              0
+[r2-30000-csv]   (1 row)
+[r2-30000-csv]   -- I4 orphan call rows (lead_id not in leads; manual calls have NULL lead_id by design):
+[r2-30000-csv]    orphan_calls 
+[r2-30000-csv]   --------------
+[r2-30000-csv]               0
+[r2-30000-csv]   (1 row)
+[r2-30000-csv]   -- I5 calls never dispositioned and never ended, older than 5 minutes:
+[r2-30000-csv]    dangling_calls 
+[r2-30000-csv]   ----------------
+[r2-30000-csv]                 0
+[r2-30000-csv]   (1 row)
+[r2-30000-csv]   -- I6 leads with more open (undispositioned) calls than one:
+[r2-30000-csv]    lead_id | open_calls 
+[r2-30000-csv]   ---------+------------
+[r2-30000-csv]   (0 rows)
+[r2-30000-csv]   -- I7 attempts above max_attempts:
+[r2-30000-csv]    id | attempts | max_attempts | status 
+[r2-30000-csv]   ----+----------+--------------+--------
+[r2-30000-csv]   (0 rows)
+[r2-30000-csv]   -- I8 dnc consistency: dnc_flag vs status vs dnc_list
+[r2-30000-csv]                         kind                       | count 
+[r2-30000-csv]   -------------------------------------------------+-------
+[r2-30000-csv]    status without flag                             |     0
+[r2-30000-csv]    phones not in E.164 (+1 and 10 digits)          |     0
+[r2-30000-csv]    flag without status                             |     0
+[r2-30000-csv]    lead whose phone is on dnc_list but not flagged |     0
+[r2-30000-csv]   (4 rows)
+[r2-30000-csv]   -- I9 lead counts:
+[r2-30000-csv]    total | soft_deleted 
+[r2-30000-csv]   -------+--------------
+[r2-30000-csv]    32701 |            0
+[r2-30000-csv]   (1 row)
+[r2-30000-csv] server log: 0 error/warn lines
+### run 2 — 30000 rows — xlsx
+[r2-30000-xlsx] gen: wrote /var/tmp/audit-scratch/seg5/leads-30000.xlsx: 30000 rows (b), 13500689 bytes; expected {"totalRows":30000,"imported":24750,"merged":1200,"alreadyInList":900,"dncBlocked":900,"noNumber":1500,"unreadable":600,"invalid":750,"withExtension":1200}
+[r2-30000-xlsx] file leads-30000.xlsx: 30000 rows, 13500689 bytes; leads in DB before: 5019; backend RSS before 116 MB
+[r2-30000-xlsx] upload -> HTTP 201
+[r2-30000-xlsx] auto mapping (AI off): {"phone":"Phone Number","email":"E-mail","first_name":"First Name","last_name":"Last Name","brokerage":"Company","address":"Address","city":"City","state":"State","zip":"Postal Code","source":"Website"}
+[r2-30000-xlsx] auto mapping matches the expected columns: yes
+[r2-30000-xlsx] process -> HTTP 200; final status=completed after 4.1 s, 5 requests (3 status polls)
+[r2-30000-xlsx]    poll 2.1s 50% cleaning Cleaning 30,000 / 30,000 rows status=processing
+[r2-30000-xlsx]    poll 3.1s 75% saving Saving 15,000 / 28,800 rows status=processing
+[r2-30000-xlsx]    poll 4.1s 100% saving Done status=completed
+[r2-30000-xlsx] summary: {"totalRows":30000,"imported":24750,"merged":1200,"alreadyInList":900,"dncBlocked":900,"noNumber":1500,"invalid":750,"unreadable":600,"withExtension":1200,"skippedDnc":900,"skippedDuplicate":900,"skippedInvalid":750,"mergedDuplicates":1200,"importedWithoutPhone":1500}
+[r2-30000-xlsx] expected: {"totalRows":30000,"imported":24750,"merged":1200,"alreadyInList":900,"dncBlocked":900,"noNumber":1500,"invalid":750,"unreadable":600,"withExtension":1200}
+[r2-30000-xlsx] accounting rule: imported + merged + alreadyInList + dncBlocked + noNumber + invalid = 30000 vs total 30000 -> OK
+[r2-30000-xlsx] buckets vs expected: all equal
+[r2-30000-xlsx] skipped-rows CSV: HTTP 200, 3750 rows (skipped buckets: 3750) -> OK; header: Sheet,Row,Outcome,Reason,Address,City,Company,E-mail,First Name,Last Name,Phone Number,Pos
+[r2-30000-xlsx] invalid reasons: [{"count":300,"reason":"Could not determine a US state for this lead"},{"count":300,"reason":"Missing name"},{"count":150,"reason":"No state, and the same name appears in 2 different places in this file — not merged into any of them"}]
+[r2-30000-xlsx] DB: leads +26250; peak backend RSS 224 MB (was 116 MB before the import)
+[r2-30000-xlsx] DB: new leads with an extension: 1200 (expected 1200); phoneless leads keeping their unreadable raw text: 600 (expected 600)
+[r2-30000-xlsx] DB: dialable leads whose phone is on the DNC list: 0
+[r2-30000-xlsx] re-import same file: status=completed in 5.1 s; new leads in DB: 0; summary {"imported":0,"merged":1200,"alreadyInList":27150,"dncBlocked":900,"noNumber":0,"invalid":750} sum=30000/30000
+[r2-30000-xlsx] cancel test: cancel sent at [2.1s 50% saving Saving 500 / 28,800 rows status=processing] -> HTTP 200 {"cancelled":true,"jobId":3,"phase":"saving","written":951,"message":"Stopping. 951 leads were already saved and stay; no further rows will be saved after the batch in progress."}
+[r2-30000-xlsx] cancel test: job ended status=cancelled; leads written by this job: 1432; reported written: 1432
+[r2-30000-xlsx] dial sample (5 imported leads): 5032 (ext 684):201 5040 (ext 101):201 5068 (ext 72):201 5080 (ext 237):201 5098 (ext 269):201
+[r2-30000-xlsx] requests in total: 36
+[r2-30000-xlsx] invariants (I1-I9):
+[r2-30000-xlsx]   -- I1 every lead has exactly one status from the allowed list (violations):
+[r2-30000-xlsx]    status | count 
+[r2-30000-xlsx]   --------+-------
+[r2-30000-xlsx]   (0 rows)
+[r2-30000-xlsx]   -- I2 leads in_progress, and whether each has an open (undispositioned) call:
+[r2-30000-xlsx]    id | locked_by | lock_age_s | open_calls 
+[r2-30000-xlsx]   ----+-----------+------------+------------
+[r2-30000-xlsx]   (0 rows)
+[r2-30000-xlsx]   -- I3 in_progress with lock older than 30s (should be swept on next queue read):
+[r2-30000-xlsx]    stale_locks 
+[r2-30000-xlsx]   -------------
+[r2-30000-xlsx]              0
+[r2-30000-xlsx]   (1 row)
+[r2-30000-xlsx]   -- I4 orphan call rows (lead_id not in leads; manual calls have NULL lead_id by design):
+[r2-30000-xlsx]    orphan_calls 
+[r2-30000-xlsx]   --------------
+[r2-30000-xlsx]               0
+[r2-30000-xlsx]   (1 row)
+[r2-30000-xlsx]   -- I5 calls never dispositioned and never ended, older than 5 minutes:
+[r2-30000-xlsx]    dangling_calls 
+[r2-30000-xlsx]   ----------------
+[r2-30000-xlsx]                 0
+[r2-30000-xlsx]   (1 row)
+[r2-30000-xlsx]   -- I6 leads with more open (undispositioned) calls than one:
+[r2-30000-xlsx]    lead_id | open_calls 
+[r2-30000-xlsx]   ---------+------------
+[r2-30000-xlsx]   (0 rows)
+[r2-30000-xlsx]   -- I7 attempts above max_attempts:
+[r2-30000-xlsx]    id | attempts | max_attempts | status 
+[r2-30000-xlsx]   ----+----------+--------------+--------
+[r2-30000-xlsx]   (0 rows)
+[r2-30000-xlsx]   -- I8 dnc consistency: dnc_flag vs status vs dnc_list
+[r2-30000-xlsx]                         kind                       | count 
+[r2-30000-xlsx]   -------------------------------------------------+-------
+[r2-30000-xlsx]    status without flag                             |     0
+[r2-30000-xlsx]    lead whose phone is on dnc_list but not flagged |     0
+[r2-30000-xlsx]    flag without status                             |     0
+[r2-30000-xlsx]    phones not in E.164 (+1 and 10 digits)          |     0
+[r2-30000-xlsx]   (4 rows)
+[r2-30000-xlsx]   -- I9 lead counts:
+[r2-30000-xlsx]    total | soft_deleted 
+[r2-30000-xlsx]   -------+--------------
+[r2-30000-xlsx]    32701 |            0
+[r2-30000-xlsx]   (1 row)
+[r2-30000-xlsx] server log: 0 error/warn lines
+### run 3 — 300 rows — csv
+[r3-300-csv] gen: wrote /var/tmp/audit-scratch/seg5/leads-300.csv: 300 rows (a), 32877 bytes; expected {"totalRows":300,"imported":249,"merged":11,"alreadyInList":9,"dncBlocked":9,"noNumber":15,"unreadable":6,"invalid":7,"withExtension":12}
+[r3-300-csv] file leads-300.csv: 300 rows, 32877 bytes; leads in DB before: 5019; backend RSS before 117 MB
+[r3-300-csv] upload -> HTTP 201
+[r3-300-csv] auto mapping (AI off): {"phone":"Mobile","email":"Email","name":"Name","brokerage":"Office","address":"Street","city":"City","state":"State","zip":"Zip","source":"Source"}
+[r3-300-csv] auto mapping matches the expected columns: yes
+[r3-300-csv] process -> HTTP 200; final status=completed after 1.1 s, 3 requests (1 status polls)
+[r3-300-csv]    poll 1.1s 100% saving Done status=completed
+[r3-300-csv] summary: {"totalRows":300,"imported":249,"merged":11,"alreadyInList":9,"dncBlocked":9,"noNumber":15,"invalid":7,"unreadable":6,"withExtension":12,"skippedDnc":9,"skippedDuplicate":9,"skippedInvalid":7,"mergedDuplicates":11,"importedWithoutPhone":15}
+[r3-300-csv] expected: {"totalRows":300,"imported":249,"merged":11,"alreadyInList":9,"dncBlocked":9,"noNumber":15,"invalid":7,"unreadable":6,"withExtension":12}
+[r3-300-csv] accounting rule: imported + merged + alreadyInList + dncBlocked + noNumber + invalid = 300 vs total 300 -> OK
+[r3-300-csv] buckets vs expected: all equal
+[r3-300-csv] skipped-rows CSV: HTTP 200, 36 rows (skipped buckets: 36) -> OK; header: Sheet,Row,Outcome,Reason,City,Email,Mobile,Name,Office,Source,State,Street,Zip
+[r3-300-csv] invalid reasons: [{"count":3,"reason":"Could not determine a US state for this lead"},{"count":3,"reason":"Missing name"},{"count":1,"reason":"No state, and the same name appears in 2 different places in this file — not merged into any of them"}]
+[r3-300-csv] DB: leads +264; peak backend RSS 127 MB (was 117 MB before the import)
+[r3-300-csv] DB: new leads with an extension: 12 (expected 12); phoneless leads keeping their unreadable raw text: 6 (expected 6)
+[r3-300-csv] DB: dialable leads whose phone is on the DNC list: 0
+[r3-300-csv] re-import same file: status=completed in 1.0 s; new leads in DB: 0; summary {"imported":0,"merged":11,"alreadyInList":273,"dncBlocked":9,"noNumber":0,"invalid":7} sum=300/300
+[r3-300-csv] cancel test: cancel sent at [0.1s 100% saving Done status=completed] -> HTTP 409 {"cancelled":false,"tooLate":true,"jobId":3,"status":"completed","written":276,"message":"Too late to cancel — this import is already completed.","reason":"too_late","error":"Too late to cancel — this
+[r3-300-csv] cancel test: job ended status=completed; leads written by this job: 276; reported written: 276
+[r3-300-csv] dial sample (5 imported leads): 5024 (ext 230):201 5038 (ext 844):201 5096 (ext 54):201 5116 (ext 200):201 5138 (ext 607):201
+[r3-300-csv] requests in total: 21
+[r3-300-csv] invariants (I1-I9):
+[r3-300-csv]   -- I1 every lead has exactly one status from the allowed list (violations):
+[r3-300-csv]    status | count 
+[r3-300-csv]   --------+-------
+[r3-300-csv]   (0 rows)
+[r3-300-csv]   -- I2 leads in_progress, and whether each has an open (undispositioned) call:
+[r3-300-csv]    id | locked_by | lock_age_s | open_calls 
+[r3-300-csv]   ----+-----------+------------+------------
+[r3-300-csv]   (0 rows)
+[r3-300-csv]   -- I3 in_progress with lock older than 30s (should be swept on next queue read):
+[r3-300-csv]    stale_locks 
+[r3-300-csv]   -------------
+[r3-300-csv]              0
+[r3-300-csv]   (1 row)
+[r3-300-csv]   -- I4 orphan call rows (lead_id not in leads; manual calls have NULL lead_id by design):
+[r3-300-csv]    orphan_calls 
+[r3-300-csv]   --------------
+[r3-300-csv]               0
+[r3-300-csv]   (1 row)
+[r3-300-csv]   -- I5 calls never dispositioned and never ended, older than 5 minutes:
+[r3-300-csv]    dangling_calls 
+[r3-300-csv]   ----------------
+[r3-300-csv]                 0
+[r3-300-csv]   (1 row)
+[r3-300-csv]   -- I6 leads with more open (undispositioned) calls than one:
+[r3-300-csv]    lead_id | open_calls 
+[r3-300-csv]   ---------+------------
+[r3-300-csv]   (0 rows)
+[r3-300-csv]   -- I7 attempts above max_attempts:
+[r3-300-csv]    id | attempts | max_attempts | status 
+[r3-300-csv]   ----+----------+--------------+--------
+[r3-300-csv]   (0 rows)
+[r3-300-csv]   -- I8 dnc consistency: dnc_flag vs status vs dnc_list
+[r3-300-csv]                         kind                       | count 
+[r3-300-csv]   -------------------------------------------------+-------
+[r3-300-csv]    flag without status                             |     0
+[r3-300-csv]    status without flag                             |     0
+[r3-300-csv]    lead whose phone is on dnc_list but not flagged |     0
+[r3-300-csv]    phones not in E.164 (+1 and 10 digits)          |     0
+[r3-300-csv]   (4 rows)
+[r3-300-csv]   -- I9 lead counts:
+[r3-300-csv]    total | soft_deleted 
+[r3-300-csv]   -------+--------------
+[r3-300-csv]     5559 |            0
+[r3-300-csv]   (1 row)
+[r3-300-csv] server log: 0 error/warn lines
+### run 3 — 300 rows — xlsx
+[r3-300-xlsx] gen: wrote /var/tmp/audit-scratch/seg5/leads-300.xlsx: 300 rows (b), 144520 bytes; expected {"totalRows":300,"imported":249,"merged":11,"alreadyInList":9,"dncBlocked":9,"noNumber":15,"unreadable":6,"invalid":7,"withExtension":12}
+[r3-300-xlsx] file leads-300.xlsx: 300 rows, 144520 bytes; leads in DB before: 5019; backend RSS before 117 MB
+[r3-300-xlsx] upload -> HTTP 201
+[r3-300-xlsx] auto mapping (AI off): {"phone":"Phone Number","email":"E-mail","first_name":"First Name","last_name":"Last Name","brokerage":"Company","address":"Address","city":"City","state":"State","zip":"Postal Code","source":"Website"}
+[r3-300-xlsx] auto mapping matches the expected columns: yes
+[r3-300-xlsx] process -> HTTP 200; final status=completed after 1.1 s, 3 requests (1 status polls)
+[r3-300-xlsx]    poll 1.1s 100% saving Done status=completed
+[r3-300-xlsx] summary: {"totalRows":300,"imported":249,"merged":11,"alreadyInList":9,"dncBlocked":9,"noNumber":15,"invalid":7,"unreadable":6,"withExtension":12,"skippedDnc":9,"skippedDuplicate":9,"skippedInvalid":7,"mergedDuplicates":11,"importedWithoutPhone":15}
+[r3-300-xlsx] expected: {"totalRows":300,"imported":249,"merged":11,"alreadyInList":9,"dncBlocked":9,"noNumber":15,"invalid":7,"unreadable":6,"withExtension":12}
+[r3-300-xlsx] accounting rule: imported + merged + alreadyInList + dncBlocked + noNumber + invalid = 300 vs total 300 -> OK
+[r3-300-xlsx] buckets vs expected: all equal
+[r3-300-xlsx] skipped-rows CSV: HTTP 200, 36 rows (skipped buckets: 36) -> OK; header: Sheet,Row,Outcome,Reason,Address,City,Company,E-mail,First Name,Last Name,Phone Number,Pos
+[r3-300-xlsx] invalid reasons: [{"count":3,"reason":"Could not determine a US state for this lead"},{"count":3,"reason":"Missing name"},{"count":1,"reason":"No state, and the same name appears in 2 different places in this file — not merged into any of them"}]
+[r3-300-xlsx] DB: leads +264; peak backend RSS 135 MB (was 117 MB before the import)
+[r3-300-xlsx] DB: new leads with an extension: 12 (expected 12); phoneless leads keeping their unreadable raw text: 6 (expected 6)
+[r3-300-xlsx] DB: dialable leads whose phone is on the DNC list: 0
+[r3-300-xlsx] re-import same file: status=completed in 1.0 s; new leads in DB: 0; summary {"imported":0,"merged":11,"alreadyInList":273,"dncBlocked":9,"noNumber":0,"invalid":7} sum=300/300
+[r3-300-xlsx] cancel test: cancel sent at [0.1s 100% saving Done status=completed] -> HTTP 409 {"cancelled":false,"tooLate":true,"jobId":3,"status":"completed","written":276,"message":"Too late to cancel — this import is already completed.","reason":"too_late","error":"Too late to cancel — this
+[r3-300-xlsx] cancel test: job ended status=completed; leads written by this job: 276; reported written: 276
+[r3-300-xlsx] dial sample (5 imported leads): 5024 (ext 230):201 5038 (ext 844):201 5096 (ext 54):201 5116 (ext 200):201 5138 (ext 607):201
+[r3-300-xlsx] requests in total: 21
+[r3-300-xlsx] invariants (I1-I9):
+[r3-300-xlsx]   -- I1 every lead has exactly one status from the allowed list (violations):
+[r3-300-xlsx]    status | count 
+[r3-300-xlsx]   --------+-------
+[r3-300-xlsx]   (0 rows)
+[r3-300-xlsx]   -- I2 leads in_progress, and whether each has an open (undispositioned) call:
+[r3-300-xlsx]    id | locked_by | lock_age_s | open_calls 
+[r3-300-xlsx]   ----+-----------+------------+------------
+[r3-300-xlsx]   (0 rows)
+[r3-300-xlsx]   -- I3 in_progress with lock older than 30s (should be swept on next queue read):
+[r3-300-xlsx]    stale_locks 
+[r3-300-xlsx]   -------------
+[r3-300-xlsx]              0
+[r3-300-xlsx]   (1 row)
+[r3-300-xlsx]   -- I4 orphan call rows (lead_id not in leads; manual calls have NULL lead_id by design):
+[r3-300-xlsx]    orphan_calls 
+[r3-300-xlsx]   --------------
+[r3-300-xlsx]               0
+[r3-300-xlsx]   (1 row)
+[r3-300-xlsx]   -- I5 calls never dispositioned and never ended, older than 5 minutes:
+[r3-300-xlsx]    dangling_calls 
+[r3-300-xlsx]   ----------------
+[r3-300-xlsx]                 0
+[r3-300-xlsx]   (1 row)
+[r3-300-xlsx]   -- I6 leads with more open (undispositioned) calls than one:
+[r3-300-xlsx]    lead_id | open_calls 
+[r3-300-xlsx]   ---------+------------
+[r3-300-xlsx]   (0 rows)
+[r3-300-xlsx]   -- I7 attempts above max_attempts:
+[r3-300-xlsx]    id | attempts | max_attempts | status 
+[r3-300-xlsx]   ----+----------+--------------+--------
+[r3-300-xlsx]   (0 rows)
+[r3-300-xlsx]   -- I8 dnc consistency: dnc_flag vs status vs dnc_list
+[r3-300-xlsx]                         kind                       | count 
+[r3-300-xlsx]   -------------------------------------------------+-------
+[r3-300-xlsx]    flag without status                             |     0
+[r3-300-xlsx]    status without flag                             |     0
+[r3-300-xlsx]    lead whose phone is on dnc_list but not flagged |     0
+[r3-300-xlsx]    phones not in E.164 (+1 and 10 digits)          |     0
+[r3-300-xlsx]   (4 rows)
+[r3-300-xlsx]   -- I9 lead counts:
+[r3-300-xlsx]    total | soft_deleted 
+[r3-300-xlsx]   -------+--------------
+[r3-300-xlsx]     5559 |            0
+[r3-300-xlsx]   (1 row)
+[r3-300-xlsx] server log: 0 error/warn lines
+### run 3 — 4000 rows — csv
+[r3-4000-csv] gen: wrote /var/tmp/audit-scratch/seg5/leads-4000.csv: 4000 rows (a), 434739 bytes; expected {"totalRows":4000,"imported":3300,"merged":160,"alreadyInList":120,"dncBlocked":120,"noNumber":200,"unreadable":80,"invalid":100,"withExtension":160}
+[r3-4000-csv] file leads-4000.csv: 4000 rows, 434739 bytes; leads in DB before: 5019; backend RSS before 116 MB
+[r3-4000-csv] upload -> HTTP 201
+[r3-4000-csv] auto mapping (AI off): {"phone":"Mobile","email":"Email","name":"Name","brokerage":"Office","address":"Street","city":"City","state":"State","zip":"Zip","source":"Source"}
+[r3-4000-csv] auto mapping matches the expected columns: yes
+[r3-4000-csv] process -> HTTP 200; final status=completed after 1.1 s, 3 requests (1 status polls)
+[r3-4000-csv]    poll 1.1s 100% saving Done status=completed
+[r3-4000-csv] summary: {"totalRows":4000,"imported":3300,"merged":160,"alreadyInList":120,"dncBlocked":120,"noNumber":200,"invalid":100,"unreadable":80,"withExtension":160,"skippedDnc":120,"skippedDuplicate":120,"skippedInvalid":100,"mergedDuplicates":160,"importedWithoutPhone":200}
+[r3-4000-csv] expected: {"totalRows":4000,"imported":3300,"merged":160,"alreadyInList":120,"dncBlocked":120,"noNumber":200,"invalid":100,"unreadable":80,"withExtension":160}
+[r3-4000-csv] accounting rule: imported + merged + alreadyInList + dncBlocked + noNumber + invalid = 4000 vs total 4000 -> OK
+[r3-4000-csv] buckets vs expected: all equal
+[r3-4000-csv] skipped-rows CSV: HTTP 200, 500 rows (skipped buckets: 500) -> OK; header: Sheet,Row,Outcome,Reason,City,Email,Mobile,Name,Office,Source,State,Street,Zip
+[r3-4000-csv] invalid reasons: [{"count":40,"reason":"Could not determine a US state for this lead"},{"count":40,"reason":"Missing name"},{"count":20,"reason":"No state, and the same name appears in 2 different places in this file — not merged into any of them"}]
+[r3-4000-csv] DB: leads +3500; peak backend RSS 140 MB (was 116 MB before the import)
+[r3-4000-csv] DB: new leads with an extension: 160 (expected 160); phoneless leads keeping their unreadable raw text: 80 (expected 80)
+[r3-4000-csv] DB: dialable leads whose phone is on the DNC list: 0
+[r3-4000-csv] re-import same file: status=completed in 1.1 s; new leads in DB: 0; summary {"imported":0,"merged":160,"alreadyInList":3620,"dncBlocked":120,"noNumber":0,"invalid":100} sum=4000/4000
+[r3-4000-csv] cancel test: cancel sent at [0.3s 69% saving Saving 1,500 / 3,840 rows status=processing] -> HTTP 200 {"cancelled":true,"jobId":3,"phase":"saving","written":1436,"message":"Stopping. 1436 leads were already saved and stay; no further rows will be saved after the batch in progress."}
+[r3-4000-csv] cancel test: job ended status=cancelled; leads written by this job: 1907; reported written: 1907
+[r3-4000-csv] dial sample (5 imported leads): 5058 (ext 350):201 5114 (ext 485):201 5167 (ext 831):201 5211 (ext 27):201 5240 (ext 141):201
+[r3-4000-csv] requests in total: 23
+[r3-4000-csv] invariants (I1-I9):
+[r3-4000-csv]   -- I1 every lead has exactly one status from the allowed list (violations):
+[r3-4000-csv]    status | count 
+[r3-4000-csv]   --------+-------
+[r3-4000-csv]   (0 rows)
+[r3-4000-csv]   -- I2 leads in_progress, and whether each has an open (undispositioned) call:
+[r3-4000-csv]    id | locked_by | lock_age_s | open_calls 
+[r3-4000-csv]   ----+-----------+------------+------------
+[r3-4000-csv]   (0 rows)
+[r3-4000-csv]   -- I3 in_progress with lock older than 30s (should be swept on next queue read):
+[r3-4000-csv]    stale_locks 
+[r3-4000-csv]   -------------
+[r3-4000-csv]              0
+[r3-4000-csv]   (1 row)
+[r3-4000-csv]   -- I4 orphan call rows (lead_id not in leads; manual calls have NULL lead_id by design):
+[r3-4000-csv]    orphan_calls 
+[r3-4000-csv]   --------------
+[r3-4000-csv]               0
+[r3-4000-csv]   (1 row)
+[r3-4000-csv]   -- I5 calls never dispositioned and never ended, older than 5 minutes:
+[r3-4000-csv]    dangling_calls 
+[r3-4000-csv]   ----------------
+[r3-4000-csv]                 0
+[r3-4000-csv]   (1 row)
+[r3-4000-csv]   -- I6 leads with more open (undispositioned) calls than one:
+[r3-4000-csv]    lead_id | open_calls 
+[r3-4000-csv]   ---------+------------
+[r3-4000-csv]   (0 rows)
+[r3-4000-csv]   -- I7 attempts above max_attempts:
+[r3-4000-csv]    id | attempts | max_attempts | status 
+[r3-4000-csv]   ----+----------+--------------+--------
+[r3-4000-csv]   (0 rows)
+[r3-4000-csv]   -- I8 dnc consistency: dnc_flag vs status vs dnc_list
+[r3-4000-csv]                         kind                       | count 
+[r3-4000-csv]   -------------------------------------------------+-------
+[r3-4000-csv]    flag without status                             |     0
+[r3-4000-csv]    status without flag                             |     0
+[r3-4000-csv]    lead whose phone is on dnc_list but not flagged |     0
+[r3-4000-csv]    phones not in E.164 (+1 and 10 digits)          |     0
+[r3-4000-csv]   (4 rows)
+[r3-4000-csv]   -- I9 lead counts:
+[r3-4000-csv]    total | soft_deleted 
+[r3-4000-csv]   -------+--------------
+[r3-4000-csv]    10426 |            0
+[r3-4000-csv]   (1 row)
+[r3-4000-csv] server log: 0 error/warn lines
+### run 3 — 4000 rows — xlsx
+[r3-4000-xlsx] gen: wrote /var/tmp/audit-scratch/seg5/leads-4000.xlsx: 4000 rows (b), 1774401 bytes; expected {"totalRows":4000,"imported":3300,"merged":160,"alreadyInList":120,"dncBlocked":120,"noNumber":200,"unreadable":80,"invalid":100,"withExtension":160}
+[r3-4000-xlsx] file leads-4000.xlsx: 4000 rows, 1774401 bytes; leads in DB before: 5019; backend RSS before 116 MB
+[r3-4000-xlsx] upload -> HTTP 201
+[r3-4000-xlsx] auto mapping (AI off): {"phone":"Phone Number","email":"E-mail","first_name":"First Name","last_name":"Last Name","brokerage":"Company","address":"Address","city":"City","state":"State","zip":"Postal Code","source":"Website"}
+[r3-4000-xlsx] auto mapping matches the expected columns: yes
+[r3-4000-xlsx] process -> HTTP 200; final status=completed after 1.3 s, 3 requests (1 status polls)
+[r3-4000-xlsx]    poll 1.3s 100% saving Done status=completed
+[r3-4000-xlsx] summary: {"totalRows":4000,"imported":3300,"merged":160,"alreadyInList":120,"dncBlocked":120,"noNumber":200,"invalid":100,"unreadable":80,"withExtension":160,"skippedDnc":120,"skippedDuplicate":120,"skippedInvalid":100,"mergedDuplicates":160,"importedWithoutPhone":200}
+[r3-4000-xlsx] expected: {"totalRows":4000,"imported":3300,"merged":160,"alreadyInList":120,"dncBlocked":120,"noNumber":200,"invalid":100,"unreadable":80,"withExtension":160}
+[r3-4000-xlsx] accounting rule: imported + merged + alreadyInList + dncBlocked + noNumber + invalid = 4000 vs total 4000 -> OK
+[r3-4000-xlsx] buckets vs expected: all equal
+[r3-4000-xlsx] skipped-rows CSV: HTTP 200, 500 rows (skipped buckets: 500) -> OK; header: Sheet,Row,Outcome,Reason,Address,City,Company,E-mail,First Name,Last Name,Phone Number,Pos
+[r3-4000-xlsx] invalid reasons: [{"count":40,"reason":"Could not determine a US state for this lead"},{"count":40,"reason":"Missing name"},{"count":20,"reason":"No state, and the same name appears in 2 different places in this file — not merged into any of them"}]
+[r3-4000-xlsx] DB: leads +3500; peak backend RSS 150 MB (was 116 MB before the import)
+[r3-4000-xlsx] DB: new leads with an extension: 160 (expected 160); phoneless leads keeping their unreadable raw text: 80 (expected 80)
+[r3-4000-xlsx] DB: dialable leads whose phone is on the DNC list: 0
+[r3-4000-xlsx] re-import same file: status=completed in 1.2 s; new leads in DB: 0; summary {"imported":0,"merged":160,"alreadyInList":3620,"dncBlocked":120,"noNumber":0,"invalid":100} sum=4000/4000
+[r3-4000-xlsx] cancel test: cancel sent at [0.4s 69% saving Saving 1,500 / 3,840 rows status=processing] -> HTTP 200 {"cancelled":true,"jobId":3,"phase":"saving","written":1436,"message":"Stopping. 1436 leads were already saved and stay; no further rows will be saved after the batch in progress."}
+[r3-4000-xlsx] cancel test: job ended status=cancelled; leads written by this job: 1907; reported written: 1907
+[r3-4000-xlsx] dial sample (5 imported leads): 5058 (ext 350):201 5114 (ext 485):201 5167 (ext 831):201 5211 (ext 27):201 5240 (ext 141):201
+[r3-4000-xlsx] requests in total: 23
+[r3-4000-xlsx] invariants (I1-I9):
+[r3-4000-xlsx]   -- I1 every lead has exactly one status from the allowed list (violations):
+[r3-4000-xlsx]    status | count 
+[r3-4000-xlsx]   --------+-------
+[r3-4000-xlsx]   (0 rows)
+[r3-4000-xlsx]   -- I2 leads in_progress, and whether each has an open (undispositioned) call:
+[r3-4000-xlsx]    id | locked_by | lock_age_s | open_calls 
+[r3-4000-xlsx]   ----+-----------+------------+------------
+[r3-4000-xlsx]   (0 rows)
+[r3-4000-xlsx]   -- I3 in_progress with lock older than 30s (should be swept on next queue read):
+[r3-4000-xlsx]    stale_locks 
+[r3-4000-xlsx]   -------------
+[r3-4000-xlsx]              0
+[r3-4000-xlsx]   (1 row)
+[r3-4000-xlsx]   -- I4 orphan call rows (lead_id not in leads; manual calls have NULL lead_id by design):
+[r3-4000-xlsx]    orphan_calls 
+[r3-4000-xlsx]   --------------
+[r3-4000-xlsx]               0
+[r3-4000-xlsx]   (1 row)
+[r3-4000-xlsx]   -- I5 calls never dispositioned and never ended, older than 5 minutes:
+[r3-4000-xlsx]    dangling_calls 
+[r3-4000-xlsx]   ----------------
+[r3-4000-xlsx]                 0
+[r3-4000-xlsx]   (1 row)
+[r3-4000-xlsx]   -- I6 leads with more open (undispositioned) calls than one:
+[r3-4000-xlsx]    lead_id | open_calls 
+[r3-4000-xlsx]   ---------+------------
+[r3-4000-xlsx]   (0 rows)
+[r3-4000-xlsx]   -- I7 attempts above max_attempts:
+[r3-4000-xlsx]    id | attempts | max_attempts | status 
+[r3-4000-xlsx]   ----+----------+--------------+--------
+[r3-4000-xlsx]   (0 rows)
+[r3-4000-xlsx]   -- I8 dnc consistency: dnc_flag vs status vs dnc_list
+[r3-4000-xlsx]                         kind                       | count 
+[r3-4000-xlsx]   -------------------------------------------------+-------
+[r3-4000-xlsx]    flag without status                             |     0
+[r3-4000-xlsx]    status without flag                             |     0
+[r3-4000-xlsx]    lead whose phone is on dnc_list but not flagged |     0
+[r3-4000-xlsx]    phones not in E.164 (+1 and 10 digits)          |     0
+[r3-4000-xlsx]   (4 rows)
+[r3-4000-xlsx]   -- I9 lead counts:
+[r3-4000-xlsx]    total | soft_deleted 
+[r3-4000-xlsx]   -------+--------------
+[r3-4000-xlsx]    10426 |            0
+[r3-4000-xlsx]   (1 row)
+[r3-4000-xlsx] server log: 0 error/warn lines
+### run 3 — 30000 rows — csv
+[r3-30000-csv] gen: wrote /var/tmp/audit-scratch/seg5/leads-30000.csv: 30000 rows (a), 3256078 bytes; expected {"totalRows":30000,"imported":24750,"merged":1200,"alreadyInList":900,"dncBlocked":900,"noNumber":1500,"unreadable":600,"invalid":750,"withExtension":1200}
+[r3-30000-csv] file leads-30000.csv: 30000 rows, 3256078 bytes; leads in DB before: 5019; backend RSS before 117 MB
+[r3-30000-csv] upload -> HTTP 201
+[r3-30000-csv] auto mapping (AI off): {"phone":"Mobile","email":"Email","name":"Name","brokerage":"Office","address":"Street","city":"City","state":"State","zip":"Zip","source":"Source"}
+[r3-30000-csv] auto mapping matches the expected columns: yes
+[r3-30000-csv] process -> HTTP 200; final status=completed after 4.6 s, 6 requests (4 status polls)
+[r3-30000-csv]    poll 1.6s 42% cleaning Cleaning 25,500 / 30,000 rows status=processing
+[r3-30000-csv]    poll 2.6s 65% saving Saving 9,000 / 28,800 rows status=processing
+[r3-30000-csv]    poll 3.6s 88% saving Saving 22,500 / 28,800 rows status=processing
+[r3-30000-csv]    poll 4.6s 100% saving Done status=completed
+[r3-30000-csv] summary: {"totalRows":30000,"imported":24750,"merged":1200,"alreadyInList":900,"dncBlocked":900,"noNumber":1500,"invalid":750,"unreadable":600,"withExtension":1200,"skippedDnc":900,"skippedDuplicate":900,"skippedInvalid":750,"mergedDuplicates":1200,"importedWithoutPhone":1500}
+[r3-30000-csv] expected: {"totalRows":30000,"imported":24750,"merged":1200,"alreadyInList":900,"dncBlocked":900,"noNumber":1500,"invalid":750,"unreadable":600,"withExtension":1200}
+[r3-30000-csv] accounting rule: imported + merged + alreadyInList + dncBlocked + noNumber + invalid = 30000 vs total 30000 -> OK
+[r3-30000-csv] buckets vs expected: all equal
+[r3-30000-csv] skipped-rows CSV: HTTP 200, 3750 rows (skipped buckets: 3750) -> OK; header: Sheet,Row,Outcome,Reason,City,Email,Mobile,Name,Office,Source,State,Street,Zip
+[r3-30000-csv] invalid reasons: [{"count":300,"reason":"Could not determine a US state for this lead"},{"count":300,"reason":"Missing name"},{"count":150,"reason":"No state, and the same name appears in 2 different places in this file — not merged into any of them"}]
+[r3-30000-csv] DB: leads +26250; peak backend RSS 178 MB (was 117 MB before the import)
+[r3-30000-csv] DB: new leads with an extension: 1200 (expected 1200); phoneless leads keeping their unreadable raw text: 600 (expected 600)
+[r3-30000-csv] DB: dialable leads whose phone is on the DNC list: 0
+[r3-30000-csv] re-import same file: status=completed in 3.6 s; new leads in DB: 0; summary {"imported":0,"merged":1200,"alreadyInList":27150,"dncBlocked":900,"noNumber":0,"invalid":750} sum=30000/30000
+[r3-30000-csv] cancel test: cancel sent at [1.6s 51% saving Saving 1,000 / 28,800 rows status=processing] -> HTTP 200 {"cancelled":true,"jobId":3,"phase":"saving","written":953,"message":"Stopping. 953 leads were already saved and stay; no further rows will be saved after the batch in progress."}
+[r3-30000-csv] cancel test: job ended status=cancelled; leads written by this job: 1428; reported written: 1428
+[r3-30000-csv] dial sample (5 imported leads): 5109 (ext 478):201 5145 (ext 98):201 5253 (ext 650):201 5263 (ext 241):201 5283 (ext 67):201
+[r3-30000-csv] requests in total: 36
+[r3-30000-csv] invariants (I1-I9):
+[r3-30000-csv]   -- I1 every lead has exactly one status from the allowed list (violations):
+[r3-30000-csv]    status | count 
+[r3-30000-csv]   --------+-------
+[r3-30000-csv]   (0 rows)
+[r3-30000-csv]   -- I2 leads in_progress, and whether each has an open (undispositioned) call:
+[r3-30000-csv]    id | locked_by | lock_age_s | open_calls 
+[r3-30000-csv]   ----+-----------+------------+------------
+[r3-30000-csv]   (0 rows)
+[r3-30000-csv]   -- I3 in_progress with lock older than 30s (should be swept on next queue read):
+[r3-30000-csv]    stale_locks 
+[r3-30000-csv]   -------------
+[r3-30000-csv]              0
+[r3-30000-csv]   (1 row)
+[r3-30000-csv]   -- I4 orphan call rows (lead_id not in leads; manual calls have NULL lead_id by design):
+[r3-30000-csv]    orphan_calls 
+[r3-30000-csv]   --------------
+[r3-30000-csv]               0
+[r3-30000-csv]   (1 row)
+[r3-30000-csv]   -- I5 calls never dispositioned and never ended, older than 5 minutes:
+[r3-30000-csv]    dangling_calls 
+[r3-30000-csv]   ----------------
+[r3-30000-csv]                 0
+[r3-30000-csv]   (1 row)
+[r3-30000-csv]   -- I6 leads with more open (undispositioned) calls than one:
+[r3-30000-csv]    lead_id | open_calls 
+[r3-30000-csv]   ---------+------------
+[r3-30000-csv]   (0 rows)
+[r3-30000-csv]   -- I7 attempts above max_attempts:
+[r3-30000-csv]    id | attempts | max_attempts | status 
+[r3-30000-csv]   ----+----------+--------------+--------
+[r3-30000-csv]   (0 rows)
+[r3-30000-csv]   -- I8 dnc consistency: dnc_flag vs status vs dnc_list
+[r3-30000-csv]                         kind                       | count 
+[r3-30000-csv]   -------------------------------------------------+-------
+[r3-30000-csv]    status without flag                             |     0
+[r3-30000-csv]    phones not in E.164 (+1 and 10 digits)          |     0
+[r3-30000-csv]    flag without status                             |     0
+[r3-30000-csv]    lead whose phone is on dnc_list but not flagged |     0
+[r3-30000-csv]   (4 rows)
+[r3-30000-csv]   -- I9 lead counts:
+[r3-30000-csv]    total | soft_deleted 
+[r3-30000-csv]   -------+--------------
+[r3-30000-csv]    32697 |            0
+[r3-30000-csv]   (1 row)
+[r3-30000-csv] server log: 0 error/warn lines
+### run 3 — 30000 rows — xlsx
+[r3-30000-xlsx] gen: wrote /var/tmp/audit-scratch/seg5/leads-30000.xlsx: 30000 rows (b), 13498294 bytes; expected {"totalRows":30000,"imported":24750,"merged":1200,"alreadyInList":900,"dncBlocked":900,"noNumber":1500,"unreadable":600,"invalid":750,"withExtension":1200}
+[r3-30000-xlsx] file leads-30000.xlsx: 30000 rows, 13498294 bytes; leads in DB before: 5019; backend RSS before 115 MB
+[r3-30000-xlsx] upload -> HTTP 201
+[r3-30000-xlsx] auto mapping (AI off): {"phone":"Phone Number","email":"E-mail","first_name":"First Name","last_name":"Last Name","brokerage":"Company","address":"Address","city":"City","state":"State","zip":"Postal Code","source":"Website"}
+[r3-30000-xlsx] auto mapping matches the expected columns: yes
+[r3-30000-xlsx] process -> HTTP 200; final status=completed after 5.1 s, 6 requests (4 status polls)
+[r3-30000-xlsx]    poll 2.1s 50% cleaning Cleaning 30,000 / 30,000 rows status=processing
+[r3-30000-xlsx]    poll 3.1s 67% saving Saving 10,500 / 28,800 rows status=processing
+[r3-30000-xlsx]    poll 4.1s 89% saving Saving 23,000 / 28,800 rows status=processing
+[r3-30000-xlsx]    poll 5.1s 100% saving Done status=completed
+[r3-30000-xlsx] summary: {"totalRows":30000,"imported":24750,"merged":1200,"alreadyInList":900,"dncBlocked":900,"noNumber":1500,"invalid":750,"unreadable":600,"withExtension":1200,"skippedDnc":900,"skippedDuplicate":900,"skippedInvalid":750,"mergedDuplicates":1200,"importedWithoutPhone":1500}
+[r3-30000-xlsx] expected: {"totalRows":30000,"imported":24750,"merged":1200,"alreadyInList":900,"dncBlocked":900,"noNumber":1500,"invalid":750,"unreadable":600,"withExtension":1200}
+[r3-30000-xlsx] accounting rule: imported + merged + alreadyInList + dncBlocked + noNumber + invalid = 30000 vs total 30000 -> OK
+[r3-30000-xlsx] buckets vs expected: all equal
+[r3-30000-xlsx] skipped-rows CSV: HTTP 200, 3750 rows (skipped buckets: 3750) -> OK; header: Sheet,Row,Outcome,Reason,Address,City,Company,E-mail,First Name,Last Name,Phone Number,Pos
+[r3-30000-xlsx] invalid reasons: [{"count":300,"reason":"Could not determine a US state for this lead"},{"count":300,"reason":"Missing name"},{"count":150,"reason":"No state, and the same name appears in 2 different places in this file — not merged into any of them"}]
+[r3-30000-xlsx] DB: leads +26250; peak backend RSS 220 MB (was 115 MB before the import)
+[r3-30000-xlsx] DB: new leads with an extension: 1200 (expected 1200); phoneless leads keeping their unreadable raw text: 600 (expected 600)
+[r3-30000-xlsx] DB: dialable leads whose phone is on the DNC list: 0
+[r3-30000-xlsx] re-import same file: status=completed in 4.0 s; new leads in DB: 0; summary {"imported":0,"merged":1200,"alreadyInList":27150,"dncBlocked":900,"noNumber":0,"invalid":750} sum=30000/30000
+[r3-30000-xlsx] cancel test: cancel sent at [2.1s 50% saving Saving 500 / 28,800 rows status=processing] -> HTTP 200 {"cancelled":true,"jobId":3,"phase":"saving","written":470,"message":"Stopping. 470 leads were already saved and stay; no further rows will be saved after the batch in progress."}
+[r3-30000-xlsx] cancel test: job ended status=cancelled; leads written by this job: 953; reported written: 953
+[r3-30000-xlsx] dial sample (5 imported leads): 5109 (ext 478):201 5145 (ext 98):201 5253 (ext 650):201 5263 (ext 241):201 5283 (ext 67):201
+[r3-30000-xlsx] requests in total: 36
+[r3-30000-xlsx] invariants (I1-I9):
+[r3-30000-xlsx]   -- I1 every lead has exactly one status from the allowed list (violations):
+[r3-30000-xlsx]    status | count 
+[r3-30000-xlsx]   --------+-------
+[r3-30000-xlsx]   (0 rows)
+[r3-30000-xlsx]   -- I2 leads in_progress, and whether each has an open (undispositioned) call:
+[r3-30000-xlsx]    id | locked_by | lock_age_s | open_calls 
+[r3-30000-xlsx]   ----+-----------+------------+------------
+[r3-30000-xlsx]   (0 rows)
+[r3-30000-xlsx]   -- I3 in_progress with lock older than 30s (should be swept on next queue read):
+[r3-30000-xlsx]    stale_locks 
+[r3-30000-xlsx]   -------------
+[r3-30000-xlsx]              0
+[r3-30000-xlsx]   (1 row)
+[r3-30000-xlsx]   -- I4 orphan call rows (lead_id not in leads; manual calls have NULL lead_id by design):
+[r3-30000-xlsx]    orphan_calls 
+[r3-30000-xlsx]   --------------
+[r3-30000-xlsx]               0
+[r3-30000-xlsx]   (1 row)
+[r3-30000-xlsx]   -- I5 calls never dispositioned and never ended, older than 5 minutes:
+[r3-30000-xlsx]    dangling_calls 
+[r3-30000-xlsx]   ----------------
+[r3-30000-xlsx]                 0
+[r3-30000-xlsx]   (1 row)
+[r3-30000-xlsx]   -- I6 leads with more open (undispositioned) calls than one:
+[r3-30000-xlsx]    lead_id | open_calls 
+[r3-30000-xlsx]   ---------+------------
+[r3-30000-xlsx]   (0 rows)
+[r3-30000-xlsx]   -- I7 attempts above max_attempts:
+[r3-30000-xlsx]    id | attempts | max_attempts | status 
+[r3-30000-xlsx]   ----+----------+--------------+--------
+[r3-30000-xlsx]   (0 rows)
+[r3-30000-xlsx]   -- I8 dnc consistency: dnc_flag vs status vs dnc_list
+[r3-30000-xlsx]                         kind                       | count 
+[r3-30000-xlsx]   -------------------------------------------------+-------
+[r3-30000-xlsx]    status without flag                             |     0
+[r3-30000-xlsx]    lead whose phone is on dnc_list but not flagged |     0
+[r3-30000-xlsx]    flag without status                             |     0
+[r3-30000-xlsx]    phones not in E.164 (+1 and 10 digits)          |     0
+[r3-30000-xlsx]   (4 rows)
+[r3-30000-xlsx]   -- I9 lead counts:
+[r3-30000-xlsx]    total | soft_deleted 
+[r3-30000-xlsx]   -------+--------------
+[r3-30000-xlsx]    32222 |            0
+[r3-30000-xlsx]   (1 row)
+[r3-30000-xlsx] server log: 0 error/warn lines
+psql: error: /var/tmp/audit-scratch/seg5/leads-100000.csv.setup.sql: No such file or directory
+
+## A.9 extra — one 100,000-row CSV
+[x-100000-csv] gen: wrote /var/tmp/audit-scratch/seg5/leads-100000.csv: 100000 rows (a), 11064430 bytes; expected {"totalRows":100000,"imported":82500,"merged":4000,"alreadyInList":3000,"dncBlocked":3000,"noNumber":5000,"unreadable":2000,"invalid":2500,"withExtension":4000}
+[x-100000-csv] file leads-100000.csv: 100000 rows, 11064430 bytes; leads in DB before: 5019; backend RSS before 116 MB
+[x-100000-csv] upload -> HTTP 201
+[x-100000-csv] auto mapping (AI off): {"phone":"Mobile","email":"Email","name":"Name","brokerage":"Office","address":"Street","city":"City","state":"State","zip":"Zip","source":"Source"}
+[x-100000-csv] auto mapping matches the expected columns: yes
+[x-100000-csv] process -> HTTP 200; final status=completed after 12.1 s, 12 requests (10 status polls)
+[x-100000-csv]    poll 3.1s 13% cleaning Cleaning 27,500 / 100,000 rows status=processing
+[x-100000-csv]    poll 4.1s 34% cleaning Cleaning 69,000 / 100,000 rows status=processing
+[x-100000-csv]    poll 5.1s 50% cleaning Cleaning 100,000 / 100,000 rows status=processing
+[x-100000-csv]    poll 6.1s 50% cleaning Cleaning 100,000 / 100,000 rows status=processing
+[x-100000-csv]    poll 7.1s 51% saving Saving 3,000 / 96,000 rows status=processing
+[x-100000-csv]    poll 8.1s 61% saving Saving 22,500 / 96,000 rows status=processing
+[x-100000-csv]    poll 9.1s 72% saving Saving 43,500 / 96,000 rows status=processing
+[x-100000-csv]    poll 10.1s 82% saving Saving 63,000 / 96,000 rows status=processing
+[x-100000-csv]    poll 11.1s 91% saving Saving 81,000 / 96,000 rows status=processing
+[x-100000-csv]    poll 12.1s 100% saving Done status=completed
+[x-100000-csv] summary: {"totalRows":100000,"imported":82500,"merged":4000,"alreadyInList":3000,"dncBlocked":3000,"noNumber":5000,"invalid":2500,"unreadable":2000,"withExtension":4000,"skippedDnc":3000,"skippedDuplicate":3000,"skippedInvalid":2500,"mergedDuplicates":4000,"importedWithoutPhone":5000}
+[x-100000-csv] expected: {"totalRows":100000,"imported":82500,"merged":4000,"alreadyInList":3000,"dncBlocked":3000,"noNumber":5000,"invalid":2500,"unreadable":2000,"withExtension":4000}
+[x-100000-csv] accounting rule: imported + merged + alreadyInList + dncBlocked + noNumber + invalid = 100000 vs total 100000 -> OK
+[x-100000-csv] buckets vs expected: all equal
+[x-100000-csv] skipped-rows CSV: HTTP 200, 12500 rows (skipped buckets: 12500) -> OK; header: Sheet,Row,Outcome,Reason,City,Email,Mobile,Name,Office,Source,State,Street,Zip
+[x-100000-csv] invalid reasons: [{"count":1000,"reason":"Could not determine a US state for this lead"},{"count":1000,"reason":"Missing name"},{"count":500,"reason":"No state, and the same name appears in 2 different places in this file — not merged into any of them"}]
+[x-100000-csv] DB: leads +87500; peak backend RSS 210 MB (was 116 MB before the import)
+[x-100000-csv] DB: new leads with an extension: 4000 (expected 4000); phoneless leads keeping their unreadable raw text: 2000 (expected 2000)
+[x-100000-csv] DB: dialable leads whose phone is on the DNC list: 0
+[x-100000-csv] re-import same file: status=completed in 9.9 s; new leads in DB: 0; summary {"imported":0,"merged":4000,"alreadyInList":90500,"dncBlocked":3000,"noNumber":0,"invalid":2500} sum=100000/100000
+[x-100000-csv] cancel test: cancel sent at [5.4s 50% saving Saving 1,000 / 96,000 rows status=processing] -> HTTP 200 {"cancelled":true,"jobId":3,"phase":"saving","written":1433,"message":"Stopping. 1433 leads were already saved and stay; no further rows will be saved after the batch in progress."}
+[x-100000-csv] cancel test: job ended status=cancelled; leads written by this job: 1903; reported written: 1903
+[x-100000-csv] dial sample (5 imported leads): 5056 (ext 186):201 5058 (ext 719):201 5107 (ext 219):201 5134 (ext 448):201 5233 (ext 400):201
+[x-100000-csv] requests in total: 73
+[x-100000-csv] invariants (I1-I9):
+[x-100000-csv]   -- I1 every lead has exactly one status from the allowed list (violations):
+[x-100000-csv]    status | count 
+[x-100000-csv]   --------+-------
+[x-100000-csv]   (0 rows)
+[x-100000-csv]   -- I2 leads in_progress, and whether each has an open (undispositioned) call:
+[x-100000-csv]    id | locked_by | lock_age_s | open_calls 
+[x-100000-csv]   ----+-----------+------------+------------
+[x-100000-csv]   (0 rows)
+[x-100000-csv]   -- I3 in_progress with lock older than 30s (should be swept on next queue read):
+[x-100000-csv]    stale_locks 
+[x-100000-csv]   -------------
+[x-100000-csv]              0
+[x-100000-csv]   (1 row)
+[x-100000-csv]   -- I4 orphan call rows (lead_id not in leads; manual calls have NULL lead_id by design):
+[x-100000-csv]    orphan_calls 
+[x-100000-csv]   --------------
+[x-100000-csv]               0
+[x-100000-csv]   (1 row)
+[x-100000-csv]   -- I5 calls never dispositioned and never ended, older than 5 minutes:
+[x-100000-csv]    dangling_calls 
+[x-100000-csv]   ----------------
+[x-100000-csv]                 0
+[x-100000-csv]   (1 row)
+[x-100000-csv]   -- I6 leads with more open (undispositioned) calls than one:
+[x-100000-csv]    lead_id | open_calls 
+[x-100000-csv]   ---------+------------
+[x-100000-csv]   (0 rows)
+[x-100000-csv]   -- I7 attempts above max_attempts:
+[x-100000-csv]    id | attempts | max_attempts | status 
+[x-100000-csv]   ----+----------+--------------+--------
+[x-100000-csv]   (0 rows)
+[x-100000-csv]   -- I8 dnc consistency: dnc_flag vs status vs dnc_list
+[x-100000-csv]                         kind                       | count 
+[x-100000-csv]   -------------------------------------------------+-------
+[x-100000-csv]    status without flag                             |     0
+[x-100000-csv]    phones not in E.164 (+1 and 10 digits)          |     0
+[x-100000-csv]    flag without status                             |     0
+[x-100000-csv]    lead whose phone is on dnc_list but not flagged |     0
+[x-100000-csv]   (4 rows)
+[x-100000-csv]   -- I9 lead counts:
+[x-100000-csv]    total | soft_deleted 
+[x-100000-csv]   -------+--------------
+[x-100000-csv]    94422 |            0
+[x-100000-csv]   (1 row)
+[x-100000-csv] server log: 0 error/warn lines
