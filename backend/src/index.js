@@ -42,7 +42,9 @@ function corsOriginCheck(origin, callback) {
   if (config.nodeEnv !== 'production' && CODESPACES_ORIGIN_PATTERN.test(origin)) {
     return callback(null, true);
   }
-  return callback(new Error(`Not allowed by CORS: ${origin}`));
+  // F-07: refuse quietly. No CORS headers, so the browser blocks the page's
+  // request; not a server error and no stack trace in the log.
+  return callback(null, false);
 }
 
 app.use(cors({ origin: corsOriginCheck }));
