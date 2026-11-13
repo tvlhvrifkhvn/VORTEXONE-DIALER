@@ -486,7 +486,21 @@ async function markDncFromQueue(leadId) {
   return rows[0] || null;
 }
 
+/**
+ * Multi-line reserveSlot (F-04): a lead it just claimed turned out to be on
+ * the DNC list. Same statement the slot code ran before (next_action_at is
+ * left as it is, unlike markDncFromQueue).
+ */
+async function markDncFromSlot(leadId) {
+  await db.query(
+    `UPDATE leads SET status = 'dnc', dnc_flag = true, locked_by = NULL, locked_at = NULL, updated_at = now()
+     WHERE id = $1`,
+    [leadId]
+  );
+}
+
 module.exports = {
+  markDncFromSlot,
   DISPOSITIONS,
   parseCallbackTime,
   UNDO_WINDOW_SECONDS,
