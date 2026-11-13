@@ -22,6 +22,8 @@ function cleanText(raw) {
 /** Strips scraped-site junk commonly glued onto a name, e.g. "Joshua Barkes
  * License #: AB44850 - null MARKET CENTER Keller Williams Realty Boise" →
  * "Joshua Barkes". Deterministic (no AI) — only ever removes, never rewrites. */
+const MAX_IMPORT_NAME_LENGTH = 200; // = leadQueue's MAX_NAME_LENGTH (create / edit)
+
 function cleanLeadName(raw) {
   return cleanText(raw).replace(/\s*license\s*#?:?.*$/i, '').trim();
 }
@@ -182,7 +184,11 @@ function localityKey(row, mapping) {
  */
 function prepareRow(row, mapping) {
   const parsedPhone = parsePhone(mapping.phone ? row[mapping.phone] : '');
-  const name = cleanLeadName(rawName(row, mapping));
+  // F-54: names are capped at MAX_IMPORT_NAME_LENGTH (the same limit as a
+  // manual add or edit). A longer one is cut and counted in the summary.
+  const fullName = cleanLeadName(rawName(row, mapping));
+  const nameTrimmed = fullName.length > MAX_IMPORT_NAME_LENGTH;
+  const name = nameTrimmed ? fullName.slice(0, MAX_IMPORT_NAME_LENGTH).trim() : fullName;
   const street = mapping.address ? cleanText(row[mapping.address]) : '';
   const zip = mapping[ZIP_FIELD] ? cleanText(row[mapping[ZIP_FIELD]]) : '';
   // A city-only column ("boise id usa") is the only locality a scraped row
@@ -197,6 +203,7 @@ function prepareRow(row, mapping) {
 
   return {
     name,
+    ...(nameTrimmed ? { nameTrimmed: true } : {}),
     nameKey: name.toLowerCase(),
     localityKey: localityKey(row, mapping),
     phone: parsedPhone.e164,
@@ -663,7 +670,8 @@ async function buildSummary(jobId, state) {
             count(*) FILTER (WHERE outcome IS NULL)::int AS not_processed,
             count(*) FILTER (WHERE outcome = 'no_number' AND (prep->>'unreadable')::boolean)::int AS unreadable,
             count(*) FILTER (WHERE outcome = 'imported' AND prep->>'extension' IS NOT NULL)::int AS with_extension,
-            count(*) FILTER (WHERE outcome = 'imported' AND reason = $2)::int AS sms_opted_out
+            count(*) FILTER (WHERE outcome = 'imported' AND reason = $2)::int AS sms_opted_out,
+            count(*) FILTER (WHERE outcome IN ('imported', 'no_number') AND (prep->>'nameTrimmed')::boolean)::int AS names_trimmed
      FROM import_rows WHERE job_id = $1`,
     [jobId, SMS_OPTED_OUT_REASON]
   );
@@ -709,6 +717,8 @@ async function buildSummary(jobId, state) {
     withExtension: c.with_extension,
     // Imported (and dialable) but opted out of texts: the number replied STOP before.
     smsOptedOut: c.sms_opted_out,
+    // Imported with the name cut to MAX_IMPORT_NAME_LENGTH characters (F-54).
+    namesTrimmed: c.names_trimmed,
     written: c.imported + c.no_number,
     needsManualReview: state.needsManualReview,
     aiStoppedAfterFailures: state.aiDown,

@@ -563,6 +563,125 @@ Known limitations:
 - **CORS doesn't protect the API:** a disallowed origin's request with a valid token still gets data. Only the browser blocks reading it, as before.
 - **Mock only:** all SMS tests used the mock adapter.
 
+## Segment 10 — final cleanup — branch `claude/fix-seg10-final-cleanup` (base `claude/fix-seg9-settings-uploads` @ `ad8c0b2`, since PRs #21–#25 are not merged yet)
+
+Migration `032_rebuttal_expired.sql` (idempotent) adds the `'expired'` status for rebuttal suggestions. There is no `schema.sql` in this repo: the migrations are the schema.
+
+| Item | Status | Commit | File:function | Before → after (3 runs each; `audit/logs/fix-seg10.txt`) |
+|---|---|---|---|---|
+| 1.1 F-02 Dependencies | **Partly fixed** | `604c516` | `backend/package-lock.json`, `frontend/package-lock.json` | `npm audit` backend: 5 (1 critical, 3 high, 1 moderate) → **1 high** (`xlsx`, no npm fix); frontend: 3 → **0**. multer 2.0 → 2.5.0, body-parser 2.4.0, vite 7.3.8.<br>Imports re-run as CSV and XLSX at 300 / 4,000 / 30,000 rows: all 6 equal their expected counts.<br>**Why `xlsx` stays:**<ul><li>The SheetJS site is blocked from this environment.</li><li>`exceljs` drops Excel number formats (a zip stored as 02108 would import as 2108) and can't read `.xls`, so swapping it in could silently change imported data.</li><li>`xlsx` is used only by `services/xlsxParser.js`; the type check and upload limit are unchanged (50 MB, `IMPORT_MAX_UPLOAD_MB`, set in Segment 5).</li></ul>**`proxy-addr`:** `trust proxy` is still never set. **If a reverse proxy is ever put in front of the VPS, set `trust proxy` then** (the rate limiter keys on the client IP) |
+| 1.2 F-06 Default login | **Fixed in Segment 1** (verified) | — | `db/seeds/run.js` | A fresh seed with `SEED_USER_PASSWORD` unset prints a random 24-character password (login 200); the old committed default gets **401** (3/3). **Owner:** if your real instance was ever seeded with the old default password, change that password now |
+| 1.3 F-53 Input validation | **Fixed** | `65c98c0` | `leadQueue.parseListQuery` / `likeContains` / `create` / `updateFields`; `routes/leads.js`; `middleware/errorHandler.js` | **Bad `?page` / `?limit` / dates** (page=abc, limit=-5, limit=1.5, dateFrom=garbage, dateTo=2026-13-45): before 500 with the Postgres message; after 400 with a plain message. Also page=0 and limit=99999: before 200 (99999 returned all 5,022 leads), after 400.<br>**Search for `%` / `_`:** before, every lead (5,022); after, only the literal match (1).<br>**POST/PUT with no body:** before, a TypeError 500; after 400.<br>**A database error:** before, a 500 with the Postgres text; after, a 500 "Something went wrong", with the detail in the server log |
+| 1.4 F-54 Long names | **Fixed** | `d115887` | `csvImport.prepareRow` / `buildSummary`; `Import.jsx`, `LeadRow.jsx`, `AppShell.jsx`, `ContactCard.jsx` | **Create / edit:** 400 (unchanged since Segment 1).<br>**Import:** before, a 10,000-character name was stored whole with no note; after, it is cut to 200 and the summary reports `namesTrimmed: 1`.<br>**Dashboard at 1,280 px:** before, 106,666 px wide (sideways scroll); after, 1,280 px, with "…" and a tooltip |
+| 1.5 F-05 Busy event | **Fixed** (documented) | `cff7d6a` | `telephony/index.js`, `CLAUDE.md`; test stub `audit/stubs/no-busy.js` | `busy` is now documented as optional. Mock (sends `busy`) and no-busy adapter (only `ended`) give the same lead result: no_answer, 1 attempt, requeued; call disposition no_answer. Only the call's recorded telephony state differs (`busy` vs `ended`). Single-line ends the same in both. No code change was needed |
+| 1.6 F-04 Status writers | **Fixed** | `6ba5c6a` | `leadLifecycle.markDncFromSlot` (new), `callSession.reserveSlot` | A grep finds no `UPDATE leads SET status` outside `leadLifecycle.js`, except the stale-lock sweep and the lock itself (`claimLead`), which are allowed. The others were moved in Segments 1 and 5. The Segment 3–5 tests pass (regression) |
+| 1.7 F-03 SQL in routes | **Fixed in Segment 5** (verified) | — | — | A grep finds no `db.query` or `db` import left in `routes/` |
+| 1.8 F-42 / F-43 / F-44 | **Fixed** | `58c7710` | `preCallBrief.colleagueOpener`; `rebuttalCoach.reviewSuggestion` / `generateAndStore` / `reviewableSuggestions`; migration 032 | Tested with the local Groq stub only.<br>**F-42:** "A few agents…" for 1 → "Another agent at …"; for 2 → "2 agents at …".<br>**F-43:** approving a flagged or banned-phrase suggestion: 200 → **409** "needs a manual rewrite… Reject it instead"; a clean one stays 200.<br>**F-44:** 3 regenerations listed 9 pending → 3 (6 expired); the reviewer queue shows 3 |
+| 1.9 Leftover lines | — | — | — | The only one (`routes.js` reads its own checkout) is a test-harness quirk, worked around since Segment 8. Carried forward |
+
+**End-to-end smoke run on the mock** (`audit/scripts/fix-seg10-e2e.sh`, 3 runs, identical):
+- Imported 8 leads, then dialed 7 of them with each disposition: contacted, voicemail and no_answer (requeued), no_contact_number, no_contact_person → cold, dnc (on the DNC list), callback_scheduled (1 open callback).
+- A text with merged fields was sent. An inbound STOP set only the SMS opt-out (DNC stayed false), added the number to the opt-out list, and the next text got 400.
+- Today's numbers agree everywhere: report API = PDF headline = PDF table = DB (7 dials, 1 contact, 1 voicemail, 1 no-answer, 1 DNC). 0 open calls, 0 locked leads, invariants clean, 0 log errors.
+
+**Final full regression** (`audit/logs/fix-seg10-regression.txt`, run once on this branch, which contains Segments 1–9):
+- **Segment 1–9 repros:** same results as the Segment 8 regression, plus the Segment 9 checks. That includes:
+  - imports as CSV and XLSX at 300 / 4,000 / 30,000 rows (6/6 equal to expected);
+  - the calling-hours boundary table (0 wrong) and split places (0 out of hours);
+  - the report and PDF checks (API = PDF = DB on 5 periods);
+  - the SMS and email checks, the bulk summary adding up, the provider startup check;
+  - multi-line 15 calls on 15 leads, and "Connected" under `npm run dev`.
+- **Routes:** identical to the Segment 9 base (83 lines; this segment adds none). **Schema check:** 0 problems. **Auth matrix:** identical (80 + SSE, all 401).
+- **Production smoke test:** 0 console errors and 0 4xx/5xx on all 12 views.
+- **Server logs:** clean, apart from expected lines: a local fake Groq server's deliberate 500s in the settings test, and the deliberate refused dials.
+
+Extra files touched, and why:
+- `CLAUDE.md`: the busy event (F-05).
+- `ContactCard.jsx`, `AppShell.jsx`: name truncation (F-54).
+
+## Closing status (all findings)
+
+| ID | Finding | Status |
+|---|---|---|
+| F-01 | Groq key hardcoded | **Separate last PR** (Segment 11, `claude/fix-seg11-groq-key`). The owner must revoke the old key |
+| F-02 | npm advisories | **Partly fixed** (S10): 1 left, `xlsx` (no npm fix; see 1.1) |
+| F-03 | SQL in routes | Fixed (S5, verified S10) |
+| F-04 | Status written outside leadLifecycle | Fixed (S1, S5, S10) |
+| F-05 | Undocumented busy event | Fixed (S10, documented) |
+| F-06 | Default login | Fixed (S1, verified S10) |
+| F-07 | CORS 500 | Fixed (S9) |
+| F-08 | Import cancel ignored | Fixed (S5) |
+| F-09 | Phone extensions lost | Fixed (S5) |
+| F-10 | Mapping without AI | Fixed (S5) |
+| F-11 | Import progress | Fixed (S5) |
+| F-12 | Blank-locality duplicate | Fixed (S5) |
+| F-13 | Upload validation | Fixed (S5) |
+| F-14 | Locking race | Fixed (S2) |
+| F-15 | Sweep releases live calls | Fixed (S3) |
+| F-16 | DNC bypass via phone edit | Fixed (S1) |
+| F-17 | no_contact_person cascade by name | Fixed (S4, cascade removed by owner decision) |
+| F-18 | One time zone per state | Fixed (S6) |
+| F-19 | Dial pad ignores calling hours | Fixed (S6) |
+| F-20 | Queue starvation | Fixed (S6) |
+| F-21 | Undo after callback crashes | Fixed (S4) |
+| F-22 | Soft-deleted lead dialable | Fixed (S1) |
+| F-23 | no_contact_number dead end | Fixed (S4) |
+| F-24 | Sweep has no timer | Fixed (S3) |
+| F-25 | ended_at never set | Fixed (S3) |
+| F-26 | Calling-hours toggle lag | Fixed (S6) |
+| F-27 | Multi-line dials one lead twice | Fixed (S2) |
+| F-28 | Session keeps dialing after disconnect | Fixed (S5) |
+| F-29 | Stop / crash orphans | Fixed (S5). Ending a call at a real provider needs Phase C |
+| F-30 | Telephony failure leaves a lock | Fixed (S5) |
+| F-31 | Bad provider names at startup | Fixed (S8) |
+| F-32 | Any rep can act on another's call | Fixed (S3) |
+| F-33 | Previous Notes missing mid-call notes | Fixed (S5) |
+| F-34 | "Today" is UTC | Fixed (S7) |
+| F-35 | Callback time not validated | Fixed (S4) |
+| F-36 | Note linked to another lead's call | Fixed (S4) |
+| F-37 | No inbound SMS / STOP | Fixed (S8, plus the S9 opt-out list), **mock only** |
+| F-38 | Template placeholders leak | Fixed (S8) |
+| F-39 | Texts ignore calling hours | Fixed (S8) |
+| F-40 | Uploads | Fixed (S9). No signed URLs (owner decision) |
+| F-41 | Email subject / log | Fixed (S8) |
+| F-42 | Brief overstates colleagues | Fixed (S10) |
+| F-43 | Flagged suggestions approvable | Fixed (S10) |
+| F-44 | Regenerate piles up batches | Fixed (S10) |
+| F-45 | PDF headline from another day | Fixed (S7) |
+| F-46 | PDF garbles text | **Partly fixed** (S7): accents and emoji (black and white) print; other scripts print "?" (the app is English-only by owner decision) |
+| F-47 | Settings API leaks the key | Fixed (S9) |
+| F-48 | Browser-only defaults | Fixed (S9) |
+| F-49 | PDF table wraps | Fixed (S7) |
+| F-50 | Call screen hits the rate limit | Fixed (S5) |
+| F-51 | Dev-mode double dial | Fixed (S2) |
+| F-52 | Lead edit skips validation | Fixed (S1) |
+| F-53 | Validation gaps / raw 500s | Fixed (S10) |
+| F-54 | Long names break the layout | Fixed (S10) |
+| F-55 | missing_phone stays set | Fixed (S4) |
+
+## Before real calling
+
+**Only tested on the mock adapters:**
+- Every call, text and email path: placing calls, ringing / answered / voicemail / busy events, multi-line, failed dials, inbound texts and STOP / START, text and email sending.
+- Media URLs: carriers fetching them was never tested.
+- The 502 for a refused dial was tested with the `twilio` stub, which always refuses.
+
+**Phase C must still:**
+- **Telephony:** write the real adapter behind `placeCall` (Twilio or Telnyx), including mapping busy / no-answer hang-up causes (F-05 documents how). Add a way to end a call at the provider, so Stop, a disconnect or a restart don't leave calls up there (F-29 limitation).
+- **SMS:**
+  - Write the real adapter's `parseInbound` for its webhook format, and the provider signature check at the marked place in `smsIndex.verifyInbound`.
+  - Set `SMS_WEBHOOK_SECRET` (or use the signature).
+  - Test STOP / START end to end with the carrier.
+- **Email:** write the real adapter (SendGrid).
+- **Retest calling hours** against real calls (zones from area codes can be wrong for numbers people kept after moving).
+
+**The owner must:**
+- **Do the F-01 steps:** revoke the old Groq key, create a new one, and set `GROQ_API_KEY`. Consider making the repository private.
+- **Change the real login password** if the instance was ever seeded with the old default (F-06).
+- **Check settings after deploying:** calling hours ON, the reporting timezone, the day start, and default max attempts.
+- **Set `trust proxy`** if a reverse proxy is put in front of the VPS.
+- **Merge the stacked PRs in order:** #21 → #22 → #23 → #24 → #25 → this one; then the F-01 PR.
+
 ## New findings (not in the audit)
 
 | ID | Found in | Description | Planned |

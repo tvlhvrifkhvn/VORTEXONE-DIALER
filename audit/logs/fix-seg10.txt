@@ -1,0 +1,589 @@
+# Segment 10 — final cleanup (F-02, F-06, F-53, F-54, F-05, F-04, F-03, F-42, F-43, F-44). Branch claude/fix-seg10-final-cleanup, base ad8c0b2. Mock adapters; AI via the local Groq stub only. Synthetic data only; passwords masked.
+
+## npm audit / imports after the dependency update (one run per size and format)
+### fix-seg5-import.sh 300 csv
+[seg10-deps-300-csv] gen: wrote /var/tmp/audit-scratch/seg5/leads-300.csv: 300 rows (a), 32981 bytes; expected {"totalRows":300,"imported":249,"merged":11,"alreadyInList":9,"dncBlocked":9,"noNumber":15,"unreadable":6,"invalid":7,"withExtension":12}
+[seg10-deps-300-csv] file leads-300.csv: 300 rows, 32981 bytes; leads in DB before: 5019; backend RSS before 114 MB
+[seg10-deps-300-csv] upload -> HTTP 201
+[seg10-deps-300-csv] auto mapping (AI off): {"phone":"Mobile","email":"Email","name":"Name","brokerage":"Office","address":"Street","city":"City","state":"State","zip":"Zip","source":"Source"}
+[seg10-deps-300-csv] auto mapping matches the expected columns: yes
+[seg10-deps-300-csv] process -> HTTP 200; final status=completed after 1.0 s, 3 requests (1 status polls)
+[seg10-deps-300-csv] summary: {"totalRows":300,"imported":249,"merged":11,"alreadyInList":9,"dncBlocked":9,"noNumber":15,"invalid":7,"unreadable":6,"withExtension":12,"skippedDnc":9,"skippedDuplicate":9,"skippedInvalid":7,"mergedDuplicates":11,"importedWithoutPhone":15}
+[seg10-deps-300-csv] expected: {"totalRows":300,"imported":249,"merged":11,"alreadyInList":9,"dncBlocked":9,"noNumber":15,"invalid":7,"unreadable":6,"withExtension":12}
+[seg10-deps-300-csv] accounting rule: imported + merged + alreadyInList + dncBlocked + noNumber + invalid = 300 vs total 300 -> OK
+[seg10-deps-300-csv] buckets vs expected: all equal
+[seg10-deps-300-csv] skipped-rows CSV: HTTP 200, 36 rows (skipped buckets: 36) -> OK; header: Sheet,Row,Outcome,Reason,City,Email,Mobile,Name,Office,Source,State,Street,Zip
+[seg10-deps-300-csv] invalid reasons: [{"count":3,"reason":"Could not determine a US state for this lead"},{"count":3,"reason":"Missing name"},{"count":1,"reason":"No state, and the same name appears in 2 different places in this file — not merged into any of them"}]
+[seg10-deps-300-csv] DB: leads +264; peak backend RSS 127 MB (was 114 MB before the import)
+[seg10-deps-300-csv] DB: new leads with an extension: 12 (expected 12); phoneless leads keeping their unreadable raw text: 6 (expected 6)
+[seg10-deps-300-csv] DB: dialable leads whose phone is on the DNC list: 0
+[seg10-deps-300-csv] re-import same file: status=completed in 1.0 s; new leads in DB: 0; summary {"imported":0,"merged":11,"alreadyInList":273,"dncBlocked":9,"noNumber":0,"invalid":7} sum=300/300
+[seg10-deps-300-csv] cancel test: cancel sent at [0.1s 100% saving Done status=completed] -> HTTP 409 {"cancelled":false,"tooLate":true,"jobId":3,"status":"completed","written":276,"message":"Too late to cancel — this import is already completed.","reason":"too_late","error":"Too late to cancel — this
+[seg10-deps-300-csv] cancel test: job ended status=completed; leads written by this job: 276; reported written: 276
+[seg10-deps-300-csv] dial sample (5 imported leads): 5047 (ext 685):201 5086 (ext 241):201 5153 (ext 785):201 5163 (ext 543):201 5182 (ext 482):201
+[seg10-deps-300-csv] requests in total: 21
+[seg10-deps-300-csv] invariants (I1-I9):
+[seg10-deps-300-csv] server log: 0 error/warn lines
+### fix-seg5-import.sh 300 xlsx
+[seg10-deps-300-xlsx] gen: wrote /var/tmp/audit-scratch/seg5/leads-300.xlsx: 300 rows (b), 144960 bytes; expected {"totalRows":300,"imported":249,"merged":11,"alreadyInList":9,"dncBlocked":9,"noNumber":15,"unreadable":6,"invalid":7,"withExtension":12}
+[seg10-deps-300-xlsx] file leads-300.xlsx: 300 rows, 144960 bytes; leads in DB before: 5019; backend RSS before 118 MB
+[seg10-deps-300-xlsx] upload -> HTTP 201
+[seg10-deps-300-xlsx] auto mapping (AI off): {"phone":"Phone Number","email":"E-mail","first_name":"First Name","last_name":"Last Name","brokerage":"Company","address":"Address","city":"City","state":"State","zip":"Postal Code","source":"Website"}
+[seg10-deps-300-xlsx] auto mapping matches the expected columns: yes
+[seg10-deps-300-xlsx] process -> HTTP 200; final status=completed after 1.1 s, 3 requests (1 status polls)
+[seg10-deps-300-xlsx] summary: {"totalRows":300,"imported":249,"merged":11,"alreadyInList":9,"dncBlocked":9,"noNumber":15,"invalid":7,"unreadable":6,"withExtension":12,"skippedDnc":9,"skippedDuplicate":9,"skippedInvalid":7,"mergedDuplicates":11,"importedWithoutPhone":15}
+[seg10-deps-300-xlsx] expected: {"totalRows":300,"imported":249,"merged":11,"alreadyInList":9,"dncBlocked":9,"noNumber":15,"invalid":7,"unreadable":6,"withExtension":12}
+[seg10-deps-300-xlsx] accounting rule: imported + merged + alreadyInList + dncBlocked + noNumber + invalid = 300 vs total 300 -> OK
+[seg10-deps-300-xlsx] buckets vs expected: all equal
+[seg10-deps-300-xlsx] skipped-rows CSV: HTTP 200, 36 rows (skipped buckets: 36) -> OK; header: Sheet,Row,Outcome,Reason,Address,City,Company,E-mail,First Name,Last Name,Phone Number,Pos
+[seg10-deps-300-xlsx] invalid reasons: [{"count":3,"reason":"Could not determine a US state for this lead"},{"count":3,"reason":"Missing name"},{"count":1,"reason":"No state, and the same name appears in 2 different places in this file — not merged into any of them"}]
+[seg10-deps-300-xlsx] DB: leads +264; peak backend RSS 137 MB (was 118 MB before the import)
+[seg10-deps-300-xlsx] DB: new leads with an extension: 12 (expected 12); phoneless leads keeping their unreadable raw text: 6 (expected 6)
+[seg10-deps-300-xlsx] DB: dialable leads whose phone is on the DNC list: 0
+[seg10-deps-300-xlsx] re-import same file: status=completed in 1.0 s; new leads in DB: 0; summary {"imported":0,"merged":11,"alreadyInList":273,"dncBlocked":9,"noNumber":0,"invalid":7} sum=300/300
+[seg10-deps-300-xlsx] cancel test: cancel sent at [0.1s 100% saving Done status=completed] -> HTTP 409 {"cancelled":false,"tooLate":true,"jobId":3,"status":"completed","written":276,"message":"Too late to cancel — this import is already completed.","reason":"too_late","error":"Too late to cancel — this
+[seg10-deps-300-xlsx] cancel test: job ended status=completed; leads written by this job: 276; reported written: 276
+[seg10-deps-300-xlsx] dial sample (5 imported leads): 5047 (ext 685):201 5086 (ext 241):201 5153 (ext 785):201 5163 (ext 543):201 5182 (ext 482):201
+[seg10-deps-300-xlsx] requests in total: 21
+[seg10-deps-300-xlsx] invariants (I1-I9):
+[seg10-deps-300-xlsx] server log: 0 error/warn lines
+### fix-seg5-import.sh 4000 csv
+[seg10-deps-4000-csv] gen: wrote /var/tmp/audit-scratch/seg5/leads-4000.csv: 4000 rows (a), 434912 bytes; expected {"totalRows":4000,"imported":3300,"merged":160,"alreadyInList":120,"dncBlocked":120,"noNumber":200,"unreadable":80,"invalid":100,"withExtension":160}
+[seg10-deps-4000-csv] file leads-4000.csv: 4000 rows, 434912 bytes; leads in DB before: 5019; backend RSS before 117 MB
+[seg10-deps-4000-csv] upload -> HTTP 201
+[seg10-deps-4000-csv] auto mapping (AI off): {"phone":"Mobile","email":"Email","name":"Name","brokerage":"Office","address":"Street","city":"City","state":"State","zip":"Zip","source":"Source"}
+[seg10-deps-4000-csv] auto mapping matches the expected columns: yes
+[seg10-deps-4000-csv] process -> HTTP 200; final status=completed after 1.1 s, 3 requests (1 status polls)
+[seg10-deps-4000-csv] summary: {"totalRows":4000,"imported":3300,"merged":160,"alreadyInList":120,"dncBlocked":120,"noNumber":200,"invalid":100,"unreadable":80,"withExtension":160,"skippedDnc":120,"skippedDuplicate":120,"skippedInvalid":100,"mergedDuplicates":160,"importedWithoutPhone":200}
+[seg10-deps-4000-csv] expected: {"totalRows":4000,"imported":3300,"merged":160,"alreadyInList":120,"dncBlocked":120,"noNumber":200,"invalid":100,"unreadable":80,"withExtension":160}
+[seg10-deps-4000-csv] accounting rule: imported + merged + alreadyInList + dncBlocked + noNumber + invalid = 4000 vs total 4000 -> OK
+[seg10-deps-4000-csv] buckets vs expected: all equal
+[seg10-deps-4000-csv] skipped-rows CSV: HTTP 200, 500 rows (skipped buckets: 500) -> OK; header: Sheet,Row,Outcome,Reason,City,Email,Mobile,Name,Office,Source,State,Street,Zip
+[seg10-deps-4000-csv] invalid reasons: [{"count":40,"reason":"Could not determine a US state for this lead"},{"count":40,"reason":"Missing name"},{"count":20,"reason":"No state, and the same name appears in 2 different places in this file — not merged into any of them"}]
+[seg10-deps-4000-csv] DB: leads +3500; peak backend RSS 144 MB (was 117 MB before the import)
+[seg10-deps-4000-csv] DB: new leads with an extension: 160 (expected 160); phoneless leads keeping their unreadable raw text: 80 (expected 80)
+[seg10-deps-4000-csv] DB: dialable leads whose phone is on the DNC list: 0
+[seg10-deps-4000-csv] re-import same file: status=completed in 1.1 s; new leads in DB: 0; summary {"imported":0,"merged":160,"alreadyInList":3620,"dncBlocked":120,"noNumber":0,"invalid":100} sum=4000/4000
+[seg10-deps-4000-csv] cancel test: cancel sent at [0.3s 69% saving Saving 1,500 / 3,840 rows status=processing] -> HTTP 200 {"cancelled":true,"jobId":3,"phase":"saving","written":1431,"message":"Stopping. 1431 leads were already saved and stay; no further rows will be saved after the batch in progress."}
+[seg10-deps-4000-csv] cancel test: job ended status=cancelled; leads written by this job: 1904; reported written: 1904
+[seg10-deps-4000-csv] dial sample (5 imported leads): 5031 (ext 110):201 5055 (ext 457):201 5229 (ext 5):201 5267 (ext 500):201 5278 (ext 462):201
+[seg10-deps-4000-csv] requests in total: 23
+[seg10-deps-4000-csv] invariants (I1-I9):
+[seg10-deps-4000-csv] server log: 0 error/warn lines
+### fix-seg5-import.sh 4000 xlsx
+[seg10-deps-4000-xlsx] gen: wrote /var/tmp/audit-scratch/seg5/leads-4000.xlsx: 4000 rows (b), 1774616 bytes; expected {"totalRows":4000,"imported":3300,"merged":160,"alreadyInList":120,"dncBlocked":120,"noNumber":200,"unreadable":80,"invalid":100,"withExtension":160}
+[seg10-deps-4000-xlsx] file leads-4000.xlsx: 4000 rows, 1774616 bytes; leads in DB before: 5019; backend RSS before 114 MB
+[seg10-deps-4000-xlsx] upload -> HTTP 201
+[seg10-deps-4000-xlsx] auto mapping (AI off): {"phone":"Phone Number","email":"E-mail","first_name":"First Name","last_name":"Last Name","brokerage":"Company","address":"Address","city":"City","state":"State","zip":"Postal Code","source":"Website"}
+[seg10-deps-4000-xlsx] auto mapping matches the expected columns: yes
+[seg10-deps-4000-xlsx] process -> HTTP 200; final status=completed after 1.2 s, 3 requests (1 status polls)
+[seg10-deps-4000-xlsx] summary: {"totalRows":4000,"imported":3300,"merged":160,"alreadyInList":120,"dncBlocked":120,"noNumber":200,"invalid":100,"unreadable":80,"withExtension":160,"skippedDnc":120,"skippedDuplicate":120,"skippedInvalid":100,"mergedDuplicates":160,"importedWithoutPhone":200}
+[seg10-deps-4000-xlsx] expected: {"totalRows":4000,"imported":3300,"merged":160,"alreadyInList":120,"dncBlocked":120,"noNumber":200,"invalid":100,"unreadable":80,"withExtension":160}
+[seg10-deps-4000-xlsx] accounting rule: imported + merged + alreadyInList + dncBlocked + noNumber + invalid = 4000 vs total 4000 -> OK
+[seg10-deps-4000-xlsx] buckets vs expected: all equal
+[seg10-deps-4000-xlsx] skipped-rows CSV: HTTP 200, 500 rows (skipped buckets: 500) -> OK; header: Sheet,Row,Outcome,Reason,Address,City,Company,E-mail,First Name,Last Name,Phone Number,Pos
+[seg10-deps-4000-xlsx] invalid reasons: [{"count":40,"reason":"Could not determine a US state for this lead"},{"count":40,"reason":"Missing name"},{"count":20,"reason":"No state, and the same name appears in 2 different places in this file — not merged into any of them"}]
+[seg10-deps-4000-xlsx] DB: leads +3500; peak backend RSS 151 MB (was 114 MB before the import)
+[seg10-deps-4000-xlsx] DB: new leads with an extension: 160 (expected 160); phoneless leads keeping their unreadable raw text: 80 (expected 80)
+[seg10-deps-4000-xlsx] DB: dialable leads whose phone is on the DNC list: 0
+[seg10-deps-4000-xlsx] re-import same file: status=completed in 1.2 s; new leads in DB: 0; summary {"imported":0,"merged":160,"alreadyInList":3620,"dncBlocked":120,"noNumber":0,"invalid":100} sum=4000/4000
+[seg10-deps-4000-xlsx] cancel test: cancel sent at [0.4s 69% saving Saving 1,500 / 3,840 rows status=processing] -> HTTP 200 {"cancelled":true,"jobId":3,"phase":"saving","written":1431,"message":"Stopping. 1431 leads were already saved and stay; no further rows will be saved after the batch in progress."}
+[seg10-deps-4000-xlsx] cancel test: job ended status=cancelled; leads written by this job: 1904; reported written: 1904
+[seg10-deps-4000-xlsx] dial sample (5 imported leads): 5031 (ext 110):201 5055 (ext 457):201 5229 (ext 5):201 5267 (ext 500):201 5278 (ext 462):201
+[seg10-deps-4000-xlsx] requests in total: 23
+[seg10-deps-4000-xlsx] invariants (I1-I9):
+[seg10-deps-4000-xlsx] server log: 0 error/warn lines
+### fix-seg5-import.sh 30000 csv
+[seg10-deps-30000-csv] gen: wrote /var/tmp/audit-scratch/seg5/leads-30000.csv: 30000 rows (a), 3266194 bytes; expected {"totalRows":30000,"imported":24750,"merged":1200,"alreadyInList":900,"dncBlocked":900,"noNumber":1500,"unreadable":600,"invalid":750,"withExtension":1200}
+[seg10-deps-30000-csv] file leads-30000.csv: 30000 rows, 3266194 bytes; leads in DB before: 5019; backend RSS before 114 MB
+[seg10-deps-30000-csv] upload -> HTTP 201
+[seg10-deps-30000-csv] auto mapping (AI off): {"phone":"Mobile","email":"Email","name":"Name","brokerage":"Office","address":"Street","city":"City","state":"State","zip":"Zip","source":"Source"}
+[seg10-deps-30000-csv] auto mapping matches the expected columns: yes
+[seg10-deps-30000-csv] process -> HTTP 200; final status=completed after 4.7 s, 6 requests (4 status polls)
+[seg10-deps-30000-csv] summary: {"totalRows":30000,"imported":24750,"merged":1200,"alreadyInList":900,"dncBlocked":900,"noNumber":1500,"invalid":750,"unreadable":600,"withExtension":1200,"skippedDnc":900,"skippedDuplicate":900,"skippedInvalid":750,"mergedDuplicates":1200,"importedWithoutPhone":1500}
+[seg10-deps-30000-csv] expected: {"totalRows":30000,"imported":24750,"merged":1200,"alreadyInList":900,"dncBlocked":900,"noNumber":1500,"invalid":750,"unreadable":600,"withExtension":1200}
+[seg10-deps-30000-csv] accounting rule: imported + merged + alreadyInList + dncBlocked + noNumber + invalid = 30000 vs total 30000 -> OK
+[seg10-deps-30000-csv] buckets vs expected: all equal
+[seg10-deps-30000-csv] skipped-rows CSV: HTTP 200, 3750 rows (skipped buckets: 3750) -> OK; header: Sheet,Row,Outcome,Reason,City,Email,Mobile,Name,Office,Source,State,Street,Zip
+[seg10-deps-30000-csv] invalid reasons: [{"count":300,"reason":"Could not determine a US state for this lead"},{"count":300,"reason":"Missing name"},{"count":150,"reason":"No state, and the same name appears in 2 different places in this file — not merged into any of them"}]
+[seg10-deps-30000-csv] DB: leads +26250; peak backend RSS 180 MB (was 114 MB before the import)
+[seg10-deps-30000-csv] DB: new leads with an extension: 1200 (expected 1200); phoneless leads keeping their unreadable raw text: 600 (expected 600)
+[seg10-deps-30000-csv] DB: dialable leads whose phone is on the DNC list: 0
+[seg10-deps-30000-csv] re-import same file: status=completed in 3.6 s; new leads in DB: 0; summary {"imported":0,"merged":1200,"alreadyInList":27150,"dncBlocked":900,"noNumber":0,"invalid":750} sum=30000/30000
+[seg10-deps-30000-csv] cancel test: cancel sent at [1.7s 50% saving Saving 500 / 28,800 rows status=processing] -> HTTP 200 {"cancelled":true,"jobId":3,"phase":"saving","written":476,"message":"Stopping. 476 leads were already saved and stay; no further rows will be saved after the batch in progress."}
+[seg10-deps-30000-csv] cancel test: job ended status=cancelled; leads written by this job: 956; reported written: 956
+[seg10-deps-30000-csv] dial sample (5 imported leads): 5097 (ext 653):201 5105 (ext 722):201 5149 (ext 535):201 5156 (ext 547):201 5177 (ext 93):201
+[seg10-deps-30000-csv] requests in total: 36
+[seg10-deps-30000-csv] invariants (I1-I9):
+[seg10-deps-30000-csv] server log: 0 error/warn lines
+### fix-seg5-import.sh 30000 xlsx
+[seg10-deps-30000-xlsx] gen: wrote /var/tmp/audit-scratch/seg5/leads-30000.xlsx: 30000 rows (b), 13510489 bytes; expected {"totalRows":30000,"imported":24750,"merged":1200,"alreadyInList":900,"dncBlocked":900,"noNumber":1500,"unreadable":600,"invalid":750,"withExtension":1200}
+[seg10-deps-30000-xlsx] file leads-30000.xlsx: 30000 rows, 13510489 bytes; leads in DB before: 5019; backend RSS before 115 MB
+[seg10-deps-30000-xlsx] upload -> HTTP 201
+[seg10-deps-30000-xlsx] auto mapping (AI off): {"phone":"Phone Number","email":"E-mail","first_name":"First Name","last_name":"Last Name","brokerage":"Company","address":"Address","city":"City","state":"State","zip":"Postal Code","source":"Website"}
+[seg10-deps-30000-xlsx] auto mapping matches the expected columns: yes
+[seg10-deps-30000-xlsx] process -> HTTP 200; final status=completed after 4.2 s, 5 requests (3 status polls)
+[seg10-deps-30000-xlsx] summary: {"totalRows":30000,"imported":24750,"merged":1200,"alreadyInList":900,"dncBlocked":900,"noNumber":1500,"invalid":750,"unreadable":600,"withExtension":1200,"skippedDnc":900,"skippedDuplicate":900,"skippedInvalid":750,"mergedDuplicates":1200,"importedWithoutPhone":1500}
+[seg10-deps-30000-xlsx] expected: {"totalRows":30000,"imported":24750,"merged":1200,"alreadyInList":900,"dncBlocked":900,"noNumber":1500,"invalid":750,"unreadable":600,"withExtension":1200}
+[seg10-deps-30000-xlsx] accounting rule: imported + merged + alreadyInList + dncBlocked + noNumber + invalid = 30000 vs total 30000 -> OK
+[seg10-deps-30000-xlsx] buckets vs expected: all equal
+[seg10-deps-30000-xlsx] skipped-rows CSV: HTTP 200, 3750 rows (skipped buckets: 3750) -> OK; header: Sheet,Row,Outcome,Reason,Address,City,Company,E-mail,First Name,Last Name,Phone Number,Pos
+[seg10-deps-30000-xlsx] invalid reasons: [{"count":300,"reason":"Could not determine a US state for this lead"},{"count":300,"reason":"Missing name"},{"count":150,"reason":"No state, and the same name appears in 2 different places in this file — not merged into any of them"}]
+[seg10-deps-30000-xlsx] DB: leads +26250; peak backend RSS 255 MB (was 115 MB before the import)
+[seg10-deps-30000-xlsx] DB: new leads with an extension: 1200 (expected 1200); phoneless leads keeping their unreadable raw text: 600 (expected 600)
+[seg10-deps-30000-xlsx] DB: dialable leads whose phone is on the DNC list: 0
+[seg10-deps-30000-xlsx] re-import same file: status=completed in 4.1 s; new leads in DB: 0; summary {"imported":0,"merged":1200,"alreadyInList":27150,"dncBlocked":900,"noNumber":0,"invalid":750} sum=30000/30000
+[seg10-deps-30000-xlsx] cancel test: cancel sent at [2.3s 50% saving Saving 500 / 28,800 rows status=processing] -> HTTP 200 {"cancelled":true,"jobId":3,"phase":"saving","written":476,"message":"Stopping. 476 leads were already saved and stay; no further rows will be saved after the batch in progress."}
+[seg10-deps-30000-xlsx] cancel test: job ended status=cancelled; leads written by this job: 956; reported written: 956
+[seg10-deps-30000-xlsx] dial sample (5 imported leads): 5097 (ext 653):201 5105 (ext 722):201 5149 (ext 535):201 5156 (ext 547):201 5177 (ext 93):201
+[seg10-deps-30000-xlsx] requests in total: 36
+[seg10-deps-30000-xlsx] invariants (I1-I9):
+[seg10-deps-30000-xlsx] server log: 0 error/warn lines
+IMPORTS-DONE
+
+## BASE ad8c0b2, 3 runs
+######## base run 1
+[base] == F-06: fresh seed (SEED_USER_PASSWORD unset), then logins
+[base]   --- [base] seed output on vortex_seg10_f06 (passwords masked):
+[base]         password: VAHB****(len 24)
+[base]   --- [base] login with the password the seed printed (VAHB****(len 24)): HTTP 200
+[base]   --- [base] login with the OLD committed default (Chan****(len 12)): HTTP 401
+[base]   server log (seed): 0 error/warn lines
+[base] == F-53: GET /api/leads parameters
+[base]   ?page=abc -> 500 "error":"invalid input syntax for type bigint: \" 
+[base]   ?page=0 -> 200  rows 50
+[base]   ?limit=-5 -> 500 "error":"LIMIT must not be negative" 
+[base]   ?limit=1.5 -> 500 "error":"invalid input syntax for type bigint: \" 
+[base]   ?limit=99999 -> 200  rows 5022
+[base]   ?limit=200 -> 200  rows 200
+[base]   ?dateFrom=garbage -> 500 "error":"invalid input syntax for type timestamp with time zone: \" 
+[base]   ?dateTo=2026-13-45 -> 500 "error":"date/time field value out of range: \" 
+[base]   ?dateFrom=2026-11-01 -> 200  rows 50
+[base]   search "%" -> 200, matches 5022 (Agent 100% Realty, Under_score Homes, Plain Name, …)
+[base]   search "_" -> 200, matches 5022 (Agent 100% Realty, Under_score Homes, Plain Name, …)
+[base]   search "100%" -> 200, matches 116 (Agent 100% Realty, Bulk Agent 4100, Bulk Agent 3100, …)
+[base]   search "Under_" -> 200, matches 1 (Under_score Homes)
+[base]   navbar search "%" -> 200, matches 10
+[base] == F-53: request bodies
+[base]   POST /api/leads no body -> "error":"Cannot destructure property 'name' of 'req.body' as it is undefined." HTTP 500 
+[base]   POST /api/leads JSON array -> "error":"Name is required" HTTP 400 
+[base]   POST /api/leads JSON string -> "error":"Unexpected token '\" HTTP 400 
+[base]   PUT /api/leads/5022 no body -> "error":"Cannot destructure property 'name' of 'req.body' as it is undefined." HTTP 500 
+[base] == F-53: an unexpected server error (a database error)
+[base]   GET /api/leads/not-a-number -> "error":"invalid input syntax for type integer: \" HTTP 500 
+[base]   server log has the detail: 4 line(s)
+[base]   server log (validate): 16 error/warn lines
+[base] == F-54: a 10,000-character name
+[base]   create -> 400 "error":"Name is too long (200 characters max)"
+[base]   edit -> 400 "error":"Name is too long (200 characters max)"
+[base]   import (1 long name + 1 normal) -> imported "imported":2, namesTrimmed: not reported; stored name length: 10000
+[base]   dashboard at 1280px wide: page width 106666px vs window 1280px -> sideways scroll: YES
+[base]   screenshot: /var/tmp/audit-scratch/seg10-base/dashboard-long-name.png
+[base]   server log (names): 0 error/warn lines
+[base] == F-05 busy lines, adapter: mock (sends 'busy' then 'ended')
+[base]   multi-line 9 s: slot events byStatus={"loading":9,"dialing":9,"ringing":9,"busy":6,"dropped":3}
+[base]   leads dialed: in_progress attempts 2=1, in_queue attempts 1=2, no_answer attempts 1 requeued=6
+[base]   their calls: -/ringing=3, no_answer/busy=6
+[base]   single-line call: -/ended/ended
+[base] == F-05 busy lines, adapter: no-busy (never sends 'busy', only 'ended')
+[base]   multi-line 9 s: slot events byStatus={"loading":6,"dialing":6,"ringing":6,"no_answer":3,"dropped":3}
+[base]   leads dialed: in_progress attempts 2=1, in_queue attempts 1=2, no_answer attempts 1 requeued=3
+[base]   their calls: no_answer/ended=3, -/ringing=3
+[base]   single-line call: -/ended/ended
+[base]   server log (busy): 0 error/warn lines
+[base] == F-42 pre-call brief opener (lead 5020)
+[base]   1 interested colleague -> "opener":"A few agents at Coach Realty · Albany, ny have already been interested in what we do."
+[base]   2 interested colleagues -> "opener":"A few agents at Coach Realty · Albany, ny have already been interested in what we do."
+[base] == F-44 regenerate three times (stub returns 3 clean suggestions each time)
+[base]   regenerate 1 -> 200; list shows 3 pending
+[base]   regenerate 2 -> 200; list shows 6 pending
+[base]   regenerate 3 -> 200; list shows 9 pending
+[base]   DB: pending 9, expired 0
+[base]   reviewer queue: 9 pending
+[base] == F-43 approving a flagged suggestion (rows by DIRECT SQL)
+[base]   approve flagged with a note -> 200 
+[base]   approve banned phrases, no note -> 200 
+[base]   approve clean -> 200 
+[base]   call-screen hint now: "text":"Totally fair. Most agents we help felt the same until they saw a week of follow-ups done for them."
+[base]   server log (coach): 0 error/warn lines
+######## base run 2
+[base] == F-06: fresh seed (SEED_USER_PASSWORD unset), then logins
+[base]   --- [base] seed output on vortex_seg10_f06 (passwords masked):
+[base]         password: 61jU****(len 24)
+[base]   --- [base] login with the password the seed printed (61jU****(len 24)): HTTP 200
+[base]   --- [base] login with the OLD committed default (Chan****(len 12)): HTTP 401
+[base]   server log (seed): 0 error/warn lines
+[base] == F-53: GET /api/leads parameters
+[base]   ?page=abc -> 500 "error":"invalid input syntax for type bigint: \" 
+[base]   ?page=0 -> 200  rows 50
+[base]   ?limit=-5 -> 500 "error":"LIMIT must not be negative" 
+[base]   ?limit=1.5 -> 500 "error":"invalid input syntax for type bigint: \" 
+[base]   ?limit=99999 -> 200  rows 5022
+[base]   ?limit=200 -> 200  rows 200
+[base]   ?dateFrom=garbage -> 500 "error":"invalid input syntax for type timestamp with time zone: \" 
+[base]   ?dateTo=2026-13-45 -> 500 "error":"date/time field value out of range: \" 
+[base]   ?dateFrom=2026-11-01 -> 200  rows 50
+[base]   search "%" -> 200, matches 5022 (Agent 100% Realty, Under_score Homes, Plain Name, …)
+[base]   search "_" -> 200, matches 5022 (Agent 100% Realty, Under_score Homes, Plain Name, …)
+[base]   search "100%" -> 200, matches 116 (Agent 100% Realty, Bulk Agent 4100, Bulk Agent 3100, …)
+[base]   search "Under_" -> 200, matches 1 (Under_score Homes)
+[base]   navbar search "%" -> 200, matches 10
+[base] == F-53: request bodies
+[base]   POST /api/leads no body -> "error":"Cannot destructure property 'name' of 'req.body' as it is undefined." HTTP 500 
+[base]   POST /api/leads JSON array -> "error":"Name is required" HTTP 400 
+[base]   POST /api/leads JSON string -> "error":"Unexpected token '\" HTTP 400 
+[base]   PUT /api/leads/5022 no body -> "error":"Cannot destructure property 'name' of 'req.body' as it is undefined." HTTP 500 
+[base] == F-53: an unexpected server error (a database error)
+[base]   GET /api/leads/not-a-number -> "error":"invalid input syntax for type integer: \" HTTP 500 
+[base]   server log has the detail: 4 line(s)
+[base]   server log (validate): 16 error/warn lines
+[base] == F-54: a 10,000-character name
+[base]   create -> 400 "error":"Name is too long (200 characters max)"
+[base]   edit -> 400 "error":"Name is too long (200 characters max)"
+[base]   import (1 long name + 1 normal) -> imported "imported":2, namesTrimmed: not reported; stored name length: 10000
+[base]   dashboard at 1280px wide: page width 106666px vs window 1280px -> sideways scroll: YES
+[base]   screenshot: /var/tmp/audit-scratch/seg10-base/dashboard-long-name.png
+[base]   server log (names): 0 error/warn lines
+[base] == F-05 busy lines, adapter: mock (sends 'busy' then 'ended')
+[base]   multi-line 9 s: slot events byStatus={"loading":9,"dialing":9,"ringing":9,"busy":6,"dropped":3}
+[base]   leads dialed: in_progress attempts 2=1, in_queue attempts 1=2, no_answer attempts 1 requeued=6
+[base]   their calls: -/ringing=3, no_answer/busy=6
+[base]   single-line call: -/ended/ended
+[base] == F-05 busy lines, adapter: no-busy (never sends 'busy', only 'ended')
+[base]   multi-line 9 s: slot events byStatus={"loading":6,"dialing":6,"ringing":6,"no_answer":3,"dropped":3}
+[base]   leads dialed: in_progress attempts 2=1, in_queue attempts 1=2, no_answer attempts 1 requeued=3
+[base]   their calls: no_answer/ended=3, -/ringing=3
+[base]   single-line call: -/ended/ended
+[base]   server log (busy): 0 error/warn lines
+[base] == F-42 pre-call brief opener (lead 5020)
+[base]   1 interested colleague -> "opener":"A few agents at Coach Realty · Albany, ny have already been interested in what we do."
+[base]   2 interested colleagues -> "opener":"A few agents at Coach Realty · Albany, ny have already been interested in what we do."
+[base] == F-44 regenerate three times (stub returns 3 clean suggestions each time)
+[base]   regenerate 1 -> 200; list shows 3 pending
+[base]   regenerate 2 -> 200; list shows 6 pending
+[base]   regenerate 3 -> 200; list shows 9 pending
+[base]   DB: pending 9, expired 0
+[base]   reviewer queue: 9 pending
+[base] == F-43 approving a flagged suggestion (rows by DIRECT SQL)
+[base]   approve flagged with a note -> 200 
+[base]   approve banned phrases, no note -> 200 
+[base]   approve clean -> 200 
+[base]   call-screen hint now: "text":"Totally fair. Most agents we help felt the same until they saw a week of follow-ups done for them."
+[base]   server log (coach): 0 error/warn lines
+######## base run 3
+[base] == F-06: fresh seed (SEED_USER_PASSWORD unset), then logins
+[base]   --- [base] seed output on vortex_seg10_f06 (passwords masked):
+[base]         password: CT6F****(len 24)
+[base]   --- [base] login with the password the seed printed (CT6F****(len 24)): HTTP 200
+[base]   --- [base] login with the OLD committed default (Chan****(len 12)): HTTP 401
+[base]   server log (seed): 0 error/warn lines
+[base] == F-53: GET /api/leads parameters
+[base]   ?page=abc -> 500 "error":"invalid input syntax for type bigint: \" 
+[base]   ?page=0 -> 200  rows 50
+[base]   ?limit=-5 -> 500 "error":"LIMIT must not be negative" 
+[base]   ?limit=1.5 -> 500 "error":"invalid input syntax for type bigint: \" 
+[base]   ?limit=99999 -> 200  rows 5022
+[base]   ?limit=200 -> 200  rows 200
+[base]   ?dateFrom=garbage -> 500 "error":"invalid input syntax for type timestamp with time zone: \" 
+[base]   ?dateTo=2026-13-45 -> 500 "error":"date/time field value out of range: \" 
+[base]   ?dateFrom=2026-11-01 -> 200  rows 50
+[base]   search "%" -> 200, matches 5022 (Agent 100% Realty, Under_score Homes, Plain Name, …)
+[base]   search "_" -> 200, matches 5022 (Agent 100% Realty, Under_score Homes, Plain Name, …)
+[base]   search "100%" -> 200, matches 116 (Agent 100% Realty, Bulk Agent 4100, Bulk Agent 3100, …)
+[base]   search "Under_" -> 200, matches 1 (Under_score Homes)
+[base]   navbar search "%" -> 200, matches 10
+[base] == F-53: request bodies
+[base]   POST /api/leads no body -> "error":"Cannot destructure property 'name' of 'req.body' as it is undefined." HTTP 500 
+[base]   POST /api/leads JSON array -> "error":"Name is required" HTTP 400 
+[base]   POST /api/leads JSON string -> "error":"Unexpected token '\" HTTP 400 
+[base]   PUT /api/leads/5022 no body -> "error":"Cannot destructure property 'name' of 'req.body' as it is undefined." HTTP 500 
+[base] == F-53: an unexpected server error (a database error)
+[base]   GET /api/leads/not-a-number -> "error":"invalid input syntax for type integer: \" HTTP 500 
+[base]   server log has the detail: 4 line(s)
+[base]   server log (validate): 16 error/warn lines
+[base] == F-54: a 10,000-character name
+[base]   create -> 400 "error":"Name is too long (200 characters max)"
+[base]   edit -> 400 "error":"Name is too long (200 characters max)"
+[base]   import (1 long name + 1 normal) -> imported "imported":2, namesTrimmed: not reported; stored name length: 10000
+[base]   dashboard at 1280px wide: page width 106666px vs window 1280px -> sideways scroll: YES
+[base]   screenshot: /var/tmp/audit-scratch/seg10-base/dashboard-long-name.png
+[base]   server log (names): 0 error/warn lines
+[base] == F-05 busy lines, adapter: mock (sends 'busy' then 'ended')
+[base]   multi-line 9 s: slot events byStatus={"loading":9,"dialing":9,"ringing":9,"busy":6,"dropped":3}
+[base]   leads dialed: in_progress attempts 2=1, in_queue attempts 1=2, no_answer attempts 1 requeued=6
+[base]   their calls: -/ringing=3, no_answer/busy=6
+[base]   single-line call: -/ended/ended
+[base] == F-05 busy lines, adapter: no-busy (never sends 'busy', only 'ended')
+[base]   multi-line 9 s: slot events byStatus={"loading":6,"dialing":6,"ringing":6,"no_answer":3,"dropped":3}
+[base]   leads dialed: in_progress attempts 2=1, in_queue attempts 1=2, no_answer attempts 1 requeued=3
+[base]   their calls: no_answer/ended=3, -/ringing=3
+[base]   single-line call: -/ended/ended
+[base]   server log (busy): 0 error/warn lines
+[base] == F-42 pre-call brief opener (lead 5020)
+[base]   1 interested colleague -> "opener":"A few agents at Coach Realty · Albany, ny have already been interested in what we do."
+[base]   2 interested colleagues -> "opener":"A few agents at Coach Realty · Albany, ny have already been interested in what we do."
+[base] == F-44 regenerate three times (stub returns 3 clean suggestions each time)
+[base]   regenerate 1 -> 200; list shows 3 pending
+[base]   regenerate 2 -> 200; list shows 6 pending
+[base]   regenerate 3 -> 200; list shows 9 pending
+[base]   DB: pending 9, expired 0
+[base]   reviewer queue: 9 pending
+[base] == F-43 approving a flagged suggestion (rows by DIRECT SQL)
+[base]   approve flagged with a note -> 200 
+[base]   approve banned phrases, no note -> 200 
+[base]   approve clean -> 200 
+[base]   call-screen hint now: "text":"Totally fair. Most agents we help felt the same until they saw a week of follow-ups done for them."
+[base]   server log (coach): 0 error/warn lines
+
+## HEAD, 3 runs
+######## after run 1
+[after] == F-06: fresh seed (SEED_USER_PASSWORD unset), then logins
+[after]   --- [after] seed output on vortex_seg10_f06 (passwords masked):
+[after]         password: osOz****(len 24)
+[after]   --- [after] login with the password the seed printed (osOz****(len 24)): HTTP 200
+[after]   --- [after] login with the OLD committed default (Chan****(len 12)): HTTP 401
+[after]   server log (seed): 0 error/warn lines
+[after] == F-53: GET /api/leads parameters
+[after]   ?page=abc -> 400 "error":"page must be a whole number from 1 to 1000000" 
+[after]   ?page=0 -> 400 "error":"page must be a whole number from 1 to 1000000" 
+[after]   ?limit=-5 -> 400 "error":"limit must be a whole number from 1 to 10000" 
+[after]   ?limit=1.5 -> 400 "error":"limit must be a whole number from 1 to 10000" 
+[after]   ?limit=99999 -> 400 "error":"limit must be a whole number from 1 to 10000" 
+[after]   ?limit=200 -> 200  rows 200
+[after]   ?dateFrom=garbage -> 400 "error":"dateFrom must be a date like 2026-11-13" 
+[after]   ?dateTo=2026-13-45 -> 400 "error":"dateTo must be a date like 2026-11-13" 
+[after]   ?dateFrom=2026-11-01 -> 200  rows 50
+[after]   search "%" -> 200, matches 1 (Agent 100% Realty)
+[after]   search "_" -> 200, matches 1 (Under_score Homes)
+[after]   search "100%" -> 200, matches 1 (Agent 100% Realty)
+[after]   search "Under_" -> 200, matches 1 (Under_score Homes)
+[after]   navbar search "%" -> 200, matches 1
+[after] == F-53: request bodies
+[after]   POST /api/leads no body -> "error":"Send the lead as a JSON object" HTTP 400 
+[after]   POST /api/leads JSON array -> "error":"Send the lead as a JSON object" HTTP 400 
+[after]   POST /api/leads JSON string -> "error":"Unexpected token '\" HTTP 400 
+[after]   PUT /api/leads/5022 no body -> "error":"Send the changes as a JSON object" HTTP 400 
+[after] == F-53: an unexpected server error (a database error)
+[after]   GET /api/leads/not-a-number -> "error":"Something went wrong" HTTP 500 
+[after]   server log has the detail: 1 line(s)
+[after]   server log (validate): 2 error/warn lines
+[after] == F-54: a 10,000-character name
+[after]   create -> 400 "error":"Name is too long (200 characters max)"
+[after]   edit -> 400 "error":"Name is too long (200 characters max)"
+[after]   import (1 long name + 1 normal) -> imported "imported":2, namesTrimmed: "namesTrimmed":1; stored name length: 200
+[after]   dashboard at 1280px wide: page width 1280px vs window 1280px -> sideways scroll: no
+[after]   screenshot: /var/tmp/audit-scratch/seg10-after/dashboard-long-name.png
+[after]   server log (names): 0 error/warn lines
+[after] == F-05 busy lines, adapter: mock (sends 'busy' then 'ended')
+[after]   multi-line 9 s: slot events byStatus={"loading":9,"dialing":9,"ringing":9,"busy":6,"dropped":3}
+[after]   leads dialed: in_progress attempts 2=1, in_queue attempts 1=2, no_answer attempts 1 requeued=6
+[after]   their calls: -/ringing=3, no_answer/busy=6
+[after]   single-line call: -/ended/ended
+[after] == F-05 busy lines, adapter: no-busy (never sends 'busy', only 'ended')
+[after]   multi-line 9 s: slot events byStatus={"loading":6,"dialing":6,"ringing":6,"no_answer":3,"dropped":3}
+[after]   leads dialed: in_progress attempts 2=1, in_queue attempts 1=2, no_answer attempts 1 requeued=3
+[after]   their calls: no_answer/ended=3, -/ringing=3
+[after]   single-line call: -/ended/ended
+[after]   server log (busy): 0 error/warn lines
+[after] == F-42 pre-call brief opener (lead 5020)
+[after]   1 interested colleague -> "opener":"Another agent at Coach Realty · Albany, ny has already been interested in what we do."
+[after]   2 interested colleagues -> "opener":"2 agents at Coach Realty · Albany, ny have already been interested in what we do."
+[after] == F-44 regenerate three times (stub returns 3 clean suggestions each time)
+[after]   regenerate 1 -> 200; list shows 3 pending
+[after]   regenerate 2 -> 200; list shows 3 pending
+[after]   regenerate 3 -> 200; list shows 3 pending
+[after]   DB: pending 3, expired 6
+[after]   reviewer queue: 3 pending
+[after] == F-43 approving a flagged suggestion (rows by DIRECT SQL)
+[after]   approve flagged with a note -> 409 "error":"This suggestion needs a manual rewrite before it can be approved (used 'innovative', 'optimize'). Reject it instead."
+[after]   approve banned phrases, no note -> 409 "error":"This suggestion needs a manual rewrite before it can be approved (used 'synergy', 'leverage', 'seamless', 'unlock'). Reject it inst
+[after]   approve clean -> 200 
+[after]   call-screen hint now: "text":"Totally fair. Most agents we help felt the same until they saw a week of follow-ups done for them."
+[after]   server log (coach): 0 error/warn lines
+######## after run 2
+[after] == F-06: fresh seed (SEED_USER_PASSWORD unset), then logins
+[after]   --- [after] seed output on vortex_seg10_f06 (passwords masked):
+[after]         password: LoQ8****(len 24)
+[after]   --- [after] login with the password the seed printed (LoQ8****(len 24)): HTTP 200
+[after]   --- [after] login with the OLD committed default (Chan****(len 12)): HTTP 401
+[after]   server log (seed): 0 error/warn lines
+[after] == F-53: GET /api/leads parameters
+[after]   ?page=abc -> 400 "error":"page must be a whole number from 1 to 1000000" 
+[after]   ?page=0 -> 400 "error":"page must be a whole number from 1 to 1000000" 
+[after]   ?limit=-5 -> 400 "error":"limit must be a whole number from 1 to 10000" 
+[after]   ?limit=1.5 -> 400 "error":"limit must be a whole number from 1 to 10000" 
+[after]   ?limit=99999 -> 400 "error":"limit must be a whole number from 1 to 10000" 
+[after]   ?limit=200 -> 200  rows 200
+[after]   ?dateFrom=garbage -> 400 "error":"dateFrom must be a date like 2026-11-13" 
+[after]   ?dateTo=2026-13-45 -> 400 "error":"dateTo must be a date like 2026-11-13" 
+[after]   ?dateFrom=2026-11-01 -> 200  rows 50
+[after]   search "%" -> 200, matches 1 (Agent 100% Realty)
+[after]   search "_" -> 200, matches 1 (Under_score Homes)
+[after]   search "100%" -> 200, matches 1 (Agent 100% Realty)
+[after]   search "Under_" -> 200, matches 1 (Under_score Homes)
+[after]   navbar search "%" -> 200, matches 1
+[after] == F-53: request bodies
+[after]   POST /api/leads no body -> "error":"Send the lead as a JSON object" HTTP 400 
+[after]   POST /api/leads JSON array -> "error":"Send the lead as a JSON object" HTTP 400 
+[after]   POST /api/leads JSON string -> "error":"Unexpected token '\" HTTP 400 
+[after]   PUT /api/leads/5022 no body -> "error":"Send the changes as a JSON object" HTTP 400 
+[after] == F-53: an unexpected server error (a database error)
+[after]   GET /api/leads/not-a-number -> "error":"Something went wrong" HTTP 500 
+[after]   server log has the detail: 1 line(s)
+[after]   server log (validate): 2 error/warn lines
+[after] == F-54: a 10,000-character name
+[after]   create -> 400 "error":"Name is too long (200 characters max)"
+[after]   edit -> 400 "error":"Name is too long (200 characters max)"
+[after]   import (1 long name + 1 normal) -> imported "imported":2, namesTrimmed: "namesTrimmed":1; stored name length: 200
+[after]   dashboard at 1280px wide: page width 1280px vs window 1280px -> sideways scroll: no
+[after]   screenshot: /var/tmp/audit-scratch/seg10-after/dashboard-long-name.png
+[after]   server log (names): 0 error/warn lines
+[after] == F-05 busy lines, adapter: mock (sends 'busy' then 'ended')
+[after]   multi-line 9 s: slot events byStatus={"loading":9,"dialing":9,"ringing":9,"busy":6,"dropped":3}
+[after]   leads dialed: in_progress attempts 2=1, in_queue attempts 1=2, no_answer attempts 1 requeued=6
+[after]   their calls: -/ringing=3, no_answer/busy=6
+[after]   single-line call: -/ended/ended
+[after] == F-05 busy lines, adapter: no-busy (never sends 'busy', only 'ended')
+[after]   multi-line 9 s: slot events byStatus={"loading":6,"dialing":6,"ringing":6,"no_answer":3,"dropped":3}
+[after]   leads dialed: in_progress attempts 2=1, in_queue attempts 1=2, no_answer attempts 1 requeued=3
+[after]   their calls: no_answer/ended=3, -/ringing=3
+[after]   single-line call: -/ended/ended
+[after]   server log (busy): 0 error/warn lines
+[after] == F-42 pre-call brief opener (lead 5020)
+[after]   1 interested colleague -> "opener":"Another agent at Coach Realty · Albany, ny has already been interested in what we do."
+[after]   2 interested colleagues -> "opener":"2 agents at Coach Realty · Albany, ny have already been interested in what we do."
+[after] == F-44 regenerate three times (stub returns 3 clean suggestions each time)
+[after]   regenerate 1 -> 200; list shows 3 pending
+[after]   regenerate 2 -> 200; list shows 3 pending
+[after]   regenerate 3 -> 200; list shows 3 pending
+[after]   DB: pending 3, expired 6
+[after]   reviewer queue: 3 pending
+[after] == F-43 approving a flagged suggestion (rows by DIRECT SQL)
+[after]   approve flagged with a note -> 409 "error":"This suggestion needs a manual rewrite before it can be approved (used 'innovative', 'optimize'). Reject it instead."
+[after]   approve banned phrases, no note -> 409 "error":"This suggestion needs a manual rewrite before it can be approved (used 'synergy', 'leverage', 'seamless', 'unlock'). Reject it inst
+[after]   approve clean -> 200 
+[after]   call-screen hint now: "text":"Totally fair. Most agents we help felt the same until they saw a week of follow-ups done for them."
+[after]   server log (coach): 0 error/warn lines
+######## after run 3
+[after] == F-06: fresh seed (SEED_USER_PASSWORD unset), then logins
+[after]   --- [after] seed output on vortex_seg10_f06 (passwords masked):
+[after]         password: LodJ****(len 24)
+[after]   --- [after] login with the password the seed printed (LodJ****(len 24)): HTTP 200
+[after]   --- [after] login with the OLD committed default (Chan****(len 12)): HTTP 401
+[after]   server log (seed): 0 error/warn lines
+[after] == F-53: GET /api/leads parameters
+[after]   ?page=abc -> 400 "error":"page must be a whole number from 1 to 1000000" 
+[after]   ?page=0 -> 400 "error":"page must be a whole number from 1 to 1000000" 
+[after]   ?limit=-5 -> 400 "error":"limit must be a whole number from 1 to 10000" 
+[after]   ?limit=1.5 -> 400 "error":"limit must be a whole number from 1 to 10000" 
+[after]   ?limit=99999 -> 400 "error":"limit must be a whole number from 1 to 10000" 
+[after]   ?limit=200 -> 200  rows 200
+[after]   ?dateFrom=garbage -> 400 "error":"dateFrom must be a date like 2026-11-13" 
+[after]   ?dateTo=2026-13-45 -> 400 "error":"dateTo must be a date like 2026-11-13" 
+[after]   ?dateFrom=2026-11-01 -> 200  rows 50
+[after]   search "%" -> 200, matches 1 (Agent 100% Realty)
+[after]   search "_" -> 200, matches 1 (Under_score Homes)
+[after]   search "100%" -> 200, matches 1 (Agent 100% Realty)
+[after]   search "Under_" -> 200, matches 1 (Under_score Homes)
+[after]   navbar search "%" -> 200, matches 1
+[after] == F-53: request bodies
+[after]   POST /api/leads no body -> "error":"Send the lead as a JSON object" HTTP 400 
+[after]   POST /api/leads JSON array -> "error":"Send the lead as a JSON object" HTTP 400 
+[after]   POST /api/leads JSON string -> "error":"Unexpected token '\" HTTP 400 
+[after]   PUT /api/leads/5022 no body -> "error":"Send the changes as a JSON object" HTTP 400 
+[after] == F-53: an unexpected server error (a database error)
+[after]   GET /api/leads/not-a-number -> "error":"Something went wrong" HTTP 500 
+[after]   server log has the detail: 1 line(s)
+[after]   server log (validate): 2 error/warn lines
+[after] == F-54: a 10,000-character name
+[after]   create -> 400 "error":"Name is too long (200 characters max)"
+[after]   edit -> 400 "error":"Name is too long (200 characters max)"
+[after]   import (1 long name + 1 normal) -> imported "imported":2, namesTrimmed: "namesTrimmed":1; stored name length: 200
+[after]   dashboard at 1280px wide: page width 1280px vs window 1280px -> sideways scroll: no
+[after]   screenshot: /var/tmp/audit-scratch/seg10-after/dashboard-long-name.png
+[after]   server log (names): 0 error/warn lines
+[after] == F-05 busy lines, adapter: mock (sends 'busy' then 'ended')
+[after]   multi-line 9 s: slot events byStatus={"loading":9,"dialing":9,"ringing":9,"busy":6,"dropped":3}
+[after]   leads dialed: in_progress attempts 2=1, in_queue attempts 1=2, no_answer attempts 1 requeued=6
+[after]   their calls: -/ringing=3, no_answer/busy=6
+[after]   single-line call: -/ended/ended
+[after] == F-05 busy lines, adapter: no-busy (never sends 'busy', only 'ended')
+[after]   multi-line 9 s: slot events byStatus={"loading":6,"dialing":6,"ringing":6,"no_answer":3,"dropped":3}
+[after]   leads dialed: in_progress attempts 2=1, in_queue attempts 1=2, no_answer attempts 1 requeued=3
+[after]   their calls: no_answer/ended=3, -/ringing=3
+[after]   single-line call: -/ended/ended
+[after]   server log (busy): 0 error/warn lines
+[after] == F-42 pre-call brief opener (lead 5020)
+[after]   1 interested colleague -> "opener":"Another agent at Coach Realty · Albany, ny has already been interested in what we do."
+[after]   2 interested colleagues -> "opener":"2 agents at Coach Realty · Albany, ny have already been interested in what we do."
+[after] == F-44 regenerate three times (stub returns 3 clean suggestions each time)
+[after]   regenerate 1 -> 200; list shows 3 pending
+[after]   regenerate 2 -> 200; list shows 3 pending
+[after]   regenerate 3 -> 200; list shows 3 pending
+[after]   DB: pending 3, expired 6
+[after]   reviewer queue: 3 pending
+[after] == F-43 approving a flagged suggestion (rows by DIRECT SQL)
+[after]   approve flagged with a note -> 409 "error":"This suggestion needs a manual rewrite before it can be approved (used 'innovative', 'optimize'). Reject it instead."
+[after]   approve banned phrases, no note -> 409 "error":"This suggestion needs a manual rewrite before it can be approved (used 'synergy', 'leverage', 'seamless', 'unlock'). Reject it inst
+[after]   approve clean -> 200 
+[after]   call-screen hint now: "text":"Totally fair. Most agents we help felt the same until they saw a week of follow-ups done for them."
+[after]   server log (coach): 0 error/warn lines
+
+## End-to-end smoke run, 3 runs
+######## e2e run 1
+[e2e] 1. import 8 leads -> imported "imported":8
+[e2e] 2. dial each and log every disposition
+[e2e]    lead 5020 (E2E Contacted) call 1 -> 201, disposition contacted -> 200; lead now contacted
+[e2e]    lead 5021 (E2E Voicemail) call 2 -> 201, disposition voicemail -> 200; lead now voicemail
+[e2e]    lead 5022 (E2E NoAnswer) call 3 -> 201, disposition no_answer -> 200; lead now no_answer
+[e2e]    lead 5023 (E2E BadNumber) call 4 -> 201, disposition no_contact_number -> 200; lead now no_contact_number
+[e2e]    lead 5024 (E2E NoPerson) call 5 -> 201, disposition no_contact_person -> 200; lead now cold
+[e2e]    lead 5025 (E2E Dnc) call 6 -> 201, disposition dnc -> 200; lead now dnc
+[e2e]    lead 5026 (E2E Callback) call 7 -> 201, disposition callback_scheduled -> 200; lead now callback_scheduled
+[e2e] 3. text to E2E Texted -> 201 "body":"Hi E2E, quick question about E2E Realty"
+[e2e] 4. inbound STOP from E2E Texted -> HTTP 201; lead sms_opt_out t, DNC f; number on the opt-out list: 1
+[e2e]    a text after STOP -> 400
+[e2e] 5. today: report API dials 7 contacts 1; PDF dials 7 contacts 1 vm 1 na 1 dnc 1, table rows 7; DB dials 7 contacts 1 vm 1 na 1 dnc 1
+[e2e] 6. lead statuses: Contacted=contacted, Voicemail=voicemail(next 11-13), NoAnswer=no_answer(next 11-13), BadNumber=no_contact_number, NoPerson=cold, Dnc=dnc, Callback=callback_scheduled(next 11-15), Texted=new
+[e2e]    DNC list has the DNC lead's number: 1; open callbacks: 1
+[e2e]    open calls: 0; leads in_progress: 0
+[e2e] 7. invariants: 0 
+[e2e]    server log: 0 error/warn lines
+######## e2e run 2
+[e2e] 1. import 8 leads -> imported "imported":8
+[e2e] 2. dial each and log every disposition
+[e2e]    lead 5020 (E2E Contacted) call 1 -> 201, disposition contacted -> 200; lead now contacted
+[e2e]    lead 5021 (E2E Voicemail) call 2 -> 201, disposition voicemail -> 200; lead now voicemail
+[e2e]    lead 5022 (E2E NoAnswer) call 3 -> 201, disposition no_answer -> 200; lead now no_answer
+[e2e]    lead 5023 (E2E BadNumber) call 4 -> 201, disposition no_contact_number -> 200; lead now no_contact_number
+[e2e]    lead 5024 (E2E NoPerson) call 5 -> 201, disposition no_contact_person -> 200; lead now cold
+[e2e]    lead 5025 (E2E Dnc) call 6 -> 201, disposition dnc -> 200; lead now dnc
+[e2e]    lead 5026 (E2E Callback) call 7 -> 201, disposition callback_scheduled -> 200; lead now callback_scheduled
+[e2e] 3. text to E2E Texted -> 201 "body":"Hi E2E, quick question about E2E Realty"
+[e2e] 4. inbound STOP from E2E Texted -> HTTP 201; lead sms_opt_out t, DNC f; number on the opt-out list: 1
+[e2e]    a text after STOP -> 400
+[e2e] 5. today: report API dials 7 contacts 1; PDF dials 7 contacts 1 vm 1 na 1 dnc 1, table rows 7; DB dials 7 contacts 1 vm 1 na 1 dnc 1
+[e2e] 6. lead statuses: Contacted=contacted, Voicemail=voicemail(next 11-13), NoAnswer=no_answer(next 11-13), BadNumber=no_contact_number, NoPerson=cold, Dnc=dnc, Callback=callback_scheduled(next 11-15), Texted=new
+[e2e]    DNC list has the DNC lead's number: 1; open callbacks: 1
+[e2e]    open calls: 0; leads in_progress: 0
+[e2e] 7. invariants: 0 
+[e2e]    server log: 0 error/warn lines
+######## e2e run 3
+[e2e] 1. import 8 leads -> imported "imported":8
+[e2e] 2. dial each and log every disposition
+[e2e]    lead 5020 (E2E Contacted) call 1 -> 201, disposition contacted -> 200; lead now contacted
+[e2e]    lead 5021 (E2E Voicemail) call 2 -> 201, disposition voicemail -> 200; lead now voicemail
+[e2e]    lead 5022 (E2E NoAnswer) call 3 -> 201, disposition no_answer -> 200; lead now no_answer
+[e2e]    lead 5023 (E2E BadNumber) call 4 -> 201, disposition no_contact_number -> 200; lead now no_contact_number
+[e2e]    lead 5024 (E2E NoPerson) call 5 -> 201, disposition no_contact_person -> 200; lead now cold
+[e2e]    lead 5025 (E2E Dnc) call 6 -> 201, disposition dnc -> 200; lead now dnc
+[e2e]    lead 5026 (E2E Callback) call 7 -> 201, disposition callback_scheduled -> 200; lead now callback_scheduled
+[e2e] 3. text to E2E Texted -> 201 "body":"Hi E2E, quick question about E2E Realty"
+[e2e] 4. inbound STOP from E2E Texted -> HTTP 201; lead sms_opt_out t, DNC f; number on the opt-out list: 1
+[e2e]    a text after STOP -> 400
+[e2e] 5. today: report API dials 7 contacts 1; PDF dials 7 contacts 1 vm 1 na 1 dnc 1, table rows 7; DB dials 7 contacts 1 vm 1 na 1 dnc 1
+[e2e] 6. lead statuses: Contacted=contacted, Voicemail=voicemail(next 11-13), NoAnswer=no_answer(next 11-13), BadNumber=no_contact_number, NoPerson=cold, Dnc=dnc, Callback=callback_scheduled(next 11-15), Texted=new
+[e2e]    DNC list has the DNC lead's number: 1; open callbacks: 1
+[e2e]    open calls: 0; leads in_progress: 0
+[e2e] 7. invariants: 0 
+[e2e]    server log: 0 error/warn lines

@@ -469,11 +469,7 @@ async function reserveSlot(session, slotNumber) {
 
     if (await dncCheck.isOnDncList(lead.phone)) {
       console.log(`Multi-line: skipping lead ${lead.id} — number is on the DNC list`);
-      await db.query(
-        `UPDATE leads SET status = 'dnc', dnc_flag = true, locked_by = NULL, locked_at = NULL, updated_at = now()
-         WHERE id = $1`,
-        [lead.id]
-      );
+      await leadLifecycle.markDncFromSlot(lead.id);
       session.dncSkipped += 1;
       continue;
     }

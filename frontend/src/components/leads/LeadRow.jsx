@@ -68,9 +68,10 @@ export default function LeadRow({
           className="h-4 w-4 cursor-pointer accent-action-call"
         />
       </td>
-      <td className="px-3 py-3">
-        <div className="flex items-center gap-1.5">
-          <span className="font-medium text-text-primary">{lead.name}</span>
+      <td className="max-w-[18rem] px-3 py-3">
+        <div className="flex min-w-0 items-center gap-1.5">
+          {/* F-54: long names and brokerages are cut with "…"; the full text is in the tooltip. */}
+          <span className="truncate font-medium text-text-primary" title={lead.name}>{lead.name}</span>
           {lead.isUpNext && <span className="text-xs font-semibold text-action-call">Up next</span>}
           {isStale(lead) && (
             <span title="Not contacted in 7+ days" aria-label="Not contacted in 7+ days" className="text-action-warn">
@@ -78,7 +79,7 @@ export default function LeadRow({
             </span>
           )}
         </div>
-        <div className="text-xs text-text-secondary">{lead.brokerage || '—'}</div>
+        <div className="truncate text-xs text-text-secondary" title={lead.brokerage || ''}>{lead.brokerage || '—'}</div>
       </td>
       <td className="px-3 py-3 text-text-primary">
         <div className="flex items-center gap-1.5">

@@ -1,0 +1,163 @@
+Vortex Dialer API listening on port 4000 (telephony: mock)
+Calling hours: worked out the time zone of 3 lead(s)
+error: invalid input syntax for type bigint: "NaN"
+    at /home/user/vortexone-dialer/backend/node_modules/pg-pool/index.js:45:11
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async Object.list (/var/tmp/seg10-base/backend/src/services/leadQueue.js:435:20)
+    at async /var/tmp/seg10-base/backend/src/routes/leads.js:17:20 {
+  length: 145,
+  severity: 'ERROR',
+  code: '22P02',
+  detail: undefined,
+  hint: undefined,
+  position: undefined,
+  internalPosition: undefined,
+  internalQuery: undefined,
+  where: "unnamed portal parameter $2 = '...'",
+  schema: undefined,
+  table: undefined,
+  column: undefined,
+  dataType: undefined,
+  constraint: undefined,
+  file: 'numutils.c',
+  line: '879',
+  routine: 'pg_strtoint64_safe'
+}
+error: LIMIT must not be negative
+    at /home/user/vortexone-dialer/backend/node_modules/pg-pool/index.js:45:11
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async Object.list (/var/tmp/seg10-base/backend/src/services/leadQueue.js:435:20)
+    at async /var/tmp/seg10-base/backend/src/routes/leads.js:17:20 {
+  length: 90,
+  severity: 'ERROR',
+  code: '2201W',
+  detail: undefined,
+  hint: undefined,
+  position: undefined,
+  internalPosition: undefined,
+  internalQuery: undefined,
+  where: undefined,
+  schema: undefined,
+  table: undefined,
+  column: undefined,
+  dataType: undefined,
+  constraint: undefined,
+  file: 'nodeLimit.c',
+  line: '398',
+  routine: 'recompute_limits'
+}
+error: invalid input syntax for type bigint: "1.5"
+    at /home/user/vortexone-dialer/backend/node_modules/pg-pool/index.js:45:11
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async Object.list (/var/tmp/seg10-base/backend/src/services/leadQueue.js:435:20)
+    at async /var/tmp/seg10-base/backend/src/routes/leads.js:17:20 {
+  length: 145,
+  severity: 'ERROR',
+  code: '22P02',
+  detail: undefined,
+  hint: undefined,
+  position: undefined,
+  internalPosition: undefined,
+  internalQuery: undefined,
+  where: "unnamed portal parameter $1 = '...'",
+  schema: undefined,
+  table: undefined,
+  column: undefined,
+  dataType: undefined,
+  constraint: undefined,
+  file: 'numutils.c',
+  line: '879',
+  routine: 'pg_strtoint64_safe'
+}
+error: invalid input syntax for type timestamp with time zone: "garbage"
+    at /home/user/vortexone-dialer/backend/node_modules/pg-pool/index.js:45:11
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async Object.list (/var/tmp/seg10-base/backend/src/services/leadQueue.js:435:20)
+    at async /var/tmp/seg10-base/backend/src/routes/leads.js:17:20 {
+  length: 168,
+  severity: 'ERROR',
+  code: '22007',
+  detail: undefined,
+  hint: undefined,
+  position: undefined,
+  internalPosition: undefined,
+  internalQuery: undefined,
+  where: "unnamed portal parameter $1 = '...'",
+  schema: undefined,
+  table: undefined,
+  column: undefined,
+  dataType: undefined,
+  constraint: undefined,
+  file: 'datetime.c',
+  line: '4026',
+  routine: 'DateTimeParseError'
+}
+error: date/time field value out of range: "2026-13-45"
+    at /home/user/vortexone-dialer/backend/node_modules/pg-pool/index.js:45:11
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async Object.list (/var/tmp/seg10-base/backend/src/services/leadQueue.js:435:20)
+    at async /var/tmp/seg10-base/backend/src/routes/leads.js:17:20 {
+  length: 202,
+  severity: 'ERROR',
+  code: '22008',
+  detail: undefined,
+  hint: 'Perhaps you need a different "datestyle" setting.',
+  position: undefined,
+  internalPosition: undefined,
+  internalQuery: undefined,
+  where: "unnamed portal parameter $1 = '...'",
+  schema: undefined,
+  table: undefined,
+  column: undefined,
+  dataType: undefined,
+  constraint: undefined,
+  file: 'datetime.c',
+  line: '3992',
+  routine: 'DateTimeParseError'
+}
+TypeError: Cannot destructure property 'name' of 'req.body' as it is undefined.
+    at /var/tmp/seg10-base/backend/src/routes/leads.js:64:13
+    at wrapped (/var/tmp/seg10-base/backend/src/middleware/asyncHandler.js:5:21)
+    at Layer.handleRequest (/home/user/vortexone-dialer/backend/node_modules/router/lib/layer.js:152:17)
+    at next (/home/user/vortexone-dialer/backend/node_modules/router/lib/route.js:157:13)
+    at Route.dispatch (/home/user/vortexone-dialer/backend/node_modules/router/lib/route.js:117:3)
+    at handle (/home/user/vortexone-dialer/backend/node_modules/router/index.js:435:11)
+    at Layer.handleRequest (/home/user/vortexone-dialer/backend/node_modules/router/lib/layer.js:152:17)
+    at /home/user/vortexone-dialer/backend/node_modules/router/index.js:295:15
+    at processParams (/home/user/vortexone-dialer/backend/node_modules/router/index.js:582:12)
+    at next (/home/user/vortexone-dialer/backend/node_modules/router/index.js:291:5)
+TypeError: Cannot destructure property 'name' of 'req.body' as it is undefined.
+    at /var/tmp/seg10-base/backend/src/routes/leads.js:174:13
+    at wrapped (/var/tmp/seg10-base/backend/src/middleware/asyncHandler.js:5:21)
+    at Layer.handleRequest (/home/user/vortexone-dialer/backend/node_modules/router/lib/layer.js:152:17)
+    at next (/home/user/vortexone-dialer/backend/node_modules/router/lib/route.js:157:13)
+    at Route.dispatch (/home/user/vortexone-dialer/backend/node_modules/router/lib/route.js:117:3)
+    at handle (/home/user/vortexone-dialer/backend/node_modules/router/index.js:435:11)
+    at Layer.handleRequest (/home/user/vortexone-dialer/backend/node_modules/router/lib/layer.js:152:17)
+    at /home/user/vortexone-dialer/backend/node_modules/router/index.js:295:15
+    at param (/home/user/vortexone-dialer/backend/node_modules/router/index.js:600:14)
+    at param (/home/user/vortexone-dialer/backend/node_modules/router/index.js:610:14)
+error: invalid input syntax for type integer: "not-a-number"
+    at /home/user/vortexone-dialer/backend/node_modules/pg-pool/index.js:45:11
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async Object.getById (/var/tmp/seg10-base/backend/src/services/leadQueue.js:260:20)
+    at async /var/tmp/seg10-base/backend/src/routes/leads.js:73:18 {
+  length: 155,
+  severity: 'ERROR',
+  code: '22P02',
+  detail: undefined,
+  hint: undefined,
+  position: undefined,
+  internalPosition: undefined,
+  internalQuery: undefined,
+  where: "unnamed portal parameter $1 = '...'",
+  schema: undefined,
+  table: undefined,
+  column: undefined,
+  dataType: undefined,
+  constraint: undefined,
+  file: 'numutils.c',
+  line: '617',
+  routine: 'pg_strtoint32_safe'
+}
+SIGTERM received — stale-lock sweep and import cleanup stopped, shutting down

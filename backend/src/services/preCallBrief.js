@@ -177,9 +177,13 @@ async function gather(leadId) {
 function colleagueOpener(colleagues) {
   if (!colleagues?.interested) return null;
   const where = colleagues.officeLabel ? ` at ${colleagues.officeLabel}` : ' at your office';
-  return colleagues.clients > 0
-    ? `We already support ${colleagues.clients === 1 ? 'an agent' : 'a few agents'}${where}.`
-    : `A few agents${where} have already been interested in what we do.`;
+  // F-42: say exactly how many: "another agent" for one, "{n} agents" for more.
+  if (colleagues.clients > 0) {
+    return `We already support ${colleagues.clients === 1 ? 'an agent' : `${colleagues.clients} agents`}${where}.`;
+  }
+  return colleagues.interested === 1
+    ? `Another agent${where} has already been interested in what we do.`
+    : `${colleagues.interested} agents${where} have already been interested in what we do.`;
 }
 
 function buildInstant(data) {
