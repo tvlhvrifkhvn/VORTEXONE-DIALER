@@ -1,6 +1,7 @@
 const db = require('../db');
 const { ApiError } = require('../middleware/errorHandler');
 const { officeLabelFromKey } = require('../utils/officeKey');
+const reportingPeriod = require('./reportingPeriod');
 
 // A call that still went well despite the objection. The brief lists
 // "interested, callback, meeting": `contacted` is the "Spoke / Interested"
@@ -164,11 +165,12 @@ async function saveRebuttal(callId, objectionTypeId, rawText) {
 // Report
 // ---------------------------------------------------------------------------
 
-function defaultRange() {
-  const to = new Date();
-  const from = new Date(to.getTime() - REPORT_DEFAULT_DAYS * 24 * 60 * 60 * 1000);
-  const iso = (d) => d.toISOString().slice(0, 10);
-  return { dateFrom: iso(from), dateTo: iso(to) };
+/** The last REPORT_DEFAULT_DAYS reporting days, ending with today (reporting timezone). */
+async function defaultRange() {
+  const today = reportingPeriod.dayContaining(new Date(), await reportingPeriod.getSettings());
+  const [y, m, d] = today.date.split('-').map(Number);
+  const from = new Date(Date.UTC(y, m - 1, d - REPORT_DEFAULT_DAYS)).toISOString().slice(0, 10);
+  return { dateFrom: from, dateTo: today.date };
 }
 
 /**
@@ -179,15 +181,19 @@ function defaultRange() {
  * is what keeps a deactivated objection visible in the report.
  */
 async function getReport({ dateFrom, dateTo, state, officeKey } = {}) {
-  const range = defaultRange();
+  const range = await defaultRange();
   const from = dateFrom || range.dateFrom;
   const to = dateTo || range.dateTo;
+  // Reporting days (owner's timezone and day start), validated (400 on a bad date):
+  // from the start of the first day to the end of the last, so the end date is included.
+  const first = await reportingPeriod.resolvePeriod({ date: from });
+  const last = await reportingPeriod.resolvePeriod({ date: to });
+  if (last.end <= first.start) throw new ApiError(400, '"dateTo" must not be before "dateFrom"');
 
-  const params = [from, to, POSITIVE_OUTCOMES];
+  const params = [first.start, last.end, POSITIVE_OUTCOMES];
   const filters = [
-    'co.created_at >= $1::date',
-    // < next day, so calls made on the end date itself are included.
-    "co.created_at < ($2::date + interval '1 day')",
+    'co.created_at >= $1',
+    'co.created_at < $2',
   ];
   if (state) {
     params.push(String(state).toUpperCase());

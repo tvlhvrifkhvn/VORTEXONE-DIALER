@@ -1,0 +1,49 @@
+Vortex Dialer API listening on port 4000 (telephony: mock)
+Calling hours: worked out the time zone of 5019 lead(s)
+error: invalid input syntax for type timestamp with time zone: "0NaN-NaN-NaNTNaN:NaN:NaN.NaN+NaN:NaN"
+    at /home/user/vortexone-dialer/backend/node_modules/pg-pool/index.js:45:11
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async Object.buildDailyReportBuffer (/var/tmp/seg7-base/backend/src/services/pdfExport.js:204:20)
+    at async /var/tmp/seg7-base/backend/src/routes/exports.js:12:20 {
+  length: 197,
+  severity: 'ERROR',
+  code: '22007',
+  detail: undefined,
+  hint: undefined,
+  position: undefined,
+  internalPosition: undefined,
+  internalQuery: undefined,
+  where: "unnamed portal parameter $1 = '...'",
+  schema: undefined,
+  table: undefined,
+  column: undefined,
+  dataType: undefined,
+  constraint: undefined,
+  file: 'datetime.c',
+  line: '4026',
+  routine: 'DateTimeParseError'
+}
+error: invalid input syntax for type timestamp with time zone: "0NaN-NaN-NaNTNaN:NaN:NaN.NaN+NaN:NaN"
+    at /home/user/vortexone-dialer/backend/node_modules/pg-pool/index.js:45:11
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async Object.buildDailyReportBuffer (/var/tmp/seg7-base/backend/src/services/pdfExport.js:204:20)
+    at async /var/tmp/seg7-base/backend/src/routes/exports.js:12:20 {
+  length: 197,
+  severity: 'ERROR',
+  code: '22007',
+  detail: undefined,
+  hint: undefined,
+  position: undefined,
+  internalPosition: undefined,
+  internalQuery: undefined,
+  where: "unnamed portal parameter $1 = '...'",
+  schema: undefined,
+  table: undefined,
+  column: undefined,
+  dataType: undefined,
+  constraint: undefined,
+  file: 'datetime.c',
+  line: '4026',
+  routine: 'DateTimeParseError'
+}
+SIGTERM received — stale-lock sweep and import cleanup stopped, shutting down
