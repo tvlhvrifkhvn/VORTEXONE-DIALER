@@ -1,9 +1,8 @@
 const express = require('express');
 const multer = require('multer');
-const path = require('path');
-const crypto = require('crypto');
 const smsService = require('../services/smsService');
 const smsAdapter = require('../telephony/smsIndex');
+const mediaUpload = require('../services/mediaUpload');
 const { asyncHandler } = require('../middleware/asyncHandler');
 const { requireAuth } = require('../middleware/auth');
 const { ApiError } = require('../middleware/errorHandler');
@@ -11,16 +10,10 @@ const { ApiError } = require('../middleware/errorHandler');
 const router = express.Router();
 
 const MAX_MEDIA_BYTES = 5 * 1024 * 1024;
-const UPLOADS_DIR = path.join(__dirname, '..', '..', 'uploads');
 
-const mediaStorage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, UPLOADS_DIR),
-  filename: (req, file, cb) => {
-    const ext = path.extname(file.originalname) || '';
-    cb(null, `${Date.now()}-${crypto.randomBytes(6).toString('hex')}${ext}`);
-  },
-});
-const uploadMedia = multer({ storage: mediaStorage, limits: { fileSize: MAX_MEDIA_BYTES } });
+// Kept in memory (5 MB max) so mediaUpload can check the real content before
+// anything is written to disk (F-40).
+const uploadMedia = multer({ storage: multer.memoryStorage(), limits: { fileSize: MAX_MEDIA_BYTES, files: 1 } });
 
 // Provider webhook (F-37): called by the SMS provider, not a logged-in user,
 // so it sits before requireAuth and is protected by the shared secret
@@ -52,8 +45,8 @@ router.post(
     });
   },
   asyncHandler(async (req, res) => {
-    if (!req.file) throw new ApiError(400, 'No file uploaded');
-    res.status(201).json({ url: `/uploads/${req.file.filename}` });
+    const { url } = await mediaUpload.saveImage(req.file);
+    res.status(201).json({ url });
   })
 );
 
@@ -118,7 +111,8 @@ router.get(
       limit: limit ? Number(limit) : undefined,
     });
     const unmatched = await smsService.getUnmatchedInbound();
-    res.json({ leads, unmatched });
+    const unmatchedUnread = await smsService.countUnmatchedUnread();
+    res.json({ leads, unmatched, unmatchedUnread });
   })
 );
 
@@ -126,6 +120,15 @@ router.post(
   '/mark-read/:leadId',
   asyncHandler(async (req, res) => {
     await smsService.markRead(req.params.leadId);
+    res.json({ ok: true });
+  })
+);
+
+// A text from a number that matches no lead (kept in the inbox): mark it read.
+router.post(
+  '/mark-read-unmatched/:messageId',
+  asyncHandler(async (req, res) => {
+    await smsService.markUnmatchedRead(req.params.messageId);
     res.json({ ok: true });
   })
 );

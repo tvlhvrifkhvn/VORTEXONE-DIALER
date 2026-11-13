@@ -161,9 +161,10 @@ function useSmsInboxPoll() {
     let cancelled = false;
     const poll = async () => {
       try {
-        const { leads } = await api.getSmsInbox(1, 50);
+        const { leads, unmatchedUnread } = await api.getSmsInbox(1, 50);
         if (cancelled) return;
-        setUnreadLeadCount(leads.length);
+        // Unread texts from unknown numbers count too, until marked read.
+        setUnreadLeadCount(leads.length + (unmatchedUnread || 0));
 
         const newest = leads[0];
         if (newest?.lastMessageAt) {

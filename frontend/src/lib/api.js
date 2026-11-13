@@ -167,6 +167,7 @@ export const uploadSmsMedia = (file) => {
 export const sendBulkSms = (leadIds, templateId) =>
   request('/sms/bulk-send', { method: 'POST', body: { leadIds, templateId } });
 export const getSmsInbox = (page = 1, limit = 20) => request(`/sms/inbox?page=${page}&limit=${limit}`);
+export const markUnmatchedSmsRead = (messageId) => request(`/sms/mark-read-unmatched/${messageId}`, { method: 'POST' });
 export const markSmsRead = (leadId) => request(`/sms/mark-read/${leadId}`, { method: 'POST' });
 export const optOutSms = (leadId) => request(`/sms/opt-out/${leadId}`, { method: 'POST' });
 
@@ -266,6 +267,10 @@ export const getManualCallsToday = (period) => request(`/reports/manual-today${p
 export const getSetting = (key) => request(`/settings/${encodeURIComponent(key)}`);
 export const putSetting = (key, value) =>
   request(`/settings/${encodeURIComponent(key)}`, { method: 'PUT', body: { value } });
+// the signed-in user's own preferences (server-side, follow the user to any browser)
+export const getMySettings = () => request('/settings/me');
+export const putMySetting = (key, value) =>
+  request(`/settings/me/${encodeURIComponent(key)}`, { method: 'PUT', body: { value } });
 
 // dialing sessions
 export const startSession = (mode) => request('/sessions/start', { method: 'POST', body: { mode } });

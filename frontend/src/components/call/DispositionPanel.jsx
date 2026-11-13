@@ -8,17 +8,17 @@ import ActionButton from '../ui/ActionButton';
 import { useAuth } from '../../hooks/useAuth';
 import { formatDateTime } from '../../lib/format';
 import * as api from '../../lib/api';
+import { useUserSettings } from '../../hooks/useUserSettings';
 
-const PITCH_SCRIPT_KEY = 'vortex_pitch_script';
 const DEFAULT_PITCH_SCRIPT = (repName) =>
   `Hi, I'm ${repName} from Vortexone Agency. We offer virtual assistant services for real ` +
   'estate agents — lead follow-up, appointment setting, and admin support. Do you currently ' +
   'have VA support on your team?';
 
-/** Custom script from the Settings page, if the rep has saved one there. */
-function getPitchScript(repName) {
-  const custom = localStorage.getItem(PITCH_SCRIPT_KEY);
-  return custom || DEFAULT_PITCH_SCRIPT(repName);
+/** The rep's own script from Settings (a per-user server setting, F-48), or the default. */
+function PitchScriptText({ repName }) {
+  const { settings } = useUserSettings();
+  return <>{settings?.pitch_script || DEFAULT_PITCH_SCRIPT(repName)}</>;
 }
 
 /** Collapsible sidebar section — arrow toggle, collapsed by default. */
@@ -102,7 +102,7 @@ export function ScriptPanel() {
   const { user } = useAuth();
   return (
     <CollapsibleSection title="Pitch script">
-      <p className="text-xs leading-relaxed text-text-primary">{getPitchScript(user?.name || 'the rep')}</p>
+      <p className="text-xs leading-relaxed text-text-primary"><PitchScriptText repName={user?.name || 'the rep'} /></p>
     </CollapsibleSection>
   );
 }
@@ -235,7 +235,7 @@ export default function DispositionPanel({
 
       {showScript && (
         <CollapsibleSection title="Pitch script">
-          <p className="text-xs leading-relaxed text-text-primary">{getPitchScript(user?.name || 'the rep')}</p>
+          <p className="text-xs leading-relaxed text-text-primary"><PitchScriptText repName={user?.name || 'the rep'} /></p>
         </CollapsibleSection>
       )}
 

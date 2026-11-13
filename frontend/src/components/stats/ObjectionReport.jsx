@@ -5,6 +5,7 @@ import NeuInput from '../ui/NeuInput';
 import Badge from '../ui/Badge';
 import { US_STATES } from '../../lib/usStates';
 import * as api from '../../lib/api';
+import { useUserSettings } from '../../hooks/useUserSettings';
 
 // Slot 1 of the validated categorical palette (same as StateReport's dials).
 // One series, so one hue and no legend — the title names it.
@@ -100,18 +101,14 @@ function PendingReview({ reviewVersion, onReviewed }) {
 
 /** A monthly manual nudge — deliberately not automated drift detection. */
 function RecalibrationBanner() {
-  const [show, setShow] = useState(false);
-
-  useEffect(() => {
-    api
-      .getSetting(RECAL_SETTING_KEY)
-      .then(({ value }) => setShow(value !== currentMonth()))
-      .catch(() => {});
-  }, []);
+  // Dismissed per user (a per-user server setting, F-48).
+  const { settings, save } = useUserSettings();
+  const [hidden, setHidden] = useState(false);
+  const show = settings !== null && !hidden && settings[RECAL_SETTING_KEY] !== currentMonth();
 
   const dismiss = () => {
-    setShow(false);
-    api.putSetting(RECAL_SETTING_KEY, currentMonth()).catch(() => {});
+    setHidden(true);
+    save(RECAL_SETTING_KEY, currentMonth()).catch(() => {});
   };
 
   if (!show) return null;

@@ -1,0 +1,6 @@
+Vortex Dialer API listening on port 4000 (telephony: mock)
+[mockSmsAdapter] would attach media: /uploads/1794576600695-e9bc62ce4ec6.png
+[mockSmsAdapter] would attach media: https://evil.example.com/x.png
+[mockSmsAdapter] would attach media: /uploads/does-not-exist.png
+[mockSmsAdapter] would attach media: /uploads/../package.json
+SIGTERM received — stale-lock sweep and import cleanup stopped, shutting down

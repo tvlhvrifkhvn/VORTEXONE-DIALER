@@ -5,11 +5,12 @@ import NeuButton from '../components/ui/NeuButton';
 import NeuInput from '../components/ui/NeuInput';
 import { useAuth } from '../hooks/useAuth';
 import * as api from '../lib/api';
+import { useUserSettings } from '../hooks/useUserSettings';
 
-const MAX_ATTEMPTS_KEY = 'vortex_dialer_default_max_attempts';
-const GOAL_KEY = 'vortex_dialer_daily_goal'; // same key Dashboard.jsx's daily goal tracker reads
-const SCRIPT_KEY = 'vortex_pitch_script'; // matches CallScreen.jsx's read key exactly
-const DEFAULT_LINES_KEY = 'vortex_dialer_default_lines'; // Dashboard's line selector starts from this
+// Global, supervisor only (F-48): applies to new leads (created or imported).
+const MAX_ATTEMPTS_KEY = 'default_max_attempts';
+// The old browser-only copy of it (removed on first load; see below).
+const LEGACY_MAX_ATTEMPTS_KEY = 'vortex_dialer_default_max_attempts';
 
 const DEFAULT_MAX_ATTEMPTS = 5;
 const DEFAULT_GOAL = 100;
@@ -22,10 +23,6 @@ const DEFAULT_SCRIPT =
   'estate agents — lead follow-up, appointment setting, and admin support. Do you currently ' +
   'have VA support on your team?';
 
-function readLocalNumber(key, fallback) {
-  const value = Number(localStorage.getItem(key));
-  return Number.isFinite(value) && value > 0 ? value : fallback;
-}
 
 function ProfileSection() {
   const { user } = useAuth();
@@ -80,9 +77,37 @@ function ProfileSection() {
 }
 
 function DialingDefaultsSection() {
-  const [maxAttempts, setMaxAttempts] = useState(() => readLocalNumber(MAX_ATTEMPTS_KEY, DEFAULT_MAX_ATTEMPTS));
-  const [dailyGoal, setDailyGoal] = useState(() => readLocalNumber(GOAL_KEY, DEFAULT_GOAL));
-  const [defaultLines, setDefaultLines] = useState(() => readLocalNumber(DEFAULT_LINES_KEY, DEFAULT_LINES));
+  const { user } = useAuth();
+  const isSupervisor = user?.role === 'supervisor';
+  // Daily goal and default lines are this user's own (server, F-48); max
+  // attempts is a global server setting only a supervisor can change.
+  const { settings: mine, save: saveMine } = useUserSettings();
+  const [maxAttempts, setMaxAttempts] = useState(DEFAULT_MAX_ATTEMPTS);
+  const [dailyGoal, setDailyGoal] = useState(DEFAULT_GOAL);
+  const [defaultLines, setDefaultLines] = useState(DEFAULT_LINES);
+  useEffect(() => {
+    if (!mine) return;
+    if (Number(mine.daily_goal) > 0) setDailyGoal(Number(mine.daily_goal));
+    if ([1, 2, 3].includes(Number(mine.default_lines))) setDefaultLines(Number(mine.default_lines));
+  }, [mine]);
+  useEffect(() => {
+    api
+      .getSetting(MAX_ATTEMPTS_KEY)
+      .then(async ({ value }) => {
+        let local = null;
+        try { local = localStorage.getItem(LEGACY_MAX_ATTEMPTS_KEY); } catch { /* ignore */ }
+        // One-time move of the old browser-only value: only if the server has none and a supervisor is signed in.
+        if (value == null && local && isSupervisor) {
+          const { setting } = await api.putSetting(MAX_ATTEMPTS_KEY, String(Number(local))).catch(() => ({}));
+          value = setting?.value ?? null;
+        }
+        if (local && (value != null || isSupervisor)) {
+          try { localStorage.removeItem(LEGACY_MAX_ATTEMPTS_KEY); } catch { /* ignore */ }
+        }
+        if (Number(value) > 0) setMaxAttempts(Number(value));
+      })
+      .catch(() => {});
+  }, [isSupervisor]);
   // Server-backed (settings table) since callingHours.js reads it directly —
   // unlike the fields above, this isn't a localStorage-only preference.
   // ON unless the stored value is exactly 'false' — a missing setting is ON
@@ -119,11 +144,14 @@ function DialingDefaultsSection() {
   const handleSave = async (e) => {
     e.preventDefault();
     setError(null);
-    localStorage.setItem(MAX_ATTEMPTS_KEY, String(maxAttempts));
-    localStorage.setItem(GOAL_KEY, String(dailyGoal));
-    localStorage.setItem(DEFAULT_LINES_KEY, String(defaultLines));
     try {
-      await api.putSetting(CALLING_HOURS_KEY, String(enforceHours));
+      await saveMine('daily_goal', dailyGoal);
+      await saveMine('default_lines', defaultLines);
+      // Global settings: only a supervisor can change them (the calling-hours switch saves on its own too).
+      if (isSupervisor) {
+        await api.putSetting(MAX_ATTEMPTS_KEY, String(maxAttempts));
+        await api.putSetting(CALLING_HOURS_KEY, String(enforceHours));
+      }
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
     } catch (err) {
@@ -146,7 +174,12 @@ function DialingDefaultsSection() {
             value={maxAttempts}
             onChange={(e) => setMaxAttempts(Number(e.target.value))}
             className="w-32"
+            disabled={!isSupervisor}
           />
+          <p className="mt-1 text-xs text-text-secondary">
+            Applies to new leads (added or imported from now on). Existing leads keep their own value.
+            {!isSupervisor && ' Only a supervisor can change this.'}
+          </p>
         </div>
         <div>
           <label className="mb-1 block text-xs font-medium text-text-secondary">Default daily goal</label>
@@ -193,7 +226,7 @@ function DialingDefaultsSection() {
               role="switch"
               aria-checked={enforceHours}
               onClick={handleToggleHours}
-              disabled={loadingToggle || savingToggle}
+              disabled={loadingToggle || savingToggle || !isSupervisor}
               className={`relative h-6 w-11 shrink-0 rounded-full transition-colors duration-200 disabled:opacity-50 ${
                 enforceHours ? 'bg-action-call' : 'bg-shadow/40'
               }`}
@@ -205,6 +238,7 @@ function DialingDefaultsSection() {
               />
             </button>
             <span className="text-xs font-medium text-text-secondary">Enforce calling hours (8am–9pm local)</span>
+            {!isSupervisor && <span className="text-xs text-text-secondary">(only a supervisor can change this)</span>}
           </label>
           <p className="mt-1 text-xs text-text-secondary">
             On by default. Saved as soon as you flip it. When on, the dialer never calls a lead outside
@@ -232,6 +266,8 @@ function DialingDefaultsSection() {
  * server settings (reporting_timezone, day_start_time); the server checks
  * the values. */
 function ReportingDaySection() {
+  const { user } = useAuth();
+  const isSupervisor = user?.role === 'supervisor';
   const [timezone, setTimezone] = useState('');
   const [dayStart, setDayStart] = useState('');
   const [loading, setLoading] = useState(true);
@@ -273,7 +309,7 @@ function ReportingDaySection() {
             id="reporting-timezone"
             value={timezone}
             onChange={(e) => setTimezone(e.target.value)}
-            disabled={loading}
+            disabled={loading || !isSupervisor}
             className="w-64"
           />
           <p className="mt-1 text-xs text-text-secondary">
@@ -289,7 +325,7 @@ function ReportingDaySection() {
             type="time"
             value={dayStart}
             onChange={(e) => setDayStart(e.target.value)}
-            disabled={loading}
+            disabled={loading || !isSupervisor}
             className="w-32"
           />
           <p className="mt-1 text-xs text-text-secondary">
@@ -298,21 +334,33 @@ function ReportingDaySection() {
         </div>
         {error && <p className="text-sm text-action-hangup">{error}</p>}
         {saved && <p className="text-sm text-action-contacted">Saved.</p>}
-        <NeuButton type="submit" disabled={loading}>Save reporting day</NeuButton>
+        {!isSupervisor && <p className="text-xs text-text-secondary">Only a supervisor can change the reporting day.</p>}
+        <NeuButton type="submit" disabled={loading || !isSupervisor}>Save reporting day</NeuButton>
       </form>
     </NeuCard>
   );
 }
 
 function ScriptEditorSection() {
-  const [script, setScript] = useState(() => localStorage.getItem(SCRIPT_KEY) || DEFAULT_SCRIPT);
+  // This user's own script (a per-user server setting, F-48).
+  const { settings: mine, save: saveMine } = useUserSettings();
+  const [script, setScript] = useState(DEFAULT_SCRIPT);
   const [saved, setSaved] = useState(false);
+  const [error, setError] = useState(null);
+  useEffect(() => {
+    if (mine?.pitch_script) setScript(mine.pitch_script);
+  }, [mine]);
 
-  const handleSave = (e) => {
+  const handleSave = async (e) => {
     e.preventDefault();
-    localStorage.setItem(SCRIPT_KEY, script);
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
+    setError(null);
+    try {
+      await saveMine('pitch_script', script);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+    } catch (err) {
+      setError(err.message);
+    }
   };
 
   return (
@@ -330,6 +378,7 @@ function ScriptEditorSection() {
           onChange={(e) => setScript(e.target.value)}
           className="w-full resize-none"
         />
+        {error && <p className="text-sm text-action-hangup">{error}</p>}
         {saved && <p className="text-sm text-action-contacted">Saved.</p>}
         <NeuButton type="submit">Save script</NeuButton>
       </form>
@@ -338,7 +387,12 @@ function ScriptEditorSection() {
 }
 
 function IntegrationsSection() {
+  const { user } = useAuth();
+  const isSupervisor = user?.role === 'supervisor';
+  // The key is write-only (F-47): the server says only whether one is set
+  // and its last 4 characters. The field is for a replacement.
   const [groqKey, setGroqKey] = useState('');
+  const [status, setStatus] = useState({ configured: false, last4: null });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -347,7 +401,7 @@ function IntegrationsSection() {
   useEffect(() => {
     api
       .getSetting('groq-key')
-      .then(({ value }) => setGroqKey(value || ''))
+      .then(({ configured, last4 }) => setStatus({ configured: Boolean(configured), last4 }))
       .catch(() => {})
       .finally(() => setLoading(false));
   }, []);
@@ -357,7 +411,9 @@ function IntegrationsSection() {
     setSaving(true);
     setError(null);
     try {
-      await api.putSetting('groq-key', groqKey);
+      const { setting } = await api.putSetting('groq-key', groqKey.trim());
+      setStatus({ configured: Boolean(setting?.configured), last4: setting?.last4 ?? null });
+      setGroqKey('');
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
     } catch (err) {
@@ -377,19 +433,28 @@ function IntegrationsSection() {
       <form onSubmit={handleSave} className="space-y-3">
         <div>
           <label className="mb-1 block text-xs font-medium text-text-secondary">Groq API key</label>
+          <p className="mb-2 text-xs text-text-secondary" data-testid="groq-key-status">
+            {loading
+              ? 'Checking…'
+              : status.configured
+                ? `Configured ✓${status.last4 ? ` (ending ····${status.last4})` : ''}`
+                : 'Not configured'}
+          </p>
           <NeuInput
             type="password"
             value={groqKey}
             onChange={(e) => setGroqKey(e.target.value)}
-            placeholder={loading ? 'Loading…' : 'gsk_…'}
+            placeholder={status.configured ? 'Paste a new key to replace it' : 'gsk_…'}
             className="w-full"
             autoComplete="off"
+            disabled={!isSupervisor}
           />
+          {!isSupervisor && <p className="mt-1 text-xs text-text-secondary">Only a supervisor can change this.</p>}
         </div>
         {error && <p className="text-sm text-action-hangup">{error}</p>}
         {saved && <p className="text-sm text-action-contacted">Saved.</p>}
-        <NeuButton type="submit" disabled={saving || loading}>
-          {saving ? 'Saving…' : 'Save key'}
+        <NeuButton type="submit" disabled={saving || loading || !isSupervisor || !groqKey.trim()}>
+          {saving ? 'Saving…' : status.configured ? 'Replace key' : 'Save key'}
         </NeuButton>
       </form>
     </NeuCard>

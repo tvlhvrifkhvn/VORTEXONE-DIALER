@@ -3,6 +3,8 @@ const { ApiError } = require('../middleware/errorHandler');
 const callingHours = require('./callingHours');
 const dncCheck = require('./dncCheck');
 const leadLifecycle = require('./leadLifecycle');
+const settingsStore = require('./settings');
+const smsService = require('./smsService');
 const { normalizePhone } = require('../utils/phoneNormalize');
 const { buildOfficeKey } = require('../utils/officeKey');
 const { US_STATES } = require('../utils/usStates');
@@ -516,8 +518,8 @@ async function create({ name, phone, state, email = null, address = null, broker
 
   try {
     const { rows } = await db.query(
-      `INSERT INTO leads (name, phone, email, address, brokerage, state, status, office_key, tz_zones)
-       VALUES ($1, $2, $3, $4, $5, $6, 'new', $7, $8)
+      `INSERT INTO leads (name, phone, email, address, brokerage, state, status, office_key, tz_zones, max_attempts)
+       VALUES ($1, $2, $3, $4, $5, $6, 'new', $7, $8, $9)
        RETURNING *`,
       [
         valid.name,
@@ -528,8 +530,14 @@ async function create({ name, phone, state, email = null, address = null, broker
         normalizedState,
         buildOfficeKey({ brokerage, address, state: normalizedState }),
         callingHours.zonesForLead({ phone: normalizedPhone, state: normalizedState, address }),
+        await settingsStore.defaultMaxAttempts(), // F-48: the owner's default, for new leads
       ]
     );
+    // A number that replied STOP before (the SMS opt-out list) starts opted
+    // out of texts; it can still be called.
+    if (rows[0].phone && (await smsService.applySuppressionToNewLeads([rows[0].id])).length) {
+      return getById(rows[0].id);
+    }
     return rows[0];
   } catch (err) {
     if (err.code === '23505') throw new ApiError(409, 'A lead with this phone number already exists');
