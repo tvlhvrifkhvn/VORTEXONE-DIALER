@@ -44,7 +44,8 @@ async function expandNote(roughText) {
   }
 
   const groq = await client();
-  if (!groq) return trimmed;
+  // F-01: with no key the button says so instead of silently doing nothing.
+  if (!groq) throw new ApiError(503, 'AI is not configured: set GROQ_API_KEY on the server, or add a key under Settings → Integrations.');
 
   const completion = await groq.chat.completions.create({
     model: MODEL,
