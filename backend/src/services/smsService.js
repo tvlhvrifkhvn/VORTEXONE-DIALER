@@ -173,6 +173,7 @@ async function resolveBody({ templateId, rawBody }, lead) {
 async function sendSingleSms(leadId, { templateId, rawBody, mediaUrl } = {}) {
   const lead = await getLeadForSms(leadId);
   assertEligible(lead);
+  if (await isSuppressed(lead.phone)) throw new ApiError(400, 'This number has opted out of texts (replied STOP)');
   // Texts follow the same 8am–9pm lead-local rule as calls (F-39), with the
   // same check (unknown zone -> refused while calling hours are enforced).
   await callingHours.assertCallingHours(lead);
@@ -229,10 +230,15 @@ async function sendBulkSms(leadIds, templateId) {
     total: ids.length, sent: 0, opted_out: 0, dnc: 0, outside_hours: 0, missing_field: 0,
     invalid_number: 0, not_found: ids.length - leads.length, failed: 0,
   };
+  const { rows: suppressedRows } = await db.query(
+    'SELECT phone FROM sms_suppressions WHERE phone = ANY($1)',
+    [leads.map((l) => l.phone).filter(Boolean)]
+  );
+  const suppressed = new Set(suppressedRows.map((r) => r.phone));
   const eligible = [];
   for (const lead of leads) {
     if (lead.dnc_flag) summary.dnc += 1;
-    else if (lead.sms_opt_out) summary.opted_out += 1;
+    else if (lead.sms_opt_out || suppressed.has(lead.phone)) summary.opted_out += 1;
     else if (!lead.phone || !normalizePhone(lead.phone)) summary.invalid_number += 1;
     else if (!(await withinCallingHours(lead))) summary.outside_hours += 1;
     else {
@@ -318,10 +324,42 @@ async function setSmsOptOut(leadIds, optedOut, { source, smsMessageId = null } =
   return rows.map((r) => r.id);
 }
 
+// ---- the SMS opt-out list, by phone number --------------------------------------
+// A STOP-type text adds the sender's number; START removes it. A send is
+// refused for a listed number even if no lead (or a later lead) has the flag.
+async function isSuppressed(phone) {
+  const canonical = normalizePhone(phone);
+  if (!canonical) return false;
+  const { rows } = await db.query('SELECT 1 FROM sms_suppressions WHERE phone = $1', [canonical]);
+  return rows.length > 0;
+}
+
+async function suppressPhone(phone, source) {
+  await db.query('INSERT INTO sms_suppressions (phone, source) VALUES ($1, $2) ON CONFLICT (phone) DO NOTHING', [phone, source]);
+}
+
+async function unsuppressPhone(phone) {
+  await db.query('DELETE FROM sms_suppressions WHERE phone = $1', [phone]);
+}
+
+/** New leads (created or imported) whose number is on the list get sms_opt_out. Returns their ids. */
+async function applySuppressionToNewLeads(leadIds) {
+  if (!leadIds.length) return [];
+  const { rows } = await db.query(
+    `SELECT l.id FROM leads l JOIN sms_suppressions s ON s.phone = l.phone WHERE l.id = ANY($1)`,
+    [leadIds]
+  );
+  const ids = rows.map((r) => r.id);
+  if (ids.length) await setSmsOptOut(ids, true, { source: 'suppression_list' });
+  return ids;
+}
+
 async function optOut(leadId) {
-  const { rows: found } = await db.query('SELECT id FROM leads WHERE id = $1', [leadId]);
+  const { rows: found } = await db.query('SELECT id, phone FROM leads WHERE id = $1', [leadId]);
   if (!found[0]) throw new ApiError(404, 'Lead not found');
   await setSmsOptOut([found[0].id], true, { source: 'rep' });
+  // The rep's opt-out also covers the number (so a re-import keeps it).
+  if (found[0].phone) await suppressPhone(found[0].phone, 'rep');
   const { rows } = await db.query('SELECT * FROM leads WHERE id = $1', [leadId]);
   return rows[0];
 }
@@ -382,6 +420,9 @@ async function receiveInbound({ from, to, body, providerMessageId } = {}) {
   let changedLeadIds = [];
   let confirmationSent = false;
   if (action) {
+    // The number itself is listed / unlisted, matched to a lead or not.
+    if (action === 'opt_out') await suppressPhone(fromNumber, 'inbound_keyword');
+    else await unsuppressPhone(fromNumber);
     if (leadIds.length) {
       changedLeadIds = await setSmsOptOut(leadIds, action === 'opt_out', { source: 'inbound_keyword', smsMessageId: stored[0].id });
     }
@@ -461,6 +502,8 @@ module.exports = {
   markRead,
   optOut,
   setSmsOptOut,
+  isSuppressed,
+  applySuppressionToNewLeads,
   keywordAction,
   receiveInbound,
   getUnmatchedInbound,

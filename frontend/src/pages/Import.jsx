@@ -148,6 +148,12 @@ function ImportSummary({ summary, onReset }) {
             ` ${summary.unreadable} of them had a number that couldn't be read — the original text is shown on the lead.`}
         </p>
       )}
+      {summary.smsOptedOut > 0 && (
+        <p className="text-xs text-text-secondary" data-testid="import-sms-opted-out">
+          SMS opted out: {summary.smsOptedOut} imported lead(s) replied STOP to a text earlier — they won't be texted, but
+          they can still be called.
+        </p>
+      )}
       {summary.withExtension > 0 && (
         <p className="text-xs text-text-secondary">{summary.withExtension} numbers had an extension — it is kept and shown on the call screen.</p>
       )}

@@ -9,6 +9,9 @@ const { US_STATES } = require('../utils/usStates');
 const aiCsvMapper = require('./aiCsvMapper');
 const callingHours = require('./callingHours');
 const settingsStore = require('./settings');
+const smsService = require('./smsService');
+
+const SMS_OPTED_OUT_REASON = 'Imported, opted out of texts: this number replied STOP earlier';
 
 /** Collapses runs of whitespace and trims — every text field gets this, not
  * just name, since scraped CSVs routinely have double spaces/newlines baked in. */
@@ -517,6 +520,7 @@ async function savePhase(jobId, state) {
       for (const [index, guessed] of guesses) if (needsState[index]) needsState[index].prep.state = guessed;
     }
 
+    const smsOptOutIds = [];
     const client = await db.getClient();
     let written = 0;
     try {
@@ -581,7 +585,7 @@ async function savePhase(jobId, state) {
            FROM unnest($1::text[], $2::text[], $3::text[], $4::text[], $5::text[], $6::text[], $7::text[], $8::text[], $9::text[], $10::text[])
              AS t(name, phone, email, address, brokerage, state, office_key, original_phone, extension, tz_zones)
            ON CONFLICT (phone) DO NOTHING
-           RETURNING phone`,
+           RETURNING id, phone`,
           [
             cols.map((p) => p.name),
             cols.map((p) => p.phone || null),
@@ -598,13 +602,22 @@ async function savePhase(jobId, state) {
           ]
         );
         const insertedPhones = new Set(insertedRows.map((r) => r.phone));
+        // Numbers that replied STOP before: imported (and dialable) but opted out of texts.
+        const { rows: supp } = await client.query('SELECT phone FROM sms_suppressions WHERE phone = ANY($1)', [
+          [...insertedPhones].filter(Boolean),
+        ]);
+        const suppressed = new Set(supp.map((x) => x.phone));
+        smsOptOutIds.push(...insertedRows.filter((x) => suppressed.has(x.phone)).map((x) => x.id));
         for (const r of inserts) {
           const p = r.prep;
           if (p.phone && !insertedPhones.has(p.phone)) {
             // Taken between the lookup and the insert (another import, a manual add).
             updates.push({ id: r.id, prep: p, outcome: 'already_in_list', reason: `Already in your list (same phone number): ${p.phone}` });
           } else {
-            updates.push({ id: r.id, prep: p, outcome: p.phone ? 'imported' : 'no_number' });
+            updates.push({
+              id: r.id, prep: p, outcome: p.phone ? 'imported' : 'no_number',
+              ...(suppressed.has(p.phone) ? { reason: SMS_OPTED_OUT_REASON } : {}),
+            });
             written += 1;
           }
         }
@@ -624,6 +637,8 @@ async function savePhase(jobId, state) {
       client.release();
     }
     saved += batch.length;
+    // After the commit, through the one opt-out path (timeline included).
+    if (smsOptOutIds.length) await smsService.setSmsOptOut(smsOptOutIds, true, { source: 'suppression_list' });
 
     if (await isJobCancelled(jobId)) {
       const { rows: left } = await db.query('SELECT 1 FROM import_rows WHERE job_id = $1 AND outcome IS NULL LIMIT 1', [jobId]);
@@ -647,9 +662,10 @@ async function buildSummary(jobId, state) {
             count(*) FILTER (WHERE outcome = 'invalid')::int AS invalid,
             count(*) FILTER (WHERE outcome IS NULL)::int AS not_processed,
             count(*) FILTER (WHERE outcome = 'no_number' AND (prep->>'unreadable')::boolean)::int AS unreadable,
-            count(*) FILTER (WHERE outcome = 'imported' AND prep->>'extension' IS NOT NULL)::int AS with_extension
+            count(*) FILTER (WHERE outcome = 'imported' AND prep->>'extension' IS NOT NULL)::int AS with_extension,
+            count(*) FILTER (WHERE outcome = 'imported' AND reason = $2)::int AS sms_opted_out
      FROM import_rows WHERE job_id = $1`,
-    [jobId]
+    [jobId, SMS_OPTED_OUT_REASON]
   );
   const c = counts[0];
   const { rows: invalidReasons } = await db.query(
@@ -691,6 +707,8 @@ async function buildSummary(jobId, state) {
     skippedInvalid: c.invalid,
     unreadable: c.unreadable,
     withExtension: c.with_extension,
+    // Imported (and dialable) but opted out of texts: the number replied STOP before.
+    smsOptedOut: c.sms_opted_out,
     written: c.imported + c.no_number,
     needsManualReview: state.needsManualReview,
     aiStoppedAfterFailures: state.aiDown,

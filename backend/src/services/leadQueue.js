@@ -4,6 +4,7 @@ const callingHours = require('./callingHours');
 const dncCheck = require('./dncCheck');
 const leadLifecycle = require('./leadLifecycle');
 const settingsStore = require('./settings');
+const smsService = require('./smsService');
 const { normalizePhone } = require('../utils/phoneNormalize');
 const { buildOfficeKey } = require('../utils/officeKey');
 const { US_STATES } = require('../utils/usStates');
@@ -532,6 +533,11 @@ async function create({ name, phone, state, email = null, address = null, broker
         await settingsStore.defaultMaxAttempts(), // F-48: the owner's default, for new leads
       ]
     );
+    // A number that replied STOP before (the SMS opt-out list) starts opted
+    // out of texts; it can still be called.
+    if (rows[0].phone && (await smsService.applySuppressionToNewLeads([rows[0].id])).length) {
+      return getById(rows[0].id);
+    }
     return rows[0];
   } catch (err) {
     if (err.code === '23505') throw new ApiError(409, 'A lead with this phone number already exists');
