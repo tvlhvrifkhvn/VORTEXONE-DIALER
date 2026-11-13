@@ -1,0 +1,516 @@
+# Segment 9 — settings, uploads, SMS opt-out list (F-47, F-48, F-40, F-07 + two Segment 8 gaps). Branch claude/fix-seg9-settings-uploads, base bbf2488. Mock adapters only.
+# 3 runs each on base and HEAD, identical (apart from random upload names). The Groq key used is a FAKE test value and is never printed. Synthetic data only.
+
+## BASE bbf2488, 3 runs
+######## base run 1
+[base] == settings API: owner = supervisor (tokS), rep2 = rep (tokA); groq-key set by the owner to a FAKE test key
+[base]   owner PUT groq-key -> 200
+[base]   rep GET groq-key -> 200; full key in the response: YES; response: {"key":"groq-key","value":"<the full key>"}
+[base]   owner GET groq-key -> 200; full key in the response: YES; response: {"key":"groq-key","value":"<the full key>"}
+[base]   rep PUT calling_hours_enforced=false -> 200 ; stored now: false
+[base]   rep PUT groq-key -> 200 ; stored key still the owner's: f
+[base]   owner PUT reporting_timezone=America/Chicago -> 200
+[base]   report period timezone now: "timezone":"America/Chicago"
+[base]   owner PUT calling_hours_enforced=false -> 200; GET as rep -> 200 {"key":"calling_hours_enforced","value":"false"}
+[base]   owner PUT unknown key anything-at-all -> 200 
+[base]   owner GET unknown key -> 200 
+[base]   owner PUT a 101-char key -> 500 "error":"value too long for type character varying(100)"
+[base]   owner PUT calling_hours_enforced = 3,000 chars -> 200 
+[base]   owner PUT groq-key = 3,000 chars -> 200 
+[base]   AI feature (expand note) still reads the stored key: requests to the fake Groq server:  3 other-key;
+[base]   settings rows now: anything-at-all, calling_hours_enforced, day_start_time, groq-key, reporting_timezone
+[base]   server log: 'CORS'/'value too long' lines: 1
+[base]   server log (settings): 6 error/warn lines
+[base] == per-user settings (API) and default max attempts
+[base]   rep PUT /settings/me/daily_goal="150" -> 404 "error":"Not found: PUT /api/settings/me/daily_goal"
+[base]   rep PUT /settings/me/default_lines="2" -> 404 "error":"Not found: PUT /api/settings/me/default_lines"
+[base]   rep PUT /settings/me/pitch_script="Hi, this is Rep Two from Vortexone" -> 404 "error":"Not found: PUT /api/settings/me/pitch_script"
+[base]   rep GET /settings/me -> 200 {"key":"me","value":null}
+[base]   owner GET /settings/me -> 200 {"key":"me","value":null}
+[base]   rep PUT /settings/me/not_a_pref -> 404 "error":"Not found: PUT /api/settings/me/not_a_pref"
+[base]   after a server restart, rep GET /settings/me -> 200 {"key":"me","value":null}
+[base]   rep PUT default_max_attempts=8 -> 200 
+[base]   owner PUT default_max_attempts=0 -> 200 
+[base]   owner PUT default_max_attempts=8 -> 200 
+[base]   lead created via POST /api/leads -> 201, its max_attempts: 5
+[base]   import of 2 leads -> imported "imported":2; their max_attempts: 5,5
+[base]   the 5019 leads that existed before: max_attempts values 5 (were 5)
+[base]   server log (prefs): 0 error/warn lines
+[base] == browser (production build)
+[base]   1a. browser A had local goal 777 / script / lines 2, server had none -> server now: (no user_settings table); local goal left in A: 777; dashboard: 0 / 777 dials today
+[base]   1b. browser A2 had local goal 555, server already 777 -> server now: (no user_settings table); dashboard in A2: 0 / 555 dials today
+[base]   2a. saved in browser A (goal 321, lines 1, script) -> server: (no user_settings table)
+[base]   2b. a second browser profile B: dashboard 0 / 100 dials today
+[base]   2c. B Settings: script box "Hi, I'm {name} from Vortexone Agency. We", goal field 100, lines 3
+[base]   3a. owner Settings: Groq key status "(no status line)"; key field holds a value: YES (38 chars)
+[base]   3b. rep Settings: calling-hours switch disabled: false; max attempts disabled: false; Groq field disabled: false; reporting timezone disabled: false
+[base]   page errors: none
+[base]   server log (ui): 0 error/warn lines
+[base] == uploads (POST /api/sms/upload-media as rep)
+[base]   real.png (image/png) -> HTTP 201  url png file served image/png nosniff=no (no token needed: HTTP/1.1 200)
+[base]   real.jpg (image/jpeg) -> HTTP 201  url jpg file served image/jpeg nosniff=no (no token needed: HTTP/1.1 200)
+[base]   real.gif (image/gif) -> HTTP 201  url gif file served image/gif nosniff=no (no token needed: HTTP/1.1 200)
+[base]   page.html (text/html) -> HTTP 201  url html file served text/html; charset=utf-8 nosniff=no (no token needed: HTTP/1.1 200)
+[base]   tool.exe (application/x-dosexec) -> HTTP 201  url exe file served application/x-msdos-program nosniff=no (no token needed: HTTP/1.1 200)
+[base]   pic.svg (image/svg+xml) -> HTTP 201  url svg file served image/svg+xml nosniff=no (no token needed: HTTP/1.1 200)
+[base]   fake.png (text/html) -> HTTP 201  url png file served image/png nosniff=no (no token needed: HTTP/1.1 200)
+[base]   fake.jpg (image/gif) -> HTTP 201  url jpg file served image/jpeg nosniff=no (no token needed: HTTP/1.1 200)
+[base]   old uploaded HTML file still on disk -> GET 200 Content-Type: text/html; charset=utf-8
+[base]   send with mediaUrl "/uploads/1794576600709-1c2c64f4f651.png" -> 201 
+[base]   send with mediaUrl "https://evil.example.com/x.png" -> 201 
+[base]   send with mediaUrl "/uploads/does-not-exist.png" -> 201 
+[base]   send with mediaUrl "/uploads/../package.json" -> 201 
+[base]   server log (uploads): 0 error/warn lines
+[base] == CORS (allowed origin http://localhost:5173)
+[base]   origin http://localhost:5173: GET -> 200, allow-origin: http://localhost:5173; preflight -> 204, allow-origin: http://localhost:5173
+[base]   origin https://evil.example.com: GET -> 500, allow-origin: ; preflight -> 500, allow-origin: 
+[base]   origin <none>: GET -> 200, allow-origin: ; preflight -> 204, allow-origin: 
+[base]   server log: 'Not allowed by CORS' lines 2, stack-trace lines 20
+[base]   server log (cors): 2 error/warn lines
+[base] == SMS opt-out by phone number
+[base]   backfill: old opted-out lead's phone in sms_suppressions: n/a (no table)
+[base]   STOP twice from unknown (212) 555-8830 -> HTTP 201, HTTP 201; suppression rows for it: n/a
+[base]   lead created later with that number -> 201; sms_opt_out: f; dnc_flag: f
+[base]   import of 2 leads, one with a STOPped number -> summary "imported":2 "importedTotal":2 ; sms_opt_out: Imported Later=false/dnc=false, Imported Normal=false/dnc=false
+[base]   single text to the suppressed lead -> 201 
+[base]   same, with only the phone suppressed (lead flag cleared by DIRECT SQL) -> 201 
+[base]   bulk to both -> 200 {"total":2,"sent":2,"opted_out":0,"dnc":0,"outside_hours":0,"missing_field":0,"invalid_number":0,"not_found":0,"failed":0}
+[base]   START from (212) 555-8830 -> suppression rows: n/a; lead sms_opt_out: f
+[base]   text after START -> 201 
+[base]   calls not blocked: dial the imported STOPped lead -> 201 
+[base]   server log (suppress): 0 error/warn lines
+[base] == texts from unknown numbers: mark read
+[base]   inbox before: leads unread Known Sender=1; unknown-number messages 2 (unread 0); unmatchedUnread=undefined
+[base]   mark one unknown-number message read -> 404 "error":"Not found: POST /api/sms/mark-read-unmatched/1"
+[base]   the new route on a KNOWN lead's message -> 404 "error":"Not found: POST /api/sms/mark-read-unmatched/3"
+[base]   mark the known lead read (unchanged route) -> 200
+[base]   inbox after: leads unread none; unknown-number messages 2 (unread 0); unmatchedUnread=undefined
+[base]   DB: unread inbound with no lead: 2
+[base]   server log (unmatched): 0 error/warn lines
+######## base run 2
+[base] == settings API: owner = supervisor (tokS), rep2 = rep (tokA); groq-key set by the owner to a FAKE test key
+[base]   owner PUT groq-key -> 200
+[base]   rep GET groq-key -> 200; full key in the response: YES; response: {"key":"groq-key","value":"<the full key>"}
+[base]   owner GET groq-key -> 200; full key in the response: YES; response: {"key":"groq-key","value":"<the full key>"}
+[base]   rep PUT calling_hours_enforced=false -> 200 ; stored now: false
+[base]   rep PUT groq-key -> 200 ; stored key still the owner's: f
+[base]   owner PUT reporting_timezone=America/Chicago -> 200
+[base]   report period timezone now: "timezone":"America/Chicago"
+[base]   owner PUT calling_hours_enforced=false -> 200; GET as rep -> 200 {"key":"calling_hours_enforced","value":"false"}
+[base]   owner PUT unknown key anything-at-all -> 200 
+[base]   owner GET unknown key -> 200 
+[base]   owner PUT a 101-char key -> 500 "error":"value too long for type character varying(100)"
+[base]   owner PUT calling_hours_enforced = 3,000 chars -> 200 
+[base]   owner PUT groq-key = 3,000 chars -> 200 
+[base]   AI feature (expand note) still reads the stored key: requests to the fake Groq server:  3 other-key;
+[base]   settings rows now: anything-at-all, calling_hours_enforced, day_start_time, groq-key, reporting_timezone
+[base]   server log: 'CORS'/'value too long' lines: 1
+[base]   server log (settings): 6 error/warn lines
+[base] == per-user settings (API) and default max attempts
+[base]   rep PUT /settings/me/daily_goal="150" -> 404 "error":"Not found: PUT /api/settings/me/daily_goal"
+[base]   rep PUT /settings/me/default_lines="2" -> 404 "error":"Not found: PUT /api/settings/me/default_lines"
+[base]   rep PUT /settings/me/pitch_script="Hi, this is Rep Two from Vortexone" -> 404 "error":"Not found: PUT /api/settings/me/pitch_script"
+[base]   rep GET /settings/me -> 200 {"key":"me","value":null}
+[base]   owner GET /settings/me -> 200 {"key":"me","value":null}
+[base]   rep PUT /settings/me/not_a_pref -> 404 "error":"Not found: PUT /api/settings/me/not_a_pref"
+[base]   after a server restart, rep GET /settings/me -> 200 {"key":"me","value":null}
+[base]   rep PUT default_max_attempts=8 -> 200 
+[base]   owner PUT default_max_attempts=0 -> 200 
+[base]   owner PUT default_max_attempts=8 -> 200 
+[base]   lead created via POST /api/leads -> 201, its max_attempts: 5
+[base]   import of 2 leads -> imported "imported":2; their max_attempts: 5,5
+[base]   the 5019 leads that existed before: max_attempts values 5 (were 5)
+[base]   server log (prefs): 0 error/warn lines
+[base] == browser (production build)
+[base]   1a. browser A had local goal 777 / script / lines 2, server had none -> server now: (no user_settings table); local goal left in A: 777; dashboard: 0 / 777 dials today
+[base]   1b. browser A2 had local goal 555, server already 777 -> server now: (no user_settings table); dashboard in A2: 0 / 555 dials today
+[base]   2a. saved in browser A (goal 321, lines 1, script) -> server: (no user_settings table)
+[base]   2b. a second browser profile B: dashboard 0 / 100 dials today
+[base]   2c. B Settings: script box "Hi, I'm {name} from Vortexone Agency. We", goal field 100, lines 3
+[base]   3a. owner Settings: Groq key status "(no status line)"; key field holds a value: YES (38 chars)
+[base]   3b. rep Settings: calling-hours switch disabled: false; max attempts disabled: false; Groq field disabled: false; reporting timezone disabled: false
+[base]   page errors: none
+[base]   server log (ui): 0 error/warn lines
+[base] == uploads (POST /api/sms/upload-media as rep)
+[base]   real.png (image/png) -> HTTP 201  url png file served image/png nosniff=no (no token needed: HTTP/1.1 200)
+[base]   real.jpg (image/jpeg) -> HTTP 201  url jpg file served image/jpeg nosniff=no (no token needed: HTTP/1.1 200)
+[base]   real.gif (image/gif) -> HTTP 201  url gif file served image/gif nosniff=no (no token needed: HTTP/1.1 200)
+[base]   page.html (text/html) -> HTTP 201  url html file served text/html; charset=utf-8 nosniff=no (no token needed: HTTP/1.1 200)
+[base]   tool.exe (application/x-dosexec) -> HTTP 201  url exe file served application/x-msdos-program nosniff=no (no token needed: HTTP/1.1 200)
+[base]   pic.svg (image/svg+xml) -> HTTP 201  url svg file served image/svg+xml nosniff=no (no token needed: HTTP/1.1 200)
+[base]   fake.png (text/html) -> HTTP 201  url png file served image/png nosniff=no (no token needed: HTTP/1.1 200)
+[base]   fake.jpg (image/gif) -> HTTP 201  url jpg file served image/jpeg nosniff=no (no token needed: HTTP/1.1 200)
+[base]   old uploaded HTML file still on disk -> GET 200 Content-Type: text/html; charset=utf-8
+[base]   send with mediaUrl "/uploads/1794576600687-b91fe3dc2227.png" -> 201 
+[base]   send with mediaUrl "https://evil.example.com/x.png" -> 201 
+[base]   send with mediaUrl "/uploads/does-not-exist.png" -> 201 
+[base]   send with mediaUrl "/uploads/../package.json" -> 201 
+[base]   server log (uploads): 0 error/warn lines
+[base] == CORS (allowed origin http://localhost:5173)
+[base]   origin http://localhost:5173: GET -> 200, allow-origin: http://localhost:5173; preflight -> 204, allow-origin: http://localhost:5173
+[base]   origin https://evil.example.com: GET -> 500, allow-origin: ; preflight -> 500, allow-origin: 
+[base]   origin <none>: GET -> 200, allow-origin: ; preflight -> 204, allow-origin: 
+[base]   server log: 'Not allowed by CORS' lines 2, stack-trace lines 20
+[base]   server log (cors): 2 error/warn lines
+[base] == SMS opt-out by phone number
+[base]   backfill: old opted-out lead's phone in sms_suppressions: n/a (no table)
+[base]   STOP twice from unknown (212) 555-8830 -> HTTP 201, HTTP 201; suppression rows for it: n/a
+[base]   lead created later with that number -> 201; sms_opt_out: f; dnc_flag: f
+[base]   import of 2 leads, one with a STOPped number -> summary "imported":2 "importedTotal":2 ; sms_opt_out: Imported Later=false/dnc=false, Imported Normal=false/dnc=false
+[base]   single text to the suppressed lead -> 201 
+[base]   same, with only the phone suppressed (lead flag cleared by DIRECT SQL) -> 201 
+[base]   bulk to both -> 200 {"total":2,"sent":2,"opted_out":0,"dnc":0,"outside_hours":0,"missing_field":0,"invalid_number":0,"not_found":0,"failed":0}
+[base]   START from (212) 555-8830 -> suppression rows: n/a; lead sms_opt_out: f
+[base]   text after START -> 201 
+[base]   calls not blocked: dial the imported STOPped lead -> 201 
+[base]   server log (suppress): 0 error/warn lines
+[base] == texts from unknown numbers: mark read
+[base]   inbox before: leads unread Known Sender=1; unknown-number messages 2 (unread 0); unmatchedUnread=undefined
+[base]   mark one unknown-number message read -> 404 "error":"Not found: POST /api/sms/mark-read-unmatched/1"
+[base]   the new route on a KNOWN lead's message -> 404 "error":"Not found: POST /api/sms/mark-read-unmatched/3"
+[base]   mark the known lead read (unchanged route) -> 200
+[base]   inbox after: leads unread none; unknown-number messages 2 (unread 0); unmatchedUnread=undefined
+[base]   DB: unread inbound with no lead: 2
+[base]   server log (unmatched): 0 error/warn lines
+######## base run 3
+[base] == settings API: owner = supervisor (tokS), rep2 = rep (tokA); groq-key set by the owner to a FAKE test key
+[base]   owner PUT groq-key -> 200
+[base]   rep GET groq-key -> 200; full key in the response: YES; response: {"key":"groq-key","value":"<the full key>"}
+[base]   owner GET groq-key -> 200; full key in the response: YES; response: {"key":"groq-key","value":"<the full key>"}
+[base]   rep PUT calling_hours_enforced=false -> 200 ; stored now: false
+[base]   rep PUT groq-key -> 200 ; stored key still the owner's: f
+[base]   owner PUT reporting_timezone=America/Chicago -> 200
+[base]   report period timezone now: "timezone":"America/Chicago"
+[base]   owner PUT calling_hours_enforced=false -> 200; GET as rep -> 200 {"key":"calling_hours_enforced","value":"false"}
+[base]   owner PUT unknown key anything-at-all -> 200 
+[base]   owner GET unknown key -> 200 
+[base]   owner PUT a 101-char key -> 500 "error":"value too long for type character varying(100)"
+[base]   owner PUT calling_hours_enforced = 3,000 chars -> 200 
+[base]   owner PUT groq-key = 3,000 chars -> 200 
+[base]   AI feature (expand note) still reads the stored key: requests to the fake Groq server:  3 other-key;
+[base]   settings rows now: anything-at-all, calling_hours_enforced, day_start_time, groq-key, reporting_timezone
+[base]   server log: 'CORS'/'value too long' lines: 1
+[base]   server log (settings): 6 error/warn lines
+[base] == per-user settings (API) and default max attempts
+[base]   rep PUT /settings/me/daily_goal="150" -> 404 "error":"Not found: PUT /api/settings/me/daily_goal"
+[base]   rep PUT /settings/me/default_lines="2" -> 404 "error":"Not found: PUT /api/settings/me/default_lines"
+[base]   rep PUT /settings/me/pitch_script="Hi, this is Rep Two from Vortexone" -> 404 "error":"Not found: PUT /api/settings/me/pitch_script"
+[base]   rep GET /settings/me -> 200 {"key":"me","value":null}
+[base]   owner GET /settings/me -> 200 {"key":"me","value":null}
+[base]   rep PUT /settings/me/not_a_pref -> 404 "error":"Not found: PUT /api/settings/me/not_a_pref"
+[base]   after a server restart, rep GET /settings/me -> 200 {"key":"me","value":null}
+[base]   rep PUT default_max_attempts=8 -> 200 
+[base]   owner PUT default_max_attempts=0 -> 200 
+[base]   owner PUT default_max_attempts=8 -> 200 
+[base]   lead created via POST /api/leads -> 201, its max_attempts: 5
+[base]   import of 2 leads -> imported "imported":2; their max_attempts: 5,5
+[base]   the 5019 leads that existed before: max_attempts values 5 (were 5)
+[base]   server log (prefs): 0 error/warn lines
+[base] == browser (production build)
+[base]   1a. browser A had local goal 777 / script / lines 2, server had none -> server now: (no user_settings table); local goal left in A: 777; dashboard: 0 / 777 dials today
+[base]   1b. browser A2 had local goal 555, server already 777 -> server now: (no user_settings table); dashboard in A2: 0 / 555 dials today
+[base]   2a. saved in browser A (goal 321, lines 1, script) -> server: (no user_settings table)
+[base]   2b. a second browser profile B: dashboard 0 / 100 dials today
+[base]   2c. B Settings: script box "Hi, I'm {name} from Vortexone Agency. We", goal field 100, lines 3
+[base]   3a. owner Settings: Groq key status "(no status line)"; key field holds a value: YES (38 chars)
+[base]   3b. rep Settings: calling-hours switch disabled: false; max attempts disabled: false; Groq field disabled: false; reporting timezone disabled: false
+[base]   page errors: none
+[base]   server log (ui): 0 error/warn lines
+[base] == uploads (POST /api/sms/upload-media as rep)
+[base]   real.png (image/png) -> HTTP 201  url png file served image/png nosniff=no (no token needed: HTTP/1.1 200)
+[base]   real.jpg (image/jpeg) -> HTTP 201  url jpg file served image/jpeg nosniff=no (no token needed: HTTP/1.1 200)
+[base]   real.gif (image/gif) -> HTTP 201  url gif file served image/gif nosniff=no (no token needed: HTTP/1.1 200)
+[base]   page.html (text/html) -> HTTP 201  url html file served text/html; charset=utf-8 nosniff=no (no token needed: HTTP/1.1 200)
+[base]   tool.exe (application/x-dosexec) -> HTTP 201  url exe file served application/x-msdos-program nosniff=no (no token needed: HTTP/1.1 200)
+[base]   pic.svg (image/svg+xml) -> HTTP 201  url svg file served image/svg+xml nosniff=no (no token needed: HTTP/1.1 200)
+[base]   fake.png (text/html) -> HTTP 201  url png file served image/png nosniff=no (no token needed: HTTP/1.1 200)
+[base]   fake.jpg (image/gif) -> HTTP 201  url jpg file served image/jpeg nosniff=no (no token needed: HTTP/1.1 200)
+[base]   old uploaded HTML file still on disk -> GET 200 Content-Type: text/html; charset=utf-8
+[base]   send with mediaUrl "/uploads/1794576600695-e9bc62ce4ec6.png" -> 201 
+[base]   send with mediaUrl "https://evil.example.com/x.png" -> 201 
+[base]   send with mediaUrl "/uploads/does-not-exist.png" -> 201 
+[base]   send with mediaUrl "/uploads/../package.json" -> 201 
+[base]   server log (uploads): 0 error/warn lines
+[base] == CORS (allowed origin http://localhost:5173)
+[base]   origin http://localhost:5173: GET -> 200, allow-origin: http://localhost:5173; preflight -> 204, allow-origin: http://localhost:5173
+[base]   origin https://evil.example.com: GET -> 500, allow-origin: ; preflight -> 500, allow-origin: 
+[base]   origin <none>: GET -> 200, allow-origin: ; preflight -> 204, allow-origin: 
+[base]   server log: 'Not allowed by CORS' lines 2, stack-trace lines 20
+[base]   server log (cors): 2 error/warn lines
+[base] == SMS opt-out by phone number
+[base]   backfill: old opted-out lead's phone in sms_suppressions: n/a (no table)
+[base]   STOP twice from unknown (212) 555-8830 -> HTTP 201, HTTP 201; suppression rows for it: n/a
+[base]   lead created later with that number -> 201; sms_opt_out: f; dnc_flag: f
+[base]   import of 2 leads, one with a STOPped number -> summary "imported":2 "importedTotal":2 ; sms_opt_out: Imported Later=false/dnc=false, Imported Normal=false/dnc=false
+[base]   single text to the suppressed lead -> 201 
+[base]   same, with only the phone suppressed (lead flag cleared by DIRECT SQL) -> 201 
+[base]   bulk to both -> 200 {"total":2,"sent":2,"opted_out":0,"dnc":0,"outside_hours":0,"missing_field":0,"invalid_number":0,"not_found":0,"failed":0}
+[base]   START from (212) 555-8830 -> suppression rows: n/a; lead sms_opt_out: f
+[base]   text after START -> 201 
+[base]   calls not blocked: dial the imported STOPped lead -> 201 
+[base]   server log (suppress): 0 error/warn lines
+[base] == texts from unknown numbers: mark read
+[base]   inbox before: leads unread Known Sender=1; unknown-number messages 2 (unread 0); unmatchedUnread=undefined
+[base]   mark one unknown-number message read -> 404 "error":"Not found: POST /api/sms/mark-read-unmatched/1"
+[base]   the new route on a KNOWN lead's message -> 404 "error":"Not found: POST /api/sms/mark-read-unmatched/3"
+[base]   mark the known lead read (unchanged route) -> 200
+[base]   inbox after: leads unread none; unknown-number messages 2 (unread 0); unmatchedUnread=undefined
+[base]   DB: unread inbound with no lead: 2
+[base]   server log (unmatched): 0 error/warn lines
+
+## HEAD, 3 runs
+######## after run 1
+[after] == settings API: owner = supervisor (tokS), rep2 = rep (tokA); groq-key set by the owner to a FAKE test key
+[after]   owner PUT groq-key -> 200
+[after]   rep GET groq-key -> 200; full key in the response: no; response: {"key":"groq-key","configured":true,"last4":"WXYZ"}
+[after]   owner GET groq-key -> 200; full key in the response: no; response: {"key":"groq-key","configured":true,"last4":"WXYZ"}
+[after]   rep PUT calling_hours_enforced=false -> 403 "error":"Only a supervisor can change settings"; stored now: true
+[after]   rep PUT groq-key -> 403 "error":"Only a supervisor can change settings"; stored key still the owner's: t
+[after]   owner PUT reporting_timezone=America/Chicago -> 200
+[after]   report period timezone now: "timezone":"America/Chicago"
+[after]   owner PUT calling_hours_enforced=false -> 200; GET as rep -> 200 {"key":"calling_hours_enforced","value":"false"}
+[after]   owner PUT unknown key anything-at-all -> 400 "error":"Unknown setting \"
+[after]   owner GET unknown key -> 400 "error":"Unknown setting \"
+[after]   owner PUT a 101-char key -> 400 "error":"Setting names are at most 100 characters"
+[after]   owner PUT calling_hours_enforced = 3,000 chars -> 400 "error":"That value is too long (5 characters max)"
+[after]   owner PUT groq-key = 3,000 chars -> 400 "error":"That value is too long (200 characters max)"
+[after]   AI feature (expand note) still reads the stored key: requests to the fake Groq server:  3 stored-key;
+[after]   settings rows now: calling_hours_enforced, day_start_time, groq-key, reporting_timezone
+[after]   server log: 'CORS'/'value too long' lines: 0
+[after]   server log (settings): 4 error/warn lines
+[after] == per-user settings (API) and default max attempts
+[after]   rep PUT /settings/me/daily_goal="150" -> 200 
+[after]   rep PUT /settings/me/default_lines="2" -> 200 
+[after]   rep PUT /settings/me/pitch_script="Hi, this is Rep Two from Vortexone" -> 200 
+[after]   rep GET /settings/me -> 200 {"settings":{"daily_goal":"150","default_lines":"2","pitch_script":"Hi, this is Rep Two from Vortexone"}}
+[after]   owner GET /settings/me -> 200 {"settings":{}}
+[after]   rep PUT /settings/me/not_a_pref -> 400 "error":"Unknown preference \"
+[after]   after a server restart, rep GET /settings/me -> 200 {"settings":{"daily_goal":"150","default_lines":"2","pitch_script":"Hi, this is Rep Two from Vortexone"}}
+[after]   rep PUT default_max_attempts=8 -> 403 "error":"Only a supervisor can change settings"
+[after]   owner PUT default_max_attempts=0 -> 400 "error":"Default max attempts must be a whole number from 1 to 10"
+[after]   owner PUT default_max_attempts=8 -> 200 
+[after]   lead created via POST /api/leads -> 201, its max_attempts: 8
+[after]   import of 2 leads -> imported "imported":2; their max_attempts: 8,8
+[after]   the 5019 leads that existed before: max_attempts values 5 (were 5)
+[after]   server log (prefs): 0 error/warn lines
+[after] == browser (production build)
+[after]   1a. browser A had local goal 777 / script / lines 2, server had none -> server now: daily_goal=777, default_lines=2, pitch_script=Local script from browser A; local goal left in A: null; dashboard: 0 / 777 dials today
+[after]   1b. browser A2 had local goal 555, server already 777 -> server now: daily_goal=777, default_lines=2, pitch_script=Local script from browser A; dashboard in A2: 0 / 777 dials today
+[after]   2a. saved in browser A (goal 321, lines 1, script) -> server: daily_goal=321, default_lines=1, pitch_script=Script saved in browser A
+[after]   2b. a second browser profile B: dashboard 0 / 321 dials today
+[after]   2c. B Settings: script box "Script saved in browser A", goal field 321, lines 1
+[after]   3a. owner Settings: Groq key status "Configured ✓ (ending ····WXYZ)"; key field holds a value: no
+[after]   3b. rep Settings: calling-hours switch disabled: true; max attempts disabled: true; Groq field disabled: true; reporting timezone disabled: true
+[after]   page errors: none
+[after]   server log (ui): 0 error/warn lines
+[after] == uploads (POST /api/sms/upload-media as rep)
+[after]   real.png (image/png) -> HTTP 201  url png file served image/png nosniff=yes (no token needed: HTTP/1.1 200)
+[after]   real.jpg (image/jpeg) -> HTTP 201  url jpg file served image/jpeg nosniff=yes (no token needed: HTTP/1.1 200)
+[after]   real.gif (image/gif) -> HTTP 201  url gif file served image/gif nosniff=yes (no token needed: HTTP/1.1 200)
+[after]   page.html (text/html) -> HTTP 400 "error":"Only JPEG, PNG and GIF images can be attached"  
+[after]   tool.exe (application/x-dosexec) -> HTTP 400 "error":"Only JPEG, PNG and GIF images can be attached"  
+[after]   pic.svg (image/svg+xml) -> HTTP 400 "error":"Only JPEG, PNG and GIF images can be attached"  
+[after]   fake.png (text/html) -> HTTP 400 "error":"Only JPEG, PNG and GIF images can be attached"  
+[after]   fake.jpg (image/gif) -> HTTP 400 "error":"Only JPEG, PNG and GIF images can be attached"  
+[after]   old uploaded HTML file still on disk -> GET 404 
+[after]   send with mediaUrl "/uploads/8e67991b17c9b60a2070efcad9bc5299.png" -> 201 
+[after]   send with mediaUrl "https://evil.example.com/x.png" -> 400 "error":"The attachment must be an image uploaded here (use Attach image)"
+[after]   send with mediaUrl "/uploads/does-not-exist.png" -> 400 "error":"The attachment must be an image uploaded here (use Attach image)"
+[after]   send with mediaUrl "/uploads/../package.json" -> 400 "error":"The attachment must be an image uploaded here (use Attach image)"
+[after]   server log (uploads): 0 error/warn lines
+[after] == CORS (allowed origin http://localhost:5173)
+[after]   origin http://localhost:5173: GET -> 200, allow-origin: http://localhost:5173; preflight -> 204, allow-origin: http://localhost:5173
+[after]   origin https://evil.example.com: GET -> 200, allow-origin: ; preflight -> 401, allow-origin: 
+[after]   origin <none>: GET -> 200, allow-origin: ; preflight -> 204, allow-origin: 
+[after]   server log: 'Not allowed by CORS' lines 0, stack-trace lines 0
+[after]   server log (cors): 0 error/warn lines
+[after] == SMS opt-out by phone number
+[after]   backfill: old opted-out lead's phone in sms_suppressions: 1
+[after]   STOP twice from unknown (212) 555-8830 -> HTTP 201, HTTP 201; suppression rows for it: 1
+[after]   lead created later with that number -> 201; sms_opt_out: t; dnc_flag: f
+[after]   import of 2 leads, one with a STOPped number -> summary "imported":2 "smsOptedOut":1 "importedTotal":2 ; sms_opt_out: Imported Later=true/dnc=false, Imported Normal=false/dnc=false
+[after]   single text to the suppressed lead -> 400 "error":"This lead has opted out of SMS"
+[after]   same, with only the phone suppressed (lead flag cleared by DIRECT SQL) -> 400 "error":"This number has opted out of texts (replied STOP)"
+[after]   bulk to both -> 200 {"total":2,"sent":0,"opted_out":2,"dnc":0,"outside_hours":0,"missing_field":0,"invalid_number":0,"not_found":0,"failed":0}
+[after]   START from (212) 555-8830 -> suppression rows: 0; lead sms_opt_out: f
+[after]   text after START -> 201 
+[after]   calls not blocked: dial the imported STOPped lead -> 201 
+[after]   server log (suppress): 0 error/warn lines
+[after] == texts from unknown numbers: mark read
+[after]   inbox before: leads unread Known Sender=1; unknown-number messages 2 (unread 2); unmatchedUnread=2
+[after]   mark one unknown-number message read -> 200 
+[after]   the new route on a KNOWN lead's message -> 404 "error":"Message not found"
+[after]   mark the known lead read (unchanged route) -> 200
+[after]   inbox after: leads unread none; unknown-number messages 2 (unread 1); unmatchedUnread=1
+[after]   DB: unread inbound with no lead: 1
+[after]   server log (unmatched): 0 error/warn lines
+######## after run 2
+[after] == settings API: owner = supervisor (tokS), rep2 = rep (tokA); groq-key set by the owner to a FAKE test key
+[after]   owner PUT groq-key -> 200
+[after]   rep GET groq-key -> 200; full key in the response: no; response: {"key":"groq-key","configured":true,"last4":"WXYZ"}
+[after]   owner GET groq-key -> 200; full key in the response: no; response: {"key":"groq-key","configured":true,"last4":"WXYZ"}
+[after]   rep PUT calling_hours_enforced=false -> 403 "error":"Only a supervisor can change settings"; stored now: true
+[after]   rep PUT groq-key -> 403 "error":"Only a supervisor can change settings"; stored key still the owner's: t
+[after]   owner PUT reporting_timezone=America/Chicago -> 200
+[after]   report period timezone now: "timezone":"America/Chicago"
+[after]   owner PUT calling_hours_enforced=false -> 200; GET as rep -> 200 {"key":"calling_hours_enforced","value":"false"}
+[after]   owner PUT unknown key anything-at-all -> 400 "error":"Unknown setting \"
+[after]   owner GET unknown key -> 400 "error":"Unknown setting \"
+[after]   owner PUT a 101-char key -> 400 "error":"Setting names are at most 100 characters"
+[after]   owner PUT calling_hours_enforced = 3,000 chars -> 400 "error":"That value is too long (5 characters max)"
+[after]   owner PUT groq-key = 3,000 chars -> 400 "error":"That value is too long (200 characters max)"
+[after]   AI feature (expand note) still reads the stored key: requests to the fake Groq server:  3 stored-key;
+[after]   settings rows now: calling_hours_enforced, day_start_time, groq-key, reporting_timezone
+[after]   server log: 'CORS'/'value too long' lines: 0
+[after]   server log (settings): 4 error/warn lines
+[after] == per-user settings (API) and default max attempts
+[after]   rep PUT /settings/me/daily_goal="150" -> 200 
+[after]   rep PUT /settings/me/default_lines="2" -> 200 
+[after]   rep PUT /settings/me/pitch_script="Hi, this is Rep Two from Vortexone" -> 200 
+[after]   rep GET /settings/me -> 200 {"settings":{"daily_goal":"150","default_lines":"2","pitch_script":"Hi, this is Rep Two from Vortexone"}}
+[after]   owner GET /settings/me -> 200 {"settings":{}}
+[after]   rep PUT /settings/me/not_a_pref -> 400 "error":"Unknown preference \"
+[after]   after a server restart, rep GET /settings/me -> 200 {"settings":{"daily_goal":"150","default_lines":"2","pitch_script":"Hi, this is Rep Two from Vortexone"}}
+[after]   rep PUT default_max_attempts=8 -> 403 "error":"Only a supervisor can change settings"
+[after]   owner PUT default_max_attempts=0 -> 400 "error":"Default max attempts must be a whole number from 1 to 10"
+[after]   owner PUT default_max_attempts=8 -> 200 
+[after]   lead created via POST /api/leads -> 201, its max_attempts: 8
+[after]   import of 2 leads -> imported "imported":2; their max_attempts: 8,8
+[after]   the 5019 leads that existed before: max_attempts values 5 (were 5)
+[after]   server log (prefs): 0 error/warn lines
+[after] == browser (production build)
+[after]   1a. browser A had local goal 777 / script / lines 2, server had none -> server now: daily_goal=777, default_lines=2, pitch_script=Local script from browser A; local goal left in A: null; dashboard: 0 / 777 dials today
+[after]   1b. browser A2 had local goal 555, server already 777 -> server now: daily_goal=777, default_lines=2, pitch_script=Local script from browser A; dashboard in A2: 0 / 777 dials today
+[after]   2a. saved in browser A (goal 321, lines 1, script) -> server: daily_goal=321, default_lines=1, pitch_script=Script saved in browser A
+[after]   2b. a second browser profile B: dashboard 0 / 321 dials today
+[after]   2c. B Settings: script box "Script saved in browser A", goal field 321, lines 1
+[after]   3a. owner Settings: Groq key status "Configured ✓ (ending ····WXYZ)"; key field holds a value: no
+[after]   3b. rep Settings: calling-hours switch disabled: true; max attempts disabled: true; Groq field disabled: true; reporting timezone disabled: true
+[after]   page errors: none
+[after]   server log (ui): 0 error/warn lines
+[after] == uploads (POST /api/sms/upload-media as rep)
+[after]   real.png (image/png) -> HTTP 201  url png file served image/png nosniff=yes (no token needed: HTTP/1.1 200)
+[after]   real.jpg (image/jpeg) -> HTTP 201  url jpg file served image/jpeg nosniff=yes (no token needed: HTTP/1.1 200)
+[after]   real.gif (image/gif) -> HTTP 201  url gif file served image/gif nosniff=yes (no token needed: HTTP/1.1 200)
+[after]   page.html (text/html) -> HTTP 400 "error":"Only JPEG, PNG and GIF images can be attached"  
+[after]   tool.exe (application/x-dosexec) -> HTTP 400 "error":"Only JPEG, PNG and GIF images can be attached"  
+[after]   pic.svg (image/svg+xml) -> HTTP 400 "error":"Only JPEG, PNG and GIF images can be attached"  
+[after]   fake.png (text/html) -> HTTP 400 "error":"Only JPEG, PNG and GIF images can be attached"  
+[after]   fake.jpg (image/gif) -> HTTP 400 "error":"Only JPEG, PNG and GIF images can be attached"  
+[after]   old uploaded HTML file still on disk -> GET 404 
+[after]   send with mediaUrl "/uploads/b013eaf96de2f3eb2a00b72890e2195b.png" -> 201 
+[after]   send with mediaUrl "https://evil.example.com/x.png" -> 400 "error":"The attachment must be an image uploaded here (use Attach image)"
+[after]   send with mediaUrl "/uploads/does-not-exist.png" -> 400 "error":"The attachment must be an image uploaded here (use Attach image)"
+[after]   send with mediaUrl "/uploads/../package.json" -> 400 "error":"The attachment must be an image uploaded here (use Attach image)"
+[after]   server log (uploads): 0 error/warn lines
+[after] == CORS (allowed origin http://localhost:5173)
+[after]   origin http://localhost:5173: GET -> 200, allow-origin: http://localhost:5173; preflight -> 204, allow-origin: http://localhost:5173
+[after]   origin https://evil.example.com: GET -> 200, allow-origin: ; preflight -> 401, allow-origin: 
+[after]   origin <none>: GET -> 200, allow-origin: ; preflight -> 204, allow-origin: 
+[after]   server log: 'Not allowed by CORS' lines 0, stack-trace lines 0
+[after]   server log (cors): 0 error/warn lines
+[after] == SMS opt-out by phone number
+[after]   backfill: old opted-out lead's phone in sms_suppressions: 1
+[after]   STOP twice from unknown (212) 555-8830 -> HTTP 201, HTTP 201; suppression rows for it: 1
+[after]   lead created later with that number -> 201; sms_opt_out: t; dnc_flag: f
+[after]   import of 2 leads, one with a STOPped number -> summary "imported":2 "smsOptedOut":1 "importedTotal":2 ; sms_opt_out: Imported Later=true/dnc=false, Imported Normal=false/dnc=false
+[after]   single text to the suppressed lead -> 400 "error":"This lead has opted out of SMS"
+[after]   same, with only the phone suppressed (lead flag cleared by DIRECT SQL) -> 400 "error":"This number has opted out of texts (replied STOP)"
+[after]   bulk to both -> 200 {"total":2,"sent":0,"opted_out":2,"dnc":0,"outside_hours":0,"missing_field":0,"invalid_number":0,"not_found":0,"failed":0}
+[after]   START from (212) 555-8830 -> suppression rows: 0; lead sms_opt_out: f
+[after]   text after START -> 201 
+[after]   calls not blocked: dial the imported STOPped lead -> 201 
+[after]   server log (suppress): 0 error/warn lines
+[after] == texts from unknown numbers: mark read
+[after]   inbox before: leads unread Known Sender=1; unknown-number messages 2 (unread 2); unmatchedUnread=2
+[after]   mark one unknown-number message read -> 200 
+[after]   the new route on a KNOWN lead's message -> 404 "error":"Message not found"
+[after]   mark the known lead read (unchanged route) -> 200
+[after]   inbox after: leads unread none; unknown-number messages 2 (unread 1); unmatchedUnread=1
+[after]   DB: unread inbound with no lead: 1
+[after]   server log (unmatched): 0 error/warn lines
+######## after run 3
+[after] == settings API: owner = supervisor (tokS), rep2 = rep (tokA); groq-key set by the owner to a FAKE test key
+[after]   owner PUT groq-key -> 200
+[after]   rep GET groq-key -> 200; full key in the response: no; response: {"key":"groq-key","configured":true,"last4":"WXYZ"}
+[after]   owner GET groq-key -> 200; full key in the response: no; response: {"key":"groq-key","configured":true,"last4":"WXYZ"}
+[after]   rep PUT calling_hours_enforced=false -> 403 "error":"Only a supervisor can change settings"; stored now: true
+[after]   rep PUT groq-key -> 403 "error":"Only a supervisor can change settings"; stored key still the owner's: t
+[after]   owner PUT reporting_timezone=America/Chicago -> 200
+[after]   report period timezone now: "timezone":"America/Chicago"
+[after]   owner PUT calling_hours_enforced=false -> 200; GET as rep -> 200 {"key":"calling_hours_enforced","value":"false"}
+[after]   owner PUT unknown key anything-at-all -> 400 "error":"Unknown setting \"
+[after]   owner GET unknown key -> 400 "error":"Unknown setting \"
+[after]   owner PUT a 101-char key -> 400 "error":"Setting names are at most 100 characters"
+[after]   owner PUT calling_hours_enforced = 3,000 chars -> 400 "error":"That value is too long (5 characters max)"
+[after]   owner PUT groq-key = 3,000 chars -> 400 "error":"That value is too long (200 characters max)"
+[after]   AI feature (expand note) still reads the stored key: requests to the fake Groq server:  3 stored-key;
+[after]   settings rows now: calling_hours_enforced, day_start_time, groq-key, reporting_timezone
+[after]   server log: 'CORS'/'value too long' lines: 0
+[after]   server log (settings): 4 error/warn lines
+[after] == per-user settings (API) and default max attempts
+[after]   rep PUT /settings/me/daily_goal="150" -> 200 
+[after]   rep PUT /settings/me/default_lines="2" -> 200 
+[after]   rep PUT /settings/me/pitch_script="Hi, this is Rep Two from Vortexone" -> 200 
+[after]   rep GET /settings/me -> 200 {"settings":{"daily_goal":"150","default_lines":"2","pitch_script":"Hi, this is Rep Two from Vortexone"}}
+[after]   owner GET /settings/me -> 200 {"settings":{}}
+[after]   rep PUT /settings/me/not_a_pref -> 400 "error":"Unknown preference \"
+[after]   after a server restart, rep GET /settings/me -> 200 {"settings":{"daily_goal":"150","default_lines":"2","pitch_script":"Hi, this is Rep Two from Vortexone"}}
+[after]   rep PUT default_max_attempts=8 -> 403 "error":"Only a supervisor can change settings"
+[after]   owner PUT default_max_attempts=0 -> 400 "error":"Default max attempts must be a whole number from 1 to 10"
+[after]   owner PUT default_max_attempts=8 -> 200 
+[after]   lead created via POST /api/leads -> 201, its max_attempts: 8
+[after]   import of 2 leads -> imported "imported":2; their max_attempts: 8,8
+[after]   the 5019 leads that existed before: max_attempts values 5 (were 5)
+[after]   server log (prefs): 0 error/warn lines
+[after] == browser (production build)
+[after]   1a. browser A had local goal 777 / script / lines 2, server had none -> server now: daily_goal=777, default_lines=2, pitch_script=Local script from browser A; local goal left in A: null; dashboard: 0 / 777 dials today
+[after]   1b. browser A2 had local goal 555, server already 777 -> server now: daily_goal=777, default_lines=2, pitch_script=Local script from browser A; dashboard in A2: 0 / 777 dials today
+[after]   2a. saved in browser A (goal 321, lines 1, script) -> server: daily_goal=321, default_lines=1, pitch_script=Script saved in browser A
+[after]   2b. a second browser profile B: dashboard 0 / 321 dials today
+[after]   2c. B Settings: script box "Script saved in browser A", goal field 321, lines 1
+[after]   3a. owner Settings: Groq key status "Configured ✓ (ending ····WXYZ)"; key field holds a value: no
+[after]   3b. rep Settings: calling-hours switch disabled: true; max attempts disabled: true; Groq field disabled: true; reporting timezone disabled: true
+[after]   page errors: none
+[after]   server log (ui): 0 error/warn lines
+[after] == uploads (POST /api/sms/upload-media as rep)
+[after]   real.png (image/png) -> HTTP 201  url png file served image/png nosniff=yes (no token needed: HTTP/1.1 200)
+[after]   real.jpg (image/jpeg) -> HTTP 201  url jpg file served image/jpeg nosniff=yes (no token needed: HTTP/1.1 200)
+[after]   real.gif (image/gif) -> HTTP 201  url gif file served image/gif nosniff=yes (no token needed: HTTP/1.1 200)
+[after]   page.html (text/html) -> HTTP 400 "error":"Only JPEG, PNG and GIF images can be attached"  
+[after]   tool.exe (application/x-dosexec) -> HTTP 400 "error":"Only JPEG, PNG and GIF images can be attached"  
+[after]   pic.svg (image/svg+xml) -> HTTP 400 "error":"Only JPEG, PNG and GIF images can be attached"  
+[after]   fake.png (text/html) -> HTTP 400 "error":"Only JPEG, PNG and GIF images can be attached"  
+[after]   fake.jpg (image/gif) -> HTTP 400 "error":"Only JPEG, PNG and GIF images can be attached"  
+[after]   old uploaded HTML file still on disk -> GET 404 
+[after]   send with mediaUrl "/uploads/8dd93293fed6b8245f6295c595684a8a.png" -> 201 
+[after]   send with mediaUrl "https://evil.example.com/x.png" -> 400 "error":"The attachment must be an image uploaded here (use Attach image)"
+[after]   send with mediaUrl "/uploads/does-not-exist.png" -> 400 "error":"The attachment must be an image uploaded here (use Attach image)"
+[after]   send with mediaUrl "/uploads/../package.json" -> 400 "error":"The attachment must be an image uploaded here (use Attach image)"
+[after]   server log (uploads): 0 error/warn lines
+[after] == CORS (allowed origin http://localhost:5173)
+[after]   origin http://localhost:5173: GET -> 200, allow-origin: http://localhost:5173; preflight -> 204, allow-origin: http://localhost:5173
+[after]   origin https://evil.example.com: GET -> 200, allow-origin: ; preflight -> 401, allow-origin: 
+[after]   origin <none>: GET -> 200, allow-origin: ; preflight -> 204, allow-origin: 
+[after]   server log: 'Not allowed by CORS' lines 0, stack-trace lines 0
+[after]   server log (cors): 0 error/warn lines
+[after] == SMS opt-out by phone number
+[after]   backfill: old opted-out lead's phone in sms_suppressions: 1
+[after]   STOP twice from unknown (212) 555-8830 -> HTTP 201, HTTP 201; suppression rows for it: 1
+[after]   lead created later with that number -> 201; sms_opt_out: t; dnc_flag: f
+[after]   import of 2 leads, one with a STOPped number -> summary "imported":2 "smsOptedOut":1 "importedTotal":2 ; sms_opt_out: Imported Later=true/dnc=false, Imported Normal=false/dnc=false
+[after]   single text to the suppressed lead -> 400 "error":"This lead has opted out of SMS"
+[after]   same, with only the phone suppressed (lead flag cleared by DIRECT SQL) -> 400 "error":"This number has opted out of texts (replied STOP)"
+[after]   bulk to both -> 200 {"total":2,"sent":0,"opted_out":2,"dnc":0,"outside_hours":0,"missing_field":0,"invalid_number":0,"not_found":0,"failed":0}
+[after]   START from (212) 555-8830 -> suppression rows: 0; lead sms_opt_out: f
+[after]   text after START -> 201 
+[after]   calls not blocked: dial the imported STOPped lead -> 201 
+[after]   server log (suppress): 0 error/warn lines
+[after] == texts from unknown numbers: mark read
+[after]   inbox before: leads unread Known Sender=1; unknown-number messages 2 (unread 2); unmatchedUnread=2
+[after]   mark one unknown-number message read -> 200 
+[after]   the new route on a KNOWN lead's message -> 404 "error":"Message not found"
+[after]   mark the known lead read (unchanged route) -> 200
+[after]   inbox after: leads unread none; unknown-number messages 2 (unread 1); unmatchedUnread=1
+[after]   DB: unread inbound with no lead: 1
+[after]   server log (unmatched): 0 error/warn lines

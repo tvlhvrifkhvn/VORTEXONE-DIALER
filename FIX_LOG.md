@@ -518,6 +518,51 @@ Known limitations:
 Found but not fixed (outside this segment):
 - `audit/scripts/routes.js` always reads the routes of its own checkout, so the Segment 5–7 "base vs HEAD routes" lines compared HEAD with itself. It was harmless (no route changed in those segments).
 
+## Segment 9 — settings, uploads and the SMS opt-out list — branch `claude/fix-seg9-settings-uploads` (base `claude/fix-seg8-sms-email` @ `bbf2488`, since PRs #21–#24 are not merged yet)
+
+**Migrations** (all idempotent):
+- `030_user_settings.sql`: a table for per-user preferences.
+- `031_sms_suppressions.sql`: the SMS opt-out list by phone number, with a one-time backfill of the numbers of every lead already opted out. It also adds `'suppression_list'` as an opt-out event source.
+
+There is no `schema.sql` in this repo: the migrations are the schema.
+
+**Owner check:**
+- The seed creates the owner (`SEED_USER_EMAIL`, by default the agency email) as a **supervisor**, and it is the only code that creates users. In the test database the owner is the only supervisor.
+- No role was changed. The server prints a warning at startup if no supervisor exists.
+- The role is read from the login token, so a role change takes effect at the next login.
+
+| Item | Status | Commit | File:function | Before → after (3 runs each; `audit/logs/fix-seg9.txt`) |
+|---|---|---|---|---|
+| 2.1 F-47 Settings locked down | **Fixed** | `4984865` | `settings.API_SETTINGS` / `readForApi` / `writeFromApi`; `routes/settings.js`; `authService.countSupervisors`, `index.js`; `Settings.jsx` | **Groq key:** before, a rep's GET returned the full key; after, `{configured:true,last4:"WXYZ"}` for everyone.<br>**Rep writes:** before, a rep's PUT of calling hours or the key returned 200 and changed it; after, 403 and nothing changes.<br>**Bad keys:** before, an unknown key was stored (200) and a 101-character key gave a 500 with a database message; after, 400 and 400.<br>**Over-long values** (3,000 characters): before, stored; after, 400.<br>**Still working:** the owner's writes; the report timezone; calling hours. The AI feature still sends the stored key (checked with a local fake Groq server; before, a rep had overwritten it).<br>**Browser:** the Settings page shows "Configured ✓ (ending ····WXYZ)" with an empty replace field (before, the field held the whole key). For a rep, the calling-hours switch, max attempts, the key and the reporting day are read-only |
+| 2.2 F-48 Settings that really work | **Fixed** | `03975c5` | migration 030; `settings.getUserSettings` / `setUserSetting` / `defaultMaxAttempts`; `GET /api/settings/me`, `PUT /api/settings/me/:key`; `leadQueue.create`, `csvImport.savePhase`; `hooks/useUserSettings.js` (new), `Dashboard`, `Settings`, `DispositionPanel`, `ObjectionReport`, `useAuth` | **Saved preferences:** before, `/settings/me` didn't exist and a second browser profile showed the defaults (goal 100, lines 3, default script). After, the goal, lines and script saved in profile A show in profile B and survive a server restart.<br>**One-time move:** local 777 / script / lines 2 were sent to the server once and the local copies removed; a later local 555 did **not** overwrite the server's 777.<br>**Max attempts:** before, the setting was stored but every new lead still got 5. After, set to 8 by the owner: a created lead gets 8 and imported leads get 8,8, while the 5,019 existing leads keep 5. A rep gets 403; a value of 0 gets 400 |
+| 2.3 F-40 Uploads | **Fixed** | `7ec1917` | `services/mediaUpload.js` (new); `routes/sms.js` upload; `index.js` `/uploads`; `smsService.sendSingleSms` | **Files:** before, all 8 were accepted (HTML served as `text/html`, the exe as a download, the SVG as SVG; no `nosniff`). After, the real PNG, JPEG and GIF pass and are served as images with `nosniff` and a sandboxing CSP. HTML, EXE, SVG, a `.png` that is HTML and a `.jpg` that only starts with a GIF header all get 400. An old `.html` upload left on disk now gets 404.<br>**`mediaUrl`:** before, an external URL, a missing file and `../` were all sent (201). After, 400 for each; our own upload → 201 |
+| 2.4 F-07 CORS | **Fixed** | `daeaa27` | `index.js` `corsOriginCheck` | **Disallowed origin:** before, GET and preflight both gave 500, with 2 log lines and 20 stack-trace lines. After, no CORS headers and nothing in the log: GET 200 (the browser blocks it, since there is no allow-origin header) and preflight 401.<br>**Unchanged:** the allowed origin and requests with no origin |
+| 2.5 SMS opt-out by phone | **Fixed** | `0e083a9` | migration 031; `smsService.isSuppressed` / `suppressPhone` / `applySuppressionToNewLeads` / `receiveInbound` / `optOut` / `sendSingleSms` / `sendBulkSms`; `leadQueue.create`; `csvImport`; `Import.jsx` | **Before:** a STOP from an unknown number was forgotten. A lead created or imported later with that number was not opted out (`sms_opt_out` false) and was texted (201, bulk sent 2).<br>**After:**<ul><li>Two STOPs give 1 list row. The created lead gets `sms_opt_out` (DNC false); an import of 2 reports `smsOptedOut: 1`, and only that lead is flagged.</li><li>Sends to it get 400, even with only the number listed; bulk counts both as opted out.</li><li>START removes the row and clears the flag; sending works again.</li><li>Calling the lead still works (201). The backfill row for an older opted-out lead exists</li></ul> |
+| 2.6 Unknown-number texts marked read | **Fixed** | `fd20485` | `smsService.markUnmatchedRead` / `countUnmatchedUnread`; `POST /api/sms/mark-read-unmatched/:messageId`; `AppShell`, `Inbox`, `api.js` | **Before:** no route (404), and 2 unread texts from unknown numbers stayed unread with no count.<br>**After:** `unmatchedUnread` 2 → 1 after marking one; the unread badge counts them; a known lead's message through the new route gets 404; the old mark-read route is unchanged |
+
+
+**Regression:** run once at the end of Segment 10, on a branch that contains all of Segment 9 (to save one full run). See the Segment 10 section.
+
+Decisions:
+- **Whitelisted global settings:** `calling_hours_enforced`, `groq-key` (secret), `reporting_timezone`, `day_start_time`, `default_max_attempts`.
+- **Per-user preferences:** the daily goal, default lines, pitch script and the Reports reminder (the reminder moved from global to per-user so a rep can dismiss it).
+- **One-time move of browser values:** it belongs to whichever user signs in first in that browser after the update.
+- **The rep's Opt-out button** also adds the lead's number to the opt-out list.
+- **Uploads:** an image's start and end markers are checked. Uploads are still served without login at the random URL (owner-approved, since carriers fetch them). The 5 MB limit is unchanged.
+
+Extra files touched, and why:
+- `authService.js`: the supervisor count.
+- `useAuth.jsx`: clears the cached preferences on logout.
+- `Import.jsx`: shows the SMS-opted-out count.
+- `ObjectionReport.jsx`, `DispositionPanel.jsx`: read the per-user values.
+- `AppShell.jsx`: the unread badge.
+
+Known limitations:
+- **No signed URLs** for media: anyone with the random URL can fetch the image.
+- **Role changes** apply at the next login (the role is in the token).
+- **CORS doesn't protect the API:** a disallowed origin's request with a valid token still gets data. Only the browser blocks reading it, as before.
+- **Mock only:** all SMS tests used the mock adapter.
+
 ## New findings (not in the audit)
 
 | ID | Found in | Description | Planned |
