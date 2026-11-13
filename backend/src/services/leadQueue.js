@@ -397,12 +397,52 @@ async function countsByState() {
     }));
 }
 
+/** A LIKE/ILIKE "contains" pattern that matches % and _ literally (F-53). */
+function likeContains(text) {
+  return `%${String(text).replace(/[\\%_]/g, '\\$&')}%`;
+}
+
+// GET /api/leads paging (F-53). The upper bound is high on purpose: the
+// dashboard's "Select all filtered" asks for every matching lead at once.
+const MAX_LIST_LIMIT = 10000;
+const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
+
+/** Checks GET /api/leads query values; 400 with a plain message for a bad one. */
+function parseListQuery({ search, status, dateFrom, dateTo, state, page, limit } = {}) {
+  const int = (value, name, min, max, fallback) => {
+    if (value === undefined || value === '') return fallback;
+    const n = Number(value);
+    if (!Number.isInteger(n) || n < min || n > max) throw new ApiError(400, `${name} must be a whole number from ${min} to ${max}`);
+    return n;
+  };
+  const date = (value, name) => {
+    if (value === undefined || value === '') return undefined;
+    const ok = typeof value === 'string' && (DATE_ONLY.test(value) || !Number.isNaN(Date.parse(value))) && !Number.isNaN(Date.parse(value));
+    if (!ok) throw new ApiError(400, `${name} must be a date like 2026-11-13`);
+    return value;
+  };
+  const text = (value, name) => {
+    if (value === undefined) return undefined;
+    if (typeof value !== 'string' || value.length > 200) throw new ApiError(400, `${name} must be text (200 characters max)`);
+    return value;
+  };
+  return {
+    search: text(search, 'search'),
+    status: text(status, 'status'),
+    state: text(state, 'state'),
+    dateFrom: date(dateFrom, 'dateFrom'),
+    dateTo: date(dateTo, 'dateTo'),
+    page: int(page, 'page', 1, 1000000, 1),
+    pageSize: int(limit, 'limit', 1, MAX_LIST_LIMIT, 50),
+  };
+}
+
 function buildListFilters({ search, status, dateFrom, dateTo }) {
   const clauses = ['deleted_at IS NULL'];
   const params = [];
 
   if (search) {
-    params.push(`%${search}%`);
+    params.push(likeContains(search));
     clauses.push(`(name ILIKE $${params.length} OR leads.phone ILIKE $${params.length} OR brokerage ILIKE $${params.length})`);
   }
   if (status) {
@@ -511,7 +551,10 @@ async function validateLeadInput(input, { partial = false } = {}) {
  * an app where every other lead comes from a CSV import, so it applies the
  * same phone validation and DNC block CLAUDE.md requires of imports.
  */
-async function create({ name, phone, state, email = null, address = null, brokerage = null }) {
+async function create(input) {
+  // F-53: a missing or non-object body is a 400, not a TypeError 500.
+  if (!input || typeof input !== 'object' || Array.isArray(input)) throw new ApiError(400, 'Send the lead as a JSON object');
+  const { name, phone, state, email = null, address = null, brokerage = null } = input;
   const valid = await validateLeadInput({ name, phone, state, email });
   const normalizedPhone = valid.phone;
   const normalizedState = valid.state;
@@ -551,6 +594,7 @@ const EDITABLE_FIELDS = ['name', 'phone', 'email', 'address', 'brokerage', 'stat
  * plain contact fields are editable this way — lifecycle fields (status,
  * attempts, etc.) go through leadLifecycle instead. */
 async function updateFields(leadId, fields) {
+  if (!fields || typeof fields !== 'object' || Array.isArray(fields)) throw new ApiError(400, 'Send the changes as a JSON object');
   const requested = EDITABLE_FIELDS.some((f) => fields[f] !== undefined);
   const { rows: currentRows } = await db.query('SELECT * FROM leads WHERE id = $1 AND deleted_at IS NULL', [leadId]);
   const current = currentRows[0];
@@ -648,7 +692,7 @@ async function search(q) {
        AND (name ILIKE $1 OR phone ILIKE $1 OR brokerage ILIKE $1)
      ORDER BY created_at DESC
      LIMIT 10`,
-    [`%${q.trim()}%`]
+    [likeContains(q.trim())]
   );
   return rows;
 }
@@ -702,4 +746,5 @@ module.exports = {
   softDelete,
   search,
   batchQueue,
+  parseListQuery,
 };

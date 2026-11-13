@@ -13,16 +13,8 @@ router.use(requireAuth);
 router.get(
   '/',
   asyncHandler(async (req, res) => {
-    const { search, status, dateFrom, dateTo, state, page, limit } = req.query;
-    const result = await leadQueue.list({
-      search,
-      status,
-      dateFrom,
-      dateTo,
-      state,
-      page: page ? Number(page) : undefined,
-      pageSize: limit ? Number(limit) : 50,
-    });
+    // Checked and bounded (F-53): a bad value is a 400.
+    const result = await leadQueue.list(leadQueue.parseListQuery(req.query));
     res.json(result);
   })
 );
@@ -61,8 +53,7 @@ router.post(
 router.post(
   '/',
   asyncHandler(async (req, res) => {
-    const { name, phone, email, address, brokerage, state } = req.body;
-    const lead = await leadQueue.create({ name, phone, email, address, brokerage, state });
+    const lead = await leadQueue.create(req.body);
     res.status(201).json({ lead });
   })
 );
@@ -171,8 +162,7 @@ router.post(
 router.put(
   '/:id',
   asyncHandler(async (req, res) => {
-    const { name, phone, email, address, brokerage, state } = req.body;
-    const lead = await leadQueue.updateFields(req.params.id, { name, phone, email, address, brokerage, state });
+    const lead = await leadQueue.updateFields(req.params.id, req.body);
     res.json({ lead });
   })
 );
