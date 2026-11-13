@@ -22,4 +22,7 @@ function sendEmail(toAddress, subject, body) {
   return getEmailAdapter().sendEmail(toAddress, subject, body);
 }
 
-module.exports = { sendEmail, getEmailAdapter };
+// The provider names this file knows (startup check: config/validateProviders.js).
+const PROVIDERS = Object.keys(adapters);
+
+module.exports = { sendEmail, getEmailAdapter, PROVIDERS };

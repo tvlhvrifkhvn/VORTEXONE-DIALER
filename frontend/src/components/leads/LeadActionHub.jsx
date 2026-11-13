@@ -240,7 +240,7 @@ export function EmailCompose({ lead, onSent }) {
         onChange={(e) => setBody(e.target.value)}
         className="w-full resize-none"
         style={{ minHeight: 100 }}
-        placeholder="Write a message… use {{name}}, {{brokerage}}, {{state}}"
+        placeholder="Write a message… use {{name}}, {{first_name}}, {{brokerage}}, {{state}}, {{city}}"
       />
 
       {(previewSubject || previewBody) && (
@@ -261,6 +261,16 @@ export function EmailCompose({ lead, onSent }) {
 }
 
 function TimelineEntry({ entry }) {
+  if (entry.type === 'sms_opt') {
+    // A change to the lead's SMS opt-out (a STOP / START text, or the rep's button).
+    const label = entry.action === 'opt_out' ? 'Opted out of texts' : 'Opted back in to texts';
+    const how = entry.source === 'inbound_keyword' ? 'by text reply' : 'by the rep';
+    return (
+      <div className="border-b border-shadow/20 py-2 text-xs text-text-secondary last:border-0">
+        <span className="font-medium text-text-primary">{label}</span> {how} · {formatDateTime(entry.timestamp)}
+      </div>
+    );
+  }
   if (entry.type === 'email') {
     return (
       <div className="flex items-start gap-2 border-b border-shadow/20 py-2 last:border-0">

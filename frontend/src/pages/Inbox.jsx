@@ -15,6 +15,8 @@ function initialsOf(name) {
 export default function Inbox() {
   const navigate = useNavigate();
   const [rows, setRows] = useState([]);
+  // Texts from numbers that match no lead (F-37): kept and shown, not dropped.
+  const [unmatched, setUnmatched] = useState([]);
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
   const [confirmingOptOut, setConfirmingOptOut] = useState(null);
@@ -23,7 +25,10 @@ export default function Inbox() {
     setLoading(true);
     api
       .getSmsInbox(page, 20)
-      .then(({ leads }) => setRows(leads))
+      .then(({ leads, unmatched: fromUnknown }) => {
+        setRows(leads);
+        setUnmatched(fromUnknown || []);
+      })
       .finally(() => setLoading(false));
   };
 
@@ -122,6 +127,25 @@ export default function Inbox() {
             Next
           </NeuButton>
         </div>
+        {!loading && unmatched.length > 0 && (
+          <NeuCard className="space-y-2 p-4" data-testid="unmatched-inbound">
+            <h2 className="text-sm font-semibold text-text-primary">From unknown numbers</h2>
+            <ul className="divide-y divide-shadow/20">
+              {unmatched.map((m) => (
+                <li key={m.id} className="flex flex-wrap items-center gap-3 py-2 text-sm">
+                  <span className="font-mono text-text-primary">{m.fromNumber}</span>
+                  <span className="min-w-0 flex-1 truncate text-text-secondary">{m.body}</span>
+                  {m.keywordAction && (
+                    <span className="text-xs text-text-secondary">
+                      {m.keywordAction === 'opt_out' ? 'Opt-out keyword' : 'Opt-in keyword'}
+                    </span>
+                  )}
+                  <span className="text-xs text-text-secondary">{formatRelativeToNow(m.receivedAt)}</span>
+                </li>
+              ))}
+            </ul>
+          </NeuCard>
+        )}
       </div>
 
     </AppShell>

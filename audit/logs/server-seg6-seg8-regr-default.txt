@@ -1,0 +1,3 @@
+Vortex Dialer API listening on port 4000 (telephony: mock)
+Calling hours: worked out the time zone of 1 lead(s)
+SIGTERM received — stale-lock sweep and import cleanup stopped, shutting down

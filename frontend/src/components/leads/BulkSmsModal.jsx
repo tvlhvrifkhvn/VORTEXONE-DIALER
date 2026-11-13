@@ -54,9 +54,25 @@ export default function BulkSmsModal({ leads, onClose, onSent }) {
         {summary ? (
           <>
             <p className="text-sm text-text-primary">
-              Sent: {summary.sent} · Skipped (opted out): {summary.skipped_opt_out} · Skipped (DNC):{' '}
-              {summary.skipped_dnc} · Failed: {summary.failed}
+              {summary.sent} of {summary.total} sent
             </p>
+            <ul className="space-y-0.5 text-xs text-text-secondary" data-testid="bulk-sms-summary">
+              {[
+                ['opted_out', 'Opted out of texts'],
+                ['dnc', 'On the DNC list'],
+                ['outside_hours', 'Waiting for their hours (8am–9pm their time) — can be sent later'],
+                ['missing_field', 'Missing a field the template uses'],
+                ['invalid_number', 'No valid phone number'],
+                ['not_found', 'Lead no longer exists'],
+                ['failed', 'Failed to send'],
+              ]
+                .filter(([key]) => summary[key] > 0)
+                .map(([key, label]) => (
+                  <li key={key}>
+                    {label}: {summary[key]}
+                  </li>
+                ))}
+            </ul>
             <NeuButton className="w-full" onClick={onClose}>
               Close
             </NeuButton>

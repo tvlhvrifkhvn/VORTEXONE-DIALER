@@ -3,6 +3,7 @@ const multer = require('multer');
 const path = require('path');
 const crypto = require('crypto');
 const smsService = require('../services/smsService');
+const smsAdapter = require('../telephony/smsIndex');
 const { asyncHandler } = require('../middleware/asyncHandler');
 const { requireAuth } = require('../middleware/auth');
 const { ApiError } = require('../middleware/errorHandler');
@@ -20,6 +21,19 @@ const mediaStorage = multer.diskStorage({
   },
 });
 const uploadMedia = multer({ storage: mediaStorage, limits: { fileSize: MAX_MEDIA_BYTES } });
+
+// Provider webhook (F-37): called by the SMS provider, not a logged-in user,
+// so it sits before requireAuth and is protected by the shared secret
+// (smsIndex.verifyInbound, fail closed). The adapter turns the provider's
+// body into { from, to, body, providerMessageId }.
+router.post(
+  '/inbound',
+  asyncHandler(async (req, res) => {
+    if (!smsAdapter.verifyInbound(req.headers)) throw new ApiError(401, 'Not authorised');
+    const result = await smsService.receiveInbound(smsAdapter.parseInbound(req.body || {}));
+    res.status(result.duplicate ? 200 : 201).json(result);
+  })
+);
 
 router.use(requireAuth);
 
@@ -103,7 +117,8 @@ router.get(
       page: page ? Number(page) : undefined,
       limit: limit ? Number(limit) : undefined,
     });
-    res.json({ leads });
+    const unmatched = await smsService.getUnmatchedInbound();
+    res.json({ leads, unmatched });
   })
 );
 

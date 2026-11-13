@@ -457,6 +457,67 @@ Still open (later segments):
 - Settings/upload permission items (F-07, F-40, F-47, F-48).
 - **Phase C:** ending calls at a real phone provider.
 
+## Segment 8 — SMS and email — branch `claude/fix-seg8-sms-email` (base `claude/fix-seg7-reports` @ `b5444d0`, since PRs #21–#23 are not merged yet)
+
+Everything here is built and tested on the **mock SMS and email adapters**. No real provider is connected.
+
+**Migration `029_sms_inbound.sql`** (idempotent):
+- `sms_messages` gains `from_number`, `to_number`, `provider_message_id` and `keyword_action`.
+- New table `sms_inbound_receipts`: stores each provider message id once, to drop duplicate deliveries.
+- New table `sms_opt_events`: one row per change to a lead's SMS opt-out, shown on the timeline.
+
+**Webhook secret:**
+- New env var `SMS_WEBHOOK_SECRET`. `POST /api/sms/inbound` requires the header `X-Webhook-Secret` to equal it (constant-time compare).
+- With no secret set, every request is refused (fail closed).
+- A marked placeholder in `smsIndex.verifyInbound` is where a real provider's signature check goes.
+
+| Item | Status | Commit | File:function | Before → after (3 runs each; `audit/logs/fix-seg8.txt`) |
+|---|---|---|---|---|
+| 2.1 F-37 Inbound, STOP / START | **Fixed** | `656c321` | `routes/sms.js` POST /inbound (before requireAuth); `smsIndex.verifyInbound` / `parseInbound`; `mockSmsAdapter.parseInbound`; `smsService.receiveInbound` / `keywordAction` / `setSmsOptOut` / `getUnmatchedInbound` / `getTimeline`; `Inbox.jsx`; `LeadActionHub.jsx` | **Before:** no route (401 for every request); 0 inbound rows; no way to opt back in.<br>**Opt-out words** (STOP, stop, "Stop.", " STOP ", StopAll, UNSUBSCRIBE, cancel, "End!", quit): each sets the opt-out; START clears it again.<br>**Opt-in words:** UNSTOP, start and "Start." clear it.<br>**Not keywords:** "Please stop calling me before 3pm" is a normal message.<br>**Duplicate delivery:** the same provider message id twice gives 201 then 200 (duplicate); 1 row stored, 1 confirmation sent.<br>**Unknown number:** kept with no lead and shown in the inbox under "From unknown numbers"; STOP from it still gets a confirmation.<br>**DNC lead:** STOP and START change only the SMS opt-out; it stays DNC and `dnc_list` is untouched.<br>**Secret:** no secret, a wrong secret, or no secret configured on the server → 401, and nothing changes.<br>**Inbox, unread counts and timeline** all fill (opt-out / opt-in lines included). 29 confirmations were sent, one per keyword message |
+| 2.2 F-38 Placeholders | **Fixed** | `51240a7` | `smsService.invalidTokens` / `renderMessage` / `renderOrThrow` / `cityFromAddress` / `listTemplates` / `createTemplate` / `updateTemplate` / `sendBulkSms`; `emailService`; `SmsTemplates.jsx`; `LeadActionHub.jsx` | **Saving a template:** before, `{{zip}}`, `{first name}` with a stray brace, and `{unknown}` were all saved (201). After, 400 naming the bad token.<br>**Sending:** before, `{{first_name}}`, `{{city}}` and `{{ Name }}` were sent literally, and an empty brokerage gave "at in". After, every supported field is filled with any case or spacing ("Hi Ana at Café Realty in Albany, NY"). An empty brokerage or city gives a 422 naming the field.<br>**Old templates:** one saved earlier with a bad token is listed as "Needs fixing" and can't be sent (single 422, bulk 422).<br>**Bulk ANA / BOB / HAL:** before, 3 sent with gaps and braces; after, 1 sent and 2 counted as missing a field.<br>**Outbound texts containing braces / "at in":** 10 / 2 before → 0 / 0 after |
+| 2.3 F-39 Texts follow calling hours | **Fixed** | `3626864` | `smsService.sendSingleSms` / `withinCallingHours` / `sendBulkSms` (Segment 6 `callingHours.assertCallingHours`) | At 08:30 New York / 05:30 Los Angeles:<br>**Before:** the CA and no-state leads were texted (201), and bulk sent 3.<br>**After:** NY → 201; CA → 422 ("it's 5:30 AM PST there"); no state → 422 "Time zone unknown"; bulk sends 1 and counts 2 as outside hours, with 0 CA texts stored.<br>**Still allowed:** the STOP confirmation to CA at 05:30 is sent (exempt), and with calling hours turned OFF, CA → 201 |
+| 2.4 SMS safety / bulk summary | **Fixed** | `4fce8c7` | `smsService.sendBulkSms`; `BulkSmsModal.jsx` | **Single sends:** opted-out, DNC or no phone → 400, as before (now tested).<br>**Bulk of 8:**<ul><li>Before: `{"sent":5,"skipped_opt_out":1,"skipped_dnc":1,"failed":0}`, with no total and 1 lead not counted. The lead with no phone was "sent" (a row stored, no number).</li><li>After: `{"total":8,"sent":1,"opted_out":1,"dnc":1,"outside_hours":2,"missing_field":1,"invalid_number":1,"not_found":1,"failed":0}`, which adds up to 8. Only the eligible lead was texted.</li></ul> |
+| 2.5 F-41 Email subject + log | **Fixed** | `b438ebe` | `emailService.sendSingleEmail`; `mockEmailAdapter.sendEmail` | **Subject:** before, "", "   " and null were sent (201, stored with an empty subject). After, 400 "Email subject is required"; only the valid one is sent.<br>**Log:** before, 0 log lines. After, one line per send: `[mockEmailAdapter] would send to ana@example.test \| subject: Quick question, Ana` (never the body) |
+| 2.6 F-31 Providers at startup | **Fixed** | `dac109f` | `config/validateProviders.js` (new), `index.js`; `telephony/index.js`, `smsIndex.js`, `emailIndex.js` (export `PROVIDERS`) | **Before:** `bogus` for each of the three started fine (and failed per request).<br>**After:** each refuses to start, e.g. `Startup stopped: SMS_PROVIDER="bogus" is not a known provider. Allowed values: mock.` `mock` / `twilio` / unset start normally. `config/index.js` is unchanged |
+
+Regression (`audit/logs/fix-seg8-regression.txt`, run once; the templates were migrated to 029):
+- **Segment 1–7 repros:** same results as the Segment 7 regression. That includes:
+  - imports at 300 / 4,000 / 30,000 rows;
+  - multi-line 15 calls on 15 leads;
+  - F-51 "Connected" under `npm run dev`;
+  - Redial vs the sweep 20/20, and the sessions, notes and Stop UIs;
+  - the calling-hours boundary table (0 wrong) and split places (0 out of hours);
+  - every Segment 7 report check (API = PDF = DB on 5 periods, the boundaries, 400s, fonts, browser).
+- **Expected changes:**
+  - `fix-seg5b-dial.sh` now runs `twilio` only, because `bogus` stops startup (F-31).
+  - `fix-seg7.sh`'s failed-dial test uses `twilio`.
+- **Routes:** +1, `POST /api/sms/inbound`, with no login by design (protected by the secret). In the auth matrix it returns 401 for every request: no secret is configured in that test, so the route refuses everything.
+- **Schema check:** 0 problems. **Auth matrix:** identical (77 + SSE, all 401). **Invariants:** unchanged.
+- **Build:** passes. **Production smoke test:** 0 errors on 12 views, the SMS inbox included.
+- **Server logs:** clean; the only warnings are the deliberate refused dials.
+- **Harness fix:** `routes.js` reads the routes next to itself, so the earlier "base vs HEAD" route diffs compared HEAD with itself. This time each checkout used its own copy.
+
+Decisions:
+- **Keywords** match the whole message after removing everything but letters, case-insensitive (so "Stop all" = STOPALL).
+- **Shared phone numbers:** `leads.phone` is unique, so one number matches at most one lead. The code applies the result to every match, deleted leads included, so an opt-out survives a restore.
+- **Confirmation reply:** one per keyword message, sent even to an unknown number. Its row is stored under the first matched lead, or with no lead.
+- **Unknown numbers** are listed separately in the inbox and don't count toward the unread badge.
+- **Placeholders:** `{field}` is treated like `{{field}}`. `city` is taken from the address ("…, Albany, NY" → Albany); with no address it counts as missing.
+- **Email** uses the same placeholder rules as texts. This was an extra change, so that no placeholder reaches a lead by email either.
+- **Unknown time zone** counts as outside hours, as for calls.
+
+Extra files touched, and why:
+- `telephony/index.js`: exports `PROVIDERS` for the startup check. The `placeCall` contract is unchanged.
+- `audit/scripts/fix-seg7.sh`: switched from `bogus` to `twilio`.
+
+Known limitations:
+- **Mock only:** no real provider webhook shape or signature was tested. The signature check is a marked placeholder.
+- **STOP from an unknown number** isn't remembered for a lead imported later with that number. That would need a phone-level SMS opt-out list.
+- **Inbox:** unread texts from unknown numbers can't be marked read (the inbox doesn't count them).
+
+Found but not fixed (outside this segment):
+- `audit/scripts/routes.js` always reads the routes of its own checkout, so the Segment 5–7 "base vs HEAD routes" lines compared HEAD with itself. It was harmless (no route changed in those segments).
+
 ## New findings (not in the audit)
 
 | ID | Found in | Description | Planned |
