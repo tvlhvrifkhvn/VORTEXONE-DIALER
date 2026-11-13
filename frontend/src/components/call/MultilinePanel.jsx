@@ -158,9 +158,11 @@ export default function MultilinePanel({
             {connected ? 'Live' : 'Connecting…'}
           </span>
         </div>
-        <ActionButton variant="hangup" onClick={onStop}>
-          End session
-        </ActionButton>
+        {onStop && (
+          <ActionButton variant="hangup" onClick={onStop}>
+            End session
+          </ActionButton>
+        )}
       </div>
 
       {error && <NeuCard className="p-3 text-sm text-action-hangup">{error}</NeuCard>}

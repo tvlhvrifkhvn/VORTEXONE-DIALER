@@ -39,8 +39,14 @@ function CollapsibleSection({ title, defaultOpen = false, children }) {
   );
 }
 
-function PreviousNotes({ leadId }) {
-  const [history, setHistory] = useState([]);
+/**
+ * Everything previously noted about this lead, newest first: logged calls
+ * (outcome + the note typed with it) and the standalone notes added with
+ * "Add note" during a call. Both come from the lead timeline
+ * (GET /api/leads/:id/timeline); the call in progress is left out.
+ */
+function PreviousNotes({ leadId, currentCallId }) {
+  const [entries, setEntries] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -48,9 +54,14 @@ function PreviousNotes({ leadId }) {
     let cancelled = false;
     setLoading(true);
     api
-      .getLeadHistory(leadId)
-      .then(({ history: rows }) => {
-        if (!cancelled) setHistory(rows);
+      .getLeadTimeline(leadId)
+      .then(({ timeline }) => {
+        if (cancelled) return;
+        setEntries(
+          (timeline || []).filter(
+            (e) => (e.type === 'call' && e.disposition && e.id !== currentCallId) || (e.type === 'note' && e.body)
+          )
+        );
       })
       .catch(() => {})
       .finally(() => {
@@ -59,20 +70,26 @@ function PreviousNotes({ leadId }) {
     return () => {
       cancelled = true;
     };
-  }, [leadId]);
+  }, [leadId, currentCallId]);
 
   if (loading) return <p className="text-xs text-text-secondary">Loading…</p>;
-  if (history.length === 0) return <p className="text-xs text-text-secondary">No previous calls logged.</p>;
+  if (entries.length === 0) return <p className="text-xs text-text-secondary">No previous calls or notes.</p>;
 
   return (
     <ul className="space-y-3">
-      {history.map((call) => (
-        <li key={call.id} className="border-b border-shadow/20 pb-2 last:border-0 last:pb-0">
+      {entries.map((e) => (
+        <li key={`${e.type}-${e.id}`} className="border-b border-shadow/20 pb-2 last:border-0 last:pb-0">
           <div className="flex items-center justify-between gap-2">
-            <span className="text-xs text-text-secondary">{formatDateTime(call.started_at)}</span>
-            <StatusBadge status={call.disposition} />
+            <span className="text-xs text-text-secondary">
+              <span className="mr-1.5 rounded-full bg-surface px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide shadow-neu-sm">
+                {e.type === 'call' ? 'Call' : 'Note'}
+              </span>
+              {formatDateTime(e.timestamp)}
+            </span>
+            {e.type === 'call' && <StatusBadge status={e.disposition} />}
           </div>
-          {call.note && <p className="mt-1 text-xs text-text-primary">{call.note}</p>}
+          {e.type === 'call' && e.note && <p className="mt-1 text-xs text-text-primary">{e.note}</p>}
+          {e.type === 'note' && <p className="mt-1 text-xs text-text-primary">{e.body}</p>}
         </li>
       ))}
     </ul>
@@ -110,6 +127,7 @@ export default function DispositionPanel({
   const [note, setNote] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState(null);
+  const [retrying, setRetrying] = useState(null);
   const [expanding, setExpanding] = useState(false);
   const [showDncConfirm, setShowDncConfirm] = useState(false);
   const [highlight, setHighlight] = useState(false);
@@ -127,11 +145,16 @@ export default function DispositionPanel({
   const submitOutcome = async (disposition) => {
     setSubmitting(true);
     setError(null);
+    setRetrying(null);
+    // A 429 or a dropped connection is retried automatically (lib/retry.js);
+    // the panel stays open and says so until it is saved or gives up.
+    const onRetrying = (attempt, max) => setRetrying(`Not saved yet — retrying (${attempt + 1} of ${max})…`);
     try {
-      await onDispositionSubmit({ disposition, note });
+      await onDispositionSubmit({ disposition, note, onRetrying });
     } catch (err) {
-      setError(err.message);
+      setError(`Couldn't save this outcome: ${err.message} Click it again to retry.`);
     } finally {
+      setRetrying(null);
       setSubmitting(false);
     }
   };
@@ -202,10 +225,11 @@ export default function DispositionPanel({
           <DispositionButtons onSelect={handleSelect} disabled={locked} />
         </div>
 
+        {retrying && <p className="text-sm font-medium text-action-warn">{retrying}</p>}
         {error && <p className="text-sm text-action-hangup">{error}</p>}
 
         <CollapsibleSection title="Previous Notes">
-          <PreviousNotes leadId={lead?.id} />
+          <PreviousNotes leadId={lead?.id} currentCallId={callId} />
         </CollapsibleSection>
       </NeuCard>
 

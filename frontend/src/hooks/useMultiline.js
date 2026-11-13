@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import * as api from '../lib/api';
+import { sendWithRetry } from '../lib/retry';
 import { getActiveSessionId } from './useCall';
 
 const SLOT_COUNT = 3;
@@ -135,10 +136,22 @@ export function useMultiline({ enabled = true } = {}) {
    * backend to free that slot — which promotes any held live call to be
    * handled next before dialing a new lead in.
    */
-  const submitDispositionFor = useCallback(async (line, { disposition, note }) => {
+  const submitDispositionFor = useCallback(async (line, { disposition, note, onRetrying }) => {
     if (!line?.callId) throw new Error('That line is no longer active.');
-    await api.submitDisposition({ callId: line.callId, disposition, note });
-    await api.releaseMultilineSlot(line.slotNumber);
+    // Retried on a 429 / network error, never sent twice (lib/retry.js).
+    const alreadySaved = async () => ((await api.getCall(line.callId)).call.disposition ? { saved: true } : null);
+    await sendWithRetry(
+      async (attempt) => {
+        try {
+          return await api.submitDisposition({ callId: line.callId, disposition, note });
+        } catch (err) {
+          if (attempt > 1 && err.status === 409 && /already has a disposition/i.test(err.message)) return { saved: true };
+          throw err;
+        }
+      },
+      { alreadySaved, onRetrying }
+    );
+    await sendWithRetry(() => api.releaseMultilineSlot(line.slotNumber), { onRetrying });
   }, []);
 
   const dropLine = useCallback(async (slotNumber) => {
@@ -165,7 +178,10 @@ export function useMultiline({ enabled = true } = {}) {
   const stopSession = useCallback(async () => {
     try {
       const result = await api.stopMultiline();
-      setLines(emptySlots());
+      // On a manual Stop the call the rep is talking on stays live
+      // (result.keptLive): keep that one line so it can still be logged.
+      const kept = result?.keptLive;
+      setLines((prev) => (kept ? prev.map((l, i) => (l.slotNumber === kept.slotNumber ? l : emptySlots()[i])) : emptySlots()));
       return result;
     } catch (err) {
       setError(err.message);

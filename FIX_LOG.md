@@ -249,10 +249,62 @@ Extra files touched, and why:
 - `.gitignore`: `backups/`.
 - `audit/screenshots/seg5-import-*.png`: the new import screens.
 
+## Segment 5 — Part B: call screen and sessions — branch `claude/fix-seg5-import-and-sessions` (restarted from `origin/latest` @ `fb49172` after PR #20 was merged)
+
+Migration: `026_call_failed_state.sql` (adds `'failed'` to the `call_history.telephony_state` CHECK; idempotent).
+
+| Item | Status | Commit | File:function | Before → after (3 runs each) |
+|---|---|---|---|---|
+| B.1 F-30 Failed dial | **Fixed** | `c6f361a` | `callSession.start` / `startManual` / `placeSlotCall` / `dialIntoSlot` / `startMultilineSession`; `callLifecycle.markFailed` (new); `leadLifecycle.releaseAfterFailedDial` (new); `leadQueue.claimLead` (adds `previous_status`); migration 026 | `fix-seg5b-dial.sh`, `TELEPHONY_PROVIDER=twilio` and `bogus`. Before: raw **500**; the lead stuck `in_progress` with attempts 1 and a "ringing" phantom row; a retry → 409; multi-line 500 with 3 attempts burned. After: plain **502** "The call couldn't be placed — … No attempt was counted and the lead is free again". Lead back to its previous status with attempts 0; the row is `failed` and ended; a retry is possible; the dial pad gives 502 plain. Multi-line: 201, each line shows the message, then stops after 3 refusals in a row, with 0 attempts burned and 0 leads stuck |
+| B.2 F-50 Call screen polling / lost disposition | **Fixed** | `78733b4` | `frontend/src/hooks/useCall.js` (POLL_MS 3000, backoff, never stops for good), `lib/retry.js` (new), `lib/api.js` (`err.network`, `err.retryAfter`), `DispositionPanel`, `CallScreen`, `useMultiline`, `CallActionGrid` | `fix-seg5b-poll.sh` (production build, mock answered). **A** (click at ~57 s): before, a 429 from 53 s and the disposition lost (DB NULL); after, no 429 and it's saved. **B** (185 s call): before, polling died at 110 s on a 429; after, ~61 polls, the last at ~183 s, no 429, saved. **C** (forced 429, then a network error, on the disposition POST): before, the 429 was shown and nothing saved; after, "Not saved yet — retrying (3 of 5)…" then saved, exactly once |
+| B.3 F-28 Browser closed | **Fixed** | `7468e37` | `routes/calls.js` GET /stream → `callSession.streamOpened` / `streamClosed` (new), `SSE_DISCONNECT_GRACE_MS` = 10 s, `clearConnectionTimers` on shutdown | `fix-seg5b-sessions.sh` disconnect: before, 17 calls 15–30 s after the stream closed, still dialing afterwards, 3 leads stuck, session open. After: **0** calls after the grace period, everything closed. Reconnect within 10 s: dialing continues |
+| B.4 F-29 Stop / restart orphans | **Fixed** | `7468e37` | `callSession.stopMultilineSession` (manual vs automatic), `abandonSlotCall` → `leadLifecycle.releaseAbandoned` (new), `recoverAfterRestart` (new, at startup); frontend `DialerSession`, `useMultiline`, `MultilinePanel` | §5.2 Stop: before, 2 held callers silently dropped with calls open and leads stuck, and the summary opened at once (the live call could not be logged). After: held → abandoned + released; the active call kept live, logged by the rep, then the summary opens; 0 open, I6 = 0. §5.5 kill + restart: before, 3 open calls, 3 stuck leads, an open session; after, all closed within 2 s of the restart. Browser closed with answered calls: before, 3 open answered calls; after, 3 abandoned + released, session closed |
+| B.5 F-33 Previous Notes | **Fixed** | `0005f53` | `frontend/src/components/call/DispositionPanel.jsx` `PreviousNotes` (now reads the lead timeline) | `fix-seg5b-notes-ui.js`. Before: a mid-call "Add note" note is missing on the next call. After: it's shown, together with the earlier call's note, each labelled Call / Note |
+| B.6.1 Lead-page callback | **Fixed** | `6b48b75` | `leadLifecycle.scheduleCallback` (new), `parseFutureCallbackTime` (shared); `routes/leads.js`; `leadQueue.scheduleCallback` removed | `fix-seg5b-b6.sh`. Before: 2020-01-01 accepted; a DNC lead turned `callback_scheduled` while keeping `dnc_flag` (breaks I8). After: "next tuesday" 400; 2020 → 400 "in the past"; now−30 s → 200; +2 days → 200; DNC lead → 409, unchanged |
+| B.6.2 Redial lock gap | **Fixed** (real race) | `6b48b75` | `leadQueue.refreshOwnLock` (new), `routes/calls.js` POST (no SQL left in the route) | `fix-seg5b-b6.sh` redial-race (lock backdated to 31 s; Redial and 3 sweeps fired together, 40 tries). Before: **3 of 40** Redials placed the call while the sweep released the lead, leaving it unlocked with the rep's call open. After: 40/40 kept the lock, 0 lost |
+
+All Part B tests ran 3 times in a row on HEAD with identical results (`audit/logs/fix-seg5b.txt`):
+- B.1: 502 plain, 0 attempts burned, 0 stuck leads, the dial pad and multi-line OK.
+- B.2: A saved at 57 s; B 61 polls to 183 s with no 429; C retried and saved once.
+- B.3/B.4: 0 calls after a disconnect; a reconnect keeps dialing; Stop keeps the live call; a restart cleans up within 2 s.
+- B.4 UI: the banner shows, the kept call is logged, then the summary.
+- B.5: notes shown and labelled.
+- B.6: callback 400/400/200/200/409; Redial 40/40 kept.
+The B.1 runs log the refused dials on purpose (warnings plus the 502). The notes runs log the pre-call brief's "AI skipped" (AI off).
+
+Regression (`audit/logs/fix-seg5b-regression.txt`):
+- Segment 1, 2, 3 and 4 repros all pass, including:
+  - the live-call lock and the 403/409 ownership checks;
+  - the undo matrix (8/8);
+  - multi-line, 3 lines forced no_answer: 15 calls on 15 leads, I6 = 0;
+  - Redial; F-51 under `vite dev`: 1 POST, "Connected".
+- Segment 5 Part A: imports at 300 / 4,000 / 30,000 rows (all rows accounted for, re-import 0, honest mid-way cancel); upload validation; the import UI.
+- Routes: identical (78). Schema check: 0 problems. Auth matrix: identical (76 + SSE, all 401). Calling hours: identical. Invariants: unchanged.
+- Frontend build passes. Production ui-smoke: 0 console errors and 0 4xx/5xx on all 12 views.
+- Server logs: 0 errors or warnings in every regression run.
+
+Owner-approved decisions applied:
+- **Manual Stop:** the call the rep is talking on stays live and is finished normally. Held or waiting answered calls are abandoned and recorded, and their leads are released through `leadLifecycle`.
+- **Automatic stop (browser gone):** every answered or held call is abandoned and recorded, and the dialing session is closed.
+- **Startup:** dialing sessions left open are closed, open calls are ended (recorded as abandoned), and their leads go back to the queue.
+
+Extra files touched, and why:
+- `frontend/src/pages/DialerSession.jsx`, `hooks/useMultiline.js`, `components/call/MultilinePanel.jsx`: without them a manual Stop hid the call that B.4 keeps live, so it could never be logged.
+- `frontend/src/components/call/CallActionGrid.jsx`: the mid-call note is retried (B.2).
+- `backend/src/routes/leads.js`: the callback route calls `leadLifecycle`.
+- `backend/src/index.js`: startup recovery and clearing the connection timers on shutdown.
+
+Known limitations (Part B):
+- **Calls at a real provider:** with a real phone provider, a call abandoned by Stop, by a browser disconnect or by a restart may still be up at the provider. Hanging it up there needs an adapter method (phase C); the adapter interface was not changed.
+- **Reports:** they count every `call_history` row as a dial, so a refused (`failed`) dial still shows in daily dial counts. Reports are Segment 7.
+- **Restart cleanup:** it also ends a single-line call that was live when the server restarted. The rep can still log its outcome; the lead is back in the queue meanwhile.
+- **Leaving the multi-line screen:** navigating away closes the stream, so the session stops 10 s later (by design, under F-28).
+
 Still open (later segments):
 - **F-01** Groq key, deferred by the owner to the last segment.
 - **F-20** queue starvation under calling hours (Segment 6).
-- **Segment 5 Part B** (next PR, on top of Part A): F-30 failed dial, F-50 call-screen polling / lost disposition, F-28 browser disconnect, F-29 stop/restart cleanup, F-33 Previous Notes, and the Segment 4 carry-overs (lead-page callback validation through `leadLifecycle`, the Redial lock check).
+- Calling hours F-18/F-19/F-26, reports F-34/F-45 (Segment 7), SMS/email items, settings/upload-permission items (F-07, F-40, F-47, F-48).
+- Phase C: ending a call at a real phone provider (needed for abandoned calls on Stop / disconnect / restart).
 
 ## New findings (not in the audit)
 

@@ -1,8 +1,15 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import * as api from '../lib/api';
+import { sendWithRetry } from '../lib/retry';
 
-const POLL_MS = 600;
+// Live call status is polled every 3 s: ~20 requests a minute, well inside the
+// API's per-user limit even on a long call. A failed poll never stops polling
+// for good — it waits (Retry-After on a 429, else a growing backoff up to
+// POLL_MAX_BACKOFF_MS) and tries again.
+const POLL_MS = 3000;
+const POLL_MAX_BACKOFF_MS = 30_000;
+const UNDO_WINDOW_MS = 10_000;
 export const DIAL_MODE_KEY = 'vortex_dialer_dial_mode';
 export const SESSION_ID_KEY = 'vortex_dialer_session_id';
 export const SESSION_STARTED_AT_KEY = 'vortex_dialer_session_started_at';
@@ -110,7 +117,8 @@ export function useCall(leadId) {
 
   const stopPolling = useCallback(() => {
     if (pollRef.current) {
-      clearInterval(pollRef.current);
+      clearTimeout(pollRef.current.timer);
+      pollRef.current.stopped = true;
       pollRef.current = null;
     }
   }, []);
@@ -118,15 +126,27 @@ export function useCall(leadId) {
   const pollCall = useCallback(
     (callId) => {
       stopPolling();
-      pollRef.current = setInterval(async () => {
+      const poll = { stopped: false, timer: null, failures: 0 };
+      pollRef.current = poll;
+      const schedule = (ms) => {
+        if (!poll.stopped) poll.timer = setTimeout(tick, ms);
+      };
+      async function tick() {
         try {
           const { call: latest } = await api.getCall(callId);
+          if (poll.stopped) return;
+          poll.failures = 0;
           setCall(latest);
-          if (latest.telephony_state === 'ended') stopPolling();
-        } catch {
-          stopPolling();
+          if (['ended', 'failed'].includes(latest.telephony_state)) return;
+          schedule(POLL_MS);
+        } catch (err) {
+          if (poll.stopped || err.status === 404 || err.status === 401) return;
+          poll.failures += 1;
+          const wait = err.retryAfter ? err.retryAfter * 1000 : POLL_MS * 2 ** poll.failures;
+          schedule(Math.min(wait, POLL_MAX_BACKOFF_MS));
         }
-      }, POLL_MS);
+      }
+      schedule(POLL_MS);
     },
     [stopPolling]
   );
@@ -190,16 +210,20 @@ export function useCall(leadId) {
     if (call && call.telephony_state !== 'ended') pollCall(call.id);
   }, [call, pollCall]);
 
-  const hangup = useCallback(async () => {
-    if (!call) return;
-    stopPolling();
-    try {
-      await api.hangupCall(call.id);
-    } catch (err) {
-      resumePolling();
-      throw err;
-    }
-  }, [call, stopPolling, resumePolling]);
+  const hangup = useCallback(
+    async ({ onRetrying } = {}) => {
+      if (!call) return;
+      stopPolling();
+      try {
+        // Retried on a 429 / network error; hanging up twice is harmless.
+        await sendWithRetry(() => api.hangupCall(call.id), { onRetrying });
+      } catch (err) {
+        resumePolling();
+        throw err;
+      }
+    },
+    [call, stopPolling, resumePolling]
+  );
 
   /** Redials the same lead immediately, before any disposition has been
    * submitted on the previous attempt (backend allows re-locking a lead
@@ -211,12 +235,34 @@ export function useCall(leadId) {
   }, [lead, startCallFor]);
 
   const submitDisposition = useCallback(
-    async ({ disposition, note, scheduledAt }) => {
+    async ({ disposition, note, scheduledAt, onRetrying }) => {
       if (!call) return null;
       stopPolling();
+      // If an earlier try did reach the server (the response was lost), the
+      // call already carries the disposition: use it instead of sending again.
+      const alreadySaved = async () => {
+        const { call: latest } = await api.getCall(call.id);
+        if (!latest.disposition) return null;
+        const { lead: savedLead } = await api.getLead(latest.lead_id);
+        return { lead: savedLead, undoExpiresAt: new Date(new Date(latest.disposition_at).getTime() + UNDO_WINDOW_MS) };
+      };
       let result;
       try {
-        result = await api.submitDisposition({ callId: call.id, disposition, note, scheduledAt });
+        result = await sendWithRetry(
+          async (attempt) => {
+            try {
+              return await api.submitDisposition({ callId: call.id, disposition, note, scheduledAt });
+            } catch (err) {
+              // A resend refused because the first try was saved after all.
+              if (attempt > 1 && err.status === 409 && /already has a disposition/i.test(err.message)) {
+                const saved = await alreadySaved();
+                if (saved) return saved;
+              }
+              throw err;
+            }
+          },
+          { alreadySaved, onRetrying }
+        );
       } catch (err) {
         resumePolling();
         throw err;
