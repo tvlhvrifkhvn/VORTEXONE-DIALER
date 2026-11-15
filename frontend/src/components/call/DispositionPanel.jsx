@@ -213,18 +213,22 @@ export default function DispositionPanel({
   }, [locked, note]);
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-4">
       <section>
-        <SectionLabel index={sections.notes} title="Notes" className="mb-4" />
+        <SectionLabel
+          index={sections.notes}
+          title="Notes"
+          className="mb-2 items-center"
+          meta={
+            <NeuButton variant="ghost" className="-my-2" onClick={handleExpandNote} disabled={!note.trim() || expanding}>
+              {expanding ? 'Expanding…' : 'Expand note'}
+            </NeuButton>
+          }
+        />
         <NotesField value={note} onChange={setNote} />
-        <div className="mt-2 flex justify-end">
-          <NeuButton variant="ghost" onClick={handleExpandNote} disabled={!note.trim() || expanding}>
-            {expanding ? 'Expanding…' : 'Expand note'}
-          </NeuButton>
-        </div>
       </section>
 
-      <section className="space-y-4">
+      <section className="space-y-2">
         <SectionLabel
           index={sections.outcome}
           title="Outcome"

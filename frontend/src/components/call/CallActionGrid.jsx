@@ -24,11 +24,11 @@ function GridButton({ icon: Icon, label, onClick, active = false, disabled = fal
       disabled={disabled}
       title={title || label}
       aria-pressed={toggle ? active : undefined}
-      className={`flex min-h-[72px] flex-col items-center justify-center gap-2 border px-2 py-3 font-mono text-xs font-medium uppercase tracking-button transition-colors duration-150 disabled:cursor-not-allowed disabled:opacity-40 ${
+      className={`flex min-h-11 items-center justify-center gap-2 border px-2 py-2 font-mono text-xs font-medium uppercase tracking-button transition-colors duration-150 disabled:cursor-not-allowed disabled:opacity-40 ${
         active ? 'border-foreground bg-foreground text-background' : 'border-strong text-foreground hover:bg-muted'
       }`}
     >
-      <Icon size={20} strokeWidth={1.5} aria-hidden="true" />
+      <Icon size={20} strokeWidth={1.5} aria-hidden="true" className="shrink-0" />
       <span className="flex items-center gap-2">
         {hotkey && <Keycap>{hotkey}</Keycap>}
         {label}
@@ -125,7 +125,7 @@ export default function CallActionGrid({ lead, callId, onLeadUpdated, muted = fa
   const handleHold = () => setOnHold((h) => !h);
 
   return (
-    <NeuCard className="space-y-4 p-4">
+    <NeuCard className="space-y-2 p-2">
       <div className="grid grid-cols-3 gap-2">
         <GridButton icon={Tag} label="Add tag" onClick={() => toggle('tag')} active={openPanel === 'tag'} />
         <GridButton icon={FileText} label="Add note" onClick={() => toggle('note')} active={openPanel === 'note'} />

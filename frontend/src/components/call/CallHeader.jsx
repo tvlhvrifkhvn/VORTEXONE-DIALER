@@ -49,8 +49,8 @@ export default function CallHeader({ call, ended = false }) {
   const state = ended ? 'ended' : call?.telephony_state || 'ringing';
 
   return (
-    <div className="flex flex-wrap items-end justify-between gap-4">
-      <div className="flex items-center gap-6">
+    <div className="flex flex-col items-end gap-2">
+      <div className="flex items-center gap-4">
         <StateMark state={state} />
         {state === 'answered' && (
           <StatusDot tone="signal" className="text-sm">

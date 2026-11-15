@@ -48,3 +48,4 @@
 - 2026-11-15 · R4 · The bulk SMS dialog shows CLOSE × only when not sending · Cancel is disabled while sending; CLOSE × must not bypass that
 - 2026-11-15 · R4 · Filters get visible labels; the two "Added" dates are a fieldset with aria-labels · every input labelled
 - 2026-11-15 · R4 · The daily goal meter always shows; EDIT (an underlined text button) opens a labelled number field with Save · replaces ✏️
+- 2026-11-15 · R3 fix-up · Call screen tightened: smaller section gaps, status and timer beside the name, one-line 44px action tiles, Expand note in the Notes label row, 3-row notes · the scripted mock call found the outcome grid at y=1297 (below a 900px screen); now 924 (863 before R3); component order unchanged

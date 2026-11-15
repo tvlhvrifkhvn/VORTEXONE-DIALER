@@ -13,7 +13,7 @@ export default function NotesField({ value, onChange }) {
       <NeuInput
         id={id}
         as="textarea"
-        rows={4}
+        rows={3}
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder="What happened on this call?"

@@ -184,20 +184,20 @@ function CallScreenInner({ leadId }) {
   return (
     <div className="mx-auto mt-6 max-w-[1440px] space-y-6">
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
-        <div className="space-y-8 lg:col-span-8">
+        <div className="space-y-4 lg:col-span-8">
           <section>
-            <SectionLabel index="01" title="Brief" className="mb-4" />
+            <SectionLabel index="01" title="Brief" className="mb-2" />
             <BriefCard brief={brief} collapsed={briefCollapsed} />
           </section>
 
           <section>
-            <SectionLabel index="02" title="Active call" className="mb-4" />
+            <SectionLabel index="02" title="Active call" className="mb-2" />
             <CallContactHeader lead={lead} call={call} ended={ended} />
           </section>
 
           <ColleagueCard leadId={lead.id} index="03" />
 
-          <section className="space-y-4">
+          <section className="space-y-2">
             <SectionLabel index="04" title="Actions" />
             <CallActionGrid
               lead={lead}
