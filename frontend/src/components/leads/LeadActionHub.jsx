@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { File, Mail, MessageSquare, Paperclip, Phone, X } from 'lucide-react';
-import NeuCard from '../ui/NeuCard';
-import NeuButton from '../ui/NeuButton';
-import NeuInput from '../ui/NeuInput';
+import Panel from '../ui/Panel';
+import Button from '../ui/Button';
+import Field from '../ui/Field';
 import { formatDateTime } from '../../lib/format';
 import * as api from '../../lib/api';
 
@@ -101,7 +101,7 @@ export function SmsCompose({ lead, onSent }) {
 
   return (
     <div className="space-y-2 border bg-muted p-4">
-      <NeuInput
+      <Field
         as="select"
         value={useCustom ? 'custom' : templateId}
         onChange={(e) => {
@@ -123,10 +123,10 @@ export function SmsCompose({ lead, onSent }) {
           </option>
         ))}
         <option value="custom">Write custom message</option>
-      </NeuInput>
+      </Field>
 
       {useCustom && (
-        <NeuInput
+        <Field
           as="textarea"
           value={customText}
           onChange={(e) => setCustomText(e.target.value)}
@@ -187,9 +187,9 @@ export function SmsCompose({ lead, onSent }) {
         >
           <Paperclip size={16} strokeWidth={1.5} aria-hidden="true" />
         </button>
-        <NeuButton className="flex-1" onClick={handleSend} disabled={!canSend}>
+        <Button className="flex-1" onClick={handleSend} disabled={!canSend}>
           {uploading ? 'Uploading…' : sending ? 'Sending…' : 'Send'}
-        </NeuButton>
+        </Button>
       </div>
     </div>
   );
@@ -236,14 +236,14 @@ export function EmailCompose({ lead, onSent }) {
 
   return (
     <div className="space-y-2 border bg-muted p-4">
-      <NeuInput
+      <Field
         value={subject}
         onChange={(e) => setSubject(e.target.value)}
         placeholder="Subject"
         aria-label="Email subject"
         className="w-full text-sm"
       />
-      <NeuInput
+      <Field
         as="textarea"
         value={body}
         onChange={(e) => setBody(e.target.value)}
@@ -263,9 +263,9 @@ export function EmailCompose({ lead, onSent }) {
       {error && <p role="alert" className="text-sm text-signal">{error}</p>}
       {sent && <p className="font-mono text-xs uppercase text-foreground">✓ Sent</p>}
 
-      <NeuButton className="w-full" onClick={handleSend} disabled={!canSend}>
+      <Button className="w-full" onClick={handleSend} disabled={!canSend}>
         {sending ? 'Sending…' : 'Send'}
-      </NeuButton>
+      </Button>
     </div>
   );
 }
@@ -394,24 +394,24 @@ export default function LeadActionHub({ lead }) {
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-3 gap-2">
-        <NeuButton variant="primary" onClick={() => navigate(`/call/${lead.id}`)}>
+        <Button variant="primary" onClick={() => navigate(`/call/${lead.id}`)}>
           <Phone size={16} strokeWidth={1.5} aria-hidden="true" />
           Call
-        </NeuButton>
-        <NeuButton active={smsOpen} aria-pressed={smsOpen} onClick={() => setSmsOpen((v) => !v)}>
+        </Button>
+        <Button active={smsOpen} aria-pressed={smsOpen} onClick={() => setSmsOpen((v) => !v)}>
           <MessageSquare size={16} strokeWidth={1.5} aria-hidden="true" />
           SMS
-        </NeuButton>
-        <NeuButton active={emailOpen} aria-pressed={emailOpen} onClick={() => setEmailOpen((v) => !v)}>
+        </Button>
+        <Button active={emailOpen} aria-pressed={emailOpen} onClick={() => setEmailOpen((v) => !v)}>
           <Mail size={16} strokeWidth={1.5} aria-hidden="true" />
           Email
-        </NeuButton>
+        </Button>
       </div>
 
       {smsOpen && <SmsCompose lead={lead} onSent={loadTimeline} />}
       {emailOpen && <EmailCompose lead={lead} onSent={loadTimeline} />}
 
-      <NeuCard className="max-h-64 overflow-y-auto px-4 py-2">
+      <Panel className="max-h-64 overflow-y-auto px-4 py-2">
         <p className="label mb-2 pt-2">History</p>
         {loadingTimeline ? (
           <p className="label pb-2">Loading…</p>
@@ -420,7 +420,7 @@ export default function LeadActionHub({ lead }) {
         ) : (
           timeline.map((entry) => <TimelineEntry key={`${entry.type}-${entry.id}`} entry={entry} leadName={lead.name} />)
         )}
-      </NeuCard>
+      </Panel>
     </div>
   );
 }

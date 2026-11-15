@@ -1,7 +1,7 @@
 import { forwardRef } from 'react';
 
 // Field (DESIGN.md section 5). The global :focus-visible rule draws focus.
-const NeuInput = forwardRef(function NeuInput({ className = '', as = 'input', ...props }, ref) {
+const Field = forwardRef(function Field({ className = '', as = 'input', ...props }, ref) {
   const Component = as;
   return (
     <Component
@@ -16,4 +16,4 @@ const NeuInput = forwardRef(function NeuInput({ className = '', as = 'input', ..
   );
 });
 
-export default NeuInput;
+export default Field;

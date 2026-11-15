@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import NeuCard from '../components/ui/NeuCard';
-import NeuInput from '../components/ui/NeuInput';
-import NeuButton from '../components/ui/NeuButton';
+import Panel from '../components/ui/Panel';
+import Field from '../components/ui/Field';
+import Button from '../components/ui/Button';
 import { useAuth } from '../hooks/useAuth';
 
 export default function Login() {
@@ -30,7 +30,7 @@ export default function Login() {
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
-      <NeuCard className="w-full max-w-sm p-8">
+      <Panel className="w-full max-w-sm p-8">
         <h1 className="flex items-baseline gap-2">
           <span className="text-xl font-semibold tracking-[-0.01em] text-foreground">VORTEX ONE</span>
           <span className="font-mono text-xs font-medium uppercase tracking-label text-muted-foreground">Outreach</span>
@@ -40,7 +40,7 @@ export default function Login() {
           <label htmlFor="login-email" className="label -mb-2 block">
             Email
           </label>
-          <NeuInput
+          <Field
             id="login-email"
             type="email"
             required
@@ -54,7 +54,7 @@ export default function Login() {
           <label htmlFor="login-password" className="label -mb-2 block">
             Password
           </label>
-          <NeuInput
+          <Field
             id="login-password"
             type="password"
             required
@@ -70,7 +70,7 @@ export default function Login() {
               {error}
             </p>
           )}
-          <NeuButton type="submit" variant="primary" disabled={submitting} className="w-full">
+          <Button type="submit" variant="primary" disabled={submitting} className="w-full">
             {submitting ? (
               <span className="flex items-center justify-center gap-2">
                 <span
@@ -82,9 +82,9 @@ export default function Login() {
             ) : (
               'Log in →'
             )}
-          </NeuButton>
+          </Button>
         </form>
-      </NeuCard>
+      </Panel>
     </div>
   );
 }

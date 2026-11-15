@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import AppShell from '../components/layout/AppShell';
-import NeuCard from '../components/ui/NeuCard';
-import NeuButton from '../components/ui/NeuButton';
-import NeuInput from '../components/ui/NeuInput';
+import Panel from '../components/ui/Panel';
+import Button from '../components/ui/Button';
+import Field from '../components/ui/Field';
 import ActionButton from '../components/ui/ActionButton';
 import Badge from '../components/ui/Badge';
 import * as api from '../lib/api';
@@ -65,19 +65,19 @@ function TemplateEditor({ initial, onSaved, onCancel }) {
   const missingStop = body.length > 0 && !/stop/i.test(body);
 
   return (
-    <NeuCard className="space-y-4 p-6">
+    <Panel className="space-y-4 p-6">
       <form onSubmit={handleSave} className="space-y-4">
         <div>
           <label htmlFor="template-name" className="label mb-2 block">
             Name
           </label>
-          <NeuInput id="template-name" value={name} onChange={(e) => setName(e.target.value)} className="w-full" required />
+          <Field id="template-name" value={name} onChange={(e) => setName(e.target.value)} className="w-full" required />
         </div>
         <div>
           <label htmlFor="template-body" className="label mb-2 block">
             Message
           </label>
-          <NeuInput
+          <Field
             id="template-body"
             as="textarea"
             ref={textareaRef}
@@ -118,15 +118,15 @@ function TemplateEditor({ initial, onSaved, onCancel }) {
         )}
         {error && <p role="alert" className="text-sm text-signal">{error}</p>}
         <div className="flex gap-2">
-          <NeuButton type="submit" variant="primary" disabled={saving}>
+          <Button type="submit" variant="primary" disabled={saving}>
             {saving ? 'Saving…' : 'Save template'}
-          </NeuButton>
-          <NeuButton type="button" onClick={onCancel}>
+          </Button>
+          <Button type="button" onClick={onCancel}>
             Cancel
-          </NeuButton>
+          </Button>
         </div>
       </form>
-    </NeuCard>
+    </Panel>
   );
 }
 
@@ -162,9 +162,9 @@ export default function SmsTemplates() {
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-semibold tracking-[-0.01em] text-foreground">SMS templates</h1>
           {!editing && (
-            <NeuButton variant="primary" onClick={() => setEditing('new')}>
+            <Button variant="primary" onClick={() => setEditing('new')}>
               New template
-            </NeuButton>
+            </Button>
           )}
         </div>
 
@@ -186,7 +186,7 @@ export default function SmsTemplates() {
         {!editing &&
           !loading &&
           templates.map((t) => (
-            <NeuCard key={t.id} className="flex items-center justify-between gap-4 p-4">
+            <Panel key={t.id} className="flex items-center justify-between gap-4 p-4">
               <div className="min-w-0">
                 <p className="flex items-center gap-2 font-medium text-foreground">
                   {t.name}
@@ -199,19 +199,19 @@ export default function SmsTemplates() {
                 <p className="truncate text-sm text-muted-foreground">{t.body.slice(0, 60)}</p>
               </div>
               <div className="flex shrink-0 gap-2">
-                <NeuButton onClick={() => setEditing(t)}>Edit</NeuButton>
+                <Button onClick={() => setEditing(t)}>Edit</Button>
                 <ActionButton variant="dnc" className="min-h-10 py-2" onClick={() => handleDelete(t.id)}>
                   ⊘ Delete
                 </ActionButton>
               </div>
-            </NeuCard>
+            </Panel>
           ))}
 
         {!editing && !loading && templates.length === 0 && (
-          <NeuCard className="space-y-2 p-6">
+          <Panel className="space-y-2 p-6">
             <p className="label">No templates</p>
             <p className="text-base text-foreground">Create a template to send texts from the call screen, the lead page and bulk SMS.</p>
-          </NeuCard>
+          </Panel>
         )}
       </div>
     </AppShell>

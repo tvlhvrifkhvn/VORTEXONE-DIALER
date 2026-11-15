@@ -1,4 +1,4 @@
-import NeuInput from '../ui/NeuInput';
+import Field from '../ui/Field';
 import { STATUS_LABELS } from '../../styles/theme';
 
 export default function LeadFilters({ filters, onChange }) {
@@ -10,7 +10,7 @@ export default function LeadFilters({ filters, onChange }) {
         <label htmlFor="filter-search" className="label mb-2 block">
           Search
         </label>
-        <NeuInput
+        <Field
           id="filter-search"
           placeholder="Name, phone, brokerage…"
           value={filters.search || ''}
@@ -22,7 +22,7 @@ export default function LeadFilters({ filters, onChange }) {
         <label htmlFor="filter-status" className="label mb-2 block">
           Status
         </label>
-        <NeuInput
+        <Field
           as="select"
           id="filter-status"
           value={filters.status || ''}
@@ -35,12 +35,12 @@ export default function LeadFilters({ filters, onChange }) {
             {label}
           </option>
         ))}
-        </NeuInput>
+        </Field>
       </div>
       <fieldset>
         <legend className="label mb-2">Added</legend>
         <div className="flex items-center gap-2">
-          <NeuInput
+          <Field
             type="date"
             aria-label="Added from"
             value={filters.dateFrom || ''}
@@ -48,7 +48,7 @@ export default function LeadFilters({ filters, onChange }) {
             className="w-40 font-mono text-sm"
           />
           <span className="text-muted-foreground">–</span>
-          <NeuInput
+          <Field
             type="date"
             aria-label="Added to"
             value={filters.dateTo || ''}

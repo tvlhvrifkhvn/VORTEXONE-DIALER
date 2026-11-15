@@ -17,12 +17,9 @@ export default {
       xl: '0',
       '2xl': '0',
       '3xl': '0',
-      card: '0',
-      input: '0',
       full: '9999px',
     },
-    // Replaced: no shadows. The neu-* entries are TEMPORARY compat
-    // (hairline rings) until R7 removes them from the markup.
+    // Replaced: no shadows.
     boxShadow: {
       none: 'none',
       sm: 'none',
@@ -32,11 +29,6 @@ export default {
       xl: 'none',
       '2xl': 'none',
       inner: 'none',
-      neu: '0 0 0 1px rgb(var(--border))',
-      'neu-sm': '0 0 0 1px rgb(var(--border))',
-      'neu-lift': '0 0 0 1px rgb(var(--border-strong))',
-      'neu-inset': 'inset 0 0 0 1px rgb(var(--border-strong))',
-      'neu-pressed': 'inset 0 0 0 2px rgb(var(--foreground))',
     },
     fontFamily: {
       sans: ['"Inter Tight Variable"', 'system-ui', 'sans-serif'],
@@ -69,27 +61,6 @@ export default {
         live: token('live'),
         'meter-track': token('meter-track'),
         scrim: 'rgb(14 14 14 / 0.8)',
-
-        // TEMPORARY compat aliases so unconverted screens follow the new
-        // palette. R7 renames the classes and deletes these. (base is under
-        // backgroundColor below: as a color it would turn text-base into a
-        // background-colored text.)
-        surface: token('card'),
-        'text-primary': token('foreground'),
-        'text-secondary': token('muted-foreground'),
-        highlight: token('border'),
-        shadow: token('border'),
-        action: {
-          call: token('signal-text'),
-          hangup: token('signal-text'),
-          warn: token('signal-text'),
-          contacted: token('foreground'),
-          dnc: token('foreground'),
-          neutral: token('muted-foreground'),
-        },
-      },
-      backgroundColor: {
-        base: token('background'), // TEMPORARY compat (bg-base), R7 deletes it
       },
       borderColor: {
         DEFAULT: 'rgb(var(--border))',

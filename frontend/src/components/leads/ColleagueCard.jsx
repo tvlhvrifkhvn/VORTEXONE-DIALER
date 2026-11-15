@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Building2 } from 'lucide-react';
-import NeuCard from '../ui/NeuCard';
+import Panel from '../ui/Panel';
 import SectionLabel from '../ui/SectionLabel';
 import * as api from '../../lib/api';
 
@@ -61,7 +61,7 @@ export default function ColleagueCard({ leadId, index }) {
   return (
     <section>
       <SectionLabel index={index} title="Office" className="mb-2" />
-      <NeuCard className="space-y-4 p-4">
+      <Panel className="space-y-4 p-4">
         <div className="flex items-center gap-2">
           <Building2 size={16} strokeWidth={1.5} aria-hidden="true" className="shrink-0 text-muted-foreground" />
           <p className="truncate text-base font-semibold text-foreground">{summary.officeLabel}</p>
@@ -98,7 +98,7 @@ export default function ColleagueCard({ leadId, index }) {
         )}
 
         {opener && <p className="border-l-[3px] border-strong bg-muted p-2 text-sm italic text-foreground">“{opener}”</p>}
-      </NeuCard>
+      </Panel>
     </section>
   );
 }

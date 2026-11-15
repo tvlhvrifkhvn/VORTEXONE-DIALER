@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { FileText, MessageSquare, MessageSquareWarning, MicOff, PauseCircle, Tag, User } from 'lucide-react';
-import NeuCard from '../ui/NeuCard';
-import NeuButton from '../ui/NeuButton';
-import NeuInput from '../ui/NeuInput';
+import Panel from '../ui/Panel';
+import Button from '../ui/Button';
+import Field from '../ui/Field';
 import Badge from '../ui/Badge';
 import Keycap from '../ui/Keycap';
 import { SmsCompose } from '../leads/LeadActionHub';
@@ -125,7 +125,7 @@ export default function CallActionGrid({ lead, callId, onLeadUpdated, muted = fa
   const handleHold = () => setOnHold((h) => !h);
 
   return (
-    <NeuCard className="space-y-2 p-2">
+    <Panel className="space-y-2 p-2">
       <div className="grid grid-cols-3 gap-2">
         <GridButton icon={Tag} label="Add tag" onClick={() => toggle('tag')} active={openPanel === 'tag'} />
         <GridButton icon={FileText} label="Add note" onClick={() => toggle('note')} active={openPanel === 'note'} />
@@ -196,7 +196,7 @@ export default function CallActionGrid({ lead, callId, onLeadUpdated, muted = fa
       {openPanel === 'tag' && (
         <div className="space-y-2">
           <div className="flex gap-2">
-            <NeuInput
+            <Field
               value={tagText}
               onChange={(e) => setTagText(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && handleAddTag()}
@@ -205,9 +205,9 @@ export default function CallActionGrid({ lead, callId, onLeadUpdated, muted = fa
               className="flex-1 text-sm"
               autoFocus
             />
-            <NeuButton onClick={() => handleAddTag()} disabled={busy || !tagText.trim()}>
+            <Button onClick={() => handleAddTag()} disabled={busy || !tagText.trim()}>
               Add
-            </NeuButton>
+            </Button>
           </div>
           {/* `client` and `interested` are the two tags colleagueIntel reads
               to build an office's social proof, so they get one-tap entry
@@ -231,7 +231,7 @@ export default function CallActionGrid({ lead, callId, onLeadUpdated, muted = fa
 
       {openPanel === 'note' && (
         <div className="space-y-2">
-          <NeuInput
+          <Field
             as="textarea"
             value={noteText}
             onChange={(e) => setNoteText(e.target.value)}
@@ -241,9 +241,9 @@ export default function CallActionGrid({ lead, callId, onLeadUpdated, muted = fa
             style={{ minHeight: 70 }}
             autoFocus
           />
-          <NeuButton className="w-full" onClick={handleAddNote} disabled={busy || !noteText.trim()}>
+          <Button className="w-full" onClick={handleAddNote} disabled={busy || !noteText.trim()}>
             {busy ? 'Saving…' : 'Save note'}
-          </NeuButton>
+          </Button>
         </div>
       )}
 
@@ -253,6 +253,6 @@ export default function CallActionGrid({ lead, callId, onLeadUpdated, muted = fa
 
       {error && <p role="alert" className="text-sm text-signal">{error}</p>}
       {flash && <p className="font-mono text-xs uppercase text-foreground">✓ {flash}</p>}
-    </NeuCard>
+    </Panel>
   );
 }

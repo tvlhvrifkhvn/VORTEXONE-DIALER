@@ -3,9 +3,9 @@ import AppShell from '../components/layout/AppShell';
 import StatCard from '../components/stats/StatCard';
 import StateReport from '../components/stats/StateReport';
 import ObjectionReport from '../components/stats/ObjectionReport';
-import NeuCard from '../components/ui/NeuCard';
-import NeuButton from '../components/ui/NeuButton';
-import NeuInput from '../components/ui/NeuInput';
+import Panel from '../components/ui/Panel';
+import Button from '../components/ui/Button';
+import Field from '../components/ui/Field';
 import SectionLabel from '../components/ui/SectionLabel';
 import { formatDuration, formatTime } from '../lib/format';
 import * as api from '../lib/api';
@@ -18,19 +18,19 @@ function PeriodPicker({ onApply, onPdf, busy }) {
   const [to, setTo] = useState('');
   const range = from && to ? { from, to } : {};
   return (
-    <NeuCard className="flex flex-wrap items-end gap-4 p-4">
+    <Panel className="flex flex-wrap items-end gap-4 p-4">
       <label className="label">
         From
-        <NeuInput type="datetime-local" value={from} onChange={(e) => setFrom(e.target.value)} className="mt-2 block font-mono text-sm normal-case tracking-normal" aria-label="From" />
+        <Field type="datetime-local" value={from} onChange={(e) => setFrom(e.target.value)} className="mt-2 block font-mono text-sm normal-case tracking-normal" aria-label="From" />
       </label>
       <label className="label">
         To
-        <NeuInput type="datetime-local" value={to} onChange={(e) => setTo(e.target.value)} className="mt-2 block font-mono text-sm normal-case tracking-normal" aria-label="To" />
+        <Field type="datetime-local" value={to} onChange={(e) => setTo(e.target.value)} className="mt-2 block font-mono text-sm normal-case tracking-normal" aria-label="To" />
       </label>
-      <NeuButton variant="primary" onClick={() => onApply(range)} disabled={busy || Boolean(from) !== Boolean(to)}>Show</NeuButton>
-      <NeuButton onClick={() => { setFrom(''); setTo(''); onApply({}); }} disabled={busy}>Today</NeuButton>
-      <NeuButton onClick={() => onPdf(range)} disabled={busy || Boolean(from) !== Boolean(to)}>Export PDF ↓</NeuButton>
-    </NeuCard>
+      <Button variant="primary" onClick={() => onApply(range)} disabled={busy || Boolean(from) !== Boolean(to)}>Show</Button>
+      <Button onClick={() => { setFrom(''); setTo(''); onApply({}); }} disabled={busy}>Today</Button>
+      <Button onClick={() => onPdf(range)} disabled={busy || Boolean(from) !== Boolean(to)}>Export PDF ↓</Button>
+    </Panel>
   );
 }
 
@@ -40,7 +40,7 @@ function ManualCallsSection({ calls }) {
   return (
     <section>
       <SectionLabel index="03" title="Manual calls in this period" className="mb-2" />
-      <NeuCard className="px-4 py-2">
+      <Panel className="px-4 py-2">
         <ul className="divide-y">
           {calls.map((call) => (
             <li key={call.id} className="flex items-center justify-between py-2 font-mono text-sm tabular-nums">
@@ -50,7 +50,7 @@ function ManualCallsSection({ calls }) {
             </li>
           ))}
         </ul>
-      </NeuCard>
+      </Panel>
     </section>
   );
 }

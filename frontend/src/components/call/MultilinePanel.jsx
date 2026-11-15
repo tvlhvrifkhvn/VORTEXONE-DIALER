@@ -1,5 +1,5 @@
-import NeuCard from '../ui/NeuCard';
-import NeuButton from '../ui/NeuButton';
+import Panel from '../ui/Panel';
+import Button from '../ui/Button';
 import ActionButton from '../ui/ActionButton';
 import Badge from '../ui/Badge';
 import StatusDot from '../ui/StatusDot';
@@ -101,7 +101,7 @@ function CompactLineCard({ line, onDrop }) {
   const isHeld = line.status === 'held';
 
   return (
-    <NeuCard className={`space-y-4 p-4 ${isHeld ? 'border-strong' : ''}`}>
+    <Panel className={`space-y-4 p-4 ${isHeld ? 'border-strong' : ''}`}>
       <div className="flex items-center justify-between gap-2">
         <span className="label tabular-nums">{lineLabel(line.slotNumber)}</span>
         <StatusBadge status={line.status} duration={line.duration} />
@@ -118,11 +118,11 @@ function CompactLineCard({ line, onDrop }) {
       )}
 
       {!isHeld && !isFinished && line.lead && (
-        <NeuButton className="w-full" onClick={() => onDrop(line.slotNumber)}>
+        <Button className="w-full" onClick={() => onDrop(line.slotNumber)}>
           Drop line
-        </NeuButton>
+        </Button>
       )}
-    </NeuCard>
+    </Panel>
   );
 }
 
@@ -165,26 +165,26 @@ export default function MultilinePanel({
       </div>
 
       {error && (
-        <NeuCard role="alert" className="p-4 text-sm text-signal">
+        <Panel role="alert" className="p-4 text-sm text-signal">
           <span className="label mr-2 text-signal">Error</span>
           {error}
-        </NeuCard>
+        </Panel>
       )}
       {starting && <p className="font-mono text-xs uppercase text-muted-foreground">Opening lines…</p>}
 
       {heldLines.length > 0 && (
-        <NeuCard className="border-strong p-4 text-sm font-medium text-foreground">
+        <Panel className="border-strong p-4 text-sm font-medium text-foreground">
           {heldLines.length === 1 ? 'Another lead answered' : `${heldLines.length} more leads answered`} and{' '}
           {heldLines.length === 1 ? 'is' : 'are'} holding — you'll be handed{' '}
           {heldLines.length === 1 ? 'them' : 'the first'} as soon as you log this call.
-        </NeuCard>
+        </Panel>
       )}
 
       {activeLine ? (
         // Someone picked up: their card takes over in place, with the other
         // lines continuing beside it.
         <div className="flex flex-col gap-4 lg:flex-row">
-          <NeuCard className="flex-1 space-y-4 border-strong border-l-[3px] border-l-primary p-6">
+          <Panel className="flex-1 space-y-4 border-strong border-l-[3px] border-l-primary p-6">
             <div className="flex items-center justify-between">
               <span className="label tabular-nums">{lineLabel(activeLine.slotNumber)} · on the call</span>
               <StatusBadge status={activeLine.status} duration={activeLine.duration} />
@@ -200,7 +200,7 @@ export default function MultilinePanel({
               callId={activeLine.callId}
               onDispositionSubmit={(payload) => onDispositionSubmit(activeLine, payload)}
             />
-          </NeuCard>
+          </Panel>
 
           <div className="w-full space-y-4 lg:w-72">
             {otherLines.map((line) => (

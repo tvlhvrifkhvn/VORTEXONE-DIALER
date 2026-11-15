@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import AppShell from '../components/layout/AppShell';
-import NeuCard from '../components/ui/NeuCard';
-import NeuButton from '../components/ui/NeuButton';
-import NeuInput from '../components/ui/NeuInput';
+import Panel from '../components/ui/Panel';
+import Button from '../components/ui/Button';
+import Field from '../components/ui/Field';
 import Badge from '../components/ui/Badge';
 import Meter from '../components/ui/Meter';
 import SectionLabel from '../components/ui/SectionLabel';
@@ -47,7 +47,7 @@ function ImportHistory({ refreshKey }) {
   return (
     <section>
     <SectionLabel title="Import history" className="mb-2" />
-    <NeuCard className="overflow-x-auto p-0">
+    <Panel className="overflow-x-auto p-0">
       <table className="w-full text-sm">
         <thead>
           <tr className="border-b text-left">
@@ -70,7 +70,7 @@ function ImportHistory({ refreshKey }) {
           ))}
         </tbody>
       </table>
-    </NeuCard>
+    </Panel>
     </section>
   );
 }
@@ -107,19 +107,19 @@ function ImportSummary({ summary, onReset }) {
   // Older jobs (before this summary existed) only have the legacy fields.
   if (summary.noNumber === undefined) {
     return (
-      <NeuCard className="space-y-4 p-6">
+      <Panel className="space-y-4 p-6">
         <SectionLabel index="04" title="Result" />
         <p className="text-sm text-muted-foreground">
           {summary.imported} leads imported · {summary.mergedDuplicates ?? 0} duplicates merged · {summary.skippedDnc} skipped
           (DNC) · {summary.skippedDuplicate} duplicates removed · {summary.skippedInvalid} invalid
         </p>
-        <NeuButton onClick={onReset}>Import another file</NeuButton>
-      </NeuCard>
+        <Button onClick={onReset}>Import another file</Button>
+      </Panel>
     );
   }
 
   return (
-    <NeuCard className="space-y-4 p-6">
+    <Panel className="space-y-4 p-6">
       <SectionLabel index="04" title="Result" />
       <table className="w-full text-sm">
         <tbody>
@@ -198,14 +198,14 @@ function ImportSummary({ summary, onReset }) {
       )}
       {skippedCount > 0 && (
         <div className="flex flex-wrap items-center gap-3">
-          <NeuButton onClick={download}>Download the {skippedCount} rows that weren't imported (CSV) ↓</NeuButton>
+          <Button onClick={download}>Download the {skippedCount} rows that weren't imported (CSV) ↓</Button>
           {downloadError && <span role="alert" className="text-sm text-signal">{downloadError}</span>}
         </div>
       )}
-      <NeuButton variant="primary" onClick={onReset}>
+      <Button variant="primary" onClick={onReset}>
         Import another file →
-      </NeuButton>
-    </NeuCard>
+      </Button>
+    </Panel>
   );
 }
 
@@ -314,14 +314,14 @@ export default function Import() {
         <h1 className="text-2xl font-semibold tracking-[-0.01em] text-foreground">Import leads</h1>
 
         {error && (
-          <NeuCard role="alert" className="border-l-[3px] border-l-primary p-4 text-sm text-foreground">
+          <Panel role="alert" className="border-l-[3px] border-l-primary p-4 text-sm text-foreground">
             <span className="label mr-2 text-signal">Error</span>
             {error}
-          </NeuCard>
+          </Panel>
         )}
 
         {isActive && job && (
-          <NeuCard className="space-y-4 p-6">
+          <Panel className="space-y-4 p-6">
             <h2 className="text-base font-semibold text-foreground">Importing {job.filename || filename || 'leads'}…</h2>
             <Meter
               label="Rows processed"
@@ -337,20 +337,20 @@ export default function Import() {
             <p className="text-sm text-muted-foreground">
               This runs on the server — you can leave this page and it keeps going.
             </p>
-            <NeuButton
+            <Button
               onClick={async () => {
                 const result = await cancelJob();
                 if (result?.message) setCancelNote(result.message);
               }}
             >
               Cancel import
-            </NeuButton>
+            </Button>
             {cancelNote && <p className="text-sm text-muted-foreground">{cancelNote}</p>}
-          </NeuCard>
+          </Panel>
         )}
 
         {step === 1 && !isActive && (
-          <NeuCard className="space-y-4 p-6">
+          <Panel className="space-y-4 p-6">
             <SectionLabel index="01" title="File" />
             <p className="text-base text-foreground">
               Upload a CSV or Excel file with lead name, phone, and state at minimum.
@@ -359,9 +359,9 @@ export default function Import() {
               Columns are matched automatically (with AI when it's available) and you can correct them before
               importing. Any number of rows; very large files (over the upload size limit) need to be split.
             </p>
-            <NeuButton variant="primary" onClick={() => fileInputRef.current?.click()} disabled={uploading}>
+            <Button variant="primary" onClick={() => fileInputRef.current?.click()} disabled={uploading}>
               {uploading ? 'Reading file…' : 'Choose CSV or Excel file'}
-            </NeuButton>
+            </Button>
             <input
               ref={fileInputRef}
               type="file"
@@ -369,11 +369,11 @@ export default function Import() {
               onChange={handleFileChange}
               className="hidden"
             />
-          </NeuCard>
+          </Panel>
         )}
 
         {step === 1.5 && analysis && !isActive && (
-          <NeuCard className="space-y-4 p-6">
+          <Panel className="space-y-4 p-6">
             <SectionLabel index="01" title="File" meta="Sheets" />
             <h2 className="text-base font-semibold text-foreground">
               This file has {analysis.sheetNames.length} sheets — which should we import?
@@ -399,14 +399,14 @@ export default function Import() {
               <ActionButton variant="call" className="min-h-10 py-2" onClick={() => setStep(2)} disabled={selectedSheets.length === 0}>
                 Continue →
               </ActionButton>
-              <NeuButton onClick={handleReset}>Start over</NeuButton>
+              <Button onClick={handleReset}>Start over</Button>
             </div>
-          </NeuCard>
+          </Panel>
         )}
 
         {step === 2 && analysis && (
           <>
-            <NeuCard className="space-y-4 p-6">
+            <Panel className="space-y-4 p-6">
               <SectionLabel index="02" title="Mapping" />
               <h2 className="text-base font-semibold text-foreground">We detected these columns</h2>
               {analysis.unavailable ? (
@@ -435,7 +435,7 @@ export default function Import() {
                         {FIELD_LABELS[field] || field}
                         {REQUIRED_FIELDS.includes(field) && ' *'}
                       </label>
-                      <NeuInput
+                      <Field
                         id={`map-${field}`}
                         as="select"
                         value={mapping[field] || ''}
@@ -448,7 +448,7 @@ export default function Import() {
                             {h}
                           </option>
                         ))}
-                      </NeuInput>
+                      </Field>
                       <span>
                         <Badge tone={flagged ? 'dashed' : CONFIDENCE_TONES[confidence] || CONFIDENCE_TONES.low}>
                           {flagged ? 'Needs review' : confidence}
@@ -458,9 +458,9 @@ export default function Import() {
                   );
                 })}
               </div>
-            </NeuCard>
+            </Panel>
 
-            <NeuCard className="space-y-4 overflow-x-auto p-6">
+            <Panel className="space-y-4 overflow-x-auto p-6">
               <SectionLabel index="03" title="Review" />
               <h2 className="text-base font-semibold text-foreground">Preview — first 5 leads as they'll be imported</h2>
               <table className="w-full text-sm">
@@ -498,7 +498,7 @@ export default function Import() {
                   ))}
                 </tbody>
               </table>
-            </NeuCard>
+            </Panel>
 
             <div className="flex flex-wrap items-center gap-2">
               <ActionButton variant="call" className="min-h-10 py-2" onClick={handleCommit} disabled={!canContinue || committing}>
@@ -506,7 +506,7 @@ export default function Import() {
                   ? 'Starting…'
                   : `Confirm & import ${selectedRowCount || analysis.totalRows} leads`}
               </ActionButton>
-              <NeuButton onClick={handleReset}>Start over</NeuButton>
+              <Button onClick={handleReset}>Start over</Button>
               {!canContinue && (
                 <span className="text-sm text-muted-foreground">
                   Map phone and a name (or first/last name) to continue.

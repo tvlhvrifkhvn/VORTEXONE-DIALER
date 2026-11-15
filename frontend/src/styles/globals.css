@@ -58,6 +58,19 @@ body {
   outline-offset: 2px;
 }
 
+/* Date and time fields: Tab also lands on their built-in calendar button,
+   and while it has focus the input matches neither :focus nor
+   :focus-visible, so the rule above doesn't draw. :focus-within covers it. */
+input[type='date']:focus,
+input[type='datetime-local']:focus,
+input[type='time']:focus,
+input[type='date']:focus-within,
+input[type='datetime-local']:focus-within,
+input[type='time']:focus-within {
+  outline: 2px solid rgb(var(--ring));
+  outline-offset: 2px;
+}
+
 ::selection {
   background-color: rgb(var(--primary));
   color: rgb(var(--primary-foreground));
@@ -78,17 +91,4 @@ body {
   .label {
     @apply font-mono text-xs font-medium uppercase tracking-label text-muted-foreground;
   }
-}
-
-/* TEMPORARY: neumorphic animation classes kept empty so current markup
-   keeps working; their keyframes are gone. R7 deletes these rules. */
-.neu-card {
-}
-.animate-fade-in-row {
-}
-.animate-pulse-call {
-}
-.btn-glow {
-}
-.ripple {
 }

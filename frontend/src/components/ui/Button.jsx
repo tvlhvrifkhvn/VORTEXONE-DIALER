@@ -11,7 +11,7 @@ const VARIANTS = {
 
 const ACTIVE = 'border border-foreground bg-foreground text-background';
 
-export default function NeuButton({
+export default function Button({
   children,
   className = '',
   active = false,

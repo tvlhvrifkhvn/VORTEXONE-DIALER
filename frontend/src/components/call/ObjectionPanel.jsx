@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import NeuInput from '../ui/NeuInput';
+import Field from '../ui/Field';
 import * as api from '../../lib/api';
 
 /**
@@ -106,7 +106,7 @@ export default function ObjectionPanel({ callId }) {
                 {hint.text}
               </p>
             )}
-            <NeuInput
+            <Field
               value={drafts[typeId] ?? objection.rebuttal_used ?? ''}
               onChange={(e) => setDrafts((d) => ({ ...d, [typeId]: e.target.value }))}
               onBlur={() => handleSaveRebuttal(objection)}

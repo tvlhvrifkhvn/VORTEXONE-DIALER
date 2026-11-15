@@ -70,7 +70,7 @@ CSS variables are "R G B" triplets in src/styles/globals.css. `:root` is the ink
 
 ## 5. Components (src/components/ui/, all shown on /styleguide)
 
-### Button
+### Button (ui/Button.jsx; call and outcome buttons use ui/ActionButton.jsx)
 Square, mono 13px uppercase, letter-spacing 0.06em. Minimum height 40px (44px for call controls, 48px for END CALL). Colors change over 150ms.
 - primary: bg-primary, text-primary-foreground, 1px border-primary-border. Hover: bg-foreground text-background.
 - secondary: transparent, 1px border-strong, text-foreground. Hover: bg-foreground text-background.
@@ -86,13 +86,13 @@ Options sit inside a 1px border-strong frame. The active option is bg-foreground
 - A `<kbd>`: mono 12px, 1px border-strong, bg-muted, min-width 20px, placed before its label: [V] VOICEMAIL.
 - Real hotkeys only: M mute, Esc end call, V voicemail, N no answer, D jump to outcome. Never invent shortcuts.
 
-### Panel (today NeuCard)
+### Panel (ui/Panel.jsx)
 bg-card with a 1px border. The `inset` variant is bg-muted.
 
-### Field (today NeuInput)
+### Field (ui/Field.jsx)
 40px high, bg-background, 1px border-strong, text-base, placeholder in muted-foreground. Error state: 2px border-primary, an "ERROR" label and the message. Always has a visible label or an aria-label.
 
-### Tag (today Badge)
+### Tag (ui/Badge.jsx)
 Mono 12px uppercase, px-2 py-0.5. Tones:
 - outline
 - solid: bg-foreground text-background
@@ -113,7 +113,7 @@ An 8px circle, live (bg-live) or signal (bg-primary), always followed by text.
 - The value is always printed in mono ("$41 / $60 · 68%").
 - Budget at 80% or more: a signal tag "80% OF BUDGET USED". At 100%: "BUDGET REACHED — DIALING STOPPED".
 
-### Stat (today StatCard)
+### Stat (stats/StatCard.jsx)
 A label plus a number in mono tabular figures, 2xl. Display size only where section 3 allows.
 
 ### Table
@@ -166,7 +166,8 @@ bg-card, 1px border-strong, a 3px primary bar on the left, text-foreground.
 
 ## 8. Accessibility (WCAG 2.1 AA)
 - Text at least 4.5:1 (3:1 at 24px and above). Control edges and meter fills at least 3:1 against their neighbors. `npm run contrast` checks the token pairs in both themes.
-- Focus: `:focus-visible { outline: 2px solid rgb(var(--ring)); outline-offset: 2px }`. Never remove it, and never use `outline-none` without it.
+- Checks: `bash audit/scripts/reskin-grep.sh` (no shadows, radius, gradients, raw colors, decorative animation or emoji) and `node audit/scripts/reskin-a11y.js --lead <id>` (labels, names and a visible focus ring on every tab stop).
+- Focus: `:focus-visible { outline: 2px solid rgb(var(--ring)); outline-offset: 2px }`. Never remove it, and never use `outline-none` without it. Date and time inputs also get the ring on `:focus` and `:focus-within`, because Tab lands on their built-in calendar button, where the input matches neither.
 - Every input and dialog is labelled.
 - Everything works by keyboard.
 - Targets at least 40px (44px for call controls).

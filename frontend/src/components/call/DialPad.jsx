@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { Delete, Phone } from 'lucide-react';
-import NeuCard from '../ui/NeuCard';
-import NeuButton from '../ui/NeuButton';
-import NeuInput from '../ui/NeuInput';
+import Panel from '../ui/Panel';
+import Button from '../ui/Button';
+import Field from '../ui/Field';
 import ActionButton from '../ui/ActionButton';
 import { formatDuration, formatPhone } from '../../lib/format';
 import { US_STATES } from '../../lib/usStates';
@@ -75,7 +75,7 @@ function SaveAsLeadForm({ phone, onSaved, onSkip }) {
         <label htmlFor="save-lead-name" className="label mb-2 block">
           Name
         </label>
-        <NeuInput
+        <Field
           id="save-lead-name"
           value={fields.name}
           onChange={(e) => handleChange('name', e.target.value)}
@@ -88,7 +88,7 @@ function SaveAsLeadForm({ phone, onSaved, onSkip }) {
         <label htmlFor="save-lead-state" className="label mb-2 block">
           State
         </label>
-        <NeuInput
+        <Field
           id="save-lead-state"
           as="select"
           value={fields.state}
@@ -104,13 +104,13 @@ function SaveAsLeadForm({ phone, onSaved, onSkip }) {
               {s}
             </option>
           ))}
-        </NeuInput>
+        </Field>
       </div>
       <div>
         <label htmlFor="save-lead-brokerage" className="label mb-2 block">
           Brokerage (optional)
         </label>
-        <NeuInput
+        <Field
           id="save-lead-brokerage"
           value={fields.brokerage}
           onChange={(e) => handleChange('brokerage', e.target.value)}
@@ -124,12 +124,12 @@ function SaveAsLeadForm({ phone, onSaved, onSkip }) {
         </p>
       )}
       <div className="flex gap-2">
-        <NeuButton type="submit" className="flex-1" disabled={saving}>
+        <Button type="submit" className="flex-1" disabled={saving}>
           {saving ? 'Saving…' : 'Save lead'}
-        </NeuButton>
-        <NeuButton type="button" className="flex-1" onClick={onSkip} disabled={saving}>
+        </Button>
+        <Button type="button" className="flex-1" onClick={onSkip} disabled={saving}>
           Cancel
-        </NeuButton>
+        </Button>
       </div>
     </form>
   );
@@ -274,7 +274,7 @@ export default function DialPad({ onDone, onCallStateChange }) {
 
   return (
     <div className="mx-auto w-full max-w-sm">
-      <NeuCard className="w-full space-y-4 p-6">
+      <Panel className="w-full space-y-4 p-6">
         <h2 className="label">Dial pad</h2>
 
         {phase === 'entry' && (
@@ -294,24 +294,24 @@ export default function DialPad({ onDone, onCallStateChange }) {
 
             <div className="grid grid-cols-3 gap-2">
               {KEYS.map((key) => (
-                <NeuButton
+                <Button
                   key={key}
                   onClick={() => handleKey(key)}
                   className="min-h-14 w-full text-xl tabular-nums"
                 >
                   {key}
-                </NeuButton>
+                </Button>
               ))}
             </div>
 
             <div className="flex items-center gap-2">
-              <NeuButton
+              <Button
                 onClick={handleBackspace}
                 disabled={!dialedNumber}
                 className="flex-1"
               >
                 <Delete size={16} strokeWidth={1.5} aria-hidden="true" /> Backspace
-              </NeuButton>
+              </Button>
               <button
                 type="button"
                 onClick={handleClear}
@@ -376,22 +376,22 @@ export default function DialPad({ onDone, onCallStateChange }) {
                 onSkip={() => setShowSaveForm(false)}
               />
             ) : (
-              <NeuButton className="w-full" onClick={() => setShowSaveForm(true)}>
+              <Button className="w-full" onClick={() => setShowSaveForm(true)}>
                 Save as lead
-              </NeuButton>
+              </Button>
             )}
 
             <div className="flex gap-2">
-              <NeuButton className="flex-1" onClick={handleDialAnother}>
+              <Button className="flex-1" onClick={handleDialAnother}>
                 Dial another
-              </NeuButton>
-              <NeuButton className="flex-1" onClick={onDone}>
+              </Button>
+              <Button className="flex-1" onClick={onDone}>
                 Done
-              </NeuButton>
+              </Button>
             </div>
           </div>
         )}
-      </NeuCard>
+      </Panel>
     </div>
   );
 }

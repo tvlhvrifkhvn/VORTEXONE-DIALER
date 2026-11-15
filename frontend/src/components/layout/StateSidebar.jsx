@@ -1,4 +1,4 @@
-import NeuCard from '../ui/NeuCard';
+import Panel from '../ui/Panel';
 
 function RowButton({ active, label, count, onClick }) {
   return (
@@ -22,7 +22,7 @@ export default function StateSidebar({ counts = [], selectedState, onSelectState
   const totalLeads = counts.reduce((sum, c) => sum + c.total, 0);
 
   return (
-    <NeuCard className="w-full shrink-0 p-4 lg:w-56">
+    <Panel className="w-full shrink-0 p-4 lg:w-56">
       <h2 className="label mb-2">States</h2>
       <ul>
         <li>
@@ -40,6 +40,6 @@ export default function StateSidebar({ counts = [], selectedState, onSelectState
         ))}
         {counts.length === 0 && <li className="px-3 py-2 text-sm text-muted-foreground">No leads yet</li>}
       </ul>
-    </NeuCard>
+    </Panel>
   );
 }

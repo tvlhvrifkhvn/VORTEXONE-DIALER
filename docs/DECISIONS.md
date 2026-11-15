@@ -62,3 +62,9 @@
 - 2026-11-15 · R6 · Mapping confidence: HIGH solid, MEDIUM outline, LOW dashed, "Needs review" dashed; the hint text now names the tags instead of "red or amber" · color is never the only cue
 - 2026-11-15 · R6 · ObjectionReport: Badge colors become tones (approved solid, pending outline, note dashed), the list gains a header row, and pending reviews get a 3px primary bar · the last Badge `color` caller is gone; R7 can drop the prop
 - 2026-11-15 · R6 · Reports: Show is the primary button; Today and Export PDF ↓ are secondary · one primary per section
+- 2026-11-15 · R7 · Compat aliases removed (base, surface, text-primary/secondary, highlight, shadow, action-*, neu-* shadows, card/input radius) and the empty animation rules deleted; leftover classes renamed by sed · the reskin is complete
+- 2026-11-15 · R7 · NeuCard → Panel, NeuButton → Button, NeuInput → Field (git mv, then identifiers and imports) · names match DESIGN.md
+- 2026-11-15 · R7 · Badge's ignored `color` prop is removed · R6 converted the last caller
+- 2026-11-15 · R7 · The styleguide token list moved to src/styles/tokens.js · the grep audit forbids raw hex outside src/styles/
+- 2026-11-15 · R7 · Date, datetime-local and time inputs get the focus ring on :focus and :focus-within · the keyboard pass found Tab landing on their built-in calendar button with no ring (the input matches neither :focus nor :focus-visible there)
+- 2026-11-15 · R7 · New checks committed: audit/scripts/reskin-grep.sh (the R7 grep audit; forces a UTF-8 locale so the emoji check works) and audit/scripts/reskin-a11y.js (labels, names, focus ring on every tab stop) · repeatable for the CRM phases

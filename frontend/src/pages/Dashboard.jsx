@@ -7,9 +7,9 @@ import LeadFilters from '../components/leads/LeadFilters';
 import BulkSmsModal from '../components/leads/BulkSmsModal';
 import StatCard from '../components/stats/StatCard';
 import QueueHoursCards from '../components/stats/QueueHoursCards';
-import NeuCard from '../components/ui/NeuCard';
-import NeuButton from '../components/ui/NeuButton';
-import NeuInput from '../components/ui/NeuInput';
+import Panel from '../components/ui/Panel';
+import Button from '../components/ui/Button';
+import Field from '../components/ui/Field';
 import ActionButton from '../components/ui/ActionButton';
 import Meter from '../components/ui/Meter';
 import Segmented from '../components/ui/Segmented';
@@ -48,7 +48,7 @@ function DailyGoalTracker({ dials }) {
   };
 
   return (
-    <NeuCard className="space-y-2 p-4">
+    <Panel className="space-y-2 p-4">
       <Meter label="Daily goal · dials" value={dials} max={goal} tone="goal" />
       <div className="flex justify-end">
         {editing ? (
@@ -56,7 +56,7 @@ function DailyGoalTracker({ dials }) {
             <label htmlFor="daily-goal" className="label">
               Goal
             </label>
-            <NeuInput
+            <Field
               id="daily-goal"
               type="number"
               min="1"
@@ -65,7 +65,7 @@ function DailyGoalTracker({ dials }) {
               className="w-24 font-mono tabular-nums"
               autoFocus
             />
-            <NeuButton onClick={saveGoal}>Save</NeuButton>
+            <Button onClick={saveGoal}>Save</Button>
           </div>
         ) : (
           <button
@@ -82,7 +82,7 @@ function DailyGoalTracker({ dials }) {
           </button>
         )}
       </div>
-    </NeuCard>
+    </Panel>
   );
 }
 
@@ -184,7 +184,7 @@ export default function Dashboard() {
             <ActionButton variant="call" className="min-h-10 py-2" onClick={handleStartDialingSession}>
               Start dialing session →
             </ActionButton>
-            <NeuButton onClick={handleExport} disabled={exporting}>
+            <Button onClick={handleExport} disabled={exporting}>
               {exporting ? (
                 <span className="flex items-center gap-2">
                   <span
@@ -196,7 +196,7 @@ export default function Dashboard() {
               ) : (
                 'Export PDF ↓'
               )}
-            </NeuButton>
+            </Button>
           </div>
 
           <div className="flex items-center gap-2">
@@ -221,26 +221,26 @@ export default function Dashboard() {
           />
 
           <div className="min-w-0 flex-1 space-y-4">
-            <NeuCard className="p-4">
+            <Panel className="p-4">
               <LeadFilters filters={filters} onChange={setFilters} />
-            </NeuCard>
+            </Panel>
             <div className="label tabular-nums">
               {total} lead{total === 1 ? '' : 's'}
             </div>
 
             {selectedIds.size > 0 && (
-              <NeuCard className="sticky top-2 z-10 flex flex-wrap items-center justify-between gap-4 border-strong border-l-[3px] border-l-primary p-4">
+              <Panel className="sticky top-2 z-10 flex flex-wrap items-center justify-between gap-4 border-strong border-l-[3px] border-l-primary p-4">
                 <span className="text-sm text-foreground">
                   <span className="font-mono font-medium tabular-nums">{selectedIds.size}</span> lead
                   {selectedIds.size === 1 ? '' : 's'} selected — use "Start dialing session" above to dial them
                 </span>
                 <div className="flex items-center gap-2">
-                  <NeuButton onClick={handleOpenBulkSms}>Send bulk SMS</NeuButton>
-                  <NeuButton variant="ghost" onClick={clearSelection}>
+                  <Button onClick={handleOpenBulkSms}>Send bulk SMS</Button>
+                  <Button variant="ghost" onClick={clearSelection}>
                     Clear selection
-                  </NeuButton>
+                  </Button>
                 </div>
-              </NeuCard>
+              </Panel>
             )}
 
             {bulkSmsLeads && (

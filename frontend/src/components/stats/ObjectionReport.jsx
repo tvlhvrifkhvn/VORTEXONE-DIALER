@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
-import NeuCard from '../ui/NeuCard';
-import NeuButton from '../ui/NeuButton';
-import NeuInput from '../ui/NeuInput';
+import Panel from '../ui/Panel';
+import Button from '../ui/Button';
+import Field from '../ui/Field';
 import Badge from '../ui/Badge';
 import SectionLabel from '../ui/SectionLabel';
 import { US_STATES } from '../../lib/usStates';
@@ -52,12 +52,12 @@ function SuggestionRow({ item, label, onReviewed }) {
       </span>
       {item.status === 'pending' && (
         <span className="flex shrink-0 gap-2">
-          <NeuButton onClick={() => review('approved')} disabled={busy}>
+          <Button onClick={() => review('approved')} disabled={busy}>
             Approve
-          </NeuButton>
-          <NeuButton onClick={() => review('rejected')} disabled={busy}>
+          </Button>
+          <Button onClick={() => review('rejected')} disabled={busy}>
             Reject
-          </NeuButton>
+          </Button>
         </span>
       )}
     </li>
@@ -180,9 +180,9 @@ function RebuttalIdeas({ typeId, reviewVersion, onReviewed }) {
           {result.instanceCount} logged with an outcome, {result.positiveCount} positive.
         </span>
         {result.source !== 'insufficient' && (
-          <NeuButton className="shrink-0" onClick={handleRegenerate} disabled={regenerating}>
+          <Button className="shrink-0" onClick={handleRegenerate} disabled={regenerating}>
             {regenerating ? 'Generating…' : 'Regenerate'}
-          </NeuButton>
+          </Button>
         )}
       </div>
     </div>
@@ -224,32 +224,32 @@ export default function ObjectionReport() {
   return (
     <section>
     <SectionLabel index="02" title="Objections logged" className="mb-2" />
-    <NeuCard className="space-y-4 p-4">
+    <Panel className="space-y-4 p-4">
 
       <RecalibrationBanner />
       <PendingReview reviewVersion={reviewVersion} onReviewed={bumpReview} />
 
       <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
         <span className="label">Filter</span>
-        <NeuInput type="date" value={filters.dateFrom} onChange={(e) => update({ dateFrom: e.target.value })} className="w-40 font-mono text-sm" aria-label="From date" />
+        <Field type="date" value={filters.dateFrom} onChange={(e) => update({ dateFrom: e.target.value })} className="w-40 font-mono text-sm" aria-label="From date" />
         <span>–</span>
-        <NeuInput type="date" value={filters.dateTo} onChange={(e) => update({ dateTo: e.target.value })} className="w-40 font-mono text-sm" aria-label="To date" />
-        <NeuInput as="select" value={filters.state} onChange={(e) => update({ state: e.target.value })} className="w-28" aria-label="State">
+        <Field type="date" value={filters.dateTo} onChange={(e) => update({ dateTo: e.target.value })} className="w-40 font-mono text-sm" aria-label="To date" />
+        <Field as="select" value={filters.state} onChange={(e) => update({ state: e.target.value })} className="w-28" aria-label="State">
           <option value="">All states</option>
           {US_STATES.map((s) => (
             <option key={s} value={s}>
               {s}
             </option>
           ))}
-        </NeuInput>
-        <NeuInput as="select" value={filters.officeKey} onChange={(e) => update({ officeKey: e.target.value })} className="min-w-0 flex-1" aria-label="Office">
+        </Field>
+        <Field as="select" value={filters.officeKey} onChange={(e) => update({ officeKey: e.target.value })} className="min-w-0 flex-1" aria-label="Office">
           <option value="">All offices</option>
           {offices.map((o) => (
             <option key={o.officeKey} value={o.officeKey}>
               {o.label}
             </option>
           ))}
-        </NeuInput>
+        </Field>
       </div>
 
       {error && <p role="alert" className="text-sm text-signal">{error}</p>}
@@ -302,7 +302,7 @@ export default function ObjectionReport() {
       <p className="text-sm text-muted-foreground">
         Positive = the call ended Spoke / Interested or Callback. Click an objection for rebuttal ideas.
       </p>
-    </NeuCard>
+    </Panel>
     </section>
   );
 }

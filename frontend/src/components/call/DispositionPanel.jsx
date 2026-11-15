@@ -2,8 +2,8 @@ import { useEffect, useRef, useState } from 'react';
 import NotesField from './NotesField';
 import DispositionButtons from './DispositionButtons';
 import StatusBadge from '../leads/StatusBadge';
-import NeuCard from '../ui/NeuCard';
-import NeuButton from '../ui/NeuButton';
+import Panel from '../ui/Panel';
+import Button from '../ui/Button';
 import ActionButton from '../ui/ActionButton';
 import Badge from '../ui/Badge';
 import Dialog from '../ui/Dialog';
@@ -29,7 +29,7 @@ function PitchScriptText({ repName }) {
 function CollapsibleSection({ title, defaultOpen = false, children }) {
   const [open, setOpen] = useState(defaultOpen);
   return (
-    <NeuCard className="px-4 py-2">
+    <Panel className="px-4 py-2">
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
@@ -42,7 +42,7 @@ function CollapsibleSection({ title, defaultOpen = false, children }) {
         </span>
       </button>
       {open && <div className="pb-2 pt-2">{children}</div>}
-    </NeuCard>
+    </Panel>
   );
 }
 
@@ -220,9 +220,9 @@ export default function DispositionPanel({
           title="Notes"
           className="mb-2 items-center"
           meta={
-            <NeuButton variant="ghost" className="-my-2" onClick={handleExpandNote} disabled={!note.trim() || expanding}>
+            <Button variant="ghost" className="-my-2" onClick={handleExpandNote} disabled={!note.trim() || expanding}>
               {expanding ? 'Expanding…' : 'Expand note'}
-            </NeuButton>
+            </Button>
           }
         />
         <NotesField value={note} onChange={setNote} />
@@ -278,9 +278,9 @@ export default function DispositionPanel({
             >
               ⊘ Confirm DNC
             </ActionButton>
-            <NeuButton className="flex-1" onClick={() => setShowDncConfirm(false)}>
+            <Button className="flex-1" onClick={() => setShowDncConfirm(false)}>
               Cancel
-            </NeuButton>
+            </Button>
           </div>
         </Dialog>
       )}

@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import NeuButton from '../ui/NeuButton';
-import NeuInput from '../ui/NeuInput';
+import Button from '../ui/Button';
+import Field from '../ui/Field';
 
 // Hanging up moved to the call page's own prominent "End call" button, below
 // the action grid — two hangup controls on one screen invited misclicks.
@@ -18,15 +18,15 @@ export default function CallControls({ onScheduleCallback, disabled }) {
   return (
     <div className="flex flex-col gap-3">
       {!showSchedule ? (
-        <NeuButton onClick={() => setShowSchedule(true)} disabled={disabled} className="w-full">
+        <Button onClick={() => setShowSchedule(true)} disabled={disabled} className="w-full">
           Schedule callback
-        </NeuButton>
+        </Button>
       ) : (
         <div className="space-y-2">
           <label htmlFor="callback-when" className="label block">
             Callback time
           </label>
-          <NeuInput
+          <Field
             id="callback-when"
             type="datetime-local"
             value={when}
@@ -34,12 +34,12 @@ export default function CallControls({ onScheduleCallback, disabled }) {
             className="w-full font-mono text-sm"
           />
           <div className="flex gap-2">
-            <NeuButton variant="primary" onClick={submit} className="flex-1">
+            <Button variant="primary" onClick={submit} className="flex-1">
               Set
-            </NeuButton>
-            <NeuButton onClick={() => setShowSchedule(false)} className="flex-1">
+            </Button>
+            <Button onClick={() => setShowSchedule(false)} className="flex-1">
               Cancel
-            </NeuButton>
+            </Button>
           </div>
         </div>
       )}
