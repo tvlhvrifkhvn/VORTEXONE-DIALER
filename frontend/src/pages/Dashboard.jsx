@@ -11,6 +11,8 @@ import NeuCard from '../components/ui/NeuCard';
 import NeuButton from '../components/ui/NeuButton';
 import NeuInput from '../components/ui/NeuInput';
 import ActionButton from '../components/ui/ActionButton';
+import Meter from '../components/ui/Meter';
+import Segmented from '../components/ui/Segmented';
 import { useLeads, useStateCounts } from '../hooks/useLeads';
 import { DIAL_MODE_KEY, startDialingSession } from '../hooks/useCall';
 import * as api from '../lib/api';
@@ -32,14 +34,12 @@ const linesFrom = (settings) => {
   return [1, 2, 3].includes(n) ? n : DEFAULT_LINES;
 };
 
-/** Below the stat cards — a neumorphic progress bar toward the daily dial goal. */
+/** Below the stat cards — a goal Meter toward the daily dial goal. */
 function DailyGoalTracker({ dials }) {
   const { settings, save } = useUserSettings();
   const goal = goalFrom(settings);
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(String(goal));
-
-  const pct = Math.min(100, Math.round((dials / goal) * 100));
 
   const saveGoal = () => {
     const next = Number(draft);
@@ -48,22 +48,24 @@ function DailyGoalTracker({ dials }) {
   };
 
   return (
-    <NeuCard className="p-4">
-      <div className="flex items-center justify-between text-xs font-medium uppercase tracking-wide text-text-secondary">
-        <span>Daily goal</span>
+    <NeuCard className="space-y-2 p-4">
+      <Meter label="Daily goal · dials" value={dials} max={goal} tone="goal" />
+      <div className="flex justify-end">
         {editing ? (
           <div className="flex items-center gap-2">
+            <label htmlFor="daily-goal" className="label">
+              Goal
+            </label>
             <NeuInput
+              id="daily-goal"
               type="number"
               min="1"
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
-              className="w-20 py-1 text-xs"
+              className="w-24 font-mono tabular-nums"
               autoFocus
             />
-            <button type="button" onClick={saveGoal} className="text-action-call">
-              Save
-            </button>
+            <NeuButton onClick={saveGoal}>Save</NeuButton>
           </div>
         ) : (
           <button
@@ -74,22 +76,11 @@ function DailyGoalTracker({ dials }) {
             }}
             title="Edit daily goal"
             aria-label="Edit daily goal"
-            className="text-text-secondary hover:text-action-call"
+            className="min-h-10 px-2 font-mono text-sm font-medium uppercase tracking-button text-foreground underline underline-offset-4 hover:bg-muted"
           >
-            ✏️
+            Edit
           </button>
         )}
-      </div>
-      <div className="mt-2 flex items-center gap-3">
-        <div className="h-2.5 flex-1 overflow-hidden rounded-full bg-shadow/20 shadow-neu-inset">
-          <div
-            className="h-full rounded-full bg-action-call transition-all duration-500"
-            style={{ width: `${pct}%` }}
-          />
-        </div>
-        <span className="whitespace-nowrap text-sm font-semibold text-text-primary">
-          {dials} / {goal} dials today
-        </span>
       </div>
     </NeuCard>
   );
@@ -178,9 +169,9 @@ export default function Dashboard() {
 
   return (
     <AppShell>
-      <div className="mx-auto mt-4 flex max-w-7xl flex-col gap-4">
+      <div className="mx-auto mt-6 flex max-w-[1440px] flex-col gap-6">
         <div className="flex flex-wrap gap-4">
-          <StatCard label="Dials today" value={stats.dials} />
+          <StatCard label="Dials today" value={stats.dials} size="display" />
           <StatCard label="Contacts today" value={stats.contacts} />
           <StatCard label="Connect rate" value={`${stats.connectRate}%`} />
           <QueueHoursCards counts={counts} />
@@ -188,79 +179,66 @@ export default function Dashboard() {
 
         <DailyGoalTracker dials={stats.dials} />
 
-        <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center justify-between gap-4">
           <div className="flex items-center gap-2">
-            <ActionButton variant="call" className="btn-glow" onClick={handleStartDialingSession}>
-              Start dialing session
+            <ActionButton variant="call" className="min-h-10 py-2" onClick={handleStartDialingSession}>
+              Start dialing session →
             </ActionButton>
             <NeuButton onClick={handleExport} disabled={exporting}>
               {exporting ? (
                 <span className="flex items-center gap-2">
                   <span
                     aria-hidden="true"
-                    className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-text-secondary/30 border-t-text-primary"
+                    className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-muted-foreground/30 border-t-foreground"
                   />
                   Exporting…
                 </span>
               ) : (
-                'Export PDF'
+                'Export PDF ↓'
               )}
             </NeuButton>
           </div>
 
           <div className="flex items-center gap-2">
-            <span className="text-xs text-text-secondary">Lines</span>
-            <div className="flex items-center gap-1 rounded-input bg-surface p-1 shadow-neu-inset">
-              {[1, 2, 3].map((n) => (
-                <button
-                  key={n}
-                  type="button"
-                  onClick={() => {
-                    linesTouched.current = true;
-                    setLineCount(n);
-                  }}
-                  title={`Dial ${n} line${n === 1 ? '' : 's'} at a time`}
-                  className={`rounded-input px-3 py-1.5 text-xs font-medium transition-shadow ${
-                    lineCount === n ? 'shadow-neu-sm text-text-primary' : 'text-text-secondary'
-                  }`}
-                >
-                  {n}
-                </button>
-              ))}
-            </div>
+            <span className="label">Lines</span>
+            <Segmented
+              label="Lines to dial at a time"
+              options={[1, 2, 3].map((n) => ({ value: n, label: String(n) }))}
+              value={lineCount}
+              onChange={(n) => {
+                linesTouched.current = true;
+                setLineCount(n);
+              }}
+            />
           </div>
         </div>
 
-        <div className="flex flex-col gap-4 lg:flex-row">
+        <div className="flex flex-col gap-6 lg:flex-row">
           <StateSidebar
             counts={counts}
             selectedState={filters.state}
             onSelectState={(state) => setFilters((f) => ({ ...f, state }))}
           />
 
-          <div className="flex-1 space-y-3">
-            <NeuCard className="p-3">
+          <div className="min-w-0 flex-1 space-y-4">
+            <NeuCard className="p-4">
               <LeadFilters filters={filters} onChange={setFilters} />
             </NeuCard>
-            <div className="text-xs text-text-secondary">{total} lead{total === 1 ? '' : 's'}</div>
+            <div className="label tabular-nums">
+              {total} lead{total === 1 ? '' : 's'}
+            </div>
 
             {selectedIds.size > 0 && (
-              <NeuCard className="sticky top-2 z-10 flex flex-wrap items-center justify-between gap-3 p-3">
-                <span className="text-sm font-medium text-text-primary">
-                  {selectedIds.size} lead{selectedIds.size === 1 ? '' : 's'} selected — use "Start dialing session"
-                  above to dial them
+              <NeuCard className="sticky top-2 z-10 flex flex-wrap items-center justify-between gap-4 border-strong border-l-[3px] border-l-primary p-4">
+                <span className="text-sm text-foreground">
+                  <span className="font-mono font-medium tabular-nums">{selectedIds.size}</span> lead
+                  {selectedIds.size === 1 ? '' : 's'} selected — use "Start dialing session" above to dial them
                 </span>
-                <div className="flex items-center gap-3">
-                  <NeuButton className="text-sm" onClick={handleOpenBulkSms}>
-                    Send bulk SMS
-                  </NeuButton>
-                  <button
-                    type="button"
-                    onClick={clearSelection}
-                    className="text-sm font-medium text-text-secondary hover:text-text-primary"
-                  >
+                <div className="flex items-center gap-2">
+                  <NeuButton onClick={handleOpenBulkSms}>Send bulk SMS</NeuButton>
+                  <NeuButton variant="ghost" onClick={clearSelection}>
                     Clear selection
-                  </button>
+                  </NeuButton>
                 </div>
               </NeuCard>
             )}

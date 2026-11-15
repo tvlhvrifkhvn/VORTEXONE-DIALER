@@ -1,5 +1,4 @@
 import { useNavigate } from 'react-router-dom';
-import { Inbox } from 'lucide-react';
 import NeuCard from '../ui/NeuCard';
 import NeuButton from '../ui/NeuButton';
 import LeadRow from './LeadRow';
@@ -24,11 +23,12 @@ function EmptyState({ hasAnyLeads, selectedState }) {
       : 'No leads match these filters.';
   const showImportButton = !hasAnyLeads || !!selectedState;
 
+  // Empty state: a mono label, one plain sentence, one action.
   return (
-    <div className="flex flex-col items-center gap-3 px-4 py-10 text-center">
-      <Inbox size={28} className="text-text-secondary" />
-      <p className="text-sm text-text-secondary">{message}</p>
-      {showImportButton && <NeuButton onClick={() => navigate('/import')}>Import leads</NeuButton>}
+    <div className="space-y-4 px-4 py-8">
+      <p className="label">{hasAnyLeads ? 'No results' : 'No leads yet'}</p>
+      <p className="text-base text-foreground">{message}</p>
+      {showImportButton && <NeuButton onClick={() => navigate('/import')}>Import leads →</NeuButton>}
     </div>
   );
 }
@@ -60,8 +60,8 @@ export default function LeadTable({
 
   return (
     <NeuCard className="overflow-x-auto p-0">
-      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-shadow/20 px-4 py-2 text-xs font-medium text-text-secondary">
-        <span>
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b px-4 py-2 text-sm text-muted-foreground">
+        <span className="tabular-nums">
           Showing {leads.length} of {total} lead{total === 1 ? '' : 's'}
           {selectedState ? ` in ${selectedState}` : ''}
         </span>
@@ -69,7 +69,7 @@ export default function LeadTable({
           <button
             type="button"
             onClick={onSelectAllFiltered}
-            className="font-medium text-action-call hover:underline"
+            className="min-h-10 font-medium text-foreground underline underline-offset-4 hover:bg-muted"
           >
             Select all {total} lead{total === 1 ? '' : 's'}
             {selectedState ? ` in ${selectedState}` : ''}
@@ -77,20 +77,20 @@ export default function LeadTable({
         )}
       </div>
       <table className="w-full text-sm">
-        <thead>
-          <tr className="text-left text-xs uppercase tracking-wide text-text-secondary">
-            <th className="px-3 py-3 font-medium">
+        <thead className="sticky top-0 z-[1] bg-card">
+          <tr className="border-b text-left">
+            <th className="label px-3 py-3 font-medium">
               <input
                 type="checkbox"
                 checked={pageFullySelected}
                 onChange={() => (pageFullySelected ? onClearPage() : onSelectPage())}
                 aria-label="Select page"
                 title="Select page"
-                className="h-4 w-4 cursor-pointer accent-action-call"
+                className="h-4 w-4 cursor-pointer accent-primary"
               />
             </th>
             {COLUMNS.map((col) => (
-              <th key={col} className="px-3 py-3 font-medium">
+              <th key={col} className="label px-3 py-3 font-medium">
                 {col}
               </th>
             ))}
@@ -111,30 +111,20 @@ export default function LeadTable({
       </table>
       {!loading && leads.length === 0 && <EmptyState hasAnyLeads={hasAnyLeads} selectedState={selectedState} />}
       {loading && leads.length === 0 && (
-        <div className="px-4 py-8 text-center text-sm text-text-secondary">Loading…</div>
+        <div className="label px-4 py-8">Loading…</div>
       )}
       {total > 0 && (
-        <div className="flex items-center justify-between border-t border-shadow/20 px-4 py-3 text-xs text-text-secondary">
-          <span>
-            Showing {rangeStart}-{rangeEnd} of {total} leads
+        <div className="flex items-center justify-between border-t px-4 py-2 text-sm text-muted-foreground">
+          <span className="font-mono text-xs tabular-nums">
+            Showing {rangeStart}–{rangeEnd} of {total} leads
           </span>
           <div className="flex gap-2">
-            <button
-              type="button"
-              onClick={() => onPageChange(page - 1)}
-              disabled={!hasPrev}
-              className="rounded-input px-3 py-1 shadow-neu-sm transition-shadow hover:shadow-neu disabled:cursor-not-allowed disabled:opacity-40"
-            >
+            <NeuButton onClick={() => onPageChange(page - 1)} disabled={!hasPrev}>
               Previous
-            </button>
-            <button
-              type="button"
-              onClick={() => onPageChange(page + 1)}
-              disabled={!hasNext}
-              className="rounded-input px-3 py-1 shadow-neu-sm transition-shadow hover:shadow-neu disabled:cursor-not-allowed disabled:opacity-40"
-            >
+            </NeuButton>
+            <NeuButton onClick={() => onPageChange(page + 1)} disabled={!hasNext}>
               Next
-            </button>
+            </NeuButton>
           </div>
         </div>
       )}

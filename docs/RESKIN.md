@@ -204,7 +204,7 @@ Files: tailwind.config.js, src/styles/*, src/components/ui/* (renames), any file
 - R1: done
 - R2: done
 - R3: done
-- R4: not started
+- R4: done
 - R5: not started
 - R6: not started
 - R7: not started
