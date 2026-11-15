@@ -60,7 +60,7 @@ export default function ColleagueCard({ leadId, index }) {
 
   return (
     <section>
-      <SectionLabel index={index} title="Office" className="mb-4" />
+      <SectionLabel index={index} title="Office" className="mb-2" />
       <NeuCard className="space-y-4 p-4">
         <div className="flex items-center gap-2">
           <Building2 size={16} strokeWidth={1.5} aria-hidden="true" className="shrink-0 text-muted-foreground" />
