@@ -9,6 +9,7 @@ import NeuButton from '../components/ui/NeuButton';
 import NeuInput from '../components/ui/NeuInput';
 import ActionButton from '../components/ui/ActionButton';
 import StatusBadge from '../components/leads/StatusBadge';
+import Badge from '../components/ui/Badge';
 import { US_STATES } from '../lib/usStates';
 import { formatDateTime } from '../lib/format';
 import * as api from '../lib/api';
@@ -38,22 +39,27 @@ function CallbackScheduler({ lead, onScheduled }) {
   return (
     <div className="space-y-2">
       {lead.status === 'callback_scheduled' && lead.next_action_at && (
-        <p className="rounded-input bg-action-warn/10 px-3 py-2 text-xs font-medium text-action-warn">
-          Callback scheduled for {formatDateTime(lead.next_action_at)}
+        <p className="border-l-[3px] border-strong bg-muted px-4 py-2 text-sm text-foreground">
+          Callback scheduled for{' '}
+          <span className="font-mono tabular-nums">{formatDateTime(lead.next_action_at)}</span>
         </p>
       )}
+      <label htmlFor="lead-callback-when" className="label block">
+        Callback time
+      </label>
       <div className="flex flex-wrap items-center gap-2">
         <NeuInput
+          id="lead-callback-when"
           type="datetime-local"
           value={when}
           onChange={(e) => setWhen(e.target.value)}
-          className="flex-1 text-sm"
+          className="flex-1 font-mono text-sm"
         />
-        <NeuButton className="text-sm" onClick={submit} disabled={saving || !when}>
+        <NeuButton variant="primary" onClick={submit} disabled={saving || !when}>
           {saving ? 'Saving…' : 'Schedule callback'}
         </NeuButton>
       </div>
-      {error && <p className="text-xs text-action-hangup">{error}</p>}
+      {error && <p role="alert" className="text-sm text-signal">{error}</p>}
     </div>
   );
 }
@@ -114,7 +120,7 @@ export default function LeadDetail() {
   if (loading) {
     return (
       <AppShell>
-        <p className="mt-12 text-center text-text-secondary">Loading…</p>
+        <p className="label mt-12">Loading…</p>
       </AppShell>
     );
   }
@@ -122,12 +128,10 @@ export default function LeadDetail() {
   if (!lead) {
     return (
       <AppShell>
-        <NeuCard className="mx-auto mt-12 max-w-md p-6 text-center">
-          <p className="font-medium text-text-primary">Lead not found</p>
-          {error && <p className="mt-2 text-sm text-text-secondary">{error}</p>}
-          <NeuButton className="mt-4" onClick={() => navigate('/')}>
-            Back to Dashboard
-          </NeuButton>
+        <NeuCard className="mt-6 max-w-md space-y-4 p-6">
+          <p className="label">Lead not found</p>
+          {error && <p className="text-sm text-muted-foreground">{error}</p>}
+          <NeuButton onClick={() => navigate('/')}>Back to dashboard →</NeuButton>
         </NeuCard>
       </AppShell>
     );
@@ -135,26 +139,28 @@ export default function LeadDetail() {
 
   return (
     <AppShell>
-      <div className="mx-auto mt-4 max-w-3xl space-y-4">
+      <div className="mx-auto mt-6 max-w-3xl space-y-6">
         <button
           type="button"
           onClick={() => navigate(-1)}
-          className="flex items-center gap-1.5 text-sm text-text-secondary hover:text-action-call"
+          className="flex min-h-10 items-center gap-2 font-mono text-sm font-medium uppercase tracking-button text-muted-foreground transition-colors duration-150 hover:text-foreground"
         >
-          <ArrowLeft size={14} />
+          <ArrowLeft size={16} strokeWidth={1.5} aria-hidden="true" />
           Back
         </button>
 
-        <NeuCard className="space-y-3 p-5">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <h1 className="text-lg font-semibold text-text-primary">{lead.name}</h1>
+        <NeuCard className="space-y-4 p-6">
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div className="min-w-0">
+              <h1 className="truncate text-2xl font-semibold tracking-[-0.01em] text-foreground">{lead.name}</h1>
+              <p className="mt-1 text-base text-muted-foreground">{lead.brokerage || 'No brokerage on file'}</p>
+            </div>
             <StatusBadge status={lead.status} />
           </div>
-          <p className="text-sm text-text-secondary">{lead.brokerage || 'No brokerage on file'}</p>
 
           {lead.missing_phone && (
-            <p className="flex items-center gap-2 rounded-input bg-action-warn/10 px-3 py-2 text-xs font-medium text-action-warn">
-              <PhoneOff size={14} />
+            <p className="flex items-center gap-2 border-l-[3px] border-l-primary bg-muted px-4 py-2 text-sm text-foreground">
+              <PhoneOff size={16} strokeWidth={1.5} aria-hidden="true" />
               {lead.original_phone
                 ? `Number unreadable: ${lead.original_phone} — this lead can't be dialed until a valid number is added below.`
                 : "No phone number on file — this lead can't be dialed until one is added below."}
@@ -162,14 +168,9 @@ export default function LeadDetail() {
           )}
 
           {lead.tags?.length > 0 && (
-            <div className="flex flex-wrap gap-1.5">
+            <div className="flex flex-wrap gap-2">
               {lead.tags.map((tag) => (
-                <span
-                  key={tag}
-                  className="rounded-full bg-surface px-2 py-0.5 text-xs text-text-primary shadow-neu-sm"
-                >
-                  {tag}
-                </span>
+                <Badge key={tag}>{tag}</Badge>
               ))}
             </div>
           )}
@@ -179,18 +180,21 @@ export default function LeadDetail() {
 
         <LeadActionHub lead={lead} />
 
-        <NeuCard className="space-y-3 p-5">
-          <h2 className="text-sm font-semibold text-text-primary">Schedule a callback</h2>
+        <NeuCard className="space-y-4 p-6">
+          <h2 className="label">Schedule a callback</h2>
           <CallbackScheduler lead={lead} onScheduled={setLead} />
         </NeuCard>
 
-        <NeuCard className="space-y-3 p-5">
-          <h2 className="text-sm font-semibold text-text-primary">Contact details</h2>
+        <NeuCard className="space-y-4 p-6">
+          <h2 className="label">Contact details</h2>
           {EDITABLE_FIELDS.map((field) => (
             <div key={field}>
-              <label className="mb-1 block text-xs font-medium capitalize text-text-secondary">{field}</label>
+              <label htmlFor={`lead-field-${field}`} className="label mb-2 block">
+                {field}
+              </label>
               {field === 'state' ? (
                 <NeuInput
+                  id={`lead-field-${field}`}
                   as="select"
                   value={fields[field]}
                   onChange={(e) => handleChange(field, e.target.value)}
@@ -204,45 +208,42 @@ export default function LeadDetail() {
                 </NeuInput>
               ) : (
                 <NeuInput
+                  id={`lead-field-${field}`}
                   value={fields[field]}
                   onChange={(e) => handleChange(field, e.target.value)}
-                  className="w-full"
+                  className={`w-full ${field === 'phone' ? 'font-mono tabular-nums' : ''}`}
                 />
               )}
             </div>
           ))}
 
-          {error && <p className="text-sm text-action-hangup">{error}</p>}
-          {saved && <p className="text-sm text-action-contacted">Saved.</p>}
+          {error && (
+            <p role="alert" className="text-sm text-signal">
+              <span className="label mr-2 text-signal">Error</span>
+              {error}
+            </p>
+          )}
+          {saved && <p className="font-mono text-xs uppercase text-foreground">✓ Saved</p>}
 
-          <NeuButton className="w-full" onClick={handleSave} disabled={saving}>
+          <NeuButton variant="primary" className="w-full" onClick={handleSave} disabled={saving}>
             {saving ? 'Saving…' : 'Save changes'}
           </NeuButton>
 
-          <div className="border-t border-shadow/20 pt-4">
+          <div className="border-t pt-4">
             {!confirmingDelete ? (
-              <button
-                type="button"
-                onClick={() => setConfirmingDelete(true)}
-                className="text-sm font-medium text-action-hangup hover:underline"
-              >
-                Delete lead
-              </button>
+              <NeuButton variant="ghost" onClick={() => setConfirmingDelete(true)}>
+                ⊘ Delete lead
+              </NeuButton>
             ) : (
               <div className="space-y-2">
-                <p className="text-xs text-text-secondary">
+                <p className="text-sm text-muted-foreground">
                   This removes the lead from every list. This can't be undone from here.
                 </p>
                 <div className="flex gap-2">
-                  <ActionButton
-                    variant="hangup"
-                    className="flex-1 text-sm"
-                    onClick={handleDelete}
-                    disabled={deleting}
-                  >
-                    {deleting ? 'Deleting…' : 'Confirm delete'}
+                  <ActionButton variant="dnc" className="flex-1" onClick={handleDelete} disabled={deleting}>
+                    {deleting ? 'Deleting…' : '⊘ Confirm delete'}
                   </ActionButton>
-                  <NeuButton className="flex-1 text-sm" onClick={() => setConfirmingDelete(false)}>
+                  <NeuButton className="flex-1" onClick={() => setConfirmingDelete(false)}>
                     Cancel
                   </NeuButton>
                 </div>

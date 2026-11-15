@@ -41,3 +41,10 @@
 - 2026-11-15 · R3 · Lead local time: open hours muted, closed hours foreground with "· CLOSED" · no amber text; the word carries the meaning
 - 2026-11-15 · R3 · SMS thread entries in LeadActionHub are marked "YOU" or the lead's name (new `leadName` prop on TimelineEntry) · sides by name, not color
 - 2026-11-15 · R3 · reskin-shots.js smoke now also checks D and N (N on /call/next) and saves the ringing / connected / confirm / ended states; mute is read from aria-pressed · R3 smoke spec; the keycap's "M" runs into the label text
+- 2026-11-15 · R4 · R4 is stacked on R3 (PRs #28–#30 were not merged yet) · R4 needs R1's primitives and R3's LeadActionHub
+- 2026-11-15 · R4 · QueueHoursCards is unchanged · it only renders StatCards, which R1 already restyled
+- 2026-11-15 · R4 · Lead rows lose the per-status background tints and the fade-in; a selected row gets bg-muted and the 3px primary bar; a callback due within 2 hours gets a border-strong bar plus a "DUE SOON" tag; "Up next" is a solid tag · status tags carry the meaning; no raw rgba; color is never the only cue
+- 2026-11-15 · R4 · Lead page: Save changes and Schedule callback are primary (one per section); Delete lead and its confirm are "⊘" secondary, never orange or red · DESIGN.md destructive button
+- 2026-11-15 · R4 · The bulk SMS dialog shows CLOSE × only when not sending · Cancel is disabled while sending; CLOSE × must not bypass that
+- 2026-11-15 · R4 · Filters get visible labels; the two "Added" dates are a fieldset with aria-labels · every input labelled
+- 2026-11-15 · R4 · The daily goal meter always shows; EDIT (an underlined text button) opens a labelled number field with Save · replaces ✏️

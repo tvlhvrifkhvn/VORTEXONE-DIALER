@@ -1,19 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Clock, Shield } from 'lucide-react';
+import Badge from '../ui/Badge';
 import StatusBadge from './StatusBadge';
 import AttemptBadge from './AttemptBadge';
 import { formatPhone, formatDateTime } from '../../lib/format';
 import { DIAL_MODE_KEY } from '../../hooks/useCall';
 import LeadLocalTime from './LeadLocalTime';
-
-// Subtle post-disposition background tint — CSS-transitioned via the
-// `transition-colors` class on the row, so the color change is smooth.
-const STATUS_TINT = {
-  contacted: 'rgba(16,185,129,0.08)',
-  dnc: 'rgba(239,68,68,0.08)',
-  callback_scheduled: 'rgba(245,158,11,0.08)',
-};
 
 const STALE_MS = 7 * 24 * 60 * 60 * 1000;
 const STALE_STATUSES = ['new', 'in_queue'];
@@ -43,8 +36,6 @@ export default function LeadRow({
     }
   }, [lead.status]);
 
-  const statusTint = STATUS_TINT[lead.status];
-
   // Every per-row action moved to the lead page, so the whole row is one
   // target. The checkbox stops propagation so selecting never navigates.
   const openLead = () => navigate(`/leads/${lead.id}`);
@@ -54,10 +45,9 @@ export default function LeadRow({
       ref={rowRef}
       onClick={openLead}
       title={`Open ${lead.name}`}
-      className={`animate-fade-in-row cursor-pointer border-b border-shadow/20 transition-colors duration-500 last:border-0 hover:bg-action-call/5 ${
-        lead.isUpNext ? 'bg-action-call/5' : ''
-      } ${callbackDueSoon ? 'border-l-4 border-l-action-warn' : ''}`}
-      style={{ animationDelay: `${Math.min(index, 20) * 30}ms`, backgroundColor: statusTint }}
+      className={`h-12 cursor-pointer border-b border-l-[3px] transition-colors duration-150 last:border-b-0 hover:bg-muted ${
+        selected ? 'border-l-primary bg-muted' : callbackDueSoon ? 'border-l-strong' : 'border-l-transparent'
+      }`}
     >
       <td className="px-3 py-3" onClick={(e) => e.stopPropagation()}>
         <input
@@ -65,43 +55,44 @@ export default function LeadRow({
           checked={selected}
           onChange={() => onToggleSelect(lead.id)}
           aria-label={`Select ${lead.name}`}
-          className="h-4 w-4 cursor-pointer accent-action-call"
+          className="h-4 w-4 cursor-pointer accent-primary"
         />
       </td>
       <td className="max-w-[18rem] px-3 py-3">
-        <div className="flex min-w-0 items-center gap-1.5">
+        <div className="flex min-w-0 items-center gap-2">
           {/* F-54: long names and brokerages are cut with "…"; the full text is in the tooltip. */}
-          <span className="truncate font-medium text-text-primary" title={lead.name}>{lead.name}</span>
-          {lead.isUpNext && <span className="text-xs font-semibold text-action-call">Up next</span>}
+          <span className="truncate font-medium text-foreground" title={lead.name}>{lead.name}</span>
+          {lead.isUpNext && <Badge tone="solid">Up next</Badge>}
+          {callbackDueSoon && <Badge>Due soon</Badge>}
           {isStale(lead) && (
-            <span title="Not contacted in 7+ days" aria-label="Not contacted in 7+ days" className="text-action-warn">
-              <Clock size={12} />
+            <span title="Not contacted in 7+ days" aria-label="Not contacted in 7+ days" className="text-muted-foreground">
+              <Clock size={16} strokeWidth={1.5} />
             </span>
           )}
         </div>
-        <div className="truncate text-xs text-text-secondary" title={lead.brokerage || ''}>{lead.brokerage || '—'}</div>
+        <div className="truncate text-sm text-muted-foreground" title={lead.brokerage || ''}>{lead.brokerage || '—'}</div>
       </td>
-      <td className="px-3 py-3 text-text-primary">
-        <div className="flex items-center gap-1.5">
+      <td className="px-3 py-3 text-foreground">
+        <div className="flex items-center gap-2 font-mono tabular-nums">
           {lead.missing_phone ? (
-            <span className="text-xs italic text-text-secondary">
+            <span className="font-sans text-sm italic text-muted-foreground">
               {lead.original_phone ? `Number unreadable: ${lead.original_phone}` : 'No number'}
             </span>
           ) : (
             <>
               {formatPhone(lead.phone)}
-              {lead.extension && <span className="text-xs text-text-secondary">ext. {lead.extension}</span>}
+              {lead.extension && <span className="text-xs text-muted-foreground">ext. {lead.extension}</span>}
             </>
           )}
           {lead.is_dnc_flagged && (
-            <span title="On the DNC list" aria-label="On the DNC list" className="text-action-dnc">
-              <Shield size={12} />
+            <span title="On the DNC list" aria-label="On the DNC list" className="text-foreground">
+              <Shield size={16} strokeWidth={1.5} />
             </span>
           )}
         </div>
       </td>
-      <td className="px-3 py-3 text-text-primary">
-        <div>{lead.state}</div>
+      <td className="px-3 py-3 text-foreground">
+        <div className="font-mono">{lead.state}</div>
         <LeadLocalTime lead={lead} />
       </td>
       <td className="px-3 py-3">
@@ -110,7 +101,7 @@ export default function LeadRow({
       <td className="px-3 py-3">
         <StatusBadge status={lead.status} />
       </td>
-      <td className="px-3 py-3 text-xs text-text-secondary">{formatDateTime(lead.created_at)}</td>
+      <td className="px-3 py-3 font-mono text-xs tabular-nums text-muted-foreground">{formatDateTime(lead.created_at)}</td>
     </tr>
   );
 }

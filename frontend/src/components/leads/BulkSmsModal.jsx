@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import NeuCard from '../ui/NeuCard';
+import Dialog from '../ui/Dialog';
 import NeuButton from '../ui/NeuButton';
 import NeuInput from '../ui/NeuInput';
 import * as api from '../../lib/api';
@@ -47,16 +47,18 @@ export default function BulkSmsModal({ leads, onClose, onSent }) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 px-4">
-      <NeuCard className="w-full max-w-md space-y-4 p-6">
-        <h2 className="text-lg font-semibold text-text-primary">Send bulk SMS</h2>
-
+    // No CLOSE × while sending: Cancel is disabled then too.
+    <Dialog title="Send bulk SMS" onClose={sending ? undefined : onClose} className="max-w-md">
+      <div className="space-y-4">
         {summary ? (
           <>
-            <p className="text-sm text-text-primary">
-              {summary.sent} of {summary.total} sent
+            <p className="text-base text-foreground">
+              <span className="font-mono font-medium tabular-nums">
+                {summary.sent} / {summary.total}
+              </span>{' '}
+              sent
             </p>
-            <ul className="space-y-0.5 text-xs text-text-secondary" data-testid="bulk-sms-summary">
+            <ul className="text-sm text-muted-foreground" data-testid="bulk-sms-summary">
               {[
                 ['opted_out', 'Opted out of texts'],
                 ['dnc', 'On the DNC list'],
@@ -68,8 +70,9 @@ export default function BulkSmsModal({ leads, onClose, onSent }) {
               ]
                 .filter(([key]) => summary[key] > 0)
                 .map(([key, label]) => (
-                  <li key={key}>
-                    {label}: {summary[key]}
+                  <li key={key} className="flex justify-between gap-4 border-b py-2 last:border-b-0">
+                    <span>{label}</span>
+                    <span className="font-mono tabular-nums text-foreground">{summary[key]}</span>
                   </li>
                 ))}
             </ul>
@@ -79,8 +82,12 @@ export default function BulkSmsModal({ leads, onClose, onSent }) {
           </>
         ) : (
           <>
+            <label htmlFor="bulk-sms-template" className="label -mb-2 block">
+              Template
+            </label>
             <NeuInput
               as="select"
+              id="bulk-sms-template"
               value={templateId}
               onChange={(e) => setTemplateId(e.target.value)}
               className="w-full text-sm"
@@ -94,8 +101,8 @@ export default function BulkSmsModal({ leads, onClose, onSent }) {
             </NeuInput>
 
             {template && (
-              <div className="space-y-1 rounded-input bg-surface p-3 text-xs text-text-primary shadow-neu-inset">
-                <p className="font-medium text-text-secondary">Preview</p>
+              <div className="space-y-2 border bg-muted p-4 text-sm text-foreground">
+                <p className="label">Preview</p>
                 {eligible.slice(0, 3).map((l) => (
                   <p key={l.id}>
                     <span className="font-medium">{l.name}:</span> {mergePreview(template.body, l)}
@@ -104,17 +111,27 @@ export default function BulkSmsModal({ leads, onClose, onSent }) {
               </div>
             )}
 
-            <p className="text-sm text-text-secondary">
+            <p className="text-sm text-muted-foreground">
               {leads.length} lead{leads.length === 1 ? '' : 's'} selected · {eligible.length} will receive this
               {optOutCount > 0 ? ` · ${optOutCount} opted out of SMS` : ''}
               {dncCount > 0 ? ` · ${dncCount} on Do Not Call` : ''}
             </p>
 
-            {error && <p className="text-sm text-action-hangup">{error}</p>}
-            {sending && <p className="text-sm text-text-secondary">Sending to {eligible.length} leads, this may take a moment…</p>}
+            {error && (
+              <p role="alert" className="text-sm text-signal">
+                <span className="label mr-2 text-signal">Error</span>
+                {error}
+              </p>
+            )}
+            {sending && <p className="text-sm text-muted-foreground">Sending to {eligible.length} leads, this may take a moment…</p>}
 
             <div className="flex gap-2">
-              <NeuButton className="flex-1" onClick={handleSend} disabled={!templateId || eligible.length === 0 || sending}>
+              <NeuButton
+                variant="primary"
+                className="flex-1"
+                onClick={handleSend}
+                disabled={!templateId || eligible.length === 0 || sending}
+              >
                 {sending ? 'Sending…' : `Send to ${eligible.length} leads`}
               </NeuButton>
               <NeuButton className="flex-1" onClick={onClose} disabled={sending}>
@@ -123,7 +140,7 @@ export default function BulkSmsModal({ leads, onClose, onSent }) {
             </div>
           </>
         )}
-      </NeuCard>
-    </div>
+      </div>
+    </Dialog>
   );
 }
