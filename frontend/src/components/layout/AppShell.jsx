@@ -13,13 +13,16 @@ const navLinkClasses = ({ isActive }) =>
     isActive ? 'shadow-neu-pressed text-text-primary' : 'shadow-neu-sm hover:shadow-neu text-text-secondary'
   }`;
 
-const THEME_KEY = 'vortex_dialer_theme';
+const THEME_KEY = 'vortex.theme';
 const SEARCH_DEBOUNCE_MS = 300;
 
+// darkMode === true means the 'ink' theme (the default); false means 'paper'.
 function getInitialDarkMode() {
-  const stored = localStorage.getItem(THEME_KEY);
-  if (stored) return stored === 'dark';
-  return window.matchMedia?.('(prefers-color-scheme: dark)').matches ?? false;
+  try {
+    return localStorage.getItem(THEME_KEY) !== 'paper';
+  } catch {
+    return true;
+  }
 }
 
 const TIME_ZONES = [
@@ -254,8 +257,12 @@ export default function AppShell({ children }) {
   const unreadSmsCount = useSmsInboxPoll();
 
   useEffect(() => {
-    document.documentElement.classList.toggle('dark', darkMode);
-    localStorage.setItem(THEME_KEY, darkMode ? 'dark' : 'light');
+    document.documentElement.dataset.theme = darkMode ? 'ink' : 'paper';
+    try {
+      localStorage.setItem(THEME_KEY, darkMode ? 'ink' : 'paper');
+    } catch {
+      /* storage unavailable: the theme still applies for this visit */
+    }
   }, [darkMode]);
 
   const handleLogout = () => {
@@ -278,7 +285,7 @@ export default function AppShell({ children }) {
             <span className="inline-flex items-center gap-1.5">
               Dialer
               {sessionLive && (
-                <span className="rounded-full bg-action-call px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white">
+                <span className="rounded-full bg-action-call px-1.5 py-0.5 text-xs font-semibold uppercase tracking-wide text-white">
                   Live
                 </span>
               )}
@@ -288,7 +295,7 @@ export default function AppShell({ children }) {
             <span className="relative inline-flex items-center">
               Inbox
               {unreadSmsCount > 0 && (
-                <span className="ml-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-action-hangup px-1 text-[10px] font-semibold text-white">
+                <span className="ml-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-action-hangup px-1 text-xs font-semibold text-white">
                   {unreadSmsCount}
                 </span>
               )}

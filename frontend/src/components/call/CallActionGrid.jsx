@@ -171,7 +171,7 @@ export default function CallActionGrid({ lead, callId, onLeadUpdated, muted = fa
           {lead.tags.map((tag) => (
             <span
               key={tag}
-              className="flex items-center gap-1 rounded-full bg-surface px-2 py-0.5 text-[11px] text-text-primary shadow-neu-sm"
+              className="flex items-center gap-1 rounded-full bg-surface px-2 py-0.5 text-xs text-text-primary shadow-neu-sm"
             >
               {tag}
               <button
@@ -206,14 +206,14 @@ export default function CallActionGrid({ lead, callId, onLeadUpdated, muted = fa
               to build an office's social proof, so they get one-tap entry
               rather than relying on the rep spelling them the same way. */}
           <div className="flex flex-wrap items-center gap-1.5">
-            <span className="text-[11px] text-text-secondary">Quick:</span>
+            <span className="text-xs text-text-secondary">Quick:</span>
             {SUGGESTED_TAGS.map((tag) => (
               <button
                 key={tag}
                 type="button"
                 onClick={() => handleAddTag(tag)}
                 disabled={busy || lead.tags?.includes(tag)}
-                className="rounded-full px-2 py-0.5 text-[11px] text-text-primary shadow-neu-sm hover:shadow-neu disabled:opacity-40"
+                className="rounded-full px-2 py-0.5 text-xs text-text-primary shadow-neu-sm hover:shadow-neu disabled:opacity-40"
               >
                 {tag}
               </button>

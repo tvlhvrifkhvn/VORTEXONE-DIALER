@@ -81,7 +81,7 @@ function PreviousNotes({ leadId, currentCallId }) {
         <li key={`${e.type}-${e.id}`} className="border-b border-shadow/20 pb-2 last:border-0 last:pb-0">
           <div className="flex items-center justify-between gap-2">
             <span className="text-xs text-text-secondary">
-              <span className="mr-1.5 rounded-full bg-surface px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide shadow-neu-sm">
+              <span className="mr-1.5 rounded-full bg-surface px-1.5 py-0.5 text-xs font-semibold uppercase tracking-wide shadow-neu-sm">
                 {e.type === 'call' ? 'Call' : 'Note'}
               </span>
               {formatDateTime(e.timestamp)}

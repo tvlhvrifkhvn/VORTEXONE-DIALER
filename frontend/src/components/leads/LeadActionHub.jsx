@@ -293,7 +293,7 @@ function TimelineEntry({ entry }) {
           <div className="flex flex-wrap items-center gap-2 text-xs">
             <span className="font-medium text-text-primary">{entry.disposition || 'No disposition'}</span>
             {entry.was_recorded && (
-              <span className="rounded-full bg-action-hangup/10 px-1.5 py-0.5 text-[10px] font-medium text-action-hangup">
+              <span className="rounded-full bg-action-hangup/10 px-1.5 py-0.5 text-xs font-medium text-action-hangup">
                 Recording
               </span>
             )}
@@ -327,14 +327,14 @@ function TimelineEntry({ entry }) {
               href={api.resolveMediaUrl(entry.media_url)}
               target="_blank"
               rel="noreferrer"
-              className="mt-1 flex items-center gap-1 text-[11px] underline"
+              className="mt-1 flex items-center gap-1 text-xs underline"
             >
               <File size={12} className="shrink-0" />
               {entry.media_url.split('/').pop()}
             </a>
           )
         )}
-        <p className="mt-1 text-[10px] text-text-secondary">{formatDateTime(entry.timestamp)}</p>
+        <p className="mt-1 text-xs text-text-secondary">{formatDateTime(entry.timestamp)}</p>
       </div>
     </div>
   );

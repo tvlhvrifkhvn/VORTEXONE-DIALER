@@ -1,11 +1,14 @@
 import NeuCard from '../ui/NeuCard';
 
-export default function StatCard({ label, value, hint }) {
+// Stat (DESIGN.md section 5). `size`: '2xl' (default) | 'display'.
+export default function StatCard({ label, value, hint, size = '2xl' }) {
   return (
-    <NeuCard className="min-w-[140px] flex-1 border-2 border-transparent p-4 hover:border-action-call">
-      <div className="text-xs font-medium uppercase tracking-wide text-text-secondary">{label}</div>
-      <div className="mt-1 text-2xl font-semibold text-text-primary">{value}</div>
-      {hint && <div className="mt-1 text-xs text-text-secondary">{hint}</div>}
+    <NeuCard className="min-w-[140px] flex-1 p-4">
+      <div className="label">{label}</div>
+      <div className={`mt-2 font-mono font-medium tabular-nums text-foreground ${size === 'display' ? 'text-display' : 'text-2xl'}`}>
+        {value}
+      </div>
+      {hint && <div className="mt-1 text-xs text-muted-foreground">{hint}</div>}
     </NeuCard>
   );
 }

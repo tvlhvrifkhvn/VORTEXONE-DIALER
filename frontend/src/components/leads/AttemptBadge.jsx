@@ -1,11 +1,14 @@
 import Badge from '../ui/Badge';
 
-// Goes amber on the last attempt before a lead would go cold.
+// DESIGN.md section 6: outline; the last attempt before cold is solid "· LAST";
+// at the limit it is muted "· MAX".
 export default function AttemptBadge({ attempts, maxAttempts }) {
-  const color = attempts >= maxAttempts ? '#DC2626' : attempts >= maxAttempts - 1 ? '#F59E0B' : '#6A7A94';
+  const atMax = attempts >= maxAttempts;
+  const last = !atMax && attempts >= maxAttempts - 1;
   return (
-    <Badge color={color}>
+    <Badge tone={atMax ? 'muted' : last ? 'solid' : 'outline'} className="tabular-nums">
       {attempts}/{maxAttempts}
+      {atMax ? ' · MAX' : last ? ' · LAST' : ''}
     </Badge>
   );
 }

@@ -36,7 +36,7 @@ function ShortcutHintBar() {
     <div className="flex flex-wrap items-center justify-center gap-4 rounded-input bg-surface px-4 py-2 text-xs text-text-secondary shadow-neu-inset">
       {SHORTCUT_HINTS.map((s) => (
         <span key={s.key} className="flex items-center gap-1">
-          <kbd className="rounded border border-shadow/40 px-1.5 py-0.5 font-mono text-[10px] text-text-primary">
+          <kbd className="rounded border border-shadow/40 px-1.5 py-0.5 font-mono text-xs text-text-primary">
             {s.key}
           </kbd>
           {s.label}

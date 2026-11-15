@@ -553,7 +553,7 @@ function ObjectionsSection() {
                 onClick={() => handleMove(index, -1)}
                 disabled={busy || index === 0}
                 aria-label={`Move ${type.label} up`}
-                className="px-1 text-[10px] leading-none text-text-secondary hover:text-text-primary disabled:opacity-30"
+                className="px-1 text-xs leading-none text-text-secondary hover:text-text-primary disabled:opacity-30"
               >
                 ▲
               </button>
@@ -562,7 +562,7 @@ function ObjectionsSection() {
                 onClick={() => handleMove(index, 1)}
                 disabled={busy || index === types.length - 1}
                 aria-label={`Move ${type.label} down`}
-                className="px-1 text-[10px] leading-none text-text-secondary hover:text-text-primary disabled:opacity-30"
+                className="px-1 text-xs leading-none text-text-secondary hover:text-text-primary disabled:opacity-30"
               >
                 ▼
               </button>

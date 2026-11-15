@@ -76,7 +76,7 @@ export default function ColleagueCard({ leadId }) {
               target="_blank"
               rel="noreferrer"
               title={`Open ${c.name} in a new tab`}
-              className="rounded-full px-2 py-0.5 text-[11px] text-text-primary shadow-neu-sm hover:shadow-neu"
+              className="rounded-full px-2 py-0.5 text-xs text-text-primary shadow-neu-sm hover:shadow-neu"
             >
               {c.name} — {c.outcome}
               {c.date ? `, ${shortDate(c.date)}` : ''}

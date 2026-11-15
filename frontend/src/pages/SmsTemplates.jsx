@@ -182,7 +182,7 @@ export default function SmsTemplates() {
                   {t.name}
                   {t.needs_fixing && (
                     <span
-                      className="ml-2 rounded-full bg-action-warn/15 px-2 py-0.5 text-[10px] font-semibold text-action-warn"
+                      className="ml-2 rounded-full bg-action-warn/15 px-2 py-0.5 text-xs font-semibold text-action-warn"
                       title={`Can't be sent until fixed: ${(t.invalid_tokens || []).join(', ')}`}
                     >
                       Needs fixing
