@@ -79,7 +79,7 @@ no_answer). The route handler in `routes/calls.js` reads which adapter to use fr
 
 ## Design language: Neo-Swiss
 
-Rules: docs/DESIGN.md. Plan and status: docs/RESKIN.md. Decisions: docs/DECISIONS.md. Build UI from src/components/ui/ (all shown on /styleguide). Check with `npm run build` and `npm run contrast` in frontend/.
+Rules: docs/DESIGN.md. Plan and status: docs/RESKIN.md (all segments done). Decisions: docs/DECISIONS.md. Build UI from the primitives in src/components/ui/ (Panel, Button, Field, ActionButton, Badge, Keycap, SectionLabel, FileTag, StatusDot, Meter, Segmented, Dialog), all shown on the hidden /styleguide page. Two themes: ink (default) and paper. Check with `npm run build` and `npm run contrast` in frontend/, `bash audit/scripts/reskin-grep.sh` (must print nothing), and `node audit/scripts/reskin-shots.js` / `reskin-a11y.js` for screenshots, the hotkey smoke test and the keyboard and label pass.
 
 ## Rules for Claude Code working on this project
 

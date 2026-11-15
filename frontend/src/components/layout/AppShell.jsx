@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { Phone, Search } from 'lucide-react';
-import NeuButton from '../ui/NeuButton';
-import NeuInput from '../ui/NeuInput';
+import Button from '../ui/Button';
+import Field from '../ui/Field';
 import Badge from '../ui/Badge';
 import FileTag from '../ui/FileTag';
 import Meter from '../ui/Meter';
@@ -131,7 +131,7 @@ function GlobalSearch() {
           aria-hidden="true"
           className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
         />
-        <NeuInput
+        <Field
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onFocus={() => results.length > 0 && setOpen(true)}
@@ -345,10 +345,10 @@ export default function AppShell({ children }) {
 
           <div className="flex items-center gap-4">
             {user && <span className="text-sm text-muted-foreground">{user.name}</span>}
-            <NeuButton onClick={() => navigate('/call/manual')} title="Dial a number">
+            <Button onClick={() => navigate('/call/manual')} title="Dial a number">
               <Phone size={16} strokeWidth={1.5} aria-hidden="true" />
               Dial
-            </NeuButton>
+            </Button>
             <Segmented
               label="Theme"
               options={[
@@ -358,9 +358,9 @@ export default function AppShell({ children }) {
               value={darkMode ? 'ink' : 'paper'}
               onChange={(v) => setDarkMode(v === 'ink')}
             />
-            <NeuButton variant="ghost" onClick={handleLogout}>
+            <Button variant="ghost" onClick={handleLogout}>
               Log out
-            </NeuButton>
+            </Button>
           </div>
         </div>
 

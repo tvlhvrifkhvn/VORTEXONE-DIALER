@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import AppShell from '../components/layout/AppShell';
-import NeuCard from '../components/ui/NeuCard';
-import NeuButton from '../components/ui/NeuButton';
+import Panel from '../components/ui/Panel';
+import Button from '../components/ui/Button';
 import Badge from '../components/ui/Badge';
 import SectionLabel from '../components/ui/SectionLabel';
 import { formatRelativeToNow } from '../lib/format';
@@ -71,12 +71,12 @@ export default function Inbox() {
         {loading ? (
           <p className="label">Loading…</p>
         ) : rows.length === 0 ? (
-          <NeuCard className="space-y-2 p-6">
+          <Panel className="space-y-2 p-6">
             <p className="label">Inbox empty</p>
             <p className="text-base text-foreground">No new messages.</p>
-          </NeuCard>
+          </Panel>
         ) : (
-          <NeuCard className="p-0">
+          <Panel className="p-0">
             {rows.map((row) => (
               <div key={row.leadId} className="flex items-center gap-4 border-b px-4 py-3 last:border-b-0">
                 <button
@@ -110,35 +110,35 @@ export default function Inbox() {
                   </span>
                 </button>
                 <div className="flex shrink-0 gap-2">
-                  <NeuButton onClick={() => handleMarkInterested(row.leadId)}>Mark interested</NeuButton>
+                  <Button onClick={() => handleMarkInterested(row.leadId)}>Mark interested</Button>
                   {confirmingOptOut === row.leadId ? (
-                    <NeuButton active onClick={() => handleOptOut(row.leadId)}>
+                    <Button active onClick={() => handleOptOut(row.leadId)}>
                       ⊘ Confirm opt-out?
-                    </NeuButton>
+                    </Button>
                   ) : (
-                    <NeuButton
+                    <Button
                       title="Stop texting this lead? They can still be called."
                       onClick={() => setConfirmingOptOut(row.leadId)}
                     >
                       ⊘ Mark opted out
-                    </NeuButton>
+                    </Button>
                   )}
                 </div>
               </div>
             ))}
-          </NeuCard>
+          </Panel>
         )}
 
         <div className="flex justify-end gap-2">
-          <NeuButton disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>
+          <Button disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>
             Previous
-          </NeuButton>
-          <NeuButton disabled={rows.length < 20} onClick={() => setPage((p) => p + 1)}>
+          </Button>
+          <Button disabled={rows.length < 20} onClick={() => setPage((p) => p + 1)}>
             Next
-          </NeuButton>
+          </Button>
         </div>
         {!loading && unmatched.length > 0 && (
-          <NeuCard className="space-y-2 p-4" data-testid="unmatched-inbound">
+          <Panel className="space-y-2 p-4" data-testid="unmatched-inbound">
             <SectionLabel title="From unknown numbers" />
             <ul className="divide-y">
               {unmatched.map((m) => (
@@ -151,16 +151,16 @@ export default function Inbox() {
                   )}
                   <span className="font-mono text-xs tabular-nums text-muted-foreground">{formatRelativeToNow(m.receivedAt)}</span>
                   {!m.isRead && (
-                    <NeuButton
+                    <Button
                       onClick={() => api.markUnmatchedSmsRead(m.id).then(load).catch(() => {})}
                     >
                       Mark read
-                    </NeuButton>
+                    </Button>
                   )}
                 </li>
               ))}
             </ul>
-          </NeuCard>
+          </Panel>
         )}
       </div>
 

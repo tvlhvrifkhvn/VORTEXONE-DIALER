@@ -1,4 +1,4 @@
-import NeuCard from '../ui/NeuCard';
+import Panel from '../ui/Panel';
 import SectionLabel from '../ui/SectionLabel';
 
 // Two series, told apart by shade, order and the legend, never by hue
@@ -32,7 +32,7 @@ export default function StateReport({ states = [] }) {
           </span>
         }
       />
-      <NeuCard className="p-4">
+      <Panel className="p-4">
         {states.length === 0 && <p className="text-sm text-muted-foreground">No calls recorded yet.</p>}
 
         <div className="divide-y">
@@ -56,7 +56,7 @@ export default function StateReport({ states = [] }) {
             </div>
           ))}
         </div>
-      </NeuCard>
+      </Panel>
     </section>
   );
 }

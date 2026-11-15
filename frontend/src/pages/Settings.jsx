@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
 import AppShell from '../components/layout/AppShell';
-import NeuCard from '../components/ui/NeuCard';
-import NeuButton from '../components/ui/NeuButton';
-import NeuInput from '../components/ui/NeuInput';
+import Panel from '../components/ui/Panel';
+import Button from '../components/ui/Button';
+import Field from '../components/ui/Field';
 import SectionLabel from '../components/ui/SectionLabel';
 import { useAuth } from '../hooks/useAuth';
 import * as api from '../lib/api';
@@ -47,20 +47,20 @@ function ProfileSection() {
   };
 
   return (
-    <NeuCard className="space-y-4 p-6">
+    <Panel className="space-y-4 p-6">
       <SectionLabel index="01" title="Profile" />
       <form onSubmit={handleSave} className="space-y-3">
         <div>
           <label htmlFor="profile-name" className="label mb-2 block">
             Display name
           </label>
-          <NeuInput id="profile-name" value={name} onChange={(e) => setName(e.target.value)} className="w-full" required />
+          <Field id="profile-name" value={name} onChange={(e) => setName(e.target.value)} className="w-full" required />
         </div>
         <div>
           <label htmlFor="profile-email" className="label mb-2 block">
             Email
           </label>
-          <NeuInput
+          <Field
             id="profile-email"
             type="email"
             value={email}
@@ -74,11 +74,11 @@ function ProfileSection() {
             {message.text}
           </p>
         )}
-        <NeuButton type="submit" variant="primary" disabled={saving}>
+        <Button type="submit" variant="primary" disabled={saving}>
           {saving ? 'Saving…' : 'Save profile'}
-        </NeuButton>
+        </Button>
       </form>
-    </NeuCard>
+    </Panel>
   );
 }
 
@@ -166,14 +166,14 @@ function DialingDefaultsSection() {
   };
 
   return (
-    <NeuCard className="space-y-4 p-6">
+    <Panel className="space-y-4 p-6">
       <SectionLabel index="02" title="Dialing defaults" />
       <form onSubmit={handleSave} className="space-y-3">
         <div>
           <label htmlFor="default-max-attempts" className="label mb-2 block">
             Default max attempts per lead (1–10)
           </label>
-          <NeuInput
+          <Field
             id="default-max-attempts"
             type="number"
             min="1"
@@ -192,7 +192,7 @@ function DialingDefaultsSection() {
           <label htmlFor="default-daily-goal" className="label mb-2 block">
             Default daily goal
           </label>
-          <NeuInput
+          <Field
             id="default-daily-goal"
             type="number"
             min="1"
@@ -205,7 +205,7 @@ function DialingDefaultsSection() {
           <label htmlFor="default-lines" className="label mb-2 block">
             Default simultaneous lines
           </label>
-          <NeuInput
+          <Field
             id="default-lines"
             as="select"
             value={defaultLines}
@@ -215,7 +215,7 @@ function DialingDefaultsSection() {
             <option value={1}>1 line</option>
             <option value={2}>2 lines</option>
             <option value={3}>3 lines</option>
-          </NeuInput>
+          </Field>
           <p className="mt-2 text-sm text-muted-foreground">
             How many leads a dialing session rings at once. Adjustable per session on the dashboard.
           </p>
@@ -268,9 +268,9 @@ function DialingDefaultsSection() {
         </div>
         {error && <p role="alert" className="text-sm text-signal">{error}</p>}
         {saved && <p className="font-mono text-xs uppercase text-foreground">✓ Saved</p>}
-        <NeuButton type="submit" variant="primary">Save defaults</NeuButton>
+        <Button type="submit" variant="primary">Save defaults</Button>
       </form>
-    </NeuCard>
+    </Panel>
   );
 }
 
@@ -311,14 +311,14 @@ function ReportingDaySection() {
   };
 
   return (
-    <NeuCard className="space-y-4 p-6">
+    <Panel className="space-y-4 p-6">
       <SectionLabel index="03" title="Reporting day" />
       <form onSubmit={handleSave} className="space-y-3">
         <div>
           <label className="label mb-2 block" htmlFor="reporting-timezone">
             Reporting timezone
           </label>
-          <NeuInput
+          <Field
             id="reporting-timezone"
             value={timezone}
             onChange={(e) => setTimezone(e.target.value)}
@@ -333,7 +333,7 @@ function ReportingDaySection() {
           <label className="label mb-2 block" htmlFor="day-start-time">
             Day starts at
           </label>
-          <NeuInput
+          <Field
             id="day-start-time"
             type="time"
             value={dayStart}
@@ -348,9 +348,9 @@ function ReportingDaySection() {
         {error && <p role="alert" className="text-sm text-signal">{error}</p>}
         {saved && <p className="font-mono text-xs uppercase text-foreground">✓ Saved</p>}
         {!isSupervisor && <p className="text-sm text-muted-foreground">Only a supervisor can change the reporting day.</p>}
-        <NeuButton type="submit" variant="primary" disabled={loading || !isSupervisor}>Save reporting day</NeuButton>
+        <Button type="submit" variant="primary" disabled={loading || !isSupervisor}>Save reporting day</Button>
       </form>
-    </NeuCard>
+    </Panel>
   );
 }
 
@@ -377,14 +377,14 @@ function ScriptEditorSection() {
   };
 
   return (
-    <NeuCard className="space-y-4 p-6">
+    <Panel className="space-y-4 p-6">
       <SectionLabel index="04" title="Pitch script" />
       <p className="text-sm text-muted-foreground">
         Customize the pitch script shown on the call screen. Use <code>{'{name}'}</code> where your name
         should appear.
       </p>
       <form onSubmit={handleSave} className="space-y-3">
-        <NeuInput
+        <Field
           as="textarea"
           rows={5}
           aria-label="Pitch script"
@@ -394,9 +394,9 @@ function ScriptEditorSection() {
         />
         {error && <p role="alert" className="text-sm text-signal">{error}</p>}
         {saved && <p className="font-mono text-xs uppercase text-foreground">✓ Saved</p>}
-        <NeuButton type="submit" variant="primary">Save script</NeuButton>
+        <Button type="submit" variant="primary">Save script</Button>
       </form>
-    </NeuCard>
+    </Panel>
   );
 }
 
@@ -438,7 +438,7 @@ function IntegrationsSection() {
   };
 
   return (
-    <NeuCard className="space-y-4 p-6">
+    <Panel className="space-y-4 p-6">
       <SectionLabel index="06" title="Integrations" />
       <p className="text-sm text-muted-foreground">
         Configure the Groq API key used for AI CSV column mapping and the Expand note button — without it,
@@ -456,7 +456,7 @@ function IntegrationsSection() {
                 ? `Configured ✓${status.last4 ? ` (ending ····${status.last4})` : ''}`
                 : 'Not configured'}
           </p>
-          <NeuInput
+          <Field
             id="groq-key"
             type="password"
             value={groqKey}
@@ -470,11 +470,11 @@ function IntegrationsSection() {
         </div>
         {error && <p role="alert" className="text-sm text-signal">{error}</p>}
         {saved && <p className="font-mono text-xs uppercase text-foreground">✓ Saved</p>}
-        <NeuButton type="submit" variant="primary" disabled={saving || loading || !isSupervisor || !groqKey.trim()}>
+        <Button type="submit" variant="primary" disabled={saving || loading || !isSupervisor || !groqKey.trim()}>
           {saving ? 'Saving…' : status.configured ? 'Replace key' : 'Save key'}
-        </NeuButton>
+        </Button>
       </form>
-    </NeuCard>
+    </Panel>
   );
 }
 
@@ -555,7 +555,7 @@ function ObjectionsSection() {
   };
 
   return (
-    <NeuCard className="space-y-4 p-6">
+    <Panel className="space-y-4 p-6">
       <SectionLabel index="05" title="Objections" />
       <p className="text-sm text-muted-foreground">
         The chips shown behind the Objection button on the call screen, in this order. Switching one off hides
@@ -584,7 +584,7 @@ function ObjectionsSection() {
                 ▼
               </button>
             </div>
-            <NeuInput
+            <Field
               value={labels[type.id] ?? type.label}
               onChange={(e) => setLabels((l) => ({ ...l, [type.id]: e.target.value }))}
               onBlur={() => handleRename(type)}
@@ -613,7 +613,7 @@ function ObjectionsSection() {
         ))}
       </ul>
       <form onSubmit={handleAdd} className="flex gap-2">
-        <NeuInput
+        <Field
           value={newLabel}
           onChange={(e) => setNewLabel(e.target.value)}
           placeholder="Add an objection, e.g. Using a CRM already"
@@ -621,16 +621,16 @@ function ObjectionsSection() {
           className="flex-1 text-sm"
           maxLength={80}
         />
-        <NeuButton type="submit" variant="primary" disabled={busy || !newLabel.trim()}>
+        <Button type="submit" variant="primary" disabled={busy || !newLabel.trim()}>
           Add
-        </NeuButton>
+        </Button>
       </form>
       {message && (
         <p role="status" className={`text-sm ${message.type === 'ok' ? 'text-foreground' : 'text-signal'}`}>
           {message.text}
         </p>
       )}
-    </NeuCard>
+    </Panel>
   );
 }
 

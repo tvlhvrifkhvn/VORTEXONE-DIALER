@@ -1,4 +1,4 @@
-import NeuCard from '../ui/NeuCard';
+import Panel from '../ui/Panel';
 import Badge from '../ui/Badge';
 import AttemptBadge from '../leads/AttemptBadge';
 import CallHeader from './CallHeader';
@@ -13,7 +13,7 @@ export default function CallContactHeader({ lead, call, ended = false }) {
   return (
     // Status and timer sit beside the name, not under it, so the outcome
     // buttons stay as high on the screen as possible.
-    <NeuCard className="flex flex-wrap items-start justify-between gap-4 p-4">
+    <Panel className="flex flex-wrap items-start justify-between gap-4 p-4">
       <div className="min-w-0">
         <h1 className="truncate text-2xl font-semibold tracking-[-0.01em] text-foreground">{lead.name}</h1>
         <p className="mt-1 truncate text-base text-muted-foreground">{lead.brokerage || 'No brokerage on file'}</p>
@@ -32,6 +32,6 @@ export default function CallContactHeader({ lead, call, ended = false }) {
       <div className="shrink-0">
         <CallHeader call={call} ended={ended} />
       </div>
-    </NeuCard>
+    </Panel>
   );
 }

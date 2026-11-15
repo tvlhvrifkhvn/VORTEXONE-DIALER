@@ -1,5 +1,5 @@
 import { useId } from 'react';
-import NeuInput from '../ui/NeuInput';
+import Field from '../ui/Field';
 
 // The visible "Notes" heading is the section label around this field
 // (DispositionPanel), so this label is for screen readers.
@@ -10,7 +10,7 @@ export default function NotesField({ value, onChange }) {
       <label htmlFor={id} className="sr-only">
         Notes
       </label>
-      <NeuInput
+      <Field
         id={id}
         as="textarea"
         rows={3}

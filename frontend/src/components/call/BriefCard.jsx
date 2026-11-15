@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { ChevronDown, ChevronUp } from 'lucide-react';
-import NeuCard from '../ui/NeuCard';
+import Panel from '../ui/Panel';
 import Badge from '../ui/Badge';
 
 function AiLine({ text }) {
@@ -32,16 +32,16 @@ export default function BriefCard({ brief, collapsed = false, className = '' }) 
   const { instant, ai } = brief || {};
   if (!instant) {
     return (
-      <NeuCard className={`p-4 ${className}`}>
+      <Panel className={`p-4 ${className}`}>
         <div className="h-3 w-2/3 bg-muted" />
-      </NeuCard>
+      </Panel>
     );
   }
 
   const d = instant.details;
 
   return (
-    <NeuCard className={`p-4 ${className}`} data-testid="brief-card">
+    <Panel className={`p-4 ${className}`} data-testid="brief-card">
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
@@ -91,6 +91,6 @@ export default function BriefCard({ brief, collapsed = false, className = '' }) 
           {d.tags.length > 0 && <p>Tags: {d.tags.join(', ')}</p>}
         </div>
       )}
-    </NeuCard>
+    </Panel>
   );
 }

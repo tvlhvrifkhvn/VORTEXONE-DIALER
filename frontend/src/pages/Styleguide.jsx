@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import AppShell from '../components/layout/AppShell';
-import NeuCard from '../components/ui/NeuCard';
-import NeuButton from '../components/ui/NeuButton';
-import NeuInput from '../components/ui/NeuInput';
+import Panel from '../components/ui/Panel';
+import Button from '../components/ui/Button';
+import Field from '../components/ui/Field';
 import Badge from '../components/ui/Badge';
 import Keycap from '../components/ui/Keycap';
 import SectionLabel from '../components/ui/SectionLabel';
@@ -15,27 +15,11 @@ import StatCard from '../components/stats/StatCard';
 import StatusBadge from '../components/leads/StatusBadge';
 import AttemptBadge from '../components/leads/AttemptBadge';
 import { STATUS_LABELS } from '../styles/theme';
+import { TOKENS } from '../styles/tokens';
 
 // Hidden page (not in the nav): every primitive from docs/DESIGN.md, with
 // sample data only. No API calls.
 
-// Swatch classes are written out in full so Tailwind generates them.
-const TOKENS = [
-  { name: '--background', cls: 'bg-background', ink: '#0E0E0E', paper: '#E4E4E2' },
-  { name: '--card', cls: 'bg-card', ink: '#1A1A1A', paper: '#F2F2F0' },
-  { name: '--muted', cls: 'bg-muted', ink: '#222220', paper: '#D6D6D3' },
-  { name: '--foreground', cls: 'bg-foreground', ink: '#F2F2F0', paper: '#0E0E0E' },
-  { name: '--muted-foreground', cls: 'bg-muted-foreground', ink: '#8A8A88', paper: '#5A5A58' },
-  { name: '--border', cls: 'bg-border', ink: '#2E2E2C', paper: '#C4C4C0' },
-  { name: '--border-strong', cls: 'bg-strong', ink: '#8A8A88', paper: '#0E0E0E' },
-  { name: '--primary', cls: 'bg-primary', ink: '#FF4D1F', paper: '#FF4D1F' },
-  { name: '--primary-foreground', cls: 'bg-primary-foreground', ink: '#0E0E0E', paper: '#0E0E0E' },
-  { name: '--primary-border', cls: 'bg-primary-border', ink: '#FF4D1F', paper: '#0E0E0E' },
-  { name: '--signal-text', cls: 'bg-signal', ink: '#FF4D1F', paper: '#0E0E0E' },
-  { name: '--live', cls: 'bg-live', ink: '#1F9D55', paper: '#1F9D55' },
-  { name: '--ring', cls: 'bg-foreground', ink: '#F2F2F0', paper: '#0E0E0E' },
-  { name: '--meter-track', cls: 'bg-meter-track', ink: '#2E2E2C', paper: '#0E0E0E' },
-];
 
 const SIZES = [
   { key: 'xs', cls: 'text-xs', spec: '12/16' },
@@ -122,7 +106,7 @@ export default function Styleguide() {
         </Section>
 
         <Section index="02" title="Type">
-          <NeuCard className="p-6">
+          <Panel className="p-6">
             <ul className="space-y-4">
               {SIZES.map((s) => (
                 <li key={s.key} className="flex items-baseline gap-6">
@@ -139,37 +123,37 @@ export default function Styleguide() {
               <span className="font-mono tabular-nums">04:32</span>
               <span className="font-mono tabular-nums">$41.20</span>
             </div>
-          </NeuCard>
+          </Panel>
         </Section>
 
         <Section index="03" title="Buttons">
-          <NeuCard className="space-y-6 p-6">
+          <Panel className="space-y-6 p-6">
             <div className="flex flex-wrap items-center gap-4">
-              <NeuButton variant="primary">Start dialing →</NeuButton>
-              <NeuButton>Export PDF ↓</NeuButton>
-              <NeuButton variant="ghost">Log out</NeuButton>
-              <NeuButton active aria-pressed="true">
+              <Button variant="primary">Start dialing →</Button>
+              <Button>Export PDF ↓</Button>
+              <Button variant="ghost">Log out</Button>
+              <Button active aria-pressed="true">
                 Pressed
-              </NeuButton>
-              <NeuButton disabled>Disabled</NeuButton>
-              <NeuButton>⊘ DNC</NeuButton>
+              </Button>
+              <Button disabled>Disabled</Button>
+              <Button>⊘ DNC</Button>
             </div>
             <div className="flex flex-wrap items-center gap-4">
-              <NeuButton variant="primary" className="min-h-12 w-64">
+              <Button variant="primary" className="min-h-12 w-64">
                 <Keycap>Esc</Keycap> End call
-              </NeuButton>
-              <NeuButton className="min-h-11">
+              </Button>
+              <Button className="min-h-11">
                 <Keycap>M</Keycap> Mute
-              </NeuButton>
-              <NeuButton className="min-h-11">
+              </Button>
+              <Button className="min-h-11">
                 <Keycap>V</Keycap> Voicemail
-              </NeuButton>
-              <NeuButton className="min-h-11">
+              </Button>
+              <Button className="min-h-11">
                 <Keycap>N</Keycap> No answer
-              </NeuButton>
-              <NeuButton className="min-h-11">
+              </Button>
+              <Button className="min-h-11">
                 <Keycap>D</Keycap> Outcome
-              </NeuButton>
+              </Button>
             </div>
             <div className="flex flex-wrap items-center gap-6">
               <Segmented
@@ -192,30 +176,30 @@ export default function Styleguide() {
                 onChange={setLines}
               />
             </div>
-          </NeuCard>
+          </Panel>
         </Section>
 
         <Section index="04" title="Fields">
-          <NeuCard className="grid gap-6 p-6 md:grid-cols-2">
+          <Panel className="grid gap-6 p-6 md:grid-cols-2">
             <div>
               <FieldLabel htmlFor="sg-name">Lead name</FieldLabel>
-              <NeuInput id="sg-name" className="w-full" placeholder="Demo Agent 01" />
+              <Field id="sg-name" className="w-full" placeholder="Demo Agent 01" />
             </div>
             <div>
               <FieldLabel htmlFor="sg-state">State</FieldLabel>
-              <NeuInput as="select" id="sg-state" className="w-full" defaultValue="TX">
+              <Field as="select" id="sg-state" className="w-full" defaultValue="TX">
                 <option value="TX">TX</option>
                 <option value="FL">FL</option>
                 <option value="CA">CA</option>
-              </NeuInput>
+              </Field>
             </div>
             <div className="md:col-span-2">
               <FieldLabel htmlFor="sg-notes">Notes</FieldLabel>
-              <NeuInput as="textarea" id="sg-notes" rows={3} className="w-full" placeholder="What did they say?" />
+              <Field as="textarea" id="sg-notes" rows={3} className="w-full" placeholder="What did they say?" />
             </div>
             <div>
               <FieldLabel htmlFor="sg-phone">Phone</FieldLabel>
-              <NeuInput
+              <Field
                 id="sg-phone"
                 className="w-full border-2 border-primary font-mono"
                 defaultValue="+1 214 555"
@@ -228,13 +212,13 @@ export default function Styleguide() {
             </div>
             <div>
               <FieldLabel htmlFor="sg-disabled">Brokerage</FieldLabel>
-              <NeuInput id="sg-disabled" className="w-full opacity-40" disabled defaultValue="Keller Williams" />
+              <Field id="sg-disabled" className="w-full opacity-40" disabled defaultValue="Keller Williams" />
             </div>
-          </NeuCard>
+          </Panel>
         </Section>
 
         <Section index="05" title="Tags">
-          <NeuCard className="space-y-6 p-6">
+          <Panel className="space-y-6 p-6">
             <div className="flex flex-wrap gap-2">
               {Object.keys(STATUS_LABELS).map((s) => (
                 <StatusBadge key={s} status={s} />
@@ -254,16 +238,16 @@ export default function Styleguide() {
               <StatusDot tone="live">Connected</StatusDot>
               <StatusDot tone="signal">REC</StatusDot>
             </div>
-          </NeuCard>
+          </Panel>
         </Section>
 
         <Section index="06" title="Meters">
-          <NeuCard className="grid gap-8 p-6 md:grid-cols-2">
+          <Panel className="grid gap-8 p-6 md:grid-cols-2">
             <Meter label="Daily goal" value={42} max={100} tone="goal" />
             <Meter label="Spend · Nov" value={24} max={60} tone="budget" format={dollars} />
             <Meter label="Spend · Nov" value={48} max={60} tone="budget" format={dollars} />
             <Meter label="Spend · Nov" value={60} max={60} tone="budget" format={dollars} />
-          </NeuCard>
+          </Panel>
         </Section>
 
         <Section index="07" title="Stats">
@@ -329,8 +313,8 @@ export default function Styleguide() {
           <Dialog inline title="End this call?" onClose={() => {}}>
             <p>The lead returns to the queue if you leave without an outcome.</p>
             <div className="mt-6 flex justify-end gap-4">
-              <NeuButton>Keep talking</NeuButton>
-              <NeuButton variant="primary">End call</NeuButton>
+              <Button>Keep talking</Button>
+              <Button variant="primary">End call</Button>
             </div>
           </Dialog>
         </Section>

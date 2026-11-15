@@ -7,8 +7,8 @@ import BriefCard from '../components/call/BriefCard';
 import ColleagueCard from '../components/leads/ColleagueCard';
 import CallControls from '../components/call/CallControls';
 import DispositionPanel, { ScriptPanel } from '../components/call/DispositionPanel';
-import NeuCard from '../components/ui/NeuCard';
-import NeuButton from '../components/ui/NeuButton';
+import Panel from '../components/ui/Panel';
+import Button from '../components/ui/Button';
 import ActionButton from '../components/ui/ActionButton';
 import Dialog from '../components/ui/Dialog';
 import Keycap from '../components/ui/Keycap';
@@ -168,12 +168,12 @@ function CallScreenInner({ leadId }) {
 
   if (error) {
     return (
-      <NeuCard className="mt-6 max-w-md space-y-4 p-6">
+      <Panel className="mt-6 max-w-md space-y-4 p-6">
         <p className="label">Call not started</p>
         <p className="text-base font-medium text-foreground">Couldn't start this call</p>
         <p className="text-sm text-muted-foreground">{error}</p>
-        <NeuButton onClick={() => navigate('/')}>Back to dashboard →</NeuButton>
-      </NeuCard>
+        <Button onClick={() => navigate('/')}>Back to dashboard →</Button>
+      </Panel>
     );
   }
 
@@ -244,35 +244,35 @@ function CallScreenInner({ leadId }) {
           <CallControls onScheduleCallback={handleScheduleCallback} disabled={submitting || isFinalized} />
 
           {hungUp && !isFinalized && (
-            <NeuCard className="border-l-[3px] border-l-primary p-4 text-sm text-foreground">
+            <Panel className="border-l-[3px] border-l-primary p-4 text-sm text-foreground">
               Call ended without a disposition — this lead returns to the queue in 30s unless you log an
               outcome now.
-            </NeuCard>
+            </Panel>
           )}
 
           {ended && !isFinalized && (
-            <NeuButton className="w-full" onClick={handleRedial} disabled={redialing}>
+            <Button className="w-full" onClick={handleRedial} disabled={redialing}>
               {redialing ? 'Redialing…' : 'Redial'}
-            </NeuButton>
+            </Button>
           )}
 
           {isFinalized && (
-            <NeuCard className="space-y-4 p-4">
+            <Panel className="space-y-4 p-4">
               <p className="text-sm text-foreground">
                 ✓ Logged as <strong>{DISPOSITION_LABELS[lastDisposition] || lastDisposition}</strong>.
               </p>
               {undoInfo && (
-                <NeuButton className="w-full" onClick={handleUndo}>
+                <Button className="w-full" onClick={handleUndo}>
                   Undo
-                </NeuButton>
+                </Button>
               )}
-              <NeuButton variant="primary" className="w-full" onClick={() => navigate('/call/next')}>
+              <Button variant="primary" className="w-full" onClick={() => navigate('/call/next')}>
                 Next lead →
-              </NeuButton>
-              <NeuButton variant="ghost" className="w-full" onClick={() => navigate('/')}>
+              </Button>
+              <Button variant="ghost" className="w-full" onClick={() => navigate('/')}>
                 Back to dashboard
-              </NeuButton>
-            </NeuCard>
+              </Button>
+            </Panel>
           )}
         </div>
       </div>
@@ -292,9 +292,9 @@ function CallScreenInner({ leadId }) {
             >
               Hang up
             </ActionButton>
-            <NeuButton className="flex-1" onClick={() => setShowHangupConfirm(false)}>
+            <Button className="flex-1" onClick={() => setShowHangupConfirm(false)}>
               Cancel
-            </NeuButton>
+            </Button>
           </div>
         </Dialog>
       )}

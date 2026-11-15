@@ -7,11 +7,7 @@ const TONES = {
   signal: 'border border-primary bg-primary text-primary-foreground',
 };
 
-export default function Badge({ children, tone = 'outline', color, className = '' }) {
-  if (color !== undefined) {
-    // Legacy prop from the neumorphic Badge: ignored. R6 converts the last caller.
-    console.debug('[Badge] `color` is ignored; use `tone`.', color);
-  }
+export default function Badge({ children, tone = 'outline', className = '' }) {
   return (
     <span
       className={`inline-flex items-center whitespace-nowrap px-2 py-0.5 font-mono text-xs font-medium uppercase ${TONES[tone] || TONES.outline} ${className}`}

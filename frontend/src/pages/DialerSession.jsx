@@ -2,8 +2,8 @@ import { useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import AppShell from '../components/layout/AppShell';
 import MultilinePanel from '../components/call/MultilinePanel';
-import NeuCard from '../components/ui/NeuCard';
-import NeuButton from '../components/ui/NeuButton';
+import Panel from '../components/ui/Panel';
+import Button from '../components/ui/Button';
 import Dialog from '../components/ui/Dialog';
 import SectionLabel from '../components/ui/SectionLabel';
 import { useMultiline } from '../hooks/useMultiline';
@@ -48,9 +48,9 @@ function SessionSummaryModal({ stats, abandonedCount = 0, onClose }) {
           {abandonedCount} call{abandonedCount === 1 ? ' was' : 's were'} abandoned when a live contact was found.
         </p>
       )}
-      <NeuButton className="mt-6 w-full" onClick={onClose}>
+      <Button className="mt-6 w-full" onClick={onClose}>
         Close
-      </NeuButton>
+      </Button>
     </Dialog>
   );
 }
@@ -59,15 +59,15 @@ function SessionSummaryModal({ stats, abandonedCount = 0, onClose }) {
  * session's local state) with nothing running. */
 function NoSessionState({ onGoToDashboard }) {
   return (
-    <NeuCard className="mt-6 max-w-md space-y-4 p-6">
+    <Panel className="mt-6 max-w-md space-y-4 p-6">
       <h2 className="label">No dialing session</h2>
       <p className="text-base text-foreground">
         Select leads and a line count on the dashboard, then start a dialing session to see it here.
       </p>
-      <NeuButton variant="primary" onClick={onGoToDashboard}>
+      <Button variant="primary" onClick={onGoToDashboard}>
         Go to dashboard →
-      </NeuButton>
-    </NeuCard>
+      </Button>
+    </Panel>
   );
 }
 

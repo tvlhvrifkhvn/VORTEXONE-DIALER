@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import Dialog from '../ui/Dialog';
-import NeuButton from '../ui/NeuButton';
-import NeuInput from '../ui/NeuInput';
+import Button from '../ui/Button';
+import Field from '../ui/Field';
 import * as api from '../../lib/api';
 
 function mergePreview(body, lead) {
@@ -76,16 +76,16 @@ export default function BulkSmsModal({ leads, onClose, onSent }) {
                   </li>
                 ))}
             </ul>
-            <NeuButton className="w-full" onClick={onClose}>
+            <Button className="w-full" onClick={onClose}>
               Close
-            </NeuButton>
+            </Button>
           </>
         ) : (
           <>
             <label htmlFor="bulk-sms-template" className="label -mb-2 block">
               Template
             </label>
-            <NeuInput
+            <Field
               as="select"
               id="bulk-sms-template"
               value={templateId}
@@ -98,7 +98,7 @@ export default function BulkSmsModal({ leads, onClose, onSent }) {
                   {t.name}
                 </option>
               ))}
-            </NeuInput>
+            </Field>
 
             {template && (
               <div className="space-y-2 border bg-muted p-4 text-sm text-foreground">
@@ -126,17 +126,17 @@ export default function BulkSmsModal({ leads, onClose, onSent }) {
             {sending && <p className="text-sm text-muted-foreground">Sending to {eligible.length} leads, this may take a moment…</p>}
 
             <div className="flex gap-2">
-              <NeuButton
+              <Button
                 variant="primary"
                 className="flex-1"
                 onClick={handleSend}
                 disabled={!templateId || eligible.length === 0 || sending}
               >
                 {sending ? 'Sending…' : `Send to ${eligible.length} leads`}
-              </NeuButton>
-              <NeuButton className="flex-1" onClick={onClose} disabled={sending}>
+              </Button>
+              <Button className="flex-1" onClick={onClose} disabled={sending}>
                 Cancel
-              </NeuButton>
+              </Button>
             </div>
           </>
         )}

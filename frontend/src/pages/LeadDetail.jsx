@@ -4,9 +4,9 @@ import { ArrowLeft, PhoneOff } from 'lucide-react';
 import AppShell from '../components/layout/AppShell';
 import LeadActionHub from '../components/leads/LeadActionHub';
 import ColleagueCard from '../components/leads/ColleagueCard';
-import NeuCard from '../components/ui/NeuCard';
-import NeuButton from '../components/ui/NeuButton';
-import NeuInput from '../components/ui/NeuInput';
+import Panel from '../components/ui/Panel';
+import Button from '../components/ui/Button';
+import Field from '../components/ui/Field';
 import ActionButton from '../components/ui/ActionButton';
 import StatusBadge from '../components/leads/StatusBadge';
 import Badge from '../components/ui/Badge';
@@ -48,16 +48,16 @@ function CallbackScheduler({ lead, onScheduled }) {
         Callback time
       </label>
       <div className="flex flex-wrap items-center gap-2">
-        <NeuInput
+        <Field
           id="lead-callback-when"
           type="datetime-local"
           value={when}
           onChange={(e) => setWhen(e.target.value)}
           className="flex-1 font-mono text-sm"
         />
-        <NeuButton variant="primary" onClick={submit} disabled={saving || !when}>
+        <Button variant="primary" onClick={submit} disabled={saving || !when}>
           {saving ? 'Saving…' : 'Schedule callback'}
-        </NeuButton>
+        </Button>
       </div>
       {error && <p role="alert" className="text-sm text-signal">{error}</p>}
     </div>
@@ -128,11 +128,11 @@ export default function LeadDetail() {
   if (!lead) {
     return (
       <AppShell>
-        <NeuCard className="mt-6 max-w-md space-y-4 p-6">
+        <Panel className="mt-6 max-w-md space-y-4 p-6">
           <p className="label">Lead not found</p>
           {error && <p className="text-sm text-muted-foreground">{error}</p>}
-          <NeuButton onClick={() => navigate('/')}>Back to dashboard →</NeuButton>
-        </NeuCard>
+          <Button onClick={() => navigate('/')}>Back to dashboard →</Button>
+        </Panel>
       </AppShell>
     );
   }
@@ -149,7 +149,7 @@ export default function LeadDetail() {
           Back
         </button>
 
-        <NeuCard className="space-y-4 p-6">
+        <Panel className="space-y-4 p-6">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div className="min-w-0">
               <h1 className="truncate text-2xl font-semibold tracking-[-0.01em] text-foreground">{lead.name}</h1>
@@ -174,18 +174,18 @@ export default function LeadDetail() {
               ))}
             </div>
           )}
-        </NeuCard>
+        </Panel>
 
         <ColleagueCard leadId={lead.id} />
 
         <LeadActionHub lead={lead} />
 
-        <NeuCard className="space-y-4 p-6">
+        <Panel className="space-y-4 p-6">
           <h2 className="label">Schedule a callback</h2>
           <CallbackScheduler lead={lead} onScheduled={setLead} />
-        </NeuCard>
+        </Panel>
 
-        <NeuCard className="space-y-4 p-6">
+        <Panel className="space-y-4 p-6">
           <h2 className="label">Contact details</h2>
           {EDITABLE_FIELDS.map((field) => (
             <div key={field}>
@@ -193,7 +193,7 @@ export default function LeadDetail() {
                 {field}
               </label>
               {field === 'state' ? (
-                <NeuInput
+                <Field
                   id={`lead-field-${field}`}
                   as="select"
                   value={fields[field]}
@@ -205,9 +205,9 @@ export default function LeadDetail() {
                       {s}
                     </option>
                   ))}
-                </NeuInput>
+                </Field>
               ) : (
-                <NeuInput
+                <Field
                   id={`lead-field-${field}`}
                   value={fields[field]}
                   onChange={(e) => handleChange(field, e.target.value)}
@@ -225,15 +225,15 @@ export default function LeadDetail() {
           )}
           {saved && <p className="font-mono text-xs uppercase text-foreground">✓ Saved</p>}
 
-          <NeuButton variant="primary" className="w-full" onClick={handleSave} disabled={saving}>
+          <Button variant="primary" className="w-full" onClick={handleSave} disabled={saving}>
             {saving ? 'Saving…' : 'Save changes'}
-          </NeuButton>
+          </Button>
 
           <div className="border-t pt-4">
             {!confirmingDelete ? (
-              <NeuButton variant="ghost" onClick={() => setConfirmingDelete(true)}>
+              <Button variant="ghost" onClick={() => setConfirmingDelete(true)}>
                 ⊘ Delete lead
-              </NeuButton>
+              </Button>
             ) : (
               <div className="space-y-2">
                 <p className="text-sm text-muted-foreground">
@@ -243,14 +243,14 @@ export default function LeadDetail() {
                   <ActionButton variant="dnc" className="flex-1" onClick={handleDelete} disabled={deleting}>
                     {deleting ? 'Deleting…' : '⊘ Confirm delete'}
                   </ActionButton>
-                  <NeuButton className="flex-1" onClick={() => setConfirmingDelete(false)}>
+                  <Button className="flex-1" onClick={() => setConfirmingDelete(false)}>
                     Cancel
-                  </NeuButton>
+                  </Button>
                 </div>
               </div>
             )}
           </div>
-        </NeuCard>
+        </Panel>
       </div>
     </AppShell>
   );

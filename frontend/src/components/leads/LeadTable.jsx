@@ -1,6 +1,6 @@
 import { useNavigate } from 'react-router-dom';
-import NeuCard from '../ui/NeuCard';
-import NeuButton from '../ui/NeuButton';
+import Panel from '../ui/Panel';
+import Button from '../ui/Button';
 import LeadRow from './LeadRow';
 
 // No Actions column — calling, snoozing and scheduling all moved to the lead
@@ -28,7 +28,7 @@ function EmptyState({ hasAnyLeads, selectedState }) {
     <div className="space-y-4 px-4 py-8">
       <p className="label">{hasAnyLeads ? 'No results' : 'No leads yet'}</p>
       <p className="text-base text-foreground">{message}</p>
-      {showImportButton && <NeuButton onClick={() => navigate('/import')}>Import leads →</NeuButton>}
+      {showImportButton && <Button onClick={() => navigate('/import')}>Import leads →</Button>}
     </div>
   );
 }
@@ -59,7 +59,7 @@ export default function LeadTable({
   const pageFullySelected = leads.length > 0 && leads.every((l) => selectedIds.has(l.id));
 
   return (
-    <NeuCard className="overflow-x-auto p-0">
+    <Panel className="overflow-x-auto p-0">
       <div className="flex flex-wrap items-center justify-between gap-2 border-b px-4 py-2 text-sm text-muted-foreground">
         <span className="tabular-nums">
           Showing {leads.length} of {total} lead{total === 1 ? '' : 's'}
@@ -119,15 +119,15 @@ export default function LeadTable({
             Showing {rangeStart}–{rangeEnd} of {total} leads
           </span>
           <div className="flex gap-2">
-            <NeuButton onClick={() => onPageChange(page - 1)} disabled={!hasPrev}>
+            <Button onClick={() => onPageChange(page - 1)} disabled={!hasPrev}>
               Previous
-            </NeuButton>
-            <NeuButton onClick={() => onPageChange(page + 1)} disabled={!hasNext}>
+            </Button>
+            <Button onClick={() => onPageChange(page + 1)} disabled={!hasNext}>
               Next
-            </NeuButton>
+            </Button>
           </div>
         </div>
       )}
-    </NeuCard>
+    </Panel>
   );
 }
