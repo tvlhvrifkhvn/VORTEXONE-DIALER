@@ -69,12 +69,12 @@ export default function ObjectionPanel({ callId }) {
   };
 
   if (!callId) {
-    return <p className="text-xs text-text-secondary">Objections can be logged once the call has started.</p>;
+    return <p className="text-sm text-muted-foreground">Objections can be logged once the call has started.</p>;
   }
 
   return (
     <div className="space-y-2">
-      <div className="flex flex-wrap gap-1.5">
+      <div className="flex flex-wrap gap-2">
         {types.map((type) => {
           const on = isLogged(type.id);
           return (
@@ -84,8 +84,8 @@ export default function ObjectionPanel({ callId }) {
               onClick={() => handleToggle(type.id)}
               disabled={!!pending[type.id]}
               aria-pressed={on}
-              className={`rounded-full px-2.5 py-1 text-xs transition-all duration-200 disabled:opacity-50 ${
-                on ? 'font-semibold text-action-call shadow-neu-pressed' : 'text-text-primary shadow-neu-sm hover:shadow-neu'
+              className={`min-h-10 border px-3 font-mono text-xs font-medium uppercase transition-colors duration-150 disabled:opacity-40 ${
+                on ? 'border-foreground bg-foreground text-background' : 'border-strong text-foreground hover:bg-muted'
               }`}
             >
               {type.label}
@@ -98,11 +98,11 @@ export default function ObjectionPanel({ callId }) {
         const typeId = objection.objection_type_id;
         const hint = hints[typeId];
         return (
-          <div key={typeId} className="space-y-1 rounded-input p-2 shadow-neu-sm">
-            <p className="text-xs font-semibold text-text-primary">{objection.label}</p>
+          <div key={typeId} className="space-y-2 border p-2">
+            <p className="label text-foreground">{objection.label}</p>
             {hint && (
-              <p className="text-xs text-text-secondary" data-testid="objection-hint">
-                <span className="font-semibold">Try: </span>
+              <p className="text-sm text-muted-foreground" data-testid="objection-hint">
+                <span className="font-semibold text-foreground">Try: </span>
                 {hint.text}
               </p>
             )}
@@ -112,14 +112,15 @@ export default function ObjectionPanel({ callId }) {
               onBlur={() => handleSaveRebuttal(objection)}
               onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
               placeholder="What did you say? (optional)"
-              className="w-full text-xs"
+              aria-label={`What you said to "${objection.label}"`}
+              className="w-full text-sm"
             />
-            {savedId === typeId && <p className="text-xs text-action-contacted">Saved</p>}
+            {savedId === typeId && <p className="font-mono text-xs uppercase text-foreground">✓ Saved</p>}
           </div>
         );
       })}
 
-      {error && <p className="text-xs text-action-hangup">{error}</p>}
+      {error && <p role="alert" className="text-sm text-signal">{error}</p>}
     </div>
   );
 }

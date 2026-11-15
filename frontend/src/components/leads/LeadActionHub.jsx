@@ -93,14 +93,14 @@ export function SmsCompose({ lead, onSent }) {
 
   if (lead.sms_opt_out) {
     return (
-      <p className="rounded-input bg-surface p-3 text-xs text-text-secondary shadow-neu-inset">
+      <p className="border bg-muted p-4 text-sm text-muted-foreground">
         This lead has opted out of SMS messages.
       </p>
     );
   }
 
   return (
-    <div className="space-y-2 rounded-input bg-surface p-3 shadow-neu-inset">
+    <div className="space-y-2 border bg-muted p-4">
       <NeuInput
         as="select"
         value={useCustom ? 'custom' : templateId}
@@ -113,6 +113,7 @@ export function SmsCompose({ lead, onSent }) {
             setTemplateId(e.target.value);
           }
         }}
+        aria-label="SMS template"
         className="w-full text-sm"
       >
         <option value="">Select a template…</option>
@@ -131,15 +132,16 @@ export function SmsCompose({ lead, onSent }) {
           onChange={(e) => setCustomText(e.target.value)}
           className="w-full resize-none"
           style={{ minHeight: 80 }}
+          aria-label="Message"
           placeholder="Type a message…"
         />
       )}
 
       {rawBody && (
-        <div className="rounded-input bg-base p-2 text-xs text-text-primary">{preview}</div>
+        <div className="border bg-background p-2 text-sm text-foreground">{preview}</div>
       )}
 
-      <p className="text-xs text-text-secondary">
+      <p className="font-mono text-xs tabular-nums text-muted-foreground">
         {preview.length} / {SEGMENT_SIZE} characters ({segmentCount(preview.length)} segment
         {segmentCount(preview.length) === 1 ? '' : 's'})
       </p>
@@ -153,21 +155,26 @@ export function SmsCompose({ lead, onSent }) {
       />
 
       {mediaUrl && mediaName && (
-        <div className="flex items-center gap-2 rounded-input bg-base p-2 text-xs text-text-primary">
+        <div className="flex items-center gap-2 border bg-background p-2 text-sm text-foreground">
           {/\.(png|jpe?g|gif|webp)$/i.test(mediaName) ? (
-            <img src={api.resolveMediaUrl(mediaUrl)} alt={mediaName} className="h-10 w-10 rounded object-cover" />
+            <img src={api.resolveMediaUrl(mediaUrl)} alt={mediaName} className="h-10 w-10 object-cover" />
           ) : (
-            <File size={16} className="shrink-0 text-text-secondary" />
+            <File size={16} strokeWidth={1.5} aria-hidden="true" className="shrink-0 text-muted-foreground" />
           )}
           <span className="min-w-0 flex-1 truncate">{mediaName}</span>
-          <button type="button" onClick={handleRemoveMedia} className="shrink-0 text-text-secondary hover:text-action-hangup">
-            <X size={14} />
+          <button
+            type="button"
+            onClick={handleRemoveMedia}
+            aria-label={`Remove ${mediaName}`}
+            className="flex h-8 w-8 shrink-0 items-center justify-center text-muted-foreground transition-colors duration-150 hover:bg-foreground hover:text-background"
+          >
+            <X size={16} strokeWidth={1.5} aria-hidden="true" />
           </button>
         </div>
       )}
 
-      {error && <p className="text-xs text-action-hangup">{error}</p>}
-      {sent && <p className="text-xs text-action-contacted">Sent</p>}
+      {error && <p role="alert" className="text-sm text-signal">{error}</p>}
+      {sent && <p className="font-mono text-xs uppercase text-foreground">✓ Sent</p>}
 
       <div className="flex items-center gap-2">
         <button
@@ -175,11 +182,12 @@ export function SmsCompose({ lead, onSent }) {
           onClick={handleAttachClick}
           disabled={uploading || sending}
           title="Attach a file"
-          className="flex shrink-0 items-center justify-center rounded-input p-2 text-text-secondary shadow-neu-sm hover:shadow-neu disabled:opacity-50"
+          aria-label="Attach a file"
+          className="flex h-10 w-10 shrink-0 items-center justify-center border border-strong text-foreground transition-colors duration-150 hover:bg-foreground hover:text-background disabled:opacity-40"
         >
-          <Paperclip size={16} />
+          <Paperclip size={16} strokeWidth={1.5} aria-hidden="true" />
         </button>
-        <NeuButton className="flex-1 text-sm" onClick={handleSend} disabled={!canSend}>
+        <NeuButton className="flex-1" onClick={handleSend} disabled={!canSend}>
           {uploading ? 'Uploading…' : sending ? 'Sending…' : 'Send'}
         </NeuButton>
       </div>
@@ -220,18 +228,19 @@ export function EmailCompose({ lead, onSent }) {
 
   if (!lead.email) {
     return (
-      <p className="rounded-input bg-surface p-3 text-xs text-text-secondary shadow-neu-inset">
+      <p className="border bg-muted p-4 text-sm text-muted-foreground">
         No email address on file for this lead.
       </p>
     );
   }
 
   return (
-    <div className="space-y-2 rounded-input bg-surface p-3 shadow-neu-inset">
+    <div className="space-y-2 border bg-muted p-4">
       <NeuInput
         value={subject}
         onChange={(e) => setSubject(e.target.value)}
         placeholder="Subject"
+        aria-label="Email subject"
         className="w-full text-sm"
       />
       <NeuInput
@@ -240,78 +249,78 @@ export function EmailCompose({ lead, onSent }) {
         onChange={(e) => setBody(e.target.value)}
         className="w-full resize-none"
         style={{ minHeight: 100 }}
+        aria-label="Email body"
         placeholder="Write a message… use {{name}}, {{first_name}}, {{brokerage}}, {{state}}, {{city}}"
       />
 
       {(previewSubject || previewBody) && (
-        <div className="rounded-input bg-base p-2 text-xs text-text-primary">
+        <div className="border bg-background p-2 text-sm text-foreground">
           {previewSubject && <p className="font-medium">{previewSubject}</p>}
           {previewBody && <p className="mt-1 whitespace-pre-wrap">{previewBody}</p>}
         </div>
       )}
 
-      {error && <p className="text-xs text-action-hangup">{error}</p>}
-      {sent && <p className="text-xs text-action-contacted">Sent</p>}
+      {error && <p role="alert" className="text-sm text-signal">{error}</p>}
+      {sent && <p className="font-mono text-xs uppercase text-foreground">✓ Sent</p>}
 
-      <NeuButton className="w-full text-sm" onClick={handleSend} disabled={!canSend}>
+      <NeuButton className="w-full" onClick={handleSend} disabled={!canSend}>
         {sending ? 'Sending…' : 'Send'}
       </NeuButton>
     </div>
   );
 }
 
-function TimelineEntry({ entry }) {
+function TimelineEntry({ entry, leadName }) {
   if (entry.type === 'sms_opt') {
     // A change to the lead's SMS opt-out (a STOP / START text, or the rep's button).
     const label = entry.action === 'opt_out' ? 'Opted out of texts' : 'Opted back in to texts';
     const how = entry.source === 'inbound_keyword' ? 'by text reply' : 'by the rep';
     return (
-      <div className="border-b border-shadow/20 py-2 text-xs text-text-secondary last:border-0">
-        <span className="font-medium text-text-primary">{label}</span> {how} · {formatDateTime(entry.timestamp)}
+      <div className="border-b py-2 text-sm text-muted-foreground last:border-b-0">
+        <span className="font-medium text-foreground">{label}</span> {how} ·{' '}
+        <span className="font-mono text-xs tabular-nums">{formatDateTime(entry.timestamp)}</span>
       </div>
     );
   }
   if (entry.type === 'email') {
     return (
-      <div className="flex items-start gap-2 border-b border-shadow/20 py-2 last:border-0">
-        <Mail size={14} className="mt-0.5 shrink-0 text-text-secondary" />
+      <div className="flex items-start gap-2 border-b py-2 last:border-b-0">
+        <Mail size={16} strokeWidth={1.5} aria-hidden="true" className="mt-0.5 shrink-0 text-muted-foreground" />
         <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-2 text-xs">
-            <span className="font-medium text-text-primary">{entry.subject || '(no subject)'}</span>
-            <span className="text-text-secondary">{formatDateTime(entry.timestamp)}</span>
+          <div className="flex flex-wrap items-center gap-2 text-sm">
+            <span className="label">Email</span>
+            <span className="font-medium text-foreground">{entry.subject || '(no subject)'}</span>
+            <span className="font-mono text-xs tabular-nums text-muted-foreground">{formatDateTime(entry.timestamp)}</span>
           </div>
-          {entry.body && <p className="mt-0.5 whitespace-pre-wrap text-xs text-text-secondary">{entry.body}</p>}
+          {entry.body && <p className="mt-1 whitespace-pre-wrap text-sm text-muted-foreground">{entry.body}</p>}
         </div>
       </div>
     );
   }
   if (entry.type === 'call') {
     return (
-      <div className="flex items-start gap-2 border-b border-shadow/20 py-2 last:border-0">
-        <Phone size={14} className="mt-0.5 shrink-0 text-text-secondary" />
+      <div className="flex items-start gap-2 border-b py-2 last:border-b-0">
+        <Phone size={16} strokeWidth={1.5} aria-hidden="true" className="mt-0.5 shrink-0 text-muted-foreground" />
         <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-2 text-xs">
-            <span className="font-medium text-text-primary">{entry.disposition || 'No disposition'}</span>
+          <div className="flex flex-wrap items-center gap-2 text-sm">
+            <span className="label">Call</span>
+            <span className="font-medium text-foreground">{entry.disposition || 'No disposition'}</span>
             {entry.was_recorded && (
-              <span className="rounded-full bg-action-hangup/10 px-1.5 py-0.5 text-xs font-medium text-action-hangup">
-                Recording
-              </span>
+              <span className="border border-strong px-2 py-0.5 font-mono text-xs uppercase text-foreground">Recording</span>
             )}
-            <span className="text-text-secondary">{formatDateTime(entry.timestamp)}</span>
+            <span className="font-mono text-xs tabular-nums text-muted-foreground">{formatDateTime(entry.timestamp)}</span>
           </div>
-          {entry.note && <p className="mt-0.5 text-xs text-text-secondary">{entry.note}</p>}
+          {entry.note && <p className="mt-1 text-sm text-muted-foreground">{entry.note}</p>}
         </div>
       </div>
     );
   }
   const isOutbound = entry.direction === 'outbound';
   return (
+    // Sides are marked by name ("YOU" / the lead), not by color.
     <div className={`flex py-2 ${isOutbound ? 'justify-end' : 'justify-start'}`}>
-      <div
-        className={`max-w-[80%] rounded-input px-3 py-2 text-xs ${
-          isOutbound ? 'bg-action-call/10 text-text-primary' : 'bg-surface text-text-primary shadow-neu-sm'
-        }`}
-      >
+      <div className={`max-w-[80%] border px-3 py-2 text-sm text-foreground ${isOutbound ? 'bg-muted' : 'bg-card'}`}>
+        <p className="label mb-1">{isOutbound ? 'You' : leadName || 'Lead'} · SMS</p>
         {entry.body && <p>{entry.body}</p>}
         {entry.media_url && (
           /\.(png|jpe?g|gif|webp)$/i.test(entry.media_url) ? (
@@ -319,7 +328,7 @@ function TimelineEntry({ entry }) {
               <img
                 src={api.resolveMediaUrl(entry.media_url)}
                 alt="attachment"
-                className="mt-1 max-h-40 max-w-full rounded-input object-cover"
+                className="mt-1 max-h-40 max-w-full object-cover"
               />
             </a>
           ) : (
@@ -327,14 +336,14 @@ function TimelineEntry({ entry }) {
               href={api.resolveMediaUrl(entry.media_url)}
               target="_blank"
               rel="noreferrer"
-              className="mt-1 flex items-center gap-1 text-xs underline"
+              className="mt-1 flex items-center gap-1 text-sm underline"
             >
-              <File size={12} className="shrink-0" />
+              <File size={16} strokeWidth={1.5} aria-hidden="true" className="shrink-0" />
               {entry.media_url.split('/').pop()}
             </a>
           )
         )}
-        <p className="mt-1 text-xs text-text-secondary">{formatDateTime(entry.timestamp)}</p>
+        <p className="mt-1 font-mono text-xs tabular-nums text-muted-foreground">{formatDateTime(entry.timestamp)}</p>
       </div>
     </div>
   );
@@ -383,45 +392,33 @@ export default function LeadActionHub({ lead }) {
   }, [lead.id]);
 
   return (
-    <div className="space-y-3">
-      <div className="flex gap-2">
-        <button
-          type="button"
-          onClick={() => navigate(`/call/${lead.id}`)}
-          className="flex flex-1 flex-col items-center gap-1 rounded-input px-2 py-2 text-xs font-medium text-text-primary shadow-neu-sm hover:shadow-neu"
-        >
-          <Phone size={16} />
+    <div className="space-y-4">
+      <div className="grid grid-cols-3 gap-2">
+        <NeuButton variant="primary" onClick={() => navigate(`/call/${lead.id}`)}>
+          <Phone size={16} strokeWidth={1.5} aria-hidden="true" />
           Call
-        </button>
-        <button
-          type="button"
-          onClick={() => setSmsOpen((v) => !v)}
-          className="flex flex-1 flex-col items-center gap-1 rounded-input px-2 py-2 text-xs font-medium text-text-primary shadow-neu-sm hover:shadow-neu"
-        >
-          <MessageSquare size={16} />
-          Send SMS
-        </button>
-        <button
-          type="button"
-          onClick={() => setEmailOpen((v) => !v)}
-          className="flex flex-1 flex-col items-center gap-1 rounded-input px-2 py-2 text-xs font-medium text-text-primary shadow-neu-sm hover:shadow-neu"
-        >
-          <Mail size={16} />
-          Send Email
-        </button>
+        </NeuButton>
+        <NeuButton active={smsOpen} aria-pressed={smsOpen} onClick={() => setSmsOpen((v) => !v)}>
+          <MessageSquare size={16} strokeWidth={1.5} aria-hidden="true" />
+          SMS
+        </NeuButton>
+        <NeuButton active={emailOpen} aria-pressed={emailOpen} onClick={() => setEmailOpen((v) => !v)}>
+          <Mail size={16} strokeWidth={1.5} aria-hidden="true" />
+          Email
+        </NeuButton>
       </div>
 
       {smsOpen && <SmsCompose lead={lead} onSent={loadTimeline} />}
       {emailOpen && <EmailCompose lead={lead} onSent={loadTimeline} />}
 
-      <NeuCard inset className="max-h-64 space-y-1 overflow-y-auto p-3">
-        <p className="mb-1 text-xs font-semibold text-text-secondary">History</p>
+      <NeuCard className="max-h-64 overflow-y-auto px-4 py-2">
+        <p className="label mb-2 pt-2">History</p>
         {loadingTimeline ? (
-          <p className="text-xs text-text-secondary">Loading…</p>
+          <p className="label pb-2">Loading…</p>
         ) : timeline.length === 0 ? (
-          <p className="text-xs text-text-secondary">No calls, messages, or emails yet.</p>
+          <p className="pb-2 text-sm text-muted-foreground">No calls, messages, or emails yet.</p>
         ) : (
-          timeline.map((entry) => <TimelineEntry key={`${entry.type}-${entry.id}`} entry={entry} />)
+          timeline.map((entry) => <TimelineEntry key={`${entry.type}-${entry.id}`} entry={entry} leadName={lead.name} />)
         )}
       </NeuCard>
     </div>

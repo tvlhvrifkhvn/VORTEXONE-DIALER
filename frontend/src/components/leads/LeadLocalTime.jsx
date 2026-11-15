@@ -45,7 +45,7 @@ export default function LeadLocalTime({ lead, className = '' }) {
       ? "Lead's local time — inside calling hours (8am–9pm)"
       : "Lead's local time — outside calling hours (8am–9pm)";
   return (
-    <span title={title} className={`whitespace-nowrap text-xs tabular-nums ${local.open ? 'text-text-secondary' : 'font-medium text-action-warn'} ${className}`}>
+    <span title={title} className={`whitespace-nowrap font-mono text-xs uppercase tabular-nums ${local.open ? 'text-muted-foreground' : 'font-medium text-foreground'} ${className}`}>
       {local.text}
       {!local.open && !local.unknown && ' · closed'}
     </span>

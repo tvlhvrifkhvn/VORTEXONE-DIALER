@@ -1,19 +1,23 @@
 import { useEffect, useRef, useState } from 'react';
 import { formatDuration } from '../../lib/format';
+import Badge from '../ui/Badge';
+import StatusDot from '../ui/StatusDot';
 
 const STATE_LABELS = {
-  ringing: 'Ringing…',
+  ringing: 'Ringing',
   answered: 'Connected',
   voicemail_detected: 'Voicemail',
   ended: 'Call ended',
 };
 
-const STATE_DOT = {
-  ringing: 'bg-action-warn animate-pulse',
-  answered: 'bg-action-contacted animate-pulse',
-  voicemail_detected: 'bg-action-neutral',
-  ended: 'bg-text-secondary',
-};
+// DESIGN.md: ringing = signal dot, connected = live dot, ended = text only.
+function StateMark({ state }) {
+  const label = STATE_LABELS[state] || state;
+  if (state === 'ringing') return <StatusDot tone="signal" className="text-sm">{label}</StatusDot>;
+  if (state === 'answered') return <StatusDot tone="live" className="text-sm">{label}</StatusDot>;
+  if (state === 'voicemail_detected') return <Badge>{label}</Badge>;
+  return <span className="font-mono text-sm font-medium uppercase text-muted-foreground">{label}</span>;
+}
 
 export default function CallHeader({ call, ended = false }) {
   const [elapsed, setElapsed] = useState(0);
@@ -45,22 +49,18 @@ export default function CallHeader({ call, ended = false }) {
   const state = ended ? 'ended' : call?.telephony_state || 'ringing';
 
   return (
-    <div className="flex items-center justify-between">
-      <div className="flex items-center gap-2">
-        <span className={`h-2.5 w-2.5 rounded-full ${STATE_DOT[state] || 'bg-text-secondary'}`} />
-        <span className="text-sm font-medium text-text-primary">{STATE_LABELS[state] || state}</span>
-      </div>
-      <div className="flex items-center gap-3">
+    <div className="flex flex-wrap items-end justify-between gap-4">
+      <div className="flex items-center gap-6">
+        <StateMark state={state} />
         {state === 'answered' && (
-          <span className="flex items-center gap-1.5">
-            <span className="h-2 w-2 rounded-full" style={{ background: '#EF4444' }} />
-            <span className="text-xs font-medium" style={{ color: 'var(--text-danger, #EF4444)' }}>
-              Recording
-            </span>
-          </span>
+          <StatusDot tone="signal" className="text-sm">
+            REC<span className="sr-only"> (recording)</span>
+          </StatusDot>
         )}
-        <span className="text-2xl font-semibold tabular-nums text-text-primary">{formatDuration(elapsed)}</span>
       </div>
+      <span className="font-mono text-display font-medium tabular-nums text-foreground">
+        {formatDuration(elapsed)}
+      </span>
     </div>
   );
 }

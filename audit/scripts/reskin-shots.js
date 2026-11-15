@@ -9,7 +9,9 @@
 // Saves full-page JPEGs (quality 70) to audit/screenshots/reskin/<seg>/<theme>-<page>.jpg
 // and prints one line per page: console errors and 4xx/5xx responses.
 // --smoke (needs --lead, a dialable lead): on the call screen, M flips mute,
-// V picks Voicemail and Esc opens the hang-up confirm. Visiting the call page
+// Esc opens the hang-up confirm, D marks the outcome buttons and V picks
+// Voicemail; N picks No answer on the next queued lead. Saves the call's
+// ringing, connected, confirm and ended states for the first theme. Visiting the call page
 // locks its lead for 30 s, so when --pages includes call, pass a different
 // lead for the smoke run with --smoke-lead <id>.
 const { chromium } = require('playwright');
@@ -136,35 +138,56 @@ async function shoot(browser, theme, name) {
   return log.console.length === 0;
 }
 
+// No \b: the [M] keycap's text runs straight into the label ("MMute").
+const MUTE_BUTTON = /(Mute|Unmute)$/;
+
+async function waitForCall(page) {
+  // The call is live once the Mute tile is enabled.
+  await page.locator('button', { hasText: MUTE_BUTTON }).first().waitFor({ timeout: 15000 }).catch(() => {});
+  await page.waitForTimeout(1500);
+  await page.locator('body').click({ position: { x: 5, y: 5 } }).catch(() => {});
+}
+
+async function shot(page, name) {
+  await page.screenshot({ path: path.join(outDir, `${name}.jpg`), fullPage: true, type: 'jpeg', quality: 70 });
+}
+
+// On the call screen: M flips mute, Esc opens the hang-up confirm, D marks the
+// outcome buttons, V posts Voicemail; then N posts No answer on a second call
+// (/call/next). Also saves the ringing, connected, confirm and ended states.
 async function smoke(browser) {
   if (!args.lead) {
     console.log('SMOKE  skipped: --lead <id> is required');
     return false;
   }
-  const ctx = await newContext(browser, themes[0] || 'ink');
+  const theme = themes[0] || 'ink';
+  const ctx = await newContext(browser, theme);
   const page = await ctx.newPage();
   const posts = [];
   page.on('request', (r) => {
     if (r.method() === 'POST') posts.push(r.postData() || '');
   });
   await page.goto(`${base}/call/${args['smoke-lead'] || args.lead}`);
-  // Wait until the call is live (the Mute button is enabled).
-  await page
-    .locator('button', { hasText: /^\s*(Mute|Unmute)\s*$/ })
+  await page.getByText(/^Ringing$/i).first().waitFor({ timeout: 8000 }).catch(() => {});
+  await shot(page, `${theme}-call-ringing`);
+  await waitForCall(page);
+  const connected = await page
+    .getByText(/^Connected$/i)
     .first()
-    .waitFor({ timeout: 15000 })
-    .catch(() => {});
-  await page.waitForTimeout(1500);
-  await page.locator('body').click({ position: { x: 5, y: 5 } }).catch(() => {});
+    .waitFor({ timeout: 8000 })
+    .then(() => true)
+    .catch(() => false);
+  if (connected) await shot(page, `${theme}-call-connected`);
+  else console.log('SHOTS  the mock call did not connect this time; no connected screenshot');
 
   const results = [];
-  const hasUnmute = () => page.locator('button', { hasText: /^\s*Unmute\s*$/ }).count();
+  const pressedMute = () => page.locator('button[aria-pressed="true"]', { hasText: /Unmute$/ }).count();
 
   // M flips mute
-  const before = await hasUnmute();
+  const before = await pressedMute();
   await page.keyboard.press('m');
   await page.waitForTimeout(400);
-  const after = await hasUnmute();
+  const after = await pressedMute();
   results.push(['M flips mute', before === 0 && after > 0]);
   await page.keyboard.press('m'); // back to unmuted
   await page.waitForTimeout(300);
@@ -172,26 +195,35 @@ async function smoke(browser) {
   // Esc opens the hang-up confirm
   await page.keyboard.press('Escape');
   await page.waitForTimeout(400);
-  const confirm = page.getByText('Hang up this call?');
-  const confirmShown = (await confirm.count()) > 0;
+  const confirmShown = (await page.getByText('Hang up this call?').count()) > 0;
   results.push(['Esc opens hang-up confirm', confirmShown]);
   if (confirmShown) {
+    await shot(page, `${theme}-call-hangup-confirm`);
     await page.locator('button', { hasText: /^\s*Cancel\s*$/ }).first().click();
     await page.waitForTimeout(300);
   }
+
+  // D marks the outcome buttons (a primary outline for 800 ms)
+  await page.keyboard.press('d');
+  await page.waitForTimeout(200);
+  results.push(['D jumps to the outcome buttons', (await page.locator('.outline-primary').count()) > 0]);
+  await page.waitForTimeout(900);
 
   // V picks Voicemail (the outcome is posted)
   await page.keyboard.press('v');
   await page.waitForTimeout(2000);
   results.push(['V picks Voicemail', posts.some((p) => /voicemail/i.test(p))]);
+  await shot(page, `${theme}-call-ended`);
+
+  // N picks No answer, on the next lead in the queue
+  posts.length = 0;
+  await page.goto(`${base}/call/next`);
+  await waitForCall(page);
+  await page.keyboard.press('n');
+  await page.waitForTimeout(2000);
+  results.push(['N picks No answer', posts.some((p) => /no_answer/i.test(p))]);
 
   for (const [name, ok] of results) console.log(`SMOKE  ${ok ? 'PASS' : 'FAIL'}  ${name}`);
-  await page.screenshot({
-    path: path.join(outDir, `${themes[0] || 'ink'}-call-after-smoke.jpg`),
-    fullPage: true,
-    type: 'jpeg',
-    quality: 70,
-  });
   await ctx.close();
   return results.every(([, ok]) => ok);
 }

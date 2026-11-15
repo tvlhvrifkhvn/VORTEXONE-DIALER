@@ -5,6 +5,10 @@ import StatusBadge from '../leads/StatusBadge';
 import NeuCard from '../ui/NeuCard';
 import NeuButton from '../ui/NeuButton';
 import ActionButton from '../ui/ActionButton';
+import Badge from '../ui/Badge';
+import Dialog from '../ui/Dialog';
+import Keycap from '../ui/Keycap';
+import SectionLabel from '../ui/SectionLabel';
 import { useAuth } from '../../hooks/useAuth';
 import { formatDateTime } from '../../lib/format';
 import * as api from '../../lib/api';
@@ -25,16 +29,19 @@ function PitchScriptText({ repName }) {
 function CollapsibleSection({ title, defaultOpen = false, children }) {
   const [open, setOpen] = useState(defaultOpen);
   return (
-    <NeuCard className="p-4">
+    <NeuCard className="px-4 py-2">
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
-        className="flex w-full items-center justify-between text-left text-sm font-semibold text-text-primary"
+        aria-expanded={open}
+        className="flex min-h-10 w-full items-center justify-between text-left font-mono text-sm font-medium uppercase tracking-button text-foreground"
       >
         <span>{title}</span>
-        <span className={`transition-transform duration-200 ${open ? 'rotate-90' : ''}`}>▶</span>
+        <span aria-hidden="true" className={open ? 'rotate-90' : ''}>
+          ▶
+        </span>
       </button>
-      {open && <div className="mt-3">{children}</div>}
+      {open && <div className="pb-2 pt-2">{children}</div>}
     </NeuCard>
   );
 }
@@ -72,24 +79,22 @@ function PreviousNotes({ leadId, currentCallId }) {
     };
   }, [leadId, currentCallId]);
 
-  if (loading) return <p className="text-xs text-text-secondary">Loading…</p>;
-  if (entries.length === 0) return <p className="text-xs text-text-secondary">No previous calls or notes.</p>;
+  if (loading) return <p className="label">Loading…</p>;
+  if (entries.length === 0) return <p className="text-sm text-muted-foreground">No previous calls or notes.</p>;
 
   return (
-    <ul className="space-y-3">
+    <ul>
       {entries.map((e) => (
-        <li key={`${e.type}-${e.id}`} className="border-b border-shadow/20 pb-2 last:border-0 last:pb-0">
+        <li key={`${e.type}-${e.id}`} className="border-b py-2 last:border-b-0">
           <div className="flex items-center justify-between gap-2">
-            <span className="text-xs text-text-secondary">
-              <span className="mr-1.5 rounded-full bg-surface px-1.5 py-0.5 text-xs font-semibold uppercase tracking-wide shadow-neu-sm">
-                {e.type === 'call' ? 'Call' : 'Note'}
-              </span>
-              {formatDateTime(e.timestamp)}
+            <span className="flex items-center gap-2">
+              <Badge tone="muted">{e.type === 'call' ? 'Call' : 'Note'}</Badge>
+              <span className="font-mono text-xs tabular-nums text-muted-foreground">{formatDateTime(e.timestamp)}</span>
             </span>
             {e.type === 'call' && <StatusBadge status={e.disposition} />}
           </div>
-          {e.type === 'call' && e.note && <p className="mt-1 text-xs text-text-primary">{e.note}</p>}
-          {e.type === 'note' && <p className="mt-1 text-xs text-text-primary">{e.body}</p>}
+          {e.type === 'call' && e.note && <p className="mt-1 text-sm text-foreground">{e.note}</p>}
+          {e.type === 'note' && <p className="mt-1 text-sm text-foreground">{e.body}</p>}
         </li>
       ))}
     </ul>
@@ -102,13 +107,13 @@ export function ScriptPanel() {
   const { user } = useAuth();
   return (
     <CollapsibleSection title="Pitch script">
-      <p className="text-xs leading-relaxed text-text-primary"><PitchScriptText repName={user?.name || 'the rep'} /></p>
+      <p className="text-sm leading-relaxed text-foreground"><PitchScriptText repName={user?.name || 'the rep'} /></p>
     </CollapsibleSection>
   );
 }
 
 /**
- * The notes field, ✨ Expand, pitch script, previous-notes history and the six
+ * The notes field, Expand note, pitch script, previous-notes history and the six
  * disposition buttons — shared so the single-line call screen and an
  * answered multi-line card present exactly the same UI.
  *
@@ -122,6 +127,9 @@ export default function DispositionPanel({
   onDispositionSubmit,
   disabled = false,
   showScript = true,
+  // Section numbers for the labels, e.g. { notes: '05', outcome: '06' } on
+  // the call screen. Unnumbered elsewhere (a multi-line card).
+  sections = {},
 }) {
   const { user } = useAuth();
   const [note, setNote] = useState('');
@@ -205,63 +213,72 @@ export default function DispositionPanel({
   }, [locked, note]);
 
   return (
-    <div className="space-y-4">
-      <NeuCard className="space-y-4 p-5">
-        <div className="relative">
-          {/* NotesField renders its own "Notes" label, so this row only
-              carries the Expand action, positioned to sit beside it. */}
-          <button
-            type="button"
-            onClick={handleExpandNote}
-            disabled={!note.trim() || expanding}
-            className="absolute right-0 top-0 text-xs font-medium text-action-call disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {expanding ? 'Expanding…' : '✨ Expand'}
-          </button>
-          <NotesField value={note} onChange={setNote} />
+    <div className="space-y-8">
+      <section>
+        <SectionLabel index={sections.notes} title="Notes" className="mb-4" />
+        <NotesField value={note} onChange={setNote} />
+        <div className="mt-2 flex justify-end">
+          <NeuButton variant="ghost" onClick={handleExpandNote} disabled={!note.trim() || expanding}>
+            {expanding ? 'Expanding…' : 'Expand note'}
+          </NeuButton>
         </div>
+      </section>
 
-        <div ref={dispositionRef} className={highlight ? 'animate-pulse-call rounded-input' : ''}>
+      <section className="space-y-4">
+        <SectionLabel
+          index={sections.outcome}
+          title="Outcome"
+          meta={
+            <span className="flex items-center gap-2">
+              <Keycap>D</Keycap> Jump here
+            </span>
+          }
+        />
+        {/* D highlight: a 2px primary outline, no animation. */}
+        <div ref={dispositionRef} className={highlight ? 'outline outline-2 outline-offset-4 outline-primary' : ''}>
           <DispositionButtons onSelect={handleSelect} disabled={locked} />
         </div>
 
-        {retrying && <p className="text-sm font-medium text-action-warn">{retrying}</p>}
-        {error && <p className="text-sm text-action-hangup">{error}</p>}
+        {retrying && <p className="font-mono text-sm uppercase text-foreground">{retrying}</p>}
+        {error && (
+          <p role="alert" className="text-sm text-signal">
+            <span className="label mr-2 text-signal">Error</span>
+            {error}
+          </p>
+        )}
 
         <CollapsibleSection title="Previous Notes">
           <PreviousNotes leadId={lead?.id} currentCallId={callId} />
         </CollapsibleSection>
-      </NeuCard>
+      </section>
 
       {showScript && (
         <CollapsibleSection title="Pitch script">
-          <p className="text-xs leading-relaxed text-text-primary"><PitchScriptText repName={user?.name || 'the rep'} /></p>
+          <p className="text-sm leading-relaxed text-foreground"><PitchScriptText repName={user?.name || 'the rep'} /></p>
         </CollapsibleSection>
       )}
 
       {showDncConfirm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 px-4">
-          <NeuCard className="w-full max-w-sm space-y-4 p-6">
-            <p className="text-sm font-medium text-text-primary">
-              Permanently block {lead?.name}'s number from all future dialing? This cannot be undone.
-            </p>
-            <div className="flex gap-3">
-              <ActionButton
-                variant="dnc"
-                className="flex-1 text-sm"
-                onClick={() => {
-                  setShowDncConfirm(false);
-                  submitOutcome('dnc');
-                }}
-              >
-                Confirm
-              </ActionButton>
-              <NeuButton className="flex-1 text-sm" onClick={() => setShowDncConfirm(false)}>
-                Cancel
-              </NeuButton>
-            </div>
-          </NeuCard>
-        </div>
+        <Dialog title="Mark as DNC?" onClose={() => setShowDncConfirm(false)} className="max-w-sm">
+          <p className="text-sm text-foreground">
+            Permanently block {lead?.name}'s number from all future dialing? This cannot be undone.
+          </p>
+          <div className="mt-6 flex gap-4">
+            <ActionButton
+              variant="dnc"
+              className="flex-1"
+              onClick={() => {
+                setShowDncConfirm(false);
+                submitOutcome('dnc');
+              }}
+            >
+              ⊘ Confirm DNC
+            </ActionButton>
+            <NeuButton className="flex-1" onClick={() => setShowDncConfirm(false)}>
+              Cancel
+            </NeuButton>
+          </div>
+        </Dialog>
       )}
 
     </div>

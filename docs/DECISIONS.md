@@ -30,3 +30,14 @@
 - 2026-11-15 · R2 · Login fields get visible labels; on error both get the 2px primary border plus an "ERROR" label · DESIGN.md section 5 (Field)
 - 2026-11-15 · R2 · Dialing lines: the active call gets a 3px primary bar; a held line is outlined in border-strong (no orange); line avatars become square outlined initials · orange is only for the active call; lines are told apart by LINE 01/02/03
 - 2026-11-15 · R2 · The "new message" toast in AppShell uses the Toast look, like the API toast in lib/api.js · same component, two places
+- 2026-11-15 · R3 · R3 is stacked on R2 (PRs #28 and #29 were not merged yet) · R3 needs both
+- 2026-11-15 · R3 · ColleagueCard takes an `index` prop and draws its own "Office" section label · it renders nothing when there are no colleagues, and the lead page reuses it unnumbered; on such calls the numbering skips 03
+- 2026-11-15 · R3 · DispositionPanel takes a `sections` prop ({ notes, outcome }) for the label numbers · the multi-line card reuses the panel and must not show "05"/"06"
+- 2026-11-15 · R3 · All six outcome buttons are secondary (Spoke / Interested too) · the R3 spec says 52px secondary; one accent stays for END CALL
+- 2026-11-15 · R3 · The Notes label on the textarea is screen-reader only and linked by id; the visible heading is the "05 — Notes" section label · no duplicate heading
+- 2026-11-15 · R3 · "Expand note" is a ghost button under the textarea · a 40px target; the old absolute-positioned link was a few pixels high
+- 2026-11-15 · R3 · Action tiles are toggles with aria-pressed (View lead is not); Mute shows its [M] keycap · DESIGN.md Button "pressed"
+- 2026-11-15 · R3 · The brief's AI line shows an "AI" tag instead of the sparkle icon · no decorative icons in signal color
+- 2026-11-15 · R3 · Lead local time: open hours muted, closed hours foreground with "· CLOSED" · no amber text; the word carries the meaning
+- 2026-11-15 · R3 · SMS thread entries in LeadActionHub are marked "YOU" or the lead's name (new `leadName` prop on TimelineEntry) · sides by name, not color
+- 2026-11-15 · R3 · reskin-shots.js smoke now also checks D and N (N on /call/next) and saves the ringing / connected / confirm / ended states; mute is read from aria-pressed · R3 smoke spec; the keycap's "M" runs into the label text

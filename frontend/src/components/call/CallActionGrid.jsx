@@ -3,6 +3,8 @@ import { FileText, MessageSquare, MessageSquareWarning, MicOff, PauseCircle, Tag
 import NeuCard from '../ui/NeuCard';
 import NeuButton from '../ui/NeuButton';
 import NeuInput from '../ui/NeuInput';
+import Badge from '../ui/Badge';
+import Keycap from '../ui/Keycap';
 import { SmsCompose } from '../leads/LeadActionHub';
 import ObjectionPanel from './ObjectionPanel';
 import * as api from '../../lib/api';
@@ -12,21 +14,25 @@ import { sendWithRetry } from '../../lib/retry';
 // CLIENT_TAG / INTERESTED_TAG there.
 const SUGGESTED_TAGS = ['interested', 'client'];
 
-function GridButton({ icon: Icon, label, onClick, active = false, disabled = false, title }) {
+// Square secondary tile; solid with aria-pressed when toggled on.
+// `toggle={false}` for plain actions (View lead), `hotkey` shows its keycap.
+function GridButton({ icon: Icon, label, onClick, active = false, disabled = false, title, toggle = true, hotkey }) {
   return (
     <button
       type="button"
       onClick={onClick}
       disabled={disabled}
       title={title || label}
-      className={`flex flex-col items-center justify-center gap-1.5 rounded-input px-2 py-3 text-xs font-medium transition-all duration-200 disabled:cursor-not-allowed disabled:opacity-50 ${
-        active
-          ? 'text-action-call shadow-neu-pressed'
-          : 'text-text-primary shadow-neu-sm hover:shadow-neu'
+      aria-pressed={toggle ? active : undefined}
+      className={`flex min-h-[72px] flex-col items-center justify-center gap-2 border px-2 py-3 font-mono text-xs font-medium uppercase tracking-button transition-colors duration-150 disabled:cursor-not-allowed disabled:opacity-40 ${
+        active ? 'border-foreground bg-foreground text-background' : 'border-strong text-foreground hover:bg-muted'
       }`}
     >
-      <Icon size={18} />
-      {label}
+      <Icon size={20} strokeWidth={1.5} aria-hidden="true" />
+      <span className="flex items-center gap-2">
+        {hotkey && <Keycap>{hotkey}</Keycap>}
+        {label}
+      </span>
     </button>
   );
 }
@@ -119,11 +125,11 @@ export default function CallActionGrid({ lead, callId, onLeadUpdated, muted = fa
   const handleHold = () => setOnHold((h) => !h);
 
   return (
-    <NeuCard className="space-y-3 p-4">
+    <NeuCard className="space-y-4 p-4">
       <div className="grid grid-cols-3 gap-2">
         <GridButton icon={Tag} label="Add tag" onClick={() => toggle('tag')} active={openPanel === 'tag'} />
         <GridButton icon={FileText} label="Add note" onClick={() => toggle('note')} active={openPanel === 'note'} />
-        <GridButton icon={User} label="View lead" onClick={handleViewLead} title="Open this lead in a new tab" />
+        <GridButton icon={User} label="View lead ↗" onClick={handleViewLead} title="Open this lead in a new tab" toggle={false} />
         <GridButton
           icon={MessageSquare}
           label="Quick SMS"
@@ -135,6 +141,7 @@ export default function CallActionGrid({ lead, callId, onLeadUpdated, muted = fa
           label={muted ? 'Unmute' : 'Mute'}
           onClick={onToggleMute}
           active={muted}
+          hotkey="M"
           title="Mute (audio muting arrives with Twilio in phase 2)"
         />
         <GridButton
@@ -152,33 +159,32 @@ export default function CallActionGrid({ lead, callId, onLeadUpdated, muted = fa
         type="button"
         onClick={() => toggle('objection')}
         disabled={!callId}
-        className={`flex w-full items-center justify-center gap-2 rounded-input px-2 py-2.5 text-xs font-medium transition-all duration-200 disabled:cursor-not-allowed disabled:opacity-50 ${
-          openPanel === 'objection' ? 'text-action-call shadow-neu-pressed' : 'text-text-primary shadow-neu-sm hover:shadow-neu'
+        aria-pressed={openPanel === 'objection'}
+        className={`flex min-h-11 w-full items-center justify-center gap-2 border px-2 font-mono text-xs font-medium uppercase tracking-button transition-colors duration-150 disabled:cursor-not-allowed disabled:opacity-40 ${
+          openPanel === 'objection' ? 'border-foreground bg-foreground text-background' : 'border-strong text-foreground hover:bg-muted'
         }`}
       >
-        <MessageSquareWarning size={16} />
+        <MessageSquareWarning size={20} strokeWidth={1.5} aria-hidden="true" />
         Objection
       </button>
 
       {(muted || onHold) && (
-        <p className="text-xs font-semibold text-action-warn">
-          {[muted && 'Muted', onHold && 'On hold'].filter(Boolean).join(' · ')}
-        </p>
+        <Badge tone="solid">{[muted && 'Muted', onHold && 'On hold'].filter(Boolean).join(' · ')}</Badge>
       )}
 
       {lead.tags?.length > 0 && (
-        <div className="flex flex-wrap gap-1.5">
+        <div className="flex flex-wrap gap-2">
           {lead.tags.map((tag) => (
             <span
               key={tag}
-              className="flex items-center gap-1 rounded-full bg-surface px-2 py-0.5 text-xs text-text-primary shadow-neu-sm"
+              className="flex items-center gap-2 border border-strong py-0.5 pl-2 pr-1 font-mono text-xs uppercase text-foreground"
             >
               {tag}
               <button
                 type="button"
                 onClick={() => handleRemoveTag(tag)}
                 aria-label={`Remove tag ${tag}`}
-                className="text-text-secondary hover:text-action-hangup"
+                className="px-1 text-muted-foreground hover:bg-foreground hover:text-background"
               >
                 ×
               </button>
@@ -195,25 +201,26 @@ export default function CallActionGrid({ lead, callId, onLeadUpdated, muted = fa
               onChange={(e) => setTagText(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && handleAddTag()}
               placeholder="e.g. interested, callback, gatekeeper"
+              aria-label="New tag"
               className="flex-1 text-sm"
               autoFocus
             />
-            <NeuButton className="text-sm" onClick={() => handleAddTag()} disabled={busy || !tagText.trim()}>
+            <NeuButton onClick={() => handleAddTag()} disabled={busy || !tagText.trim()}>
               Add
             </NeuButton>
           </div>
           {/* `client` and `interested` are the two tags colleagueIntel reads
               to build an office's social proof, so they get one-tap entry
               rather than relying on the rep spelling them the same way. */}
-          <div className="flex flex-wrap items-center gap-1.5">
-            <span className="text-xs text-text-secondary">Quick:</span>
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="label">Quick</span>
             {SUGGESTED_TAGS.map((tag) => (
               <button
                 key={tag}
                 type="button"
                 onClick={() => handleAddTag(tag)}
                 disabled={busy || lead.tags?.includes(tag)}
-                className="rounded-full px-2 py-0.5 text-xs text-text-primary shadow-neu-sm hover:shadow-neu disabled:opacity-40"
+                className="min-h-8 border border-strong px-2 font-mono text-xs uppercase text-foreground transition-colors duration-150 hover:bg-muted disabled:opacity-40"
               >
                 {tag}
               </button>
@@ -229,11 +236,12 @@ export default function CallActionGrid({ lead, callId, onLeadUpdated, muted = fa
             value={noteText}
             onChange={(e) => setNoteText(e.target.value)}
             placeholder="Note saves on its own — you don't need to submit a disposition."
+            aria-label="Note"
             className="w-full resize-none text-sm"
             style={{ minHeight: 70 }}
             autoFocus
           />
-          <NeuButton className="w-full text-sm" onClick={handleAddNote} disabled={busy || !noteText.trim()}>
+          <NeuButton className="w-full" onClick={handleAddNote} disabled={busy || !noteText.trim()}>
             {busy ? 'Saving…' : 'Save note'}
           </NeuButton>
         </div>
@@ -243,8 +251,8 @@ export default function CallActionGrid({ lead, callId, onLeadUpdated, muted = fa
 
       {openPanel === 'objection' && <ObjectionPanel callId={callId} />}
 
-      {error && <p className="text-xs text-action-hangup">{error}</p>}
-      {flash && <p className="text-xs text-action-contacted">{flash}</p>}
+      {error && <p role="alert" className="text-sm text-signal">{error}</p>}
+      {flash && <p className="font-mono text-xs uppercase text-foreground">✓ {flash}</p>}
     </NeuCard>
   );
 }
