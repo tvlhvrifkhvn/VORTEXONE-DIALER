@@ -1,4 +1,9 @@
-# Vortex Dialer — CLAUDE.md
+# Vortex One Outreach (repo: vortexone-dialer)
+
+Internal names (dialer, tables, env vars) stay as they are; only the product name changed.
+
+**Read first:** docs/CODEMAP.md; docs/CRM_PLAN.md (sections 0 to 4 and your phase);
+docs/DESIGN.md for any UI work.
 
 Custom cold-calling dialer for Vortexone Agency. Solo caller (Talha Arif) offering
 virtual-assistant services to US real estate agents from Pakistan. Leads come from
@@ -26,9 +31,10 @@ spreadsheets: name, phone, address, brokerage, state.
 - Backend: Node.js + Express (plain JavaScript, not TypeScript)
 - Database: PostgreSQL (raw `pg`, no ORM)
 - Frontend: React + Vite + Tailwind CSS
-- Auth: JWT with bcrypt (single user for MVP, multi-user ready)
+- Auth: JWT with bcrypt; users with roles (supervisor, rep); only a supervisor changes settings
 - PDF export: pdfkit
-- Telephony: mock adapter now, Twilio in phase 2
+- Telephony, SMS and email: mock adapters. Telnyx is the planned provider;
+  twilioAdapter.js is an unused stub (don't delete it)
 
 ## Lead status values (a lead has exactly one at any time)
 
@@ -75,7 +81,7 @@ placeCall(fromNumber, toNumber, onEvent) → callId
 
 `mockAdapter.js` fires these on a timer (3s ring, then randomly answered / voicemail /
 no_answer). The route handler in `routes/calls.js` reads which adapter to use from
-`TELEPHONY_PROVIDER=mock|twilio` in `.env`.
+`TELEPHONY_PROVIDER=mock` in `.env` (real providers come later).
 
 ## Design language: Neo-Swiss
 
@@ -98,6 +104,14 @@ Rules: docs/DESIGN.md. Plan and status: docs/RESKIN.md (all segments done). Deci
    (`DATABASE_URL`, `TELEPHONY_PROVIDER`, `PORT`, `JWT_SECRET`). Never hardcode.
 8. **Prefer editing over rewriting.** If asked to change one function, change that
    one function.
+9. **Collection functions take `campaignId` explicitly** (docs/CRM_PLAN.md section 3).
+   No hidden "current campaign" on the server.
+10. **`leads.status` belongs to the dialer; `pipeline_stage_id` belongs to the CRM.** Never mix them.
+11. **DNC, SMS opt-out, calling hours and the total budget are global.** No campaign can bypass them.
+12. **New behavior goes in new files** (service, route, migration). Existing files get small, named edits.
+13. **Never edit an applied migration;** add the next numbered one.
+14. **Every new rule gets an assertion in backend/tests** (`npm run verify`, from phase C0B on).
+15. **Update docs/CODEMAP.md in the same commit.**
 
 ## Running locally
 
