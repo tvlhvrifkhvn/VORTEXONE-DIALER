@@ -22,7 +22,7 @@ CSS variables are "R G B" triplets in src/styles/globals.css. `:root` is the ink
 | --signal-text | #FF4D1F | #0E0E0E | text-signal | emphasis and error text |
 | --live | #1F9D55 | #1F9D55 | bg-live | connected/live dot only |
 | --ring | #F2F2F0 | #0E0E0E | (focus outline) | focus |
-| --meter-track | #2E2E2C | #0E0E0E | bg-meter-track | meter track |
+| --meter-track | #2E2E2C | #0E0E0E | bg-meter-track | budget meter track (goal meters and report bars use bg-muted) |
 
 - Scrim: `bg-scrim` is ink at 80% in both themes.
 - Never use `text-primary` (orange text fails contrast on paper; use `text-signal`).
@@ -108,7 +108,8 @@ An 8px circle, live (bg-live) or signal (bg-primary), always followed by text.
 - FileTag: an outlined tag "FILE 01" plus the name.
 
 ### Meter
-- An 8px bar on bg-meter-track. The fill is bg-primary for budget or bg-foreground for goals.
+- An 8px bar. Budget: a bg-primary fill on bg-meter-track. Goal: a bg-foreground fill on bg-muted (in paper the meter track is ink, the same as the foreground, so a goal fill on it would vanish).
+- Report bars follow the goal look: bg-foreground on bg-muted; a second series is bg-muted-foreground, told apart by its legend and order, never by hue.
 - The value is always printed in mono ("$41 / $60 · 68%").
 - Budget at 80% or more: a signal tag "80% OF BUDGET USED". At 100%: "BUDGET REACHED — DIALING STOPPED".
 

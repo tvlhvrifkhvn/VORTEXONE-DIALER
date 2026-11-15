@@ -56,3 +56,9 @@
 - 2026-11-15 · R5 · The Inbox has no thread view of its own (rows open the lead page, where R3 marked sides "YOU" / the lead's name); an "OPTED OUT" tag isn't shown because the inbox rows don't carry the opt-out flag · no data or API change in a visual segment
 - 2026-11-15 · R5 · SMS template "Needs fixing" is a solid tag; Delete is "⊘" secondary; empty states are a mono label plus one sentence · DESIGN.md
 - 2026-11-15 · R5 · reskin-shots.js refuses a flag with no value · an empty `--lead $L` made a smoke run end silently
+- 2026-11-15 · R6 · Goal Meter fills (and report bars) sit on bg-muted, not bg-meter-track; budget meters keep the meter track · in paper --meter-track and --foreground are both ink, so goal fills were invisible (the R1 paper styleguide and the paper dashboard showed a solid black bar); foreground on muted is 14.2:1 ink, 13.3:1 paper
+- 2026-11-15 · R6 · Per-state report: dials as a foreground bar, contacts as a muted-foreground bar under it, with a legend and "N dials / N contacts" in mono · two series without hue (muted-foreground on muted is 4.6:1 / 4.8:1)
+- 2026-11-15 · R6 · Import steps: 01 File (also the sheet picker), 02 Mapping (a field / column / confidence table), 03 Review (the preview table and Confirm), 04 Result; Import history is an unnumbered table · R6 spec
+- 2026-11-15 · R6 · Mapping confidence: HIGH solid, MEDIUM outline, LOW dashed, "Needs review" dashed; the hint text now names the tags instead of "red or amber" · color is never the only cue
+- 2026-11-15 · R6 · ObjectionReport: Badge colors become tones (approved solid, pending outline, note dashed), the list gains a header row, and pending reviews get a 3px primary bar · the last Badge `color` caller is gone; R7 can drop the prop
+- 2026-11-15 · R6 · Reports: Show is the primary button; Today and Export PDF ↓ are secondary · one primary per section
