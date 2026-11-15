@@ -4,6 +4,7 @@ import NeuCard from '../components/ui/NeuCard';
 import NeuButton from '../components/ui/NeuButton';
 import NeuInput from '../components/ui/NeuInput';
 import ActionButton from '../components/ui/ActionButton';
+import Badge from '../components/ui/Badge';
 import * as api from '../lib/api';
 
 // The only fields the server accepts (smsService.TEMPLATE_FIELDS).
@@ -64,15 +65,20 @@ function TemplateEditor({ initial, onSaved, onCancel }) {
   const missingStop = body.length > 0 && !/stop/i.test(body);
 
   return (
-    <NeuCard className="space-y-4 p-5">
-      <form onSubmit={handleSave} className="space-y-3">
+    <NeuCard className="space-y-4 p-6">
+      <form onSubmit={handleSave} className="space-y-4">
         <div>
-          <label className="mb-1 block text-xs font-medium text-text-secondary">Name</label>
-          <NeuInput value={name} onChange={(e) => setName(e.target.value)} className="w-full" required />
+          <label htmlFor="template-name" className="label mb-2 block">
+            Name
+          </label>
+          <NeuInput id="template-name" value={name} onChange={(e) => setName(e.target.value)} className="w-full" required />
         </div>
         <div>
-          <label className="mb-1 block text-xs font-medium text-text-secondary">Message</label>
+          <label htmlFor="template-body" className="label mb-2 block">
+            Message
+          </label>
           <NeuInput
+            id="template-body"
             as="textarea"
             ref={textareaRef}
             value={body}
@@ -83,36 +89,36 @@ function TemplateEditor({ initial, onSaved, onCancel }) {
           />
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <span className="text-xs text-text-secondary">Insert:</span>
+          <span className="label">Insert</span>
           {MERGE_FIELDS.map((chip) => (
             <button
               key={chip}
               type="button"
               onClick={() => insertChip(chip)}
-              className="rounded-input px-2 py-1 text-xs font-medium text-text-primary shadow-neu-sm hover:shadow-neu"
+              className="min-h-8 border border-strong px-2 font-mono text-xs text-foreground transition-colors duration-150 hover:bg-foreground hover:text-background"
             >
               {chip}
             </button>
           ))}
         </div>
-        <p className={`text-xs font-medium ${segments > 1 ? 'text-action-warn' : 'text-text-secondary'}`}>
+        <p className={`font-mono text-xs tabular-nums ${segments > 1 ? 'font-medium text-foreground' : 'text-muted-foreground'}`}>
           {body.length} / {SEGMENT_SIZE} characters ({segments} segment{segments === 1 ? '' : 's'}
           {segments > 1 ? ' — costs 2x to send' : ''})
         </p>
         {missingStop && (
-          <p className="rounded-input bg-action-warn/10 px-3 py-2 text-xs font-medium text-action-warn">
+          <p className="border-l-[3px] border-strong bg-muted px-4 py-2 text-sm text-foreground">
             Consider adding "Reply STOP to opt out" — most carriers expect this on marketing texts.
           </p>
         )}
         {body && (
-          <div className="rounded-input bg-surface p-3 text-sm text-text-primary shadow-neu-inset">
-            <p className="mb-1 text-xs font-medium text-text-secondary">Preview (sample lead)</p>
+          <div className="border bg-muted p-4 text-sm text-foreground">
+            <p className="label mb-2">Preview (sample lead)</p>
             {preview}
           </div>
         )}
-        {error && <p className="text-sm text-action-hangup">{error}</p>}
+        {error && <p role="alert" className="text-sm text-signal">{error}</p>}
         <div className="flex gap-2">
-          <NeuButton type="submit" disabled={saving}>
+          <NeuButton type="submit" variant="primary" disabled={saving}>
             {saving ? 'Saving…' : 'Save template'}
           </NeuButton>
           <NeuButton type="button" onClick={onCancel}>
@@ -152,13 +158,17 @@ export default function SmsTemplates() {
 
   return (
     <AppShell>
-      <div className="mx-auto mt-4 max-w-2xl space-y-4">
+      <div className="mx-auto mt-6 max-w-3xl space-y-4">
         <div className="flex items-center justify-between">
-          <h1 className="text-lg font-semibold text-text-primary">SMS templates</h1>
-          {!editing && <NeuButton onClick={() => setEditing('new')}>New template</NeuButton>}
+          <h1 className="text-2xl font-semibold tracking-[-0.01em] text-foreground">SMS templates</h1>
+          {!editing && (
+            <NeuButton variant="primary" onClick={() => setEditing('new')}>
+              New template
+            </NeuButton>
+          )}
         </div>
 
-        {error && <p className="text-sm text-action-hangup">{error}</p>}
+        {error && <p role="alert" className="text-sm text-signal">{error}</p>}
 
         {editing && (
           <TemplateEditor
@@ -171,39 +181,37 @@ export default function SmsTemplates() {
           />
         )}
 
-        {!editing && loading && <p className="text-sm text-text-secondary">Loading…</p>}
+        {!editing && loading && <p className="label">Loading…</p>}
 
         {!editing &&
           !loading &&
           templates.map((t) => (
-            <NeuCard key={t.id} className="flex items-center justify-between gap-3 p-4">
+            <NeuCard key={t.id} className="flex items-center justify-between gap-4 p-4">
               <div className="min-w-0">
-                <p className="font-medium text-text-primary">
+                <p className="flex items-center gap-2 font-medium text-foreground">
                   {t.name}
                   {t.needs_fixing && (
-                    <span
-                      className="ml-2 rounded-full bg-action-warn/15 px-2 py-0.5 text-xs font-semibold text-action-warn"
-                      title={`Can't be sent until fixed: ${(t.invalid_tokens || []).join(', ')}`}
-                    >
-                      Needs fixing
+                    <span title={`Can't be sent until fixed: ${(t.invalid_tokens || []).join(', ')}`}>
+                      <Badge tone="solid">Needs fixing</Badge>
                     </span>
                   )}
                 </p>
-                <p className="truncate text-xs text-text-secondary">{t.body.slice(0, 60)}</p>
+                <p className="truncate text-sm text-muted-foreground">{t.body.slice(0, 60)}</p>
               </div>
               <div className="flex shrink-0 gap-2">
-                <NeuButton className="text-xs" onClick={() => setEditing(t)}>
-                  Edit
-                </NeuButton>
-                <ActionButton variant="hangup" className="text-xs" onClick={() => handleDelete(t.id)}>
-                  Delete
+                <NeuButton onClick={() => setEditing(t)}>Edit</NeuButton>
+                <ActionButton variant="dnc" className="min-h-10 py-2" onClick={() => handleDelete(t.id)}>
+                  ⊘ Delete
                 </ActionButton>
               </div>
             </NeuCard>
           ))}
 
         {!editing && !loading && templates.length === 0 && (
-          <p className="text-sm text-text-secondary">No templates yet.</p>
+          <NeuCard className="space-y-2 p-6">
+            <p className="label">No templates</p>
+            <p className="text-base text-foreground">Create a template to send texts from the call screen, the lead page and bulk SMS.</p>
+          </NeuCard>
         )}
       </div>
     </AppShell>

@@ -23,7 +23,17 @@ function parseArgs(argv) {
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === '--smoke') args.smoke = true;
-    else if (a.startsWith('--')) args[a.slice(2)] = argv[++i];
+    else if (a.startsWith('--')) {
+      const value = argv[i + 1];
+      // An empty shell variable (e.g. --lead $L with no lead found) must not
+      // swallow the next flag and end the run silently.
+      if (value === undefined || value.startsWith('--')) {
+        console.error(`${a} needs a value`);
+        process.exit(2);
+      }
+      args[a.slice(2)] = value;
+      i++;
+    }
   }
   return args;
 }
