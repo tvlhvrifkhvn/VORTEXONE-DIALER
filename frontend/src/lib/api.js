@@ -65,8 +65,8 @@ function showServerErrorToast() {
   const toast = document.createElement('div');
   toast.textContent = 'Something went wrong, please try again.';
   toast.className =
-    'fixed bottom-4 right-4 z-50 animate-fade-in-row rounded-input bg-action-hangup px-4 py-3 text-sm ' +
-    'font-medium text-white shadow-lg';
+    'fixed bottom-4 right-4 z-50 border border-l-[3px] border-strong border-l-primary bg-card px-4 py-3 ' +
+    'text-sm text-foreground';
   document.body.appendChild(toast);
   setTimeout(() => toast.remove(), TOAST_AUTO_DISMISS_MS);
 }

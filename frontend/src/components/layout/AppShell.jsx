@@ -1,16 +1,21 @@
 import { useEffect, useRef, useState } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
-import { Moon, Phone, Search, Sun } from 'lucide-react';
+import { Phone, Search } from 'lucide-react';
 import NeuButton from '../ui/NeuButton';
 import NeuInput from '../ui/NeuInput';
+import Badge from '../ui/Badge';
+import FileTag from '../ui/FileTag';
+import Meter from '../ui/Meter';
+import Segmented from '../ui/Segmented';
+import StatusDot from '../ui/StatusDot';
 import { useAuth } from '../../hooks/useAuth';
 import { useImportJob } from '../../hooks/useImportJob';
 import { getActiveSessionId } from '../../hooks/useCall';
 import * as api from '../../lib/api';
 
 const navLinkClasses = ({ isActive }) =>
-  `rounded-input px-4 py-2 text-sm font-medium transition-shadow duration-150 ${
-    isActive ? 'shadow-neu-pressed text-text-primary' : 'shadow-neu-sm hover:shadow-neu text-text-secondary'
+  `inline-flex min-h-10 items-center px-3 font-mono text-sm font-medium uppercase tracking-button transition-colors duration-150 ${
+    isActive ? 'bg-foreground text-background' : 'text-foreground hover:bg-muted'
   }`;
 
 const THEME_KEY = 'vortex.theme';
@@ -60,15 +65,20 @@ function TimeZoneClock() {
   }, []);
 
   return (
-    <div className="hidden items-center gap-2 text-xs text-text-secondary lg:flex">
-      {TIME_ZONES.map(({ label, tz }, i) => {
+    <div className="hidden items-center gap-3 font-mono text-xs uppercase tabular-nums xl:flex">
+      {TIME_ZONES.map(({ label, tz }) => {
         const { timeStr, isLegalHours } = formatZoneTime(now, tz);
         return (
-          <span key={label} className="flex items-center gap-2">
-            {i > 0 && <span className="text-shadow">·</span>}
-            <span className={isLegalHours ? 'font-medium text-action-contacted' : 'text-text-secondary'}>
-              {label} {timeStr}
+          <span
+            key={label}
+            className="flex items-center gap-1"
+            title={isLegalHours ? 'Inside calling hours (8am–9pm)' : 'Outside calling hours (8am–9pm)'}
+          >
+            <span className="text-muted-foreground">{label}</span>
+            <span className={isLegalHours ? 'font-medium text-foreground' : 'text-muted-foreground line-through'}>
+              {timeStr}
             </span>
+            {!isLegalHours && <span className="sr-only">(outside calling hours)</span>}
           </span>
         );
       })}
@@ -115,19 +125,25 @@ function GlobalSearch() {
   return (
     <div ref={containerRef} className="relative w-44 lg:w-56">
       <div className="relative">
-        <Search size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary" />
+        <Search
+          size={16}
+          strokeWidth={1.5}
+          aria-hidden="true"
+          className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
+        />
         <NeuInput
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onFocus={() => results.length > 0 && setOpen(true)}
           placeholder="Search all leads…"
-          className="w-full py-1.5 pl-8 text-sm"
+          aria-label="Search all leads"
+          className="w-full pl-9 text-sm"
         />
       </div>
       {open && results.length > 0 && (
-        <ul className="absolute z-40 mt-1 w-full space-y-1 rounded-input bg-surface p-2 text-sm shadow-neu">
+        <ul className="absolute z-40 mt-1 w-full border border-strong bg-card text-sm">
           {results.map((lead) => (
-            <li key={lead.id}>
+            <li key={lead.id} className="border-b last:border-b-0">
               <button
                 type="button"
                 onClick={() => {
@@ -135,10 +151,10 @@ function GlobalSearch() {
                   setQuery('');
                   navigate(`/leads/${lead.id}`);
                 }}
-                className="flex w-full flex-col rounded-input px-2 py-1.5 text-left hover:shadow-neu-sm"
+                className="flex w-full flex-col px-3 py-2 text-left transition-colors duration-150 hover:bg-muted"
               >
-                <span className="max-w-full truncate font-medium text-text-primary" title={lead.name}>{lead.name}</span>
-                <span className="text-xs text-text-secondary">
+                <span className="max-w-full truncate font-medium text-foreground" title={lead.name}>{lead.name}</span>
+                <span className="font-mono text-xs tabular-nums text-muted-foreground">
                   {lead.phone} · {lead.state}
                 </span>
               </button>
@@ -179,8 +195,8 @@ function useSmsInboxPoll() {
               toast.type = 'button';
               toast.textContent = `New message from ${newest.leadName}`;
               toast.className =
-                'fixed bottom-4 right-4 z-50 animate-fade-in-row rounded-input bg-action-call px-4 py-3 text-sm ' +
-                'font-medium text-white shadow-lg';
+                'fixed bottom-4 right-4 z-50 border border-l-[3px] border-strong border-l-primary bg-card px-4 py-3 ' +
+                'text-left text-sm text-foreground hover:bg-muted';
               toast.onclick = () => {
                 navigate('/inbox');
                 toast.remove();
@@ -241,10 +257,15 @@ function ImportProgressBadge() {
       type="button"
       onClick={() => navigate('/import')}
       title={`Importing ${job.filename || 'leads'} — ${job.phaseLabel || `${job.processedRows}/${job.totalRows} rows`}`}
-      className="flex items-center gap-2 rounded-input px-3 py-1.5 text-xs font-medium text-text-primary shadow-neu-sm transition-shadow hover:shadow-neu"
+      className="w-48 px-2 py-1 text-left transition-colors duration-150 hover:bg-muted"
     >
-      <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-action-call" />
-      Importing… {job.percentage}%
+      <Meter
+        label="Importing"
+        value={job.processedRows || 0}
+        max={job.totalRows || 0}
+        tone="goal"
+        format={(n) => Number(n).toLocaleString('en-US')}
+      />
     </button>
   );
 }
@@ -271,75 +292,85 @@ export default function AppShell({ children }) {
   };
 
   return (
-    <div className="min-h-screen bg-base">
-      <header className="flex flex-wrap items-center justify-between gap-4 px-6 py-4">
-        {/* Left zone: logo only. */}
-        <span className="text-lg font-semibold text-text-primary">Vortex Outreach</span>
+    <div className="min-h-screen bg-background">
+      <header className="border-b">
+        {/* Row 1: wordmark and campaign file on the left, nav, then the
+            account controls flush right. */}
+        <div className="flex flex-wrap items-center justify-between gap-4 px-6 py-3">
+          <div className="flex items-center gap-6">
+            <span className="flex items-baseline gap-2">
+              <span className="text-lg font-semibold tracking-[-0.01em] text-foreground">VORTEX ONE</span>
+              <span className="font-mono text-xs font-medium uppercase tracking-label text-muted-foreground">
+                Outreach
+              </span>
+            </span>
+            {/* Static until CRM Phase 1C turns it into the campaign switcher. */}
+            <FileTag number={1} name="Real Estate" />
+          </div>
 
-        {/* Center zone: nav links only. */}
-        <nav className="flex gap-2">
-          <NavLink to="/" end className={navLinkClasses}>
-            Dashboard
-          </NavLink>
-          <NavLink to="/dialer" className={navLinkClasses}>
-            <span className="inline-flex items-center gap-1.5">
-              Dialer
-              {sessionLive && (
-                <span className="rounded-full bg-action-call px-1.5 py-0.5 text-xs font-semibold uppercase tracking-wide text-white">
-                  Live
+          <nav aria-label="Main" className="flex flex-wrap">
+            <NavLink to="/" end className={navLinkClasses}>
+              Dashboard
+            </NavLink>
+            <NavLink to="/dialer" className={navLinkClasses}>
+              <span className="inline-flex items-center gap-2">
+                Dialer
+                {sessionLive && <StatusDot tone="live">Live</StatusDot>}
+              </span>
+            </NavLink>
+            <NavLink to="/inbox" className={navLinkClasses}>
+              {({ isActive }) => (
+                <span className="inline-flex items-center gap-2">
+                  Inbox
+                  {unreadSmsCount > 0 && (
+                    // Solid, except on the active (already solid) tab.
+                    <Badge tone={isActive ? 'muted' : 'solid'} className="tabular-nums">
+                      {unreadSmsCount}
+                      <span className="sr-only"> unread</span>
+                    </Badge>
+                  )}
                 </span>
               )}
-            </span>
-          </NavLink>
-          <NavLink to="/inbox" className={navLinkClasses}>
-            <span className="relative inline-flex items-center">
-              Inbox
-              {unreadSmsCount > 0 && (
-                <span className="ml-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-action-hangup px-1 text-xs font-semibold text-white">
-                  {unreadSmsCount}
-                </span>
-              )}
-            </span>
-          </NavLink>
-          <NavLink to="/import" className={navLinkClasses}>
-            Import
-          </NavLink>
-          <NavLink to="/reports" className={navLinkClasses}>
-            Reports
-          </NavLink>
-          <NavLink to="/settings" className={navLinkClasses}>
-            Settings
-          </NavLink>
-        </nav>
+            </NavLink>
+            <NavLink to="/import" className={navLinkClasses}>
+              Import
+            </NavLink>
+            <NavLink to="/reports" className={navLinkClasses}>
+              Reports
+            </NavLink>
+            <NavLink to="/settings" className={navLinkClasses}>
+              Settings
+            </NavLink>
+          </nav>
 
-        {/* Right zone: search, clock, dark mode toggle, username, logout — all
-            grouped flush to the right edge. */}
-        <div className="flex items-center gap-4">
-          <ImportProgressBadge />
+          <div className="flex items-center gap-4">
+            {user && <span className="text-sm text-muted-foreground">{user.name}</span>}
+            <NeuButton onClick={() => navigate('/call/manual')} title="Dial a number">
+              <Phone size={16} strokeWidth={1.5} aria-hidden="true" />
+              Dial
+            </NeuButton>
+            <Segmented
+              label="Theme"
+              options={[
+                { value: 'ink', label: 'Ink' },
+                { value: 'paper', label: 'Paper' },
+              ]}
+              value={darkMode ? 'ink' : 'paper'}
+              onChange={(v) => setDarkMode(v === 'ink')}
+            />
+            <NeuButton variant="ghost" onClick={handleLogout}>
+              Log out
+            </NeuButton>
+          </div>
+        </div>
+
+        {/* Row 2: search, import progress and the four US clocks. */}
+        <div className="flex flex-wrap items-center gap-6 border-t px-6 py-2">
           <GlobalSearch />
-          <TimeZoneClock />
-          {user && <span className="text-sm text-text-secondary">{user.name}</span>}
-          <button
-            type="button"
-            onClick={() => navigate('/call/manual')}
-            title="Dial a number"
-            aria-label="Dial a number"
-            className="ripple flex h-9 w-9 items-center justify-center rounded-full text-action-call shadow-neu-sm transition-all duration-200 hover:shadow-neu"
-          >
-            <Phone size={16} />
-          </button>
-          <button
-            type="button"
-            onClick={() => setDarkMode((d) => !d)}
-            title={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}
-            aria-label={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}
-            className="ripple flex h-9 w-9 items-center justify-center rounded-input text-text-secondary shadow-neu-sm transition-all duration-200 hover:shadow-neu hover:text-action-call"
-          >
-            {darkMode ? <Sun size={16} /> : <Moon size={16} />}
-          </button>
-          <NeuButton className="py-1.5 text-sm" onClick={handleLogout}>
-            Log out
-          </NeuButton>
+          <ImportProgressBadge />
+          <div className="ml-auto">
+            <TimeZoneClock />
+          </div>
         </div>
       </header>
       <main className="px-6 pb-10">{children}</main>

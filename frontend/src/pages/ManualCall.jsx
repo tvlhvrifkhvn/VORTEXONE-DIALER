@@ -27,15 +27,15 @@ export default function ManualCall() {
 
   return (
     <AppShell>
-      <div className="mx-auto mt-4 max-w-md space-y-4">
+      <div className="mx-auto mt-6 max-w-md space-y-4">
         <button
           type="button"
           onClick={() => navigate('/')}
           disabled={callInFlight}
           title={callInFlight ? 'Hang up before leaving this page' : 'Back to dashboard'}
-          className="flex items-center gap-1.5 text-sm text-text-secondary hover:text-action-call disabled:cursor-not-allowed disabled:opacity-50"
+          className="flex min-h-10 items-center gap-2 font-mono text-sm font-medium uppercase tracking-button text-muted-foreground transition-colors duration-150 hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40"
         >
-          <ArrowLeft size={14} />
+          <ArrowLeft size={16} strokeWidth={1.5} aria-hidden="true" />
           Back
         </button>
 

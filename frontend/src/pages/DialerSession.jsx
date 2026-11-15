@@ -4,6 +4,8 @@ import AppShell from '../components/layout/AppShell';
 import MultilinePanel from '../components/call/MultilinePanel';
 import NeuCard from '../components/ui/NeuCard';
 import NeuButton from '../components/ui/NeuButton';
+import Dialog from '../components/ui/Dialog';
+import SectionLabel from '../components/ui/SectionLabel';
 import { useMultiline } from '../hooks/useMultiline';
 import { endDialingSession, getActiveSessionId } from '../hooks/useCall';
 
@@ -32,27 +34,24 @@ function SessionSummaryModal({ stats, abandonedCount = 0, onClose }) {
   ];
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 px-4">
-      <NeuCard className="w-full max-w-sm space-y-4 p-6">
-        <h2 className="text-lg font-semibold text-text-primary">Session summary</h2>
-        <dl className="space-y-2 text-sm">
-          {rows.map(([label, value]) => (
-            <div key={label} className="flex justify-between">
-              <dt className="text-text-secondary">{label}</dt>
-              <dd className="font-medium text-text-primary">{value}</dd>
-            </div>
-          ))}
-        </dl>
-        {abandonedCount > 0 && (
-          <p className="text-xs text-text-secondary">
-            {abandonedCount} call{abandonedCount === 1 ? ' was' : 's were'} abandoned when a live contact was found.
-          </p>
-        )}
-        <NeuButton className="w-full" onClick={onClose}>
-          Close
-        </NeuButton>
-      </NeuCard>
-    </div>
+    <Dialog title="Session summary" onClose={onClose} className="max-w-sm">
+      <dl className="text-sm">
+        {rows.map(([label, value]) => (
+          <div key={label} className="flex justify-between border-b py-2 last:border-b-0">
+            <dt className="label">{label}</dt>
+            <dd className="font-mono font-medium tabular-nums text-foreground">{value}</dd>
+          </div>
+        ))}
+      </dl>
+      {abandonedCount > 0 && (
+        <p className="mt-4 text-sm text-muted-foreground">
+          {abandonedCount} call{abandonedCount === 1 ? ' was' : 's were'} abandoned when a live contact was found.
+        </p>
+      )}
+      <NeuButton className="mt-6 w-full" onClick={onClose}>
+        Close
+      </NeuButton>
+    </Dialog>
   );
 }
 
@@ -60,12 +59,14 @@ function SessionSummaryModal({ stats, abandonedCount = 0, onClose }) {
  * session's local state) with nothing running. */
 function NoSessionState({ onGoToDashboard }) {
   return (
-    <NeuCard className="mx-auto mt-16 max-w-md space-y-3 p-8 text-center">
-      <h2 className="text-base font-semibold text-text-primary">No dialing session running</h2>
-      <p className="text-sm text-text-secondary">
+    <NeuCard className="mt-6 max-w-md space-y-4 p-6">
+      <h2 className="label">No dialing session</h2>
+      <p className="text-base text-foreground">
         Select leads and a line count on the dashboard, then start a dialing session to see it here.
       </p>
-      <NeuButton onClick={onGoToDashboard}>Go to Dashboard</NeuButton>
+      <NeuButton variant="primary" onClick={onGoToDashboard}>
+        Go to dashboard →
+      </NeuButton>
     </NeuCard>
   );
 }
@@ -138,9 +139,10 @@ export default function DialerSession() {
 
   return (
     <AppShell>
-      <div className="mx-auto mt-4 max-w-5xl">
+      <div className="mx-auto mt-6 max-w-[1440px]">
+        <SectionLabel index="01" title="Lines" className="mb-4" />
         {finishing && (
-          <p className="mb-3 rounded-input bg-action-warn/10 px-3 py-2 text-sm font-medium text-action-warn">
+          <p className="mb-4 border border-l-[3px] border-strong border-l-primary bg-card px-4 py-2 text-sm font-medium text-foreground">
             Dialing stopped. Finish the call you're on and log its outcome — the session summary opens after that.
           </p>
         )}
