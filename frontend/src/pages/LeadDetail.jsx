@@ -166,7 +166,7 @@ export default function LeadDetail() {
               {lead.tags.map((tag) => (
                 <span
                   key={tag}
-                  className="rounded-full bg-surface px-2 py-0.5 text-[11px] text-text-primary shadow-neu-sm"
+                  className="rounded-full bg-surface px-2 py-0.5 text-xs text-text-primary shadow-neu-sm"
                 >
                   {tag}
                 </span>

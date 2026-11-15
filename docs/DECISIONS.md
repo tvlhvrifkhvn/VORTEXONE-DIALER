@@ -1,0 +1,23 @@
+# Decisions (one line each: date · segment · decision · why)
+- 2026-11-14 · plan · Keycaps only for real hotkeys (M, Esc, V, N, D); N means No answer, not Next · no fake shortcuts
+- 2026-11-14 · plan · Campaign switcher, queue list, header stats and spend meter don't exist yet: built on /styleguide only, wired in CRM phases 1C, 3A and 4B · visual-only scope
+- 2026-11-14 · plan · The header shows a static "FILE 01 · REAL ESTATE" tag until Phase 1C · every current lead is real estate
+- 2026-11-14 · plan · The focus ring uses --ring (the page text color), not currentColor · currentColor disappears on orange buttons over ink
+- 2026-11-14 · plan · Green is a dot only; orange text only on ink (text-signal turns ink on paper) · on paper, green text is 2.7:1 and orange text 2.6:1, both failing AA
+- 2026-11-14 · plan · Two border tokens: --border (decorative hairlines) and --border-strong (controls, 3:1 or more) · inputs and buttons need visible edges
+- 2026-11-14 · plan · Primary buttons keep a 1px ink edge in the paper theme (--primary-border) · orange on paper is 2.6:1
+- 2026-11-14 · plan · New theme key vortex.theme, default ink; the old key is dropped · the old key always held "light", which would hide the new default
+- 2026-11-14 · plan · Fonts are self-hosted through Fontsource; the Google Fonts link is removed · fewer requests, no third-party font calls
+- 2026-11-14 · plan · Gate = build + contrast script + screenshot smoke + diff guard · the frontend has no lint or typecheck, and we add no dev dependencies
+- 2026-11-14 · plan · Minimum text size 12px (31 places were 10–11px) · readability
+- 2026-11-14 · plan · Emoji removed ("✨ Expand" becomes "EXPAND NOTE", ✏️ becomes "EDIT") · design rule
+- 2026-11-14 · plan · Outcome buttons lose their colors but keep their 3×2 order, labels and keycaps · one accent; speed comes from fixed positions and hotkeys
+- 2026-11-14 · plan · Dialogs get role and aria but no new Esc handling · Esc already ends calls on the call screen
+- 2026-11-14 · plan · The display name becomes "Vortex One Outreach" in R2 (moved here from CRM Phase 1C) · it is a visual change
+- 2026-11-14 · plan · The exported PDF is unchanged · it is made by the backend
+- 2026-11-15 · R1 · The `base` compat alias lives under backgroundColor, not colors · as a color it made `text-base` (the body size) paint text in the background color, so plain text vanished
+- 2026-11-15 · R1 · `[data-theme='ink']` repeats the :root tokens · lets /styleguide show an ink block inside the paper theme with real token classes instead of raw hex
+- 2026-11-15 · R1 · Meter takes an optional `format` prop (e.g. dollars); Dialog takes an optional `inline` prop (no fixed scrim) for /styleguide · the budget meter prints "$24 / $60", and the styleguide must render the dialog in place
+- 2026-11-15 · R1 · Badge logs an ignored `color` prop with console.debug, not console.error · the screenshot gate counts console errors, and ObjectionReport still passes `color` until R6
+- 2026-11-15 · R1 · ActionButton `contacted` (solid) inverts to outline on hover · the standard hover (solid fill) would show no change on an already solid button
+- 2026-11-15 · R1 · reskin-shots.js logs in once per run and reuses the session, and takes `--smoke-lead <id>` · per-page logins trip the login rate limit, and the call shot locks its lead for 30 s

@@ -48,7 +48,7 @@ export default function BriefCard({ brief, collapsed = false, className = '' }) 
         className="flex w-full items-start justify-between gap-2 text-left"
       >
         <span className="min-w-0">
-          <span className="mr-1.5 text-[10px] font-semibold uppercase tracking-wide text-text-secondary">Brief</span>
+          <span className="mr-1.5 text-xs font-semibold uppercase tracking-wide text-text-secondary">Brief</span>
           <span className={`text-xs font-medium text-text-primary ${open ? '' : 'line-clamp-1'}`} data-testid="brief-headline">
             {instant.headline}
           </span>
@@ -60,7 +60,7 @@ export default function BriefCard({ brief, collapsed = false, className = '' }) 
       {ai && open && <AiLine text={ai.text} />}
 
       {open && (
-        <div className="mt-2 space-y-1.5 text-[11px] text-text-secondary">
+        <div className="mt-2 space-y-1.5 text-xs text-text-secondary">
           <p>
             {[d.name, d.brokerage, [d.city, d.state].filter(Boolean).join(', ')].filter(Boolean).join(' · ')}
           </p>

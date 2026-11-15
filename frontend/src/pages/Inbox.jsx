@@ -82,7 +82,7 @@ export default function Inbox() {
                   <span className="flex items-center gap-2">
                     <span className="font-medium text-text-primary">{row.leadName}</span>
                     {row.unreadCount > 1 && (
-                      <span className="rounded-full bg-action-hangup px-1.5 py-0.5 text-[10px] font-semibold text-white">
+                      <span className="rounded-full bg-action-hangup px-1.5 py-0.5 text-xs font-semibold text-white">
                         {row.unreadCount}
                       </span>
                     )}

@@ -101,7 +101,7 @@ function CompactLineCard({ line, onDrop }) {
       }`}
     >
       <div className="flex items-center justify-between gap-2">
-        <span className="text-[10px] font-semibold uppercase tracking-wide text-text-secondary">
+        <span className="text-xs font-semibold uppercase tracking-wide text-text-secondary">
           Line {line.slotNumber}
         </span>
         <StatusBadge status={line.status} duration={line.duration} />
@@ -112,7 +112,7 @@ function CompactLineCard({ line, onDrop }) {
       {line.lead && line.brief && !isFinished && <BriefCard brief={line.brief} collapsed className="!p-2" />}
 
       {isHeld && (
-        <p className="rounded-input bg-action-warn/10 px-2 py-1 text-[11px] font-medium text-action-warn">
+        <p className="rounded-input bg-action-warn/10 px-2 py-1 text-xs font-medium text-action-warn">
           Live caller holding — up next when you finish
         </p>
       )}
@@ -182,7 +182,7 @@ export default function MultilinePanel({
         <div className="flex flex-col gap-3 lg:flex-row">
           <NeuCard className={`flex-1 space-y-3 border-2 ${SLOT_ACCENTS[activeLine.slotNumber]?.ring} p-4`}>
             <div className="flex items-center justify-between">
-              <span className="text-[10px] font-semibold uppercase tracking-wide text-text-secondary">
+              <span className="text-xs font-semibold uppercase tracking-wide text-text-secondary">
                 Line {activeLine.slotNumber} · on the call
               </span>
               <StatusBadge status={activeLine.status} duration={activeLine.duration} />

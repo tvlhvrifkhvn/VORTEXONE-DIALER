@@ -84,7 +84,7 @@ export default function ObjectionPanel({ callId }) {
               onClick={() => handleToggle(type.id)}
               disabled={!!pending[type.id]}
               aria-pressed={on}
-              className={`rounded-full px-2.5 py-1 text-[11px] transition-all duration-200 disabled:opacity-50 ${
+              className={`rounded-full px-2.5 py-1 text-xs transition-all duration-200 disabled:opacity-50 ${
                 on ? 'font-semibold text-action-call shadow-neu-pressed' : 'text-text-primary shadow-neu-sm hover:shadow-neu'
               }`}
             >
@@ -101,7 +101,7 @@ export default function ObjectionPanel({ callId }) {
           <div key={typeId} className="space-y-1 rounded-input p-2 shadow-neu-sm">
             <p className="text-xs font-semibold text-text-primary">{objection.label}</p>
             {hint && (
-              <p className="text-[11px] text-text-secondary" data-testid="objection-hint">
+              <p className="text-xs text-text-secondary" data-testid="objection-hint">
                 <span className="font-semibold">Try: </span>
                 {hint.text}
               </p>
@@ -114,7 +114,7 @@ export default function ObjectionPanel({ callId }) {
               placeholder="What did you say? (optional)"
               className="w-full text-xs"
             />
-            {savedId === typeId && <p className="text-[11px] text-action-contacted">Saved</p>}
+            {savedId === typeId && <p className="text-xs text-action-contacted">Saved</p>}
           </div>
         );
       })}

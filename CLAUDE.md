@@ -77,17 +77,9 @@ placeCall(fromNumber, toNumber, onEvent) → callId
 no_answer). The route handler in `routes/calls.js` reads which adapter to use from
 `TELEPHONY_PROVIDER=mock|twilio` in `.env`.
 
-## Design language: neumorphism, with a critical exception
+## Design language: Neo-Swiss
 
-Base palette: background `#E4E9F0`, raised surfaces use dual shadows
-(`-6px -6px 12px #FFFFFF` + `6px 6px 12px #A3B1C6`), text `#3E4C63` / `#6A7A94`,
-14px radius on cards, 10px on inputs, Inter font.
-
-Neumorphic style applies to containers, cards, inputs, sidebar, and non-critical
-buttons. **Action buttons (Call, Hangup, the six disposition buttons) use solid,
-high-contrast fills instead** — see `frontend/src/styles/theme.js` for exact colors.
-Reason: strict neumorphism minimizes contrast, which slows down repetitive clicking
-during fast dialing. Containers pretty, actions loud.
+Rules: docs/DESIGN.md. Plan and status: docs/RESKIN.md. Decisions: docs/DECISIONS.md. Build UI from src/components/ui/ (all shown on /styleguide). Check with `npm run build` and `npm run contrast` in frontend/.
 
 ## Rules for Claude Code working on this project
 
@@ -98,7 +90,7 @@ during fast dialing. Containers pretty, actions loud.
    rewrite unrelated files.
 4. **Every backend feature has a route in `/routes/` and its logic in `/services/`.**
    No SQL in route handlers.
-5. **Every new frontend piece uses the `/components/ui/` neumorphic primitives.**
+5. **Every new frontend piece uses the `/components/ui/` primitives, following docs/DESIGN.md.**
    Don't hand-roll shadows on new components.
 6. **Commit after every working feature.** If a change breaks something and you
    can't fix it in 2 tries, revert to the last commit and try a different approach.

@@ -41,7 +41,7 @@ function SuggestionRow({ item, label, onReviewed }) {
   return (
     <li className="flex items-start justify-between gap-3 text-xs" data-testid="suggestion-row">
       <span className="min-w-0 space-y-0.5">
-        {label && <span className="block text-[10px] font-semibold text-text-secondary">{label}</span>}
+        {label && <span className="block text-xs font-semibold text-text-secondary">{label}</span>}
         <span className="block text-text-primary">{item.text}</span>
         <span className="flex flex-wrap gap-1">
           {item.status === 'approved' ? (
@@ -55,10 +55,10 @@ function SuggestionRow({ item, label, onReviewed }) {
       </span>
       {item.status === 'pending' && (
         <span className="flex shrink-0 gap-1.5">
-          <NeuButton className="text-[11px]" onClick={() => review('approved')} disabled={busy}>
+          <NeuButton className="text-xs" onClick={() => review('approved')} disabled={busy}>
             Approve
           </NeuButton>
-          <NeuButton className="text-[11px]" onClick={() => review('rejected')} disabled={busy}>
+          <NeuButton className="text-xs" onClick={() => review('rejected')} disabled={busy}>
             Reject
           </NeuButton>
         </span>
@@ -171,7 +171,7 @@ function RebuttalIdeas({ typeId, reviewVersion, onReviewed }) {
           </ol>
         )
       )}
-      <div className="flex items-center justify-between gap-2 text-[11px] text-text-secondary">
+      <div className="flex items-center justify-between gap-2 text-xs text-text-secondary">
         <span>
           {result.source === 'ai' && `AI suggestions from ${result.basedOnCount} logged calls — only approved ones reach the call screen. `}
           {result.source === 'logged' && 'Rebuttals that worked on past calls. '}
@@ -273,7 +273,7 @@ export default function ObjectionReport() {
                 </div>
                 <span className="text-right">
                   <span className="block font-medium text-text-primary" data-testid="objection-count">{r.count}</span>
-                  <span className="block text-[10px] text-text-secondary" data-testid="objection-rate">
+                  <span className="block text-xs text-text-secondary" data-testid="objection-rate">
                     {rate} positive
                   </span>
                 </span>
@@ -287,7 +287,7 @@ export default function ObjectionReport() {
           );
         })}
       </div>
-      <p className="text-[11px] text-text-secondary">
+      <p className="text-xs text-text-secondary">
         Positive = the call ended Spoke / Interested or Callback. Click an objection for rebuttal ideas.
       </p>
     </NeuCard>

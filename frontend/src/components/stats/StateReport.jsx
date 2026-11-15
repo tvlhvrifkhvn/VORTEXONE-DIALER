@@ -49,7 +49,7 @@ export default function StateReport({ states = [] }) {
             </div>
             <div className="text-right">
               <div className="font-medium text-text-primary">{s.connectRate}%</div>
-              <div className="text-[10px] text-text-secondary">
+              <div className="text-xs text-text-secondary">
                 {s.dials}d / {s.contacts}c
               </div>
             </div>

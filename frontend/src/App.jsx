@@ -11,6 +11,7 @@ import LeadDetail from './pages/LeadDetail';
 import Import from './pages/Import';
 import Reports from './pages/Reports';
 import Settings from './pages/Settings';
+import Styleguide from './pages/Styleguide';
 
 function RequireAuth({ children }) {
   const { isAuthenticated, loading } = useAuth();
@@ -100,6 +101,14 @@ function AppRoutes() {
         element={
           <RequireAuth>
             <Reports />
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/styleguide"
+        element={
+          <RequireAuth>
+            <Styleguide />
           </RequireAuth>
         }
       />
