@@ -6,6 +6,7 @@ import ObjectionReport from '../components/stats/ObjectionReport';
 import NeuCard from '../components/ui/NeuCard';
 import NeuButton from '../components/ui/NeuButton';
 import NeuInput from '../components/ui/NeuInput';
+import SectionLabel from '../components/ui/SectionLabel';
 import { formatDuration, formatTime } from '../lib/format';
 import * as api from '../lib/api';
 
@@ -17,18 +18,18 @@ function PeriodPicker({ onApply, onPdf, busy }) {
   const [to, setTo] = useState('');
   const range = from && to ? { from, to } : {};
   return (
-    <NeuCard className="flex flex-wrap items-end gap-3 p-4">
-      <label className="text-xs font-medium text-text-secondary">
+    <NeuCard className="flex flex-wrap items-end gap-4 p-4">
+      <label className="label">
         From
-        <NeuInput type="datetime-local" value={from} onChange={(e) => setFrom(e.target.value)} className="mt-1 block" aria-label="From" />
+        <NeuInput type="datetime-local" value={from} onChange={(e) => setFrom(e.target.value)} className="mt-2 block font-mono text-sm normal-case tracking-normal" aria-label="From" />
       </label>
-      <label className="text-xs font-medium text-text-secondary">
+      <label className="label">
         To
-        <NeuInput type="datetime-local" value={to} onChange={(e) => setTo(e.target.value)} className="mt-1 block" aria-label="To" />
+        <NeuInput type="datetime-local" value={to} onChange={(e) => setTo(e.target.value)} className="mt-2 block font-mono text-sm normal-case tracking-normal" aria-label="To" />
       </label>
-      <NeuButton onClick={() => onApply(range)} disabled={busy || Boolean(from) !== Boolean(to)}>Show</NeuButton>
+      <NeuButton variant="primary" onClick={() => onApply(range)} disabled={busy || Boolean(from) !== Boolean(to)}>Show</NeuButton>
       <NeuButton onClick={() => { setFrom(''); setTo(''); onApply({}); }} disabled={busy}>Today</NeuButton>
-      <NeuButton onClick={() => onPdf(range)} disabled={busy || Boolean(from) !== Boolean(to)}>Download PDF</NeuButton>
+      <NeuButton onClick={() => onPdf(range)} disabled={busy || Boolean(from) !== Boolean(to)}>Export PDF ↓</NeuButton>
     </NeuCard>
   );
 }
@@ -37,18 +38,20 @@ function ManualCallsSection({ calls }) {
   if (calls.length === 0) return null;
 
   return (
-    <NeuCard className="space-y-3 p-4">
-      <h2 className="text-sm font-semibold text-text-primary">Manual calls in this period</h2>
-      <ul className="divide-y divide-shadow/20">
-        {calls.map((call) => (
-          <li key={call.id} className="flex items-center justify-between py-2 text-sm">
-            <span className="font-mono text-text-primary">{call.to_number}</span>
-            <span className="text-text-secondary">{formatTime(call.started_at)}</span>
-            <span className="text-text-secondary">{formatDuration(call.duration_seconds)}</span>
-          </li>
-        ))}
-      </ul>
-    </NeuCard>
+    <section>
+      <SectionLabel index="03" title="Manual calls in this period" className="mb-2" />
+      <NeuCard className="px-4 py-2">
+        <ul className="divide-y">
+          {calls.map((call) => (
+            <li key={call.id} className="flex items-center justify-between py-2 font-mono text-sm tabular-nums">
+              <span className="text-foreground">{call.to_number}</span>
+              <span className="text-muted-foreground">{formatTime(call.started_at)}</span>
+              <span className="text-muted-foreground">{formatDuration(call.duration_seconds)}</span>
+            </li>
+          ))}
+        </ul>
+      </NeuCard>
+    </section>
   );
 }
 
@@ -81,11 +84,16 @@ export default function Reports() {
 
   return (
     <AppShell>
-      <div className="mx-auto mt-4 max-w-4xl space-y-4">
-        <h1 className="text-lg font-semibold text-text-primary">Reports</h1>
+      <div className="mx-auto mt-6 max-w-5xl space-y-6">
+        <h1 className="text-2xl font-semibold tracking-[-0.01em] text-foreground">Reports</h1>
         <PeriodPicker onApply={load} onPdf={downloadPdf} busy={loading} />
-        {periodLabel && <p className="text-sm text-text-secondary" data-testid="report-period">{periodLabel}</p>}
-        {error && <p className="text-sm text-action-hangup">{error}</p>}
+        {periodLabel && <p className="label" data-testid="report-period">{periodLabel}</p>}
+        {error && (
+          <p role="alert" className="text-sm text-signal">
+            <span className="label mr-2 text-signal">Error</span>
+            {error}
+          </p>
+        )}
 
         <div className="flex flex-wrap gap-4">
           <StatCard label="Dials" value={today.dials} />
@@ -94,7 +102,7 @@ export default function Reports() {
         </div>
 
         {loading ? (
-          <p className="text-sm text-text-secondary">Loading…</p>
+          <p className="label">Loading…</p>
         ) : (
           <>
             <StateReport states={states} />

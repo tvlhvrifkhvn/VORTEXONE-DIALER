@@ -3,6 +3,9 @@ import AppShell from '../components/layout/AppShell';
 import NeuCard from '../components/ui/NeuCard';
 import NeuButton from '../components/ui/NeuButton';
 import NeuInput from '../components/ui/NeuInput';
+import Badge from '../components/ui/Badge';
+import Meter from '../components/ui/Meter';
+import SectionLabel from '../components/ui/SectionLabel';
 import ActionButton from '../components/ui/ActionButton';
 import { formatDateTime } from '../lib/format';
 import { useImportJob, trackImportJob } from '../hooks/useImportJob';
@@ -25,7 +28,8 @@ function previewName(row, mapping) {
     .filter(Boolean)
     .join(' ');
 }
-const CONFIDENCE_COLORS = { high: 'text-action-contacted', medium: 'text-action-warn', low: 'text-action-hangup' };
+// Mapping confidence as Tag tones (docs/RESKIN.md R6): HIGH solid, MEDIUM outline, LOW dashed.
+const CONFIDENCE_TONES = { high: 'solid', medium: 'outline', low: 'dashed' };
 
 /** Last 10 imports, shown below the upload area. */
 function ImportHistory({ refreshKey }) {
@@ -41,31 +45,33 @@ function ImportHistory({ refreshKey }) {
   if (history.length === 0) return null;
 
   return (
-    <NeuCard className="overflow-x-auto p-5">
-      <h2 className="mb-3 text-sm font-semibold text-text-primary">Import history</h2>
-      <table className="w-full text-xs">
+    <section>
+    <SectionLabel title="Import history" className="mb-2" />
+    <NeuCard className="overflow-x-auto p-0">
+      <table className="w-full text-sm">
         <thead>
-          <tr className="text-left uppercase tracking-wide text-text-secondary">
-            <th className="px-2 py-2">Date</th>
-            <th className="px-2 py-2">Filename</th>
-            <th className="px-2 py-2">Imported</th>
-            <th className="px-2 py-2">Skipped</th>
-            <th className="px-2 py-2">Duplicates</th>
+          <tr className="border-b text-left">
+            <th className="label px-4 py-3 font-medium">Date</th>
+            <th className="label px-4 py-3 font-medium">Filename</th>
+            <th className="label px-4 py-3 text-right font-medium">Imported</th>
+            <th className="label px-4 py-3 text-right font-medium">Skipped</th>
+            <th className="label px-4 py-3 text-right font-medium">Duplicates</th>
           </tr>
         </thead>
         <tbody>
           {history.map((row) => (
-            <tr key={row.id} className="border-t border-shadow/20">
-              <td className="px-2 py-2 text-text-secondary">{formatDateTime(row.imported_at)}</td>
-              <td className="px-2 py-2 text-text-primary">{row.filename || '—'}</td>
-              <td className="px-2 py-2 text-text-primary">{row.imported}</td>
-              <td className="px-2 py-2 text-text-primary">{row.skipped_dnc + row.skipped_invalid}</td>
-              <td className="px-2 py-2 text-text-primary">{row.skipped_duplicate}</td>
+            <tr key={row.id} className="h-12 border-b last:border-b-0">
+              <td className="px-4 font-mono text-xs tabular-nums text-muted-foreground">{formatDateTime(row.imported_at)}</td>
+              <td className="px-4 text-foreground">{row.filename || '—'}</td>
+              <td className="px-4 text-right font-mono tabular-nums text-foreground">{row.imported}</td>
+              <td className="px-4 text-right font-mono tabular-nums text-foreground">{row.skipped_dnc + row.skipped_invalid}</td>
+              <td className="px-4 text-right font-mono tabular-nums text-foreground">{row.skipped_duplicate}</td>
             </tr>
           ))}
         </tbody>
       </table>
     </NeuCard>
+    </section>
   );
 }
 
@@ -101,9 +107,9 @@ function ImportSummary({ summary, onReset }) {
   // Older jobs (before this summary existed) only have the legacy fields.
   if (summary.noNumber === undefined) {
     return (
-      <NeuCard className="space-y-3 p-5">
-        <h2 className="text-sm font-semibold text-text-primary">Import report</h2>
-        <p className="text-sm text-text-secondary">
+      <NeuCard className="space-y-4 p-6">
+        <SectionLabel index="04" title="Result" />
+        <p className="text-sm text-muted-foreground">
           {summary.imported} leads imported · {summary.mergedDuplicates ?? 0} duplicates merged · {summary.skippedDnc} skipped
           (DNC) · {summary.skippedDuplicate} duplicates removed · {summary.skippedInvalid} invalid
         </p>
@@ -113,35 +119,40 @@ function ImportSummary({ summary, onReset }) {
   }
 
   return (
-    <NeuCard className="space-y-3 p-5">
-      <h2 className="text-sm font-semibold text-text-primary">Import report</h2>
+    <NeuCard className="space-y-4 p-6">
+      <SectionLabel index="04" title="Result" />
       <table className="w-full text-sm">
         <tbody>
-          <tr className="border-b border-shadow/20 font-semibold text-text-primary">
-            <td className="py-1.5">Rows in the file</td>
-            <td className="py-1.5 text-right tabular-nums">{summary.totalRows}</td>
+          <tr className="border-b font-semibold text-foreground">
+            <td className="py-2">Rows in the file</td>
+            <td className="py-2 text-right font-mono text-lg tabular-nums">{summary.totalRows}</td>
           </tr>
           {BUCKETS.map(([key, label]) => (
-            <tr key={key} className="text-text-primary">
-              <td className="py-1">{label}</td>
-              <td className="py-1 text-right tabular-nums">{summary[key]}</td>
+            <tr key={key} className="border-b text-foreground">
+              <td className="py-2">{label}</td>
+              <td className="py-2 text-right font-mono tabular-nums">{summary[key]}</td>
             </tr>
           ))}
           {summary.notProcessed > 0 && (
-            <tr className="text-action-warn">
-              <td className="py-1">Not processed (import cancelled)</td>
-              <td className="py-1 text-right tabular-nums">{summary.notProcessed}</td>
+            <tr className="border-b font-medium text-foreground">
+              <td className="py-2">
+                <Badge tone="dashed" className="mr-2">
+                  Cancelled
+                </Badge>
+                Not processed (import cancelled)
+              </td>
+              <td className="py-2 text-right font-mono tabular-nums">{summary.notProcessed}</td>
             </tr>
           )}
         </tbody>
       </table>
-      <p className={`text-xs font-medium ${summary.allRowsAccountedFor ? 'text-action-contacted' : 'text-action-hangup'}`}>
+      <p className={`font-mono text-xs uppercase ${summary.allRowsAccountedFor ? 'text-foreground' : 'font-medium text-signal'}`}>
         {summary.allRowsAccountedFor
-          ? `All ${summary.totalRows} rows are accounted for.`
+          ? `✓ All ${summary.totalRows} rows are accounted for.`
           : 'Some rows are not accounted for — please report this.'}
       </p>
       {summary.noNumber > 0 && (
-        <p className="rounded-input bg-action-warn/10 px-3 py-2 text-xs font-medium text-action-warn">
+        <p className="border-l-[3px] border-strong bg-muted px-4 py-2 text-sm text-foreground">
           {summary.noNumber} leads were imported without a usable phone number (visible in the list, not dialable until a
           number is added).
           {summary.unreadable > 0 &&
@@ -149,51 +160,51 @@ function ImportSummary({ summary, onReset }) {
         </p>
       )}
       {summary.namesTrimmed > 0 && (
-        <p className="text-xs text-text-secondary" data-testid="import-names-trimmed">
+        <p className="text-sm text-muted-foreground" data-testid="import-names-trimmed">
           {summary.namesTrimmed} name(s) were longer than 200 characters and were cut to 200.
         </p>
       )}
       {summary.smsOptedOut > 0 && (
-        <p className="text-xs text-text-secondary" data-testid="import-sms-opted-out">
+        <p className="text-sm text-muted-foreground" data-testid="import-sms-opted-out">
           SMS opted out: {summary.smsOptedOut} imported lead(s) replied STOP to a text earlier — they won't be texted, but
           they can still be called.
         </p>
       )}
       {summary.withExtension > 0 && (
-        <p className="text-xs text-text-secondary">{summary.withExtension} numbers had an extension — it is kept and shown on the call screen.</p>
+        <p className="text-sm text-muted-foreground">{summary.withExtension} numbers had an extension — it is kept and shown on the call screen.</p>
       )}
       {summary.invalidReasons?.length > 0 && (
-        <div className="text-xs text-text-secondary">
-          <p className="font-medium text-text-primary">Why rows were invalid</p>
-          <ul className="mt-1 space-y-0.5">
+        <div className="text-sm text-muted-foreground">
+          <p className="label">Why rows were invalid</p>
+          <ul className="mt-2">
             {summary.invalidReasons.map((r) => (
-              <li key={r.reason}>
-                {r.count} × {r.reason}
+              <li key={r.reason} className="border-b py-1 last:border-b-0">
+                <span className="font-mono tabular-nums text-foreground">{r.count} ×</span> {r.reason}
               </li>
             ))}
           </ul>
         </div>
       )}
       {summary.ambiguousSameName > 0 && (
-        <p className="text-xs text-text-secondary">
+        <p className="text-sm text-muted-foreground">
           {summary.ambiguousSameName} rows had only a name that appears in several places in the file — they were not merged
           into any of them.
         </p>
       )}
       {summary.aiStoppedAfterFailures && (
-        <p className="text-xs text-text-secondary">
+        <p className="text-sm text-muted-foreground">
           The AI cleaner stopped responding, so {summary.rowsNotAiCleaned} rows were imported with the built-in cleanup only.
         </p>
       )}
       {skippedCount > 0 && (
         <div className="flex flex-wrap items-center gap-3">
-          <NeuButton className="text-sm" onClick={download}>
-            Download the {skippedCount} rows that weren't imported (CSV)
-          </NeuButton>
-          {downloadError && <span className="text-xs text-action-hangup">{downloadError}</span>}
+          <NeuButton onClick={download}>Download the {skippedCount} rows that weren't imported (CSV) ↓</NeuButton>
+          {downloadError && <span role="alert" className="text-sm text-signal">{downloadError}</span>}
         </div>
       )}
-      <NeuButton onClick={onReset}>Import another file</NeuButton>
+      <NeuButton variant="primary" onClick={onReset}>
+        Import another file →
+      </NeuButton>
     </NeuCard>
   );
 }
@@ -299,30 +310,31 @@ export default function Import() {
 
   return (
     <AppShell>
-      <div className="mx-auto mt-4 max-w-4xl space-y-4">
-        <h1 className="text-lg font-semibold text-text-primary">Import leads</h1>
+      <div className="mx-auto mt-6 max-w-5xl space-y-6">
+        <h1 className="text-2xl font-semibold tracking-[-0.01em] text-foreground">Import leads</h1>
 
-        {error && <NeuCard className="p-4 text-sm text-action-hangup">{error}</NeuCard>}
+        {error && (
+          <NeuCard role="alert" className="border-l-[3px] border-l-primary p-4 text-sm text-foreground">
+            <span className="label mr-2 text-signal">Error</span>
+            {error}
+          </NeuCard>
+        )}
 
         {isActive && job && (
-          <NeuCard className="space-y-3 p-5">
-            <div className="flex items-center justify-between">
-              <h2 className="text-sm font-semibold text-text-primary">
-                Importing {job.filename || filename || 'leads'}…
-              </h2>
-              <span className="text-sm font-semibold text-text-primary">{job.percentage}%</span>
-            </div>
-            <div className="h-2.5 overflow-hidden rounded-full bg-shadow/20 shadow-neu-inset">
-              <div
-                className="h-full rounded-full bg-action-call transition-all duration-300"
-                style={{ width: `${job.percentage}%` }}
-              />
-            </div>
-            <p className="text-xs text-text-secondary">
+          <NeuCard className="space-y-4 p-6">
+            <h2 className="text-base font-semibold text-foreground">Importing {job.filename || filename || 'leads'}…</h2>
+            <Meter
+              label="Rows processed"
+              value={job.processedRows || 0}
+              max={job.totalRows || 0}
+              tone="goal"
+              format={(n) => Number(n).toLocaleString('en-US')}
+            />
+            <p className="text-sm text-muted-foreground">
               {job.phaseLabel || `${job.processedRows} of ${job.totalRows} rows processed`}
               {job.failedRows > 0 ? ` · ${job.failedRows} need manual review` : ''}
             </p>
-            <p className="text-xs text-text-secondary">
+            <p className="text-sm text-muted-foreground">
               This runs on the server — you can leave this page and it keeps going.
             </p>
             <NeuButton
@@ -333,20 +345,21 @@ export default function Import() {
             >
               Cancel import
             </NeuButton>
-            {cancelNote && <p className="text-xs text-text-secondary">{cancelNote}</p>}
+            {cancelNote && <p className="text-sm text-muted-foreground">{cancelNote}</p>}
           </NeuCard>
         )}
 
         {step === 1 && !isActive && (
-          <NeuCard className="p-6 text-center">
-            <p className="text-sm text-text-secondary">
+          <NeuCard className="space-y-4 p-6">
+            <SectionLabel index="01" title="File" />
+            <p className="text-base text-foreground">
               Upload a CSV or Excel file with lead name, phone, and state at minimum.
             </p>
-            <p className="mt-1 text-xs text-text-secondary">
+            <p className="text-sm text-muted-foreground">
               Columns are matched automatically (with AI when it's available) and you can correct them before
               importing. Any number of rows; very large files (over the upload size limit) need to be split.
             </p>
-            <NeuButton className="mt-4" onClick={() => fileInputRef.current?.click()} disabled={uploading}>
+            <NeuButton variant="primary" onClick={() => fileInputRef.current?.click()} disabled={uploading}>
               {uploading ? 'Reading file…' : 'Choose CSV or Excel file'}
             </NeuButton>
             <input
@@ -360,30 +373,31 @@ export default function Import() {
         )}
 
         {step === 1.5 && analysis && !isActive && (
-          <NeuCard className="space-y-3 p-5">
-            <h2 className="text-sm font-semibold text-text-primary">
+          <NeuCard className="space-y-4 p-6">
+            <SectionLabel index="01" title="File" meta="Sheets" />
+            <h2 className="text-base font-semibold text-foreground">
               This file has {analysis.sheetNames.length} sheets — which should we import?
             </h2>
             <div className="space-y-2">
               {analysis.sheetNames.map((name) => (
-                <label key={name} className="flex cursor-pointer items-center gap-3 text-sm text-text-primary">
+                <label key={name} className="flex min-h-10 cursor-pointer items-center gap-4 border-b text-sm text-foreground last:border-b-0">
                   <input
                     type="checkbox"
                     checked={selectedSheets.includes(name)}
                     onChange={() => toggleSheet(name)}
-                    className="h-4 w-4 cursor-pointer accent-action-call"
+                    className="h-4 w-4 cursor-pointer accent-primary"
                   />
-                  <span>{name}</span>
-                  <span className="text-xs text-text-secondary">
+                  <span className="flex-1">{name}</span>
+                  <span className="font-mono text-xs tabular-nums text-muted-foreground">
                     {analysis.sheetRowCounts?.[name] ?? 0} rows
                   </span>
                 </label>
               ))}
             </div>
-            <p className="text-xs text-text-secondary">{selectedRowCount} rows selected</p>
-            <div className="flex gap-3">
-              <ActionButton variant="call" onClick={() => setStep(2)} disabled={selectedSheets.length === 0}>
-                Continue
+            <p className="font-mono text-xs uppercase tabular-nums text-muted-foreground">{selectedRowCount} rows selected</p>
+            <div className="flex gap-2">
+              <ActionButton variant="call" className="min-h-10 py-2" onClick={() => setStep(2)} disabled={selectedSheets.length === 0}>
+                Continue →
               </ActionButton>
               <NeuButton onClick={handleReset}>Start over</NeuButton>
             </div>
@@ -392,29 +406,37 @@ export default function Import() {
 
         {step === 2 && analysis && (
           <>
-            <NeuCard className="p-5">
-              <h2 className="mb-1 text-sm font-semibold text-text-primary">We detected these columns</h2>
+            <NeuCard className="space-y-4 p-6">
+              <SectionLabel index="02" title="Mapping" />
+              <h2 className="text-base font-semibold text-foreground">We detected these columns</h2>
               {analysis.unavailable ? (
-                <p className="mb-3 rounded-input bg-action-warn/10 px-3 py-2 text-xs font-medium text-action-warn">
+                <p className="border-l-[3px] border-strong bg-muted px-4 py-2 text-sm text-foreground">
                   AI mapping is off or unavailable — columns were matched by their names. Check them below
                   and change any that are wrong.
                 </p>
               ) : (
-                <p className="mb-3 text-xs text-text-secondary">
-                  Review the AI's suggested mapping below — fields marked in red or amber may need a manual fix.
+                <p className="text-sm text-muted-foreground">
+                  Review the AI's suggested mapping below — fields tagged LOW or NEEDS REVIEW may need a manual fix.
                 </p>
               )}
-              <div className="space-y-2">
+              {/* The mapping as a table: field, source column, confidence. */}
+              <div className="border-t">
+                <div className="grid grid-cols-[140px_1fr_120px] gap-4 border-b py-2">
+                  <span className="label">Field</span>
+                  <span className="label">Column in your file</span>
+                  <span className="label">Confidence</span>
+                </div>
                 {analysis.fields.map((field) => {
                   const confidence = analysis.confidence?.[field] || 'low';
                   const flagged = analysis.needsReview?.includes(field);
                   return (
-                    <div key={field} className="grid grid-cols-[100px_1fr_80px] items-center gap-3">
-                      <label className="text-xs font-medium capitalize text-text-secondary">
+                    <div key={field} className="grid grid-cols-[140px_1fr_120px] items-center gap-4 border-b py-2">
+                      <label htmlFor={`map-${field}`} className="font-mono text-xs font-medium uppercase text-foreground">
                         {FIELD_LABELS[field] || field}
                         {REQUIRED_FIELDS.includes(field) && ' *'}
                       </label>
                       <NeuInput
+                        id={`map-${field}`}
                         as="select"
                         value={mapping[field] || ''}
                         onChange={(e) => handleMappingChange(field, e.target.value)}
@@ -427,8 +449,10 @@ export default function Import() {
                           </option>
                         ))}
                       </NeuInput>
-                      <span className={`text-xs font-medium ${CONFIDENCE_COLORS[confidence] || CONFIDENCE_COLORS.low}`}>
-                        {flagged ? 'Needs review' : confidence}
+                      <span>
+                        <Badge tone={flagged ? 'dashed' : CONFIDENCE_TONES[confidence] || CONFIDENCE_TONES.low}>
+                          {flagged ? 'Needs review' : confidence}
+                        </Badge>
                       </span>
                     </div>
                   );
@@ -436,15 +460,14 @@ export default function Import() {
               </div>
             </NeuCard>
 
-            <NeuCard className="overflow-x-auto p-5">
-              <h2 className="mb-3 text-sm font-semibold text-text-primary">
-                Preview — first 5 leads as they'll be imported
-              </h2>
-              <table className="w-full text-xs">
+            <NeuCard className="space-y-4 overflow-x-auto p-6">
+              <SectionLabel index="03" title="Review" />
+              <h2 className="text-base font-semibold text-foreground">Preview — first 5 leads as they'll be imported</h2>
+              <table className="w-full text-sm">
                 <thead>
-                  <tr className="text-left uppercase tracking-wide text-text-secondary">
+                  <tr className="border-b text-left">
                     {PREVIEW_FIELDS.map((f) => (
-                      <th key={f} className="px-2 py-2">
+                      <th key={f} className="label px-2 py-2 font-medium">
                         {f}
                       </th>
                     ))}
@@ -452,20 +475,20 @@ export default function Import() {
                 </thead>
                 <tbody>
                   {(analysis.sampleRows || []).slice(0, 5).map((row, i) => (
-                    <tr key={i} className="border-t border-shadow/20">
+                    <tr key={i} className="h-12 border-b last:border-b-0">
                       {PREVIEW_FIELDS.map((f) => {
                         const original = f === 'name' ? analysis.originalNames?.[i] : null;
                         const value = f === 'name' ? previewName(row, mapping) : mapping[f] ? row[mapping[f]] : '';
                         return (
-                          <td key={f} className="px-2 py-2 text-text-primary">
+                          <td key={f} className={`px-2 text-foreground ${f === 'phone' ? 'font-mono tabular-nums' : ''}`}>
                             {value || '—'}
                             {original && (
                               <span
                                 title={`Cleaned by AI from: ${original}`}
                                 aria-label={`Cleaned by AI from: ${original}`}
-                                className="ml-1 cursor-help"
+                                className="ml-2 cursor-help"
                               >
-                                ✨
+                                <Badge>AI</Badge>
                               </span>
                             )}
                           </td>
@@ -477,15 +500,15 @@ export default function Import() {
               </table>
             </NeuCard>
 
-            <div className="flex items-center gap-3">
-              <ActionButton variant="call" onClick={handleCommit} disabled={!canContinue || committing}>
+            <div className="flex flex-wrap items-center gap-2">
+              <ActionButton variant="call" className="min-h-10 py-2" onClick={handleCommit} disabled={!canContinue || committing}>
                 {committing
                   ? 'Starting…'
                   : `Confirm & import ${selectedRowCount || analysis.totalRows} leads`}
               </ActionButton>
               <NeuButton onClick={handleReset}>Start over</NeuButton>
               {!canContinue && (
-                <span className="text-xs text-text-secondary">
+                <span className="text-sm text-muted-foreground">
                   Map phone and a name (or first/last name) to continue.
                 </span>
               )}
