@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Building2 } from 'lucide-react';
 import NeuCard from '../ui/NeuCard';
+import SectionLabel from '../ui/SectionLabel';
 import * as api from '../../lib/api';
 
 /** "Sep 18" — short enough to sit inside a chip. */
@@ -9,10 +10,6 @@ function shortDate(value) {
   const d = new Date(value);
   if (Number.isNaN(d.getTime())) return '';
   return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
-}
-
-function plural(n, word) {
-  return `${n} ${word}${n === 1 ? '' : 's'}`;
 }
 
 /** The brand half of "Keller Williams · Boise, ID" — reads better spoken
@@ -32,7 +29,9 @@ function openerFor(summary) {
  * at this lead's office. Renders nothing at all when there are no
  * colleagues — an empty card is just noise on the call screen.
  */
-export default function ColleagueCard({ leadId }) {
+// `index` numbers the section label ("03" on the call screen). The label
+// lives here because the card renders nothing when there are no colleagues.
+export default function ColleagueCard({ leadId, index }) {
   const [summary, setSummary] = useState(null);
 
   useEffect(() => {
@@ -51,43 +50,55 @@ export default function ColleagueCard({ leadId }) {
   if (!summary || !summary.totalColleagues) return null;
 
   const opener = openerFor(summary);
+  // Spec table: mono keys, tabular values.
   const stats = [
-    plural(summary.totalColleagues, 'colleague'),
-    `${summary.contacted} contacted`,
-    `${summary.interested} interested`,
-    plural(summary.clients, 'client'),
-  ].join(' · ');
+    ['Colleagues', summary.totalColleagues],
+    ['Contacted', summary.contacted],
+    ['Interested', summary.interested],
+    ['Clients', summary.clients],
+  ];
 
   return (
-    <NeuCard className="space-y-2 p-4">
-      <div className="flex items-center gap-2">
-        <Building2 size={14} className="shrink-0 text-text-secondary" />
-        <p className="truncate text-sm font-semibold text-text-primary">{summary.officeLabel}</p>
-      </div>
-
-      <p className="text-xs text-text-secondary">{stats}</p>
-
-      {summary.recentPositive?.length > 0 && (
-        <div className="flex flex-wrap gap-1.5">
-          {summary.recentPositive.map((c) => (
-            <a
-              key={`${c.name}-${c.date}`}
-              href={`/leads/${c.leadId}`}
-              target="_blank"
-              rel="noreferrer"
-              title={`Open ${c.name} in a new tab`}
-              className="rounded-full px-2 py-0.5 text-xs text-text-primary shadow-neu-sm hover:shadow-neu"
-            >
-              {c.name} — {c.outcome}
-              {c.date ? `, ${shortDate(c.date)}` : ''}
-            </a>
-          ))}
+    <section>
+      <SectionLabel index={index} title="Office" className="mb-4" />
+      <NeuCard className="space-y-4 p-4">
+        <div className="flex items-center gap-2">
+          <Building2 size={16} strokeWidth={1.5} aria-hidden="true" className="shrink-0 text-muted-foreground" />
+          <p className="truncate text-base font-semibold text-foreground">{summary.officeLabel}</p>
         </div>
-      )}
 
-      {opener && (
-        <p className="rounded-input bg-base p-2 text-xs italic text-text-primary">“{opener}”</p>
-      )}
-    </NeuCard>
+        <dl className="grid grid-cols-2 border-t sm:grid-cols-4">
+          {stats.map(([key, value]) => (
+            <div key={key} className="border-b py-2 pr-4">
+              <dt className="label">{key}</dt>
+              <dd className="mt-1 font-mono text-lg font-medium tabular-nums text-foreground">{value}</dd>
+            </div>
+          ))}
+        </dl>
+
+        {summary.recentPositive?.length > 0 && (
+          <ul>
+            {summary.recentPositive.map((c) => (
+              <li key={`${c.name}-${c.date}`} className="border-b last:border-b-0">
+                <a
+                  href={`/leads/${c.leadId}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  title={`Open ${c.name} in a new tab`}
+                  className="flex items-center justify-between gap-4 py-2 text-sm text-foreground transition-colors duration-150 hover:bg-muted"
+                >
+                  <span className="truncate">
+                    {c.name} ↗ <span className="text-muted-foreground">— {c.outcome}</span>
+                  </span>
+                  {c.date && <span className="shrink-0 font-mono text-xs tabular-nums text-muted-foreground">{shortDate(c.date)}</span>}
+                </a>
+              </li>
+            ))}
+          </ul>
+        )}
+
+        {opener && <p className="border-l-[3px] border-strong bg-muted p-2 text-sm italic text-foreground">“{opener}”</p>}
+      </NeuCard>
+    </section>
   );
 }

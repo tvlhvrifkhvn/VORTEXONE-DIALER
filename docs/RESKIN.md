@@ -203,7 +203,7 @@ Files: tailwind.config.js, src/styles/*, src/components/ui/* (renames), any file
 ## Status
 - R1: done
 - R2: done
-- R3: not started
+- R3: done
 - R4: not started
 - R5: not started
 - R6: not started

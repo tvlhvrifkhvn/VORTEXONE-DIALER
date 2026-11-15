@@ -1,16 +1,9 @@
 import NeuCard from '../ui/NeuCard';
+import Badge from '../ui/Badge';
+import AttemptBadge from '../leads/AttemptBadge';
 import CallHeader from './CallHeader';
 import LeadLocalTime from '../leads/LeadLocalTime';
 import { formatPhone } from '../../lib/format';
-
-function initials(name) {
-  return (name || '')
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((part) => part[0].toUpperCase())
-    .join('');
-}
 
 /** Who you're talking to plus the live call state, in one block at the top of
  * the call page. CallHeader owns the status dot and the running timer. */
@@ -18,33 +11,23 @@ export default function CallContactHeader({ lead, call, ended = false }) {
   if (!lead) return null;
 
   return (
-    <NeuCard className="space-y-4 p-5">
-      <div className="flex items-start gap-4">
-        <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-surface text-lg font-semibold text-text-primary shadow-neu-inset">
-          {initials(lead.name) || '?'}
-        </div>
-        <div className="min-w-0 flex-1">
-          <h1 className="truncate text-lg font-semibold text-text-primary">{lead.name}</h1>
-          <p className="truncate text-sm text-text-secondary">
-            {lead.brokerage || 'No brokerage on file'}
-          </p>
-          <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
-            <span className="font-medium tabular-nums text-text-primary">
-              {formatPhone(lead.phone)}
-              {lead.extension && <span className="ml-1.5 text-text-secondary">ext. {lead.extension}</span>}
-            </span>
-            <span className="rounded-full bg-surface px-2 py-0.5 text-xs font-medium text-text-secondary shadow-neu-sm">
-              {lead.state}
-            </span>
-            <span className="text-xs text-text-secondary">
-              Attempt {lead.attempts} / {lead.max_attempts}
-            </span>
-            <LeadLocalTime lead={lead} />
-          </div>
+    <NeuCard className="space-y-6 p-6">
+      <div className="min-w-0">
+        <h1 className="truncate text-2xl font-semibold tracking-[-0.01em] text-foreground">{lead.name}</h1>
+        <p className="mt-1 truncate text-base text-muted-foreground">{lead.brokerage || 'No brokerage on file'}</p>
+        <p className="mt-2 font-mono text-lg font-medium tabular-nums text-foreground">
+          {formatPhone(lead.phone)}
+          {lead.extension && <span className="ml-2 text-muted-foreground">ext. {lead.extension}</span>}
+        </p>
+        <div className="mt-4 flex flex-wrap items-center gap-2">
+          <Badge>{lead.state}</Badge>
+          <span className="label ml-2">Attempt</span>
+          <AttemptBadge attempts={lead.attempts} maxAttempts={lead.max_attempts} />
+          <LeadLocalTime lead={lead} className="ml-2" />
         </div>
       </div>
 
-      <div className="border-t border-shadow/20 pt-3">
+      <div className="border-t pt-4">
         <CallHeader call={call} ended={ended} />
       </div>
     </NeuCard>

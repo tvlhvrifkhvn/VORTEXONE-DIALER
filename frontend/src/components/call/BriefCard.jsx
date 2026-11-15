@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
-import { ChevronDown, ChevronUp, Sparkles } from 'lucide-react';
+import { ChevronDown, ChevronUp } from 'lucide-react';
 import NeuCard from '../ui/NeuCard';
+import Badge from '../ui/Badge';
 
 function AiLine({ text }) {
   const [visible, setVisible] = useState(false);
@@ -10,10 +11,10 @@ function AiLine({ text }) {
   }, []);
   return (
     <p
-      className={`mt-1.5 flex gap-1.5 text-xs text-text-primary transition-opacity duration-500 ${visible ? 'opacity-100' : 'opacity-0'}`}
+      className={`mt-2 flex items-start gap-2 text-sm text-foreground transition-opacity duration-150 ${visible ? 'opacity-100' : 'opacity-0'}`}
       data-testid="brief-ai"
     >
-      <Sparkles size={12} className="mt-0.5 shrink-0 text-action-call" />
+      <Badge className="shrink-0">AI</Badge>
       <span>{text}</span>
     </p>
   );
@@ -31,8 +32,8 @@ export default function BriefCard({ brief, collapsed = false, className = '' }) 
   const { instant, ai } = brief || {};
   if (!instant) {
     return (
-      <NeuCard className={`p-3 ${className}`}>
-        <div className="h-3 w-2/3 animate-pulse rounded bg-shadow/30" />
+      <NeuCard className={`p-4 ${className}`}>
+        <div className="h-3 w-2/3 bg-muted" />
       </NeuCard>
     );
   }
@@ -40,7 +41,7 @@ export default function BriefCard({ brief, collapsed = false, className = '' }) 
   const d = instant.details;
 
   return (
-    <NeuCard className={`p-3 ${className}`} data-testid="brief-card">
+    <NeuCard className={`p-4 ${className}`} data-testid="brief-card">
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
@@ -48,24 +49,28 @@ export default function BriefCard({ brief, collapsed = false, className = '' }) 
         className="flex w-full items-start justify-between gap-2 text-left"
       >
         <span className="min-w-0">
-          <span className="mr-1.5 text-xs font-semibold uppercase tracking-wide text-text-secondary">Brief</span>
-          <span className={`text-xs font-medium text-text-primary ${open ? '' : 'line-clamp-1'}`} data-testid="brief-headline">
+          <span className="label mr-2">Brief</span>
+          <span className={`text-sm font-medium text-foreground ${open ? '' : 'line-clamp-1'}`} data-testid="brief-headline">
             {instant.headline}
           </span>
         </span>
-        {open ? <ChevronUp size={14} className="shrink-0 text-text-secondary" /> : <ChevronDown size={14} className="shrink-0 text-text-secondary" />}
+        {open ? (
+          <ChevronUp size={16} strokeWidth={1.5} aria-hidden="true" className="shrink-0 text-muted-foreground" />
+        ) : (
+          <ChevronDown size={16} strokeWidth={1.5} aria-hidden="true" className="shrink-0 text-muted-foreground" />
+        )}
       </button>
 
       {/* Fades in whenever it lands; never blocks the instant line. */}
       {ai && open && <AiLine text={ai.text} />}
 
       {open && (
-        <div className="mt-2 space-y-1.5 text-xs text-text-secondary">
+        <div className="mt-2 space-y-2 text-sm text-muted-foreground">
           <p>
             {[d.name, d.brokerage, [d.city, d.state].filter(Boolean).join(', ')].filter(Boolean).join(' · ')}
           </p>
           {instant.opener && (
-            <p className="text-text-primary">
+            <p className="text-foreground">
               <span className="font-semibold">Opener: </span>
               {instant.opener}
             </p>
@@ -79,7 +84,7 @@ export default function BriefCard({ brief, collapsed = false, className = '' }) 
           )}
           {d.objections.map((o) => (
             <p key={o.label}>
-              <span className="font-semibold text-text-primary">{o.label}</span>
+              <span className="font-semibold text-foreground">{o.label}</span>
               {o.rebuttal ? ` — try: ${o.rebuttal}` : ''}
             </p>
           ))}

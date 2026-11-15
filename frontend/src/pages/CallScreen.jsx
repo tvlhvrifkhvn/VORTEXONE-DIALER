@@ -10,6 +10,9 @@ import DispositionPanel, { ScriptPanel } from '../components/call/DispositionPan
 import NeuCard from '../components/ui/NeuCard';
 import NeuButton from '../components/ui/NeuButton';
 import ActionButton from '../components/ui/ActionButton';
+import Dialog from '../components/ui/Dialog';
+import Keycap from '../components/ui/Keycap';
+import SectionLabel from '../components/ui/SectionLabel';
 import { useCall } from '../hooks/useCall';
 import { useBrief } from '../hooks/useBrief';
 
@@ -26,19 +29,18 @@ const DISPOSITION_LABELS = {
 const SHORTCUT_HINTS = [
   { key: 'V', label: 'Voicemail' },
   { key: 'N', label: 'No answer' },
-  { key: 'D', label: 'Disposition' },
+  { key: 'D', label: 'Jump to outcome' },
   { key: 'M', label: 'Mute' },
   { key: 'Esc', label: 'Hang up' },
 ];
 
 function ShortcutHintBar() {
   return (
-    <div className="flex flex-wrap items-center justify-center gap-4 rounded-input bg-surface px-4 py-2 text-xs text-text-secondary shadow-neu-inset">
+    <div className="flex flex-wrap items-center gap-6 border-t py-4 font-mono text-xs uppercase text-muted-foreground">
+      <span className="label">Hotkeys</span>
       {SHORTCUT_HINTS.map((s) => (
-        <span key={s.key} className="flex items-center gap-1">
-          <kbd className="rounded border border-shadow/40 px-1.5 py-0.5 font-mono text-xs text-text-primary">
-            {s.key}
-          </kbd>
+        <span key={s.key} className="flex items-center gap-2">
+          <Keycap>{s.key}</Keycap>
           {s.label}
         </span>
       ))}
@@ -166,48 +168,57 @@ function CallScreenInner({ leadId }) {
 
   if (error) {
     return (
-      <NeuCard className="mx-auto mt-12 max-w-md p-6 text-center">
-        <p className="font-medium text-text-primary">Couldn't start this call</p>
-        <p className="mt-2 text-sm text-text-secondary">{error}</p>
-        <NeuButton className="mt-4" onClick={() => navigate('/')}>
-          Back to Dashboard
-        </NeuButton>
+      <NeuCard className="mt-6 max-w-md space-y-4 p-6">
+        <p className="label">Call not started</p>
+        <p className="text-base font-medium text-foreground">Couldn't start this call</p>
+        <p className="text-sm text-muted-foreground">{error}</p>
+        <NeuButton onClick={() => navigate('/')}>Back to dashboard →</NeuButton>
       </NeuCard>
     );
   }
 
   if (starting || !lead) {
-    return <p className="mt-12 text-center text-text-secondary">Connecting…</p>;
+    return <p className="label mt-12">Connecting…</p>;
   }
 
   return (
-    <div className="mx-auto mt-6 max-w-3xl space-y-4">
-      <div className="grid grid-cols-1 gap-6 md:grid-cols-[1fr_260px]">
-        <div className="space-y-4">
-          <BriefCard brief={brief} collapsed={briefCollapsed} />
+    <div className="mx-auto mt-6 max-w-[1440px] space-y-6">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
+        <div className="space-y-8 lg:col-span-8">
+          <section>
+            <SectionLabel index="01" title="Brief" className="mb-4" />
+            <BriefCard brief={brief} collapsed={briefCollapsed} />
+          </section>
 
-          <CallContactHeader lead={lead} call={call} ended={ended} />
+          <section>
+            <SectionLabel index="02" title="Active call" className="mb-4" />
+            <CallContactHeader lead={lead} call={call} ended={ended} />
+          </section>
 
-          <ColleagueCard leadId={lead.id} />
+          <ColleagueCard leadId={lead.id} index="03" />
 
-          <CallActionGrid
-            lead={lead}
-            callId={call?.id}
-            onLeadUpdated={setLeadOverride}
-            muted={muted}
-            onToggleMute={() => setMuted((m) => !m)}
-          />
+          <section className="space-y-4">
+            <SectionLabel index="04" title="Actions" />
+            <CallActionGrid
+              lead={lead}
+              callId={call?.id}
+              onLeadUpdated={setLeadOverride}
+              muted={muted}
+              onToggleMute={() => setMuted((m) => !m)}
+            />
 
-          <ActionButton
-            variant="hangup"
-            className="w-full py-3 text-base"
-            onClick={() => setShowHangupConfirm(true)}
-            disabled={submitting || isFinalized || hungUp}
-          >
-            {hungUp ? 'Call ended' : 'End call'}
-          </ActionButton>
+            <ActionButton
+              variant="hangup"
+              className="flex min-h-12 w-full items-center justify-center gap-2"
+              onClick={() => setShowHangupConfirm(true)}
+              disabled={submitting || isFinalized || hungUp}
+            >
+              {!hungUp && <Keycap>Esc</Keycap>}
+              {hungUp ? 'Call ended' : 'End call'}
+            </ActionButton>
+          </section>
 
-          {/* Notes, ✨ Expand, the six disposition buttons and Previous Notes
+          {/* Notes, Expand note, the six disposition buttons and Previous Notes
               live in the shared DispositionPanel, so this screen and an
               answered multi-line card show identical UI. */}
           <DispositionPanel
@@ -216,44 +227,50 @@ function CallScreenInner({ leadId }) {
             onDispositionSubmit={handlePanelDisposition}
             disabled={submitting || isFinalized}
             showScript={false}
+            sections={{ notes: '05', outcome: '06' }}
           />
 
-          {actionError && <p className="text-sm text-action-hangup">{actionError}</p>}
+          {actionError && (
+            <p role="alert" className="text-sm text-signal">
+              <span className="label mr-2 text-signal">Error</span>
+              {actionError}
+            </p>
+          )}
         </div>
 
-        <div className="space-y-4">
+        <div className="space-y-4 lg:col-span-4">
           <ScriptPanel />
 
           <CallControls onScheduleCallback={handleScheduleCallback} disabled={submitting || isFinalized} />
 
           {hungUp && !isFinalized && (
-            <NeuCard className="p-4 text-sm text-text-secondary">
+            <NeuCard className="border-l-[3px] border-l-primary p-4 text-sm text-foreground">
               Call ended without a disposition — this lead returns to the queue in 30s unless you log an
               outcome now.
             </NeuCard>
           )}
 
           {ended && !isFinalized && (
-            <NeuButton className="w-full text-sm" onClick={handleRedial} disabled={redialing}>
+            <NeuButton className="w-full" onClick={handleRedial} disabled={redialing}>
               {redialing ? 'Redialing…' : 'Redial'}
             </NeuButton>
           )}
 
           {isFinalized && (
-            <NeuCard className="space-y-3 p-4">
-              <p className="text-sm text-text-primary">
-                Logged as <strong>{DISPOSITION_LABELS[lastDisposition] || lastDisposition}</strong>.
+            <NeuCard className="space-y-4 p-4">
+              <p className="text-sm text-foreground">
+                ✓ Logged as <strong>{DISPOSITION_LABELS[lastDisposition] || lastDisposition}</strong>.
               </p>
               {undoInfo && (
-                <NeuButton className="w-full text-sm" onClick={handleUndo}>
+                <NeuButton className="w-full" onClick={handleUndo}>
                   Undo
                 </NeuButton>
               )}
-              <NeuButton className="w-full text-sm" onClick={() => navigate('/call/next')}>
-                Next Lead
+              <NeuButton variant="primary" className="w-full" onClick={() => navigate('/call/next')}>
+                Next lead →
               </NeuButton>
-              <NeuButton className="w-full text-sm" onClick={() => navigate('/')}>
-                Back to Dashboard
+              <NeuButton variant="ghost" className="w-full" onClick={() => navigate('/')}>
+                Back to dashboard
               </NeuButton>
             </NeuCard>
           )}
@@ -263,25 +280,23 @@ function CallScreenInner({ leadId }) {
       <ShortcutHintBar />
 
       {showHangupConfirm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 px-4">
-          <NeuCard className="w-full max-w-sm space-y-4 p-6">
-            <p className="text-sm font-medium text-text-primary">Hang up this call?</p>
-            <div className="flex gap-3">
-              <NeuButton
-                className="flex-1 text-sm"
-                onClick={async () => {
-                  setShowHangupConfirm(false);
-                  await handleHangup();
-                }}
-              >
-                Hang up
-              </NeuButton>
-              <NeuButton className="flex-1 text-sm" onClick={() => setShowHangupConfirm(false)}>
-                Cancel
-              </NeuButton>
-            </div>
-          </NeuCard>
-        </div>
+        <Dialog title="Hang up this call?" onClose={() => setShowHangupConfirm(false)} className="max-w-sm">
+          <div className="flex gap-4">
+            <ActionButton
+              variant="hangup"
+              className="flex-1"
+              onClick={async () => {
+                setShowHangupConfirm(false);
+                await handleHangup();
+              }}
+            >
+              Hang up
+            </ActionButton>
+            <NeuButton className="flex-1" onClick={() => setShowHangupConfirm(false)}>
+              Cancel
+            </NeuButton>
+          </div>
+        </Dialog>
       )}
 
     </div>
