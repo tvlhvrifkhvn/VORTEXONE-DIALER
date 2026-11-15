@@ -49,3 +49,10 @@
 - 2026-11-15 · R4 · Filters get visible labels; the two "Added" dates are a fieldset with aria-labels · every input labelled
 - 2026-11-15 · R4 · The daily goal meter always shows; EDIT (an underlined text button) opens a labelled number field with Save · replaces ✏️
 - 2026-11-15 · R3 fix-up · Call screen tightened: smaller section gaps, status and timer beside the name, one-line 44px action tiles, Expand note in the Notes label row, 3-row notes · the scripted mock call found the outcome grid at y=1297 (below a 900px screen); now 924 (863 before R3); component order unchanged
+- 2026-11-15 · R5 · Settings sections are numbered in render order (05 Objections, 06 Integrations), not reordered to match the plan's "06 — Objections" · component order stays as it is
+- 2026-11-15 · R5 · The calling-hours box has a 2px primary border when hours are OFF (plain border-strong when ON), with ON/OFF also in text · a safety warning outranks the one-accent rule (DESIGN.md priority 1)
+- 2026-11-15 · R5 · Settings switches are square: a border-strong track, filled when on, with a square knob that inverts; no slide animation · radius 0 and color/opacity-only motion
+- 2026-11-15 · R5 · Inbox rows are hairline rows in one Panel with square outlined initials; "Mark opted out" and its confirm are "⊘" secondary (the confirm uses the pressed look) · no orange or amber fills for a reversible text opt-out
+- 2026-11-15 · R5 · The Inbox has no thread view of its own (rows open the lead page, where R3 marked sides "YOU" / the lead's name); an "OPTED OUT" tag isn't shown because the inbox rows don't carry the opt-out flag · no data or API change in a visual segment
+- 2026-11-15 · R5 · SMS template "Needs fixing" is a solid tag; Delete is "⊘" secondary; empty states are a mono label plus one sentence · DESIGN.md
+- 2026-11-15 · R5 · reskin-shots.js refuses a flag with no value · an empty `--lead $L` made a smoke run end silently

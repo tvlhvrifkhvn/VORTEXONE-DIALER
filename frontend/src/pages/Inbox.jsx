@@ -3,6 +3,8 @@ import { Link, useNavigate } from 'react-router-dom';
 import AppShell from '../components/layout/AppShell';
 import NeuCard from '../components/ui/NeuCard';
 import NeuButton from '../components/ui/NeuButton';
+import Badge from '../components/ui/Badge';
+import SectionLabel from '../components/ui/SectionLabel';
 import { formatRelativeToNow } from '../lib/format';
 import * as api from '../lib/api';
 
@@ -55,71 +57,79 @@ export default function Inbox() {
 
   return (
     <AppShell>
-      <div className="mx-auto mt-4 max-w-2xl space-y-3">
+      <div className="mx-auto mt-6 max-w-4xl space-y-4">
         <div className="flex items-center justify-between">
-          <h1 className="text-lg font-semibold text-text-primary">Inbox</h1>
-          <Link to="/sms/templates" className="text-sm font-medium text-action-call hover:underline">
-            Manage templates
+          <h1 className="text-2xl font-semibold tracking-[-0.01em] text-foreground">Inbox</h1>
+          <Link
+            to="/sms/templates"
+            className="font-mono text-sm font-medium uppercase tracking-button text-foreground underline underline-offset-4 hover:bg-muted"
+          >
+            Manage templates →
           </Link>
         </div>
 
         {loading ? (
-          <p className="text-sm text-text-secondary">Loading…</p>
+          <p className="label">Loading…</p>
         ) : rows.length === 0 ? (
-          <NeuCard className="p-8 text-center text-sm text-text-secondary">No new messages</NeuCard>
+          <NeuCard className="space-y-2 p-6">
+            <p className="label">Inbox empty</p>
+            <p className="text-base text-foreground">No new messages.</p>
+          </NeuCard>
         ) : (
-          rows.map((row) => (
-            <NeuCard key={row.leadId} className="flex items-center gap-3 p-4">
-              <button
-                type="button"
-                onClick={() => handleOpenRow(row)}
-                className="flex flex-1 items-center gap-3 text-left"
-              >
-                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-action-call font-semibold text-white">
-                  {initialsOf(row.leadName)}
-                </span>
-                <span className="min-w-0 flex-1">
-                  <span className="flex items-center gap-2">
-                    <span className="font-medium text-text-primary">{row.leadName}</span>
-                    {row.unreadCount > 1 && (
-                      <span className="rounded-full bg-action-hangup px-1.5 py-0.5 text-xs font-semibold text-white">
-                        {row.unreadCount}
-                      </span>
-                    )}
-                  </span>
-                  <span className="block truncate text-xs text-text-secondary">
-                    {row.brokerage ? `${row.brokerage} · ` : ''}
-                    {(row.lastMessageBody || '').slice(0, 80)}
-                  </span>
-                </span>
-                <span className="shrink-0 text-xs text-text-secondary">{formatRelativeToNow(row.lastMessageAt)}</span>
-              </button>
-              <div className="flex shrink-0 gap-2">
-                <NeuButton className="text-xs" onClick={() => handleMarkInterested(row.leadId)}>
-                  Mark interested
-                </NeuButton>
-                {confirmingOptOut === row.leadId ? (
-                  <NeuButton
-                    className="text-xs !bg-action-warn/20 text-action-warn"
-                    onClick={() => handleOptOut(row.leadId)}
+          <NeuCard className="p-0">
+            {rows.map((row) => (
+              <div key={row.leadId} className="flex items-center gap-4 border-b px-4 py-3 last:border-b-0">
+                <button
+                  type="button"
+                  onClick={() => handleOpenRow(row)}
+                  className="-mx-2 flex min-w-0 flex-1 items-center gap-4 px-2 py-1 text-left transition-colors duration-150 hover:bg-muted"
+                >
+                  <span
+                    aria-hidden="true"
+                    className="flex h-10 w-10 shrink-0 items-center justify-center border border-strong font-mono text-xs font-medium text-foreground"
                   >
-                    Confirm?
-                  </NeuButton>
-                ) : (
-                  <NeuButton
-                    className="text-xs !bg-action-warn/10 text-action-warn"
-                    title="Stop texting this lead? They can still be called."
-                    onClick={() => setConfirmingOptOut(row.leadId)}
-                  >
-                    Mark opted out
-                  </NeuButton>
-                )}
+                    {initialsOf(row.leadName)}
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="flex items-center gap-2">
+                      <span className="font-medium text-foreground">{row.leadName}</span>
+                      {row.unreadCount > 1 && (
+                        <Badge tone="solid" className="tabular-nums">
+                          {row.unreadCount}
+                          <span className="sr-only"> unread</span>
+                        </Badge>
+                      )}
+                    </span>
+                    <span className="block truncate text-sm text-muted-foreground">
+                      {row.brokerage ? `${row.brokerage} · ` : ''}
+                      {(row.lastMessageBody || '').slice(0, 80)}
+                    </span>
+                  </span>
+                  <span className="shrink-0 font-mono text-xs tabular-nums text-muted-foreground">
+                    {formatRelativeToNow(row.lastMessageAt)}
+                  </span>
+                </button>
+                <div className="flex shrink-0 gap-2">
+                  <NeuButton onClick={() => handleMarkInterested(row.leadId)}>Mark interested</NeuButton>
+                  {confirmingOptOut === row.leadId ? (
+                    <NeuButton active onClick={() => handleOptOut(row.leadId)}>
+                      ⊘ Confirm opt-out?
+                    </NeuButton>
+                  ) : (
+                    <NeuButton
+                      title="Stop texting this lead? They can still be called."
+                      onClick={() => setConfirmingOptOut(row.leadId)}
+                    >
+                      ⊘ Mark opted out
+                    </NeuButton>
+                  )}
+                </div>
               </div>
-            </NeuCard>
-          ))
+            ))}
+          </NeuCard>
         )}
 
-        <div className="flex justify-center gap-3 pt-2">
+        <div className="flex justify-end gap-2">
           <NeuButton disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>
             Previous
           </NeuButton>
@@ -129,21 +139,19 @@ export default function Inbox() {
         </div>
         {!loading && unmatched.length > 0 && (
           <NeuCard className="space-y-2 p-4" data-testid="unmatched-inbound">
-            <h2 className="text-sm font-semibold text-text-primary">From unknown numbers</h2>
-            <ul className="divide-y divide-shadow/20">
+            <SectionLabel title="From unknown numbers" />
+            <ul className="divide-y">
               {unmatched.map((m) => (
-                <li key={m.id} className="flex flex-wrap items-center gap-3 py-2 text-sm">
-                  <span className={`font-mono ${m.isRead ? 'text-text-secondary' : 'font-semibold text-text-primary'}`}>{m.fromNumber}</span>
-                  <span className="min-w-0 flex-1 truncate text-text-secondary">{m.body}</span>
+                <li key={m.id} className="flex flex-wrap items-center gap-4 py-2 text-sm">
+                  {!m.isRead && <Badge tone="solid">New</Badge>}
+                  <span className={`font-mono tabular-nums ${m.isRead ? 'text-muted-foreground' : 'font-medium text-foreground'}`}>{m.fromNumber}</span>
+                  <span className="min-w-0 flex-1 truncate text-muted-foreground">{m.body}</span>
                   {m.keywordAction && (
-                    <span className="text-xs text-text-secondary">
-                      {m.keywordAction === 'opt_out' ? 'Opt-out keyword' : 'Opt-in keyword'}
-                    </span>
+                    <Badge tone="muted">{m.keywordAction === 'opt_out' ? 'Opt-out keyword' : 'Opt-in keyword'}</Badge>
                   )}
-                  <span className="text-xs text-text-secondary">{formatRelativeToNow(m.receivedAt)}</span>
+                  <span className="font-mono text-xs tabular-nums text-muted-foreground">{formatRelativeToNow(m.receivedAt)}</span>
                   {!m.isRead && (
                     <NeuButton
-                      className="text-xs"
                       onClick={() => api.markUnmatchedSmsRead(m.id).then(load).catch(() => {})}
                     >
                       Mark read

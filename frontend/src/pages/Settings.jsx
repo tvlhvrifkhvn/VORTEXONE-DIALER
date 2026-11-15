@@ -3,6 +3,7 @@ import AppShell from '../components/layout/AppShell';
 import NeuCard from '../components/ui/NeuCard';
 import NeuButton from '../components/ui/NeuButton';
 import NeuInput from '../components/ui/NeuInput';
+import SectionLabel from '../components/ui/SectionLabel';
 import { useAuth } from '../hooks/useAuth';
 import * as api from '../lib/api';
 import { useUserSettings } from '../hooks/useUserSettings';
@@ -46,16 +47,21 @@ function ProfileSection() {
   };
 
   return (
-    <NeuCard className="space-y-4 p-5">
-      <h2 className="text-sm font-semibold text-text-primary">Profile</h2>
+    <NeuCard className="space-y-4 p-6">
+      <SectionLabel index="01" title="Profile" />
       <form onSubmit={handleSave} className="space-y-3">
         <div>
-          <label className="mb-1 block text-xs font-medium text-text-secondary">Display name</label>
-          <NeuInput value={name} onChange={(e) => setName(e.target.value)} className="w-full" required />
+          <label htmlFor="profile-name" className="label mb-2 block">
+            Display name
+          </label>
+          <NeuInput id="profile-name" value={name} onChange={(e) => setName(e.target.value)} className="w-full" required />
         </div>
         <div>
-          <label className="mb-1 block text-xs font-medium text-text-secondary">Email</label>
+          <label htmlFor="profile-email" className="label mb-2 block">
+            Email
+          </label>
           <NeuInput
+            id="profile-email"
             type="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
@@ -64,11 +70,11 @@ function ProfileSection() {
           />
         </div>
         {message && (
-          <p className={`text-sm ${message.type === 'ok' ? 'text-action-contacted' : 'text-action-hangup'}`}>
+          <p role="status" className={`text-sm ${message.type === 'ok' ? 'text-foreground' : 'text-signal'}`}>
             {message.text}
           </p>
         )}
-        <NeuButton type="submit" disabled={saving}>
+        <NeuButton type="submit" variant="primary" disabled={saving}>
           {saving ? 'Saving…' : 'Save profile'}
         </NeuButton>
       </form>
@@ -160,42 +166,47 @@ function DialingDefaultsSection() {
   };
 
   return (
-    <NeuCard className="space-y-4 p-5">
-      <h2 className="text-sm font-semibold text-text-primary">Dialing defaults</h2>
+    <NeuCard className="space-y-4 p-6">
+      <SectionLabel index="02" title="Dialing defaults" />
       <form onSubmit={handleSave} className="space-y-3">
         <div>
-          <label className="mb-1 block text-xs font-medium text-text-secondary">
+          <label htmlFor="default-max-attempts" className="label mb-2 block">
             Default max attempts per lead (1–10)
           </label>
           <NeuInput
+            id="default-max-attempts"
             type="number"
             min="1"
             max="10"
             value={maxAttempts}
             onChange={(e) => setMaxAttempts(Number(e.target.value))}
-            className="w-32"
+            className="w-32 font-mono tabular-nums"
             disabled={!isSupervisor}
           />
-          <p className="mt-1 text-xs text-text-secondary">
+          <p className="mt-2 text-sm text-muted-foreground">
             Applies to new leads (added or imported from now on). Existing leads keep their own value.
             {!isSupervisor && ' Only a supervisor can change this.'}
           </p>
         </div>
         <div>
-          <label className="mb-1 block text-xs font-medium text-text-secondary">Default daily goal</label>
+          <label htmlFor="default-daily-goal" className="label mb-2 block">
+            Default daily goal
+          </label>
           <NeuInput
+            id="default-daily-goal"
             type="number"
             min="1"
             value={dailyGoal}
             onChange={(e) => setDailyGoal(Number(e.target.value))}
-            className="w-32"
+            className="w-32 font-mono tabular-nums"
           />
         </div>
         <div>
-          <label className="mb-1 block text-xs font-medium text-text-secondary">
+          <label htmlFor="default-lines" className="label mb-2 block">
             Default simultaneous lines
           </label>
           <NeuInput
+            id="default-lines"
             as="select"
             value={defaultLines}
             onChange={(e) => setDefaultLines(Number(e.target.value))}
@@ -205,15 +216,15 @@ function DialingDefaultsSection() {
             <option value={2}>2 lines</option>
             <option value={3}>3 lines</option>
           </NeuInput>
-          <p className="mt-1 text-xs text-text-secondary">
+          <p className="mt-2 text-sm text-muted-foreground">
             How many leads a dialing session rings at once. Adjustable per session on the dashboard.
           </p>
         </div>
         <div
-          className={`rounded-input border-2 p-3 ${enforceHours ? 'border-action-contacted' : 'border-action-hangup'}`}
+          className={`p-4 ${enforceHours ? 'border border-strong' : 'border-2 border-primary'}`}
           data-testid="calling-hours-state"
         >
-          <p className={`mb-2 text-sm font-semibold ${enforceHours ? 'text-action-contacted' : 'text-action-hangup'}`}>
+          <p className="mb-2 text-sm font-semibold text-foreground">
             {loadingToggle
               ? 'Calling hours: checking…'
               : enforceHours
@@ -227,35 +238,37 @@ function DialingDefaultsSection() {
               aria-checked={enforceHours}
               onClick={handleToggleHours}
               disabled={loadingToggle || savingToggle || !isSupervisor}
-              className={`relative h-6 w-11 shrink-0 rounded-full transition-colors duration-200 disabled:opacity-50 ${
-                enforceHours ? 'bg-action-call' : 'bg-shadow/40'
+              className={`relative h-6 w-11 shrink-0 border border-strong transition-colors duration-150 disabled:opacity-40 ${
+                enforceHours ? 'bg-foreground' : 'bg-transparent'
               }`}
             >
+              {/* Square switch: the knob sits right and inverts when on. */}
               <span
-                className={`absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform duration-200 ${
-                  enforceHours ? 'translate-x-5' : 'translate-x-0'
-                }`}
+                aria-hidden="true"
+                className={`absolute top-[3px] h-4 w-4 ${enforceHours ? 'left-[23px] bg-background' : 'left-[3px] bg-foreground'}`}
               />
             </button>
-            <span className="text-xs font-medium text-text-secondary">Enforce calling hours (8am–9pm local)</span>
-            {!isSupervisor && <span className="text-xs text-text-secondary">(only a supervisor can change this)</span>}
+            <span className="font-mono text-xs font-medium uppercase text-foreground">
+              Enforce calling hours (8am–9pm local) · {enforceHours ? 'On' : 'Off'}
+            </span>
+            {!isSupervisor && <span className="text-sm text-muted-foreground">(only a supervisor can change this)</span>}
           </label>
-          <p className="mt-1 text-xs text-text-secondary">
+          <p className="mt-2 text-sm text-muted-foreground">
             On by default. Saved as soon as you flip it. When on, the dialer never calls a lead outside
             8am–9pm in any time zone the lead could be in (from the phone's area code, the address and
             the state); a lead whose time zone is unknown is not dialed until its state is set. The dial
             pad uses the number's area code.
           </p>
         </div>
-        <div className="rounded-input bg-surface p-3 text-xs text-text-secondary shadow-neu-inset">
+        <div className="border bg-muted p-4 text-sm text-muted-foreground">
           Recordings are only saved for calls where a real conversation happened —
           voicemails, no-answers, and busy signals are never recorded. Several US states
           require verbally notifying the other party that a call may be recorded —
           consider adding this line to your pitch script.
         </div>
-        {error && <p className="text-sm text-action-hangup">{error}</p>}
-        {saved && <p className="text-sm text-action-contacted">Saved.</p>}
-        <NeuButton type="submit">Save defaults</NeuButton>
+        {error && <p role="alert" className="text-sm text-signal">{error}</p>}
+        {saved && <p className="font-mono text-xs uppercase text-foreground">✓ Saved</p>}
+        <NeuButton type="submit" variant="primary">Save defaults</NeuButton>
       </form>
     </NeuCard>
   );
@@ -298,11 +311,11 @@ function ReportingDaySection() {
   };
 
   return (
-    <NeuCard className="space-y-4 p-5">
-      <h2 className="text-sm font-semibold text-text-primary">Reporting day</h2>
+    <NeuCard className="space-y-4 p-6">
+      <SectionLabel index="03" title="Reporting day" />
       <form onSubmit={handleSave} className="space-y-3">
         <div>
-          <label className="mb-1 block text-xs font-medium text-text-secondary" htmlFor="reporting-timezone">
+          <label className="label mb-2 block" htmlFor="reporting-timezone">
             Reporting timezone
           </label>
           <NeuInput
@@ -312,12 +325,12 @@ function ReportingDaySection() {
             disabled={loading || !isSupervisor}
             className="w-64"
           />
-          <p className="mt-1 text-xs text-text-secondary">
+          <p className="mt-2 text-sm text-muted-foreground">
             An IANA name, e.g. Asia/Karachi. "Today" on the dashboard, the daily goal, reports and the PDF use this timezone.
           </p>
         </div>
         <div>
-          <label className="mb-1 block text-xs font-medium text-text-secondary" htmlFor="day-start-time">
+          <label className="label mb-2 block" htmlFor="day-start-time">
             Day starts at
           </label>
           <NeuInput
@@ -328,14 +341,14 @@ function ReportingDaySection() {
             disabled={loading || !isSupervisor}
             className="w-32"
           />
-          <p className="mt-1 text-xs text-text-secondary">
+          <p className="mt-2 text-sm text-muted-foreground">
             A day runs from this time to the same time the next day, in the reporting timezone.
           </p>
         </div>
-        {error && <p className="text-sm text-action-hangup">{error}</p>}
-        {saved && <p className="text-sm text-action-contacted">Saved.</p>}
-        {!isSupervisor && <p className="text-xs text-text-secondary">Only a supervisor can change the reporting day.</p>}
-        <NeuButton type="submit" disabled={loading || !isSupervisor}>Save reporting day</NeuButton>
+        {error && <p role="alert" className="text-sm text-signal">{error}</p>}
+        {saved && <p className="font-mono text-xs uppercase text-foreground">✓ Saved</p>}
+        {!isSupervisor && <p className="text-sm text-muted-foreground">Only a supervisor can change the reporting day.</p>}
+        <NeuButton type="submit" variant="primary" disabled={loading || !isSupervisor}>Save reporting day</NeuButton>
       </form>
     </NeuCard>
   );
@@ -364,9 +377,9 @@ function ScriptEditorSection() {
   };
 
   return (
-    <NeuCard className="space-y-4 p-5">
-      <h2 className="text-sm font-semibold text-text-primary">Pitch script</h2>
-      <p className="text-xs text-text-secondary">
+    <NeuCard className="space-y-4 p-6">
+      <SectionLabel index="04" title="Pitch script" />
+      <p className="text-sm text-muted-foreground">
         Customize the pitch script shown on the call screen. Use <code>{'{name}'}</code> where your name
         should appear.
       </p>
@@ -374,13 +387,14 @@ function ScriptEditorSection() {
         <NeuInput
           as="textarea"
           rows={5}
+          aria-label="Pitch script"
           value={script}
           onChange={(e) => setScript(e.target.value)}
           className="w-full resize-none"
         />
-        {error && <p className="text-sm text-action-hangup">{error}</p>}
-        {saved && <p className="text-sm text-action-contacted">Saved.</p>}
-        <NeuButton type="submit">Save script</NeuButton>
+        {error && <p role="alert" className="text-sm text-signal">{error}</p>}
+        {saved && <p className="font-mono text-xs uppercase text-foreground">✓ Saved</p>}
+        <NeuButton type="submit" variant="primary">Save script</NeuButton>
       </form>
     </NeuCard>
   );
@@ -424,16 +438,18 @@ function IntegrationsSection() {
   };
 
   return (
-    <NeuCard className="space-y-4 p-5">
-      <h2 className="text-sm font-semibold text-text-primary">Integrations</h2>
-      <p className="text-xs text-text-secondary">
-        Configure the Groq API key used for AI CSV column mapping and the ✨ Expand note button — without it,
+    <NeuCard className="space-y-4 p-6">
+      <SectionLabel index="06" title="Integrations" />
+      <p className="text-sm text-muted-foreground">
+        Configure the Groq API key used for AI CSV column mapping and the Expand note button — without it,
         those features degrade gracefully (manual mapping, notes unchanged).
       </p>
       <form onSubmit={handleSave} className="space-y-3">
         <div>
-          <label className="mb-1 block text-xs font-medium text-text-secondary">Groq API key</label>
-          <p className="mb-2 text-xs text-text-secondary" data-testid="groq-key-status">
+          <label htmlFor="groq-key" className="label mb-2 block">
+            Groq API key
+          </label>
+          <p className="mb-2 font-mono text-xs uppercase text-foreground" data-testid="groq-key-status">
             {loading
               ? 'Checking…'
               : status.configured
@@ -441,6 +457,7 @@ function IntegrationsSection() {
                 : 'Not configured'}
           </p>
           <NeuInput
+            id="groq-key"
             type="password"
             value={groqKey}
             onChange={(e) => setGroqKey(e.target.value)}
@@ -449,11 +466,11 @@ function IntegrationsSection() {
             autoComplete="off"
             disabled={!isSupervisor}
           />
-          {!isSupervisor && <p className="mt-1 text-xs text-text-secondary">Only a supervisor can change this.</p>}
+          {!isSupervisor && <p className="mt-2 text-sm text-muted-foreground">Only a supervisor can change this.</p>}
         </div>
-        {error && <p className="text-sm text-action-hangup">{error}</p>}
-        {saved && <p className="text-sm text-action-contacted">Saved.</p>}
-        <NeuButton type="submit" disabled={saving || loading || !isSupervisor || !groqKey.trim()}>
+        {error && <p role="alert" className="text-sm text-signal">{error}</p>}
+        {saved && <p className="font-mono text-xs uppercase text-foreground">✓ Saved</p>}
+        <NeuButton type="submit" variant="primary" disabled={saving || loading || !isSupervisor || !groqKey.trim()}>
           {saving ? 'Saving…' : status.configured ? 'Replace key' : 'Save key'}
         </NeuButton>
       </form>
@@ -538,9 +555,9 @@ function ObjectionsSection() {
   };
 
   return (
-    <NeuCard className="space-y-4 p-5">
-      <h2 className="text-sm font-semibold text-text-primary">Objections</h2>
-      <p className="text-xs text-text-secondary">
+    <NeuCard className="space-y-4 p-6">
+      <SectionLabel index="05" title="Objections" />
+      <p className="text-sm text-muted-foreground">
         The chips shown behind the Objection button on the call screen, in this order. Switching one off hides
         it from the call screen; everything already logged stays in Reports.
       </p>
@@ -553,7 +570,7 @@ function ObjectionsSection() {
                 onClick={() => handleMove(index, -1)}
                 disabled={busy || index === 0}
                 aria-label={`Move ${type.label} up`}
-                className="px-1 text-xs leading-none text-text-secondary hover:text-text-primary disabled:opacity-30"
+                className="flex h-5 w-8 items-center justify-center text-xs text-muted-foreground transition-colors duration-150 hover:bg-muted hover:text-foreground disabled:opacity-30"
               >
                 ▲
               </button>
@@ -562,7 +579,7 @@ function ObjectionsSection() {
                 onClick={() => handleMove(index, 1)}
                 disabled={busy || index === types.length - 1}
                 aria-label={`Move ${type.label} down`}
-                className="px-1 text-xs leading-none text-text-secondary hover:text-text-primary disabled:opacity-30"
+                className="flex h-5 w-8 items-center justify-center text-xs text-muted-foreground transition-colors duration-150 hover:bg-muted hover:text-foreground disabled:opacity-30"
               >
                 ▼
               </button>
@@ -582,14 +599,14 @@ function ObjectionsSection() {
               aria-label={`${type.is_active ? 'Deactivate' : 'Activate'} ${type.label}`}
               onClick={() => handleToggle(type)}
               disabled={busy}
-              className={`relative h-6 w-11 shrink-0 rounded-full transition-colors duration-200 disabled:opacity-50 ${
-                type.is_active ? 'bg-action-call' : 'bg-shadow/40'
+              className={`relative h-6 w-11 shrink-0 border border-strong transition-colors duration-150 disabled:opacity-40 ${
+                type.is_active ? 'bg-foreground' : 'bg-transparent'
               }`}
             >
+              {/* Square switch: the knob sits right and inverts when on. */}
               <span
-                className={`absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform duration-200 ${
-                  type.is_active ? 'translate-x-5' : 'translate-x-0'
-                }`}
+                aria-hidden="true"
+                className={`absolute top-[3px] h-4 w-4 ${type.is_active ? 'left-[23px] bg-background' : 'left-[3px] bg-foreground'}`}
               />
             </button>
           </li>
@@ -600,15 +617,16 @@ function ObjectionsSection() {
           value={newLabel}
           onChange={(e) => setNewLabel(e.target.value)}
           placeholder="Add an objection, e.g. Using a CRM already"
+          aria-label="New objection"
           className="flex-1 text-sm"
           maxLength={80}
         />
-        <NeuButton type="submit" disabled={busy || !newLabel.trim()}>
+        <NeuButton type="submit" variant="primary" disabled={busy || !newLabel.trim()}>
           Add
         </NeuButton>
       </form>
       {message && (
-        <p className={`text-sm ${message.type === 'ok' ? 'text-action-contacted' : 'text-action-hangup'}`}>
+        <p role="status" className={`text-sm ${message.type === 'ok' ? 'text-foreground' : 'text-signal'}`}>
           {message.text}
         </p>
       )}
@@ -619,8 +637,8 @@ function ObjectionsSection() {
 export default function Settings() {
   return (
     <AppShell>
-      <div className="mx-auto mt-4 max-w-2xl space-y-4">
-        <h1 className="text-lg font-semibold text-text-primary">Settings</h1>
+      <div className="mx-auto mt-6 max-w-3xl space-y-6">
+        <h1 className="text-2xl font-semibold tracking-[-0.01em] text-foreground">Settings</h1>
         <ProfileSection />
         <DialingDefaultsSection />
         <ReportingDaySection />
