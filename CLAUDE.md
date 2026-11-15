@@ -113,6 +113,12 @@ Rules: docs/DESIGN.md. Plan and status: docs/RESKIN.md (all segments done). Deci
 14. **Every new rule gets an assertion in backend/tests** (`npm run verify`, from phase C0B on).
 15. **Update docs/CODEMAP.md in the same commit.**
 
+## Checks
+
+- `cd backend && npm run verify`: the safety-net tests (backend/tests). Creates and drops its own
+  `vortex_verify` database on the DATABASE_URL server, with mock providers and no AI calls; must pass
+  before every PR. A new rule gets a new assertion there.
+
 ## Running locally
 
 ```bash
