@@ -21,3 +21,12 @@
 - 2026-11-15 · R1 · Badge logs an ignored `color` prop with console.debug, not console.error · the screenshot gate counts console errors, and ObjectionReport still passes `color` until R6
 - 2026-11-15 · R1 · ActionButton `contacted` (solid) inverts to outline on hover · the standard hover (solid fill) would show no change on an already solid button
 - 2026-11-15 · R1 · reskin-shots.js logs in once per run and reuses the session, and takes `--smoke-lead <id>` · per-page logins trip the login rate limit, and the call shot locks its lead for 30 s
+- 2026-11-15 · R2 · R2 is stacked on the R1 branch (PR #28 was not merged yet); its PR into latest shows R1's commit until #28 merges · R2 needs R1's primitives
+- 2026-11-15 · R2 · Header in two rows: wordmark, FILE 01 tag, nav and account controls on top; search, import progress and clocks below a hairline · nine controls don't fit one row at 1440px without crowding
+- 2026-11-15 · R2 · Clocks: inside calling hours the time is foreground, outside it is muted and struck through, with "(outside calling hours)" for screen readers and a title on hover · green text is not allowed, and color can't be the only cue
+- 2026-11-15 · R2 · StatusDot text inherits its color (was text-foreground) · the LIVE dot sits inside the solid active Dialer tab, where foreground text vanished
+- 2026-11-15 · R2 · The Inbox unread count is a solid Tag, or muted while the Inbox tab is active · a solid tag disappears on the solid active tab
+- 2026-11-15 · R2 · Header import progress is a Meter of rows processed / total · the meter prints "value / max · %", which reads well as rows
+- 2026-11-15 · R2 · Login fields get visible labels; on error both get the 2px primary border plus an "ERROR" label · DESIGN.md section 5 (Field)
+- 2026-11-15 · R2 · Dialing lines: the active call gets a 3px primary bar; a held line is outlined in border-strong (no orange); line avatars become square outlined initials · orange is only for the active call; lines are told apart by LINE 01/02/03
+- 2026-11-15 · R2 · The "new message" toast in AppShell uses the Toast look, like the API toast in lib/api.js · same component, two places

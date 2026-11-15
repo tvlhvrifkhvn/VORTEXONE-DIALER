@@ -72,8 +72,11 @@ function SaveAsLeadForm({ phone, onSaved, onSkip }) {
   return (
     <form onSubmit={handleSave} className="w-full space-y-3 text-left">
       <div>
-        <label className="mb-1 block text-xs font-medium text-text-secondary">Name</label>
+        <label htmlFor="save-lead-name" className="label mb-2 block">
+          Name
+        </label>
         <NeuInput
+          id="save-lead-name"
           value={fields.name}
           onChange={(e) => handleChange('name', e.target.value)}
           className="w-full"
@@ -82,8 +85,11 @@ function SaveAsLeadForm({ phone, onSaved, onSkip }) {
         />
       </div>
       <div>
-        <label className="mb-1 block text-xs font-medium text-text-secondary">State</label>
+        <label htmlFor="save-lead-state" className="label mb-2 block">
+          State
+        </label>
         <NeuInput
+          id="save-lead-state"
           as="select"
           value={fields.state}
           onChange={(e) => handleChange('state', e.target.value)}
@@ -101,14 +107,22 @@ function SaveAsLeadForm({ phone, onSaved, onSkip }) {
         </NeuInput>
       </div>
       <div>
-        <label className="mb-1 block text-xs font-medium text-text-secondary">Brokerage (optional)</label>
+        <label htmlFor="save-lead-brokerage" className="label mb-2 block">
+          Brokerage (optional)
+        </label>
         <NeuInput
+          id="save-lead-brokerage"
           value={fields.brokerage}
           onChange={(e) => handleChange('brokerage', e.target.value)}
           className="w-full"
         />
       </div>
-      {error && <p className="text-sm text-action-hangup">{error}</p>}
+      {error && (
+        <p role="alert" className="text-sm text-signal">
+          <span className="label mr-2 text-signal">Error</span>
+          {error}
+        </p>
+      )}
       <div className="flex gap-2">
         <NeuButton type="submit" className="flex-1" disabled={saving}>
           {saving ? 'Saving…' : 'Save lead'}
@@ -259,9 +273,9 @@ export default function DialPad({ onDone, onCallStateChange }) {
   }, [callInFlight, onCallStateChange]);
 
   return (
-    <div className="mx-auto w-full max-w-xs">
+    <div className="mx-auto w-full max-w-sm">
       <NeuCard className="w-full space-y-4 p-6">
-        <h2 className="text-sm font-semibold text-text-primary">Dial pad</h2>
+        <h2 className="label">Dial pad</h2>
 
         {phase === 'entry' && (
           <>
@@ -273,17 +287,17 @@ export default function DialPad({ onDone, onCallStateChange }) {
                 onPaste={handlePaste}
                 placeholder="Enter a number"
                 aria-label="Phone number"
-                className="w-full rounded-input bg-surface p-3 text-center font-mono text-xl tracking-wider text-text-primary shadow-neu-inset outline-none placeholder:text-text-secondary placeholder:text-base"
+                className="min-h-14 w-full border border-strong bg-background px-3 text-center font-mono text-2xl tabular-nums text-foreground placeholder:font-sans placeholder:text-base placeholder:text-muted-foreground"
               />
-              {showHelper && <p className="mt-1 text-center text-xs text-text-secondary">Enter a 10-digit number</p>}
+              {showHelper && <p className="mt-2 text-center text-sm text-muted-foreground">Enter a 10-digit number</p>}
             </div>
 
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-3 gap-2">
               {KEYS.map((key) => (
                 <NeuButton
                   key={key}
                   onClick={() => handleKey(key)}
-                  className="!rounded-full aspect-square w-full text-lg"
+                  className="min-h-14 w-full text-xl tabular-nums"
                 >
                   {key}
                 </NeuButton>
@@ -294,29 +308,34 @@ export default function DialPad({ onDone, onCallStateChange }) {
               <NeuButton
                 onClick={handleBackspace}
                 disabled={!dialedNumber}
-                className="flex-1 flex items-center justify-center gap-2"
+                className="flex-1"
               >
-                <Delete size={14} /> Backspace
+                <Delete size={16} strokeWidth={1.5} aria-hidden="true" /> Backspace
               </NeuButton>
               <button
                 type="button"
                 onClick={handleClear}
                 disabled={!dialedNumber}
-                className="text-xs font-medium text-text-secondary hover:text-text-primary disabled:opacity-50"
+                className="min-h-10 px-3 font-mono text-sm font-medium uppercase tracking-button text-muted-foreground transition-colors duration-150 hover:text-foreground disabled:opacity-40"
               >
                 Clear
               </button>
             </div>
 
-            {error && <p className="text-sm text-action-hangup">{error}</p>}
+            {error && (
+              <p role="alert" className="text-sm text-signal">
+                <span className="label mr-2 text-signal">Error</span>
+                {error}
+              </p>
+            )}
 
             <ActionButton
               variant="call"
-              className="flex w-full items-center justify-center gap-2 disabled:cursor-not-allowed"
+              className="flex min-h-12 w-full items-center justify-center gap-2"
               onClick={handleCall}
               disabled={!canDial || starting}
             >
-              <Phone size={16} />
+              <Phone size={20} strokeWidth={1.5} aria-hidden="true" />
               {starting ? 'Calling…' : 'Call'}
             </ActionButton>
           </>
@@ -327,15 +346,15 @@ export default function DialPad({ onDone, onCallStateChange }) {
             {telephonyState !== 'answered' && (
               <span
                 aria-hidden="true"
-                className="mx-auto block h-5 w-5 animate-spin rounded-full border-2 border-text-secondary/30 border-t-text-primary"
+                className="mx-auto block h-5 w-5 animate-spin rounded-full border-2 border-muted-foreground/30 border-t-foreground"
               />
             )}
-            <p className="text-sm font-medium text-action-call">
+            <p className="font-mono text-sm font-medium uppercase tabular-nums text-foreground">
               {telephonyState === 'answered'
                 ? `Connected — ${formatDuration(duration)}`
                 : `${TELEPHONY_LABELS[telephonyState] || 'Calling'} ${formatDialed(dialedNumber)}...`}
             </p>
-            <ActionButton variant="hangup" className="w-full" onClick={handleHangup}>
+            <ActionButton variant="hangup" className="min-h-12 w-full" onClick={handleHangup}>
               Hang up
             </ActionButton>
           </div>
@@ -343,13 +362,13 @@ export default function DialPad({ onDone, onCallStateChange }) {
 
         {phase === 'ended' && (
           <div className="space-y-4 py-2 text-center">
-            <p className="font-mono text-lg text-text-primary">{formatDialed(dialedNumber)}</p>
-            <p className="text-sm text-text-secondary">
+            <p className="font-mono text-2xl tabular-nums text-foreground">{formatDialed(dialedNumber)}</p>
+            <p className="font-mono text-sm uppercase tabular-nums text-muted-foreground">
               Call ended — {formatDuration(call?.duration_seconds ?? duration)}
             </p>
 
             {savedLead ? (
-              <p className="text-sm text-action-contacted">Saved as a lead.</p>
+              <p className="text-sm text-foreground">✓ Saved as a lead.</p>
             ) : showSaveForm ? (
               <SaveAsLeadForm
                 phone={dialedNumber.replace(/[^0-9]/g, '')}

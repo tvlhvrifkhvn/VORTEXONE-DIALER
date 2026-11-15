@@ -5,14 +5,15 @@ function RowButton({ active, label, count, onClick }) {
     <button
       type="button"
       onClick={onClick}
-      className={`flex w-full items-center justify-between rounded-input px-3 py-2 text-sm transition-all duration-200 ${
+      aria-pressed={active}
+      className={`flex min-h-10 w-full items-center justify-between border-l-[3px] px-3 font-mono text-sm transition-colors duration-150 ${
         active
-          ? 'shadow-neu-pressed text-action-call border-l-2 border-action-call'
-          : 'border-l-2 border-transparent text-text-secondary hover:shadow-neu-sm'
+          ? 'border-l-primary bg-muted text-foreground'
+          : 'border-l-transparent text-muted-foreground hover:bg-muted hover:text-foreground'
       }`}
     >
-      <span>{label}</span>
-      <span className="text-xs">{count}</span>
+      <span className="uppercase">{label}</span>
+      <span className="text-right text-xs tabular-nums">{count}</span>
     </button>
   );
 }
@@ -22,8 +23,8 @@ export default function StateSidebar({ counts = [], selectedState, onSelectState
 
   return (
     <NeuCard className="w-full shrink-0 p-4 lg:w-56">
-      <h2 className="mb-3 text-sm font-semibold text-text-primary">States</h2>
-      <ul className="space-y-1">
+      <h2 className="label mb-2">States</h2>
+      <ul>
         <li>
           <RowButton active={!selectedState} label="All states" count={totalLeads} onClick={() => onSelectState(null)} />
         </li>
@@ -37,7 +38,7 @@ export default function StateSidebar({ counts = [], selectedState, onSelectState
             />
           </li>
         ))}
-        {counts.length === 0 && <li className="px-3 py-2 text-xs text-text-secondary">No leads yet</li>}
+        {counts.length === 0 && <li className="px-3 py-2 text-sm text-muted-foreground">No leads yet</li>}
       </ul>
     </NeuCard>
   );
