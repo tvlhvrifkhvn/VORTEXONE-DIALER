@@ -10,6 +10,7 @@ const { buildOfficeKey } = require('../utils/officeKey');
 const { US_STATES } = require('../utils/usStates');
 const campaignScope = require('./campaignScope');
 const campaigns = require('./campaigns');
+const customFields = require('./customFields');
 
 const LOCK_TIMEOUT_SECONDS = 30;
 
@@ -631,7 +632,11 @@ const EDITABLE_FIELDS = ['name', 'phone', 'email', 'address', 'brokerage', 'stat
  * attempts, etc.) go through leadLifecycle instead. */
 async function updateFields(leadId, fields) {
   if (!fields || typeof fields !== 'object' || Array.isArray(fields)) throw new ApiError(400, 'Send the changes as a JSON object');
-  const requested = EDITABLE_FIELDS.some((f) => fields[f] !== undefined);
+  // C2C: custom field values (validated, merged into leads.custom) and the deal value.
+  const hasCustom = fields.custom !== undefined;
+  const dealInput = fields.deal_value_cents !== undefined ? fields.deal_value_cents : fields.dealValueCents;
+  const hasDeal = dealInput !== undefined;
+  const requested = EDITABLE_FIELDS.some((f) => fields[f] !== undefined) || hasCustom || hasDeal;
   const { rows: currentRows } = await db.query('SELECT * FROM leads WHERE id = $1 AND deleted_at IS NULL', [leadId]);
   const current = currentRows[0];
   if (!current) throw new ApiError(404, 'Lead not found');
@@ -652,7 +657,25 @@ async function updateFields(leadId, fields) {
   }
 
   const keys = EDITABLE_FIELDS.filter((f) => fields[f] !== undefined);
-  if (keys.length === 0) {
+  const extraSql = [];
+  const extraValues = [];
+  if (hasCustom) {
+    const { set, clear } = await customFields.validateValues(current.campaign_id, fields.custom);
+    extraValues.push(JSON.stringify(set), clear);
+    extraSql.push({ count: 2, sql: (n) => `custom = (custom || $${n}::jsonb) - $${n + 1}::text[]` });
+  }
+  if (hasDeal) {
+    let cents = null;
+    if (dealInput !== null && dealInput !== '') {
+      cents = Number(dealInput);
+      if (!Number.isInteger(cents) || cents < 0 || cents > 100000000000) {
+        throw new ApiError(400, 'The deal value must be a whole number of cents, 0 or more');
+      }
+    }
+    extraValues.push(cents);
+    extraSql.push({ count: 1, sql: (n) => `deal_value_cents = $${n}` });
+  }
+  if (keys.length === 0 && extraSql.length === 0) {
     // Only an unchanged phone was sent: nothing to save.
     if (requested) return current;
     throw new ApiError(400, 'No editable fields provided');
@@ -663,12 +686,19 @@ async function updateFields(leadId, fields) {
   // US state, email. address/brokerage are stored as given, as before.
   const values = { ...fields, ...(await validateLeadInput(fields, { partial: true })) };
 
-  const setSql = keys.map((key, i) => `${key} = $${i + 2}`).join(', ');
+  const setParts = keys.map((key, i) => `${key} = $${i + 2}`);
+  // Extra (C2C) parts take the parameters after the plain fields: custom takes two, the deal one.
+  let next = keys.length + 2;
+  for (const part of extraSql) {
+    setParts.push(part.sql(next));
+    next += part.count;
+  }
+  const setSql = setParts.join(', ');
   let rows;
   try {
     ({ rows } = await db.query(
       `UPDATE leads SET ${setSql}, updated_at = now() WHERE id = $1 AND deleted_at IS NULL RETURNING *`,
-      [leadId, ...keys.map((k) => values[k])]
+      [leadId, ...keys.map((k) => values[k]), ...extraValues]
     ));
   } catch (err) {
     if (err.code === '23505') throw new ApiError(409, 'A lead with this phone number already exists');

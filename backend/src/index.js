@@ -28,6 +28,7 @@ const emailRoutes = require('./routes/email');
 const objectionRoutes = require('./routes/objections');
 const campaignRoutes = require('./routes/campaigns');
 const pipelineRoutes = require('./routes/pipeline');
+const customFieldRoutes = require('./routes/customFields');
 
 const app = express();
 
@@ -68,6 +69,7 @@ app.get('/health', (req, res) => res.json({ status: 'ok' }));
 app.use('/api', apiLimiter);
 
 app.use('/api/auth', authRoutes);
+app.use('/api/campaigns/:id/fields', customFieldRoutes);
 app.use('/api/campaigns', campaignRoutes);
 app.use('/api/pipeline', pipelineRoutes);
 app.use('/api/leads', campaignRoutes.leadRouter);

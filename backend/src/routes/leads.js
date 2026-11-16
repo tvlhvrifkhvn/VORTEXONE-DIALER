@@ -1,7 +1,7 @@
 const express = require('express');
 const leadQueue = require('../services/leadQueue');
 const leadLifecycle = require('../services/leadLifecycle');
-const smsService = require('../services/smsService');
+const timeline = require('../services/timeline');
 const colleagueIntel = require('../services/colleagueIntel');
 const preCallBrief = require('../services/preCallBrief');
 const { asyncHandler } = require('../middleware/asyncHandler');
@@ -78,8 +78,8 @@ router.get(
 router.get(
   '/:id/timeline',
   asyncHandler(async (req, res) => {
-    const timeline = await smsService.getTimeline(req.params.id);
-    res.json(timeline);
+    // C2C: every event kind, newest first (services/timeline.js).
+    res.json(await timeline.getTimeline(req.params.id));
   })
 );
 

@@ -55,7 +55,7 @@ function unavailableResult() {
   return { mapping, confidence, needsReview: [...SCHEMA_FIELDS], unavailable: true, message: UNAVAILABLE_MESSAGE };
 }
 
-function buildPrompt(headers, sampleRows, ctx) {
+function buildPrompt(headers, sampleRows, ctx, customDefs = []) {
   const company = ctx.companyLabel.toLowerCase();
   const realEstate = ctx.kind === 'real_estate';
   const sample = sampleRows
@@ -78,7 +78,10 @@ Field meanings:
 - city: a city/locality column, including messy scraped forms like
   "boise id usa" or "texas-city, TX". Map those here, not to address.
 
-CSV headers: ${JSON.stringify(headers)}
+${customDefs.length ? `Optional extra targets (this file's own fields). Map one only when a header clearly holds it, else null:
+${customDefs.map((d) => `- custom.${d.key}: ${d.label} (${d.type}${d.type === 'select' ? `: ${d.options.join(', ')}` : ''})`).join('\n')}
+
+` : ''}CSV headers: ${JSON.stringify(headers)}
 
 Sample rows:
 ${sample}
@@ -88,7 +91,8 @@ Respond with ONLY a JSON object, no prose, in exactly this shape:
 {
   "mapping": { "name": "<header or null>", "phone": "<header or null>", "email": "<header or null>", "address": "<header or null>", "brokerage": "<header or null>", "state": "<header or null>", "city": "<header or null>", "source": "<header or null>" },
   "confidence": { "name": "high|medium|low", "phone": "high|medium|low", "email": "high|medium|low", "address": "high|medium|low", "brokerage": "high|medium|low", "state": "high|medium|low", "city": "high|medium|low", "source": "high|medium|low" }
-}`;
+}${customDefs.length ? `
+Include the extra targets in "mapping" too, under their exact names (custom.<key>), with null when nothing matches.` : ''}`;
 }
 
 function safeParseJson(text) {
@@ -106,7 +110,7 @@ function safeParseJson(text) {
  * our fixed lead schema. Returns the mapping plus a needsReview list for any
  * field the model wasn't confident about, so the UI can flag it for a human.
  */
-async function mapColumns(headers, sampleRows = [], ctx) {
+async function mapColumns(headers, sampleRows = [], ctx, customDefs = []) {
   if (!ctx) throw new Error('mapColumns: the campaign AI context is required');
   if (!Array.isArray(headers) || headers.length === 0) {
     throw new ApiError(400, 'headers must be a non-empty array');
@@ -118,7 +122,7 @@ async function mapColumns(headers, sampleRows = [], ctx) {
   const completion = await groq.chat.completions.create({
     model: MODEL,
     temperature: 0,
-    messages: [{ role: 'user', content: buildPrompt(headers, sampleRows.slice(0, 3), ctx) }],
+    messages: [{ role: 'user', content: buildPrompt(headers, sampleRows.slice(0, 3), ctx, customDefs) }],
   });
 
   const text = completion.choices?.[0]?.message?.content || '';
@@ -138,6 +142,18 @@ async function mapColumns(headers, sampleRows = [], ctx) {
     if (OPTIONAL_FIELDS.includes(field)) continue;
     if (!mapping[field] || fieldConfidence === LOW_CONFIDENCE) {
       needsReview.push(field);
+    }
+  }
+
+  // C2C: the campaign's own fields, optional (never sent to review).
+  const used = new Set(Object.values(mapping).filter(Boolean));
+  for (const d of customDefs) {
+    const target = `custom.${d.key}`;
+    const header = parsed.mapping?.[target];
+    if (header && headers.includes(header) && !used.has(header)) {
+      mapping[target] = header;
+      used.add(header);
+      confidence[target] = (parsed.confidence?.[target] || 'medium').toLowerCase();
     }
   }
 
