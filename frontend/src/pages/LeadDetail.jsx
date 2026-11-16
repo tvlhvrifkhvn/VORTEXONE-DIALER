@@ -5,6 +5,8 @@ import AppShell from '../components/layout/AppShell';
 import LeadActionHub from '../components/leads/LeadActionHub';
 import ColleagueCard from '../components/leads/ColleagueCard';
 import LeadStagePanel from '../components/pipeline/LeadStagePanel';
+import CustomFieldsPanel from '../components/leads/CustomFieldsPanel';
+import TagEditor from '../components/leads/TagEditor';
 import Panel from '../components/ui/Panel';
 import Button from '../components/ui/Button';
 import Field from '../components/ui/Field';
@@ -183,17 +185,16 @@ export default function LeadDetail() {
             </p>
           )}
 
-          {lead.tags?.length > 0 && (
-            <div className="flex flex-wrap gap-2">
-              {lead.tags.map((tag) => (
-                <Badge key={tag}>{tag}</Badge>
-              ))}
-            </div>
-          )}
+          {/* C2D: tags with add and remove. */}
+          <TagEditor lead={lead} onChange={(updated) => setLead((l) => ({ ...l, ...updated }))} />
         </Panel>
 
         {/* C2B: stage, lost reason and deal value. Only when the lead is in the active file (else the page switches). */}
         {String(lead.campaign_id) === String(activeId) && <LeadStagePanel lead={lead} onChange={setLead} />}
+
+        {String(lead.campaign_id) === String(activeId) && (
+          <CustomFieldsPanel lead={lead} onChange={(updated) => setLead((l) => ({ ...l, ...updated }))} />
+        )}
 
         <ColleagueCard leadId={lead.id} />
 

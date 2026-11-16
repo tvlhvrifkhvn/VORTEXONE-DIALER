@@ -147,3 +147,10 @@
 - 2026-11-16 · C2C · The timeline keeps the old response shape and adds stageChanges and imports; the import event is the lead's lead_stage_history row with source import · the lead page keeps working; leads have no import job id, the history row has the time
 - 2026-11-16 · C2C · LeadActionHub shows stage and import entries as one plain line each · without it they fell through to the SMS bubble as empty "Lead · SMS" items; C2D draws them fully
 - 2026-11-16 · C2C · updateFields with custom or deal_value_cents bumps updated_at like any edit; PUT /api/leads/:id/deal (C2B) still doesn't · an edit through the lead form is an edit; the pipeline's deal shortcut stays out of the dialer's order
+- 2026-11-16 · C2D · The timeline is one hairline row per event (icon, mono type label, what happened, time on the right); texts are rows too, no bubbles · DESIGN.md hairline lists; kinds are told apart by label, not color
+- 2026-11-16 · C2D · Timeline filter is a Segmented: All, Calls, Texts (sms + opt in/out), Emails, Notes, Stages (stage changes + import) · the plan's six choices; opt events belong with texts, the import with stages
+- 2026-11-16 · C2D · A yes/no field is a select (—, Yes, No), not a checkbox · a checkbox can't say "not set"
+- 2026-11-16 · C2D · The fields panel sends only changed fields; an emptied input is sent as null and clears the value · the API merges (C2C); unchanged values are never rewritten
+- 2026-11-16 · C2D · Select options are edited as one comma-separated field · simple, keyboard-friendly; the server trims and removes duplicates
+- 2026-11-16 · C2D · List-field columns sit after ADDED in the leads table; numbers right-aligned in mono, long text cut with the full value in the tooltip · DESIGN.md table rules
+- 2026-11-16 · C2D · Custom targets in the import mapping read "<Label> · field" · tells them apart from the core lead fields

@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { File, Mail, MessageSquare, Paperclip, Phone, X } from 'lucide-react';
+import { ArrowRight, File, Mail, MessageSquare, Paperclip, Phone, StickyNote, Upload, X } from 'lucide-react';
 import Panel from '../ui/Panel';
 import Button from '../ui/Button';
 import Field from '../ui/Field';
+import Segmented from '../ui/Segmented';
 import { formatDateTime } from '../../lib/format';
 import * as api from '../../lib/api';
 
@@ -270,98 +271,98 @@ export function EmailCompose({ lead, onSent }) {
   );
 }
 
+// C2D: the timeline as a hairline list. One row per event: a type label,
+// what happened, then the time. Kinds are told apart by their label, not color.
+const DISPOSITION_TEXT = {
+  contacted: 'Spoke / Interested',
+  voicemail: 'Voicemail',
+  no_answer: 'No answer',
+  no_contact_number: 'Bad number',
+  no_contact_person: 'No contact — person',
+  dnc: 'DNC',
+  callback_scheduled: 'Callback scheduled',
+};
+
+// The filter: which entry types each choice shows.
+const TIMELINE_FILTERS = [
+  { value: 'all', label: 'All', types: null },
+  { value: 'calls', label: 'Calls', types: ['call'] },
+  { value: 'texts', label: 'Texts', types: ['sms', 'sms_opt'] },
+  { value: 'emails', label: 'Emails', types: ['email'] },
+  { value: 'notes', label: 'Notes', types: ['note'] },
+  { value: 'stages', label: 'Stages', types: ['stage', 'import'] },
+];
+
+function describe(entry, leadName) {
+  switch (entry.type) {
+    case 'call':
+      return {
+        icon: Phone,
+        label: 'Call',
+        title: entry.disposition ? DISPOSITION_TEXT[entry.disposition] || entry.disposition : 'No outcome logged',
+        body: entry.note,
+        extra: entry.was_recorded ? 'Recording' : null,
+      };
+    case 'sms':
+      return {
+        icon: MessageSquare,
+        label: entry.direction === 'outbound' ? 'Text · you' : `Text · ${leadName || 'lead'}`,
+        title: entry.body || '',
+        media: entry.media_url,
+      };
+    case 'sms_opt':
+      return {
+        icon: MessageSquare,
+        label: 'Texts',
+        title: `${entry.action === 'opt_out' ? 'Opted out of texts' : 'Opted back in to texts'} ${entry.source === 'inbound_keyword' ? 'by text reply' : 'by the rep'}`,
+      };
+    case 'email':
+      return { icon: Mail, label: entry.direction === 'inbound' ? 'Email · in' : 'Email', title: entry.subject || '(no subject)', body: entry.body };
+    case 'note':
+      return { icon: StickyNote, label: 'Note', title: entry.body };
+    case 'import':
+      return { icon: Upload, label: 'Import', title: `Imported into ${entry.to_stage || 'the pipeline'}`, by: entry.user_name };
+    case 'stage':
+      return {
+        icon: ArrowRight,
+        label: 'Stage',
+        title: entry.from_stage ? `${entry.from_stage} → ${entry.to_stage || 'a deleted stage'}` : `Added in ${entry.to_stage || 'the pipeline'}`,
+        extra: entry.source === 'disposition' ? 'by outcome' : entry.source === 'undo' ? 'undo' : entry.source === 'move' ? 'file move' : null,
+        by: entry.user_name,
+      };
+    default:
+      return { icon: File, label: entry.type, title: '' };
+  }
+}
+
 function TimelineEntry({ entry, leadName }) {
-  // C2C: stage changes and the import event, one plain line each (C2D draws them fully).
-  if (entry.type === 'stage' || entry.type === 'import') {
-    const text =
-      entry.type === 'import'
-        ? `Imported into ${entry.to_stage || 'the pipeline'}`
-        : entry.from_stage
-          ? `Stage: ${entry.from_stage} → ${entry.to_stage || 'a deleted stage'}`
-          : `Added in ${entry.to_stage || 'the pipeline'}`;
-    return (
-      <div className="border-b py-2 text-sm text-muted-foreground last:border-b-0">
-        <span className="font-medium text-foreground">{text}</span>
-        {entry.user_name ? ` by ${entry.user_name}` : ''} ·{' '}
-        <span className="font-mono text-xs tabular-nums">{formatDateTime(entry.timestamp)}</span>
-      </div>
-    );
-  }
-  if (entry.type === 'sms_opt') {
-    // A change to the lead's SMS opt-out (a STOP / START text, or the rep's button).
-    const label = entry.action === 'opt_out' ? 'Opted out of texts' : 'Opted back in to texts';
-    const how = entry.source === 'inbound_keyword' ? 'by text reply' : 'by the rep';
-    return (
-      <div className="border-b py-2 text-sm text-muted-foreground last:border-b-0">
-        <span className="font-medium text-foreground">{label}</span> {how} ·{' '}
-        <span className="font-mono text-xs tabular-nums">{formatDateTime(entry.timestamp)}</span>
-      </div>
-    );
-  }
-  if (entry.type === 'email') {
-    return (
-      <div className="flex items-start gap-2 border-b py-2 last:border-b-0">
-        <Mail size={16} strokeWidth={1.5} aria-hidden="true" className="mt-0.5 shrink-0 text-muted-foreground" />
-        <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-2 text-sm">
-            <span className="label">Email</span>
-            <span className="font-medium text-foreground">{entry.subject || '(no subject)'}</span>
-            <span className="font-mono text-xs tabular-nums text-muted-foreground">{formatDateTime(entry.timestamp)}</span>
-          </div>
-          {entry.body && <p className="mt-1 whitespace-pre-wrap text-sm text-muted-foreground">{entry.body}</p>}
-        </div>
-      </div>
-    );
-  }
-  if (entry.type === 'call') {
-    return (
-      <div className="flex items-start gap-2 border-b py-2 last:border-b-0">
-        <Phone size={16} strokeWidth={1.5} aria-hidden="true" className="mt-0.5 shrink-0 text-muted-foreground" />
-        <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-2 text-sm">
-            <span className="label">Call</span>
-            <span className="font-medium text-foreground">{entry.disposition || 'No disposition'}</span>
-            {entry.was_recorded && (
-              <span className="border border-strong px-2 py-0.5 font-mono text-xs uppercase text-foreground">Recording</span>
-            )}
-            <span className="font-mono text-xs tabular-nums text-muted-foreground">{formatDateTime(entry.timestamp)}</span>
-          </div>
-          {entry.note && <p className="mt-1 text-sm text-muted-foreground">{entry.note}</p>}
-        </div>
-      </div>
-    );
-  }
-  const isOutbound = entry.direction === 'outbound';
+  const d = describe(entry, leadName);
+  const Icon = d.icon;
   return (
-    // Sides are marked by name ("YOU" / the lead), not by color.
-    <div className={`flex py-2 ${isOutbound ? 'justify-end' : 'justify-start'}`}>
-      <div className={`max-w-[80%] border px-3 py-2 text-sm text-foreground ${isOutbound ? 'bg-muted' : 'bg-card'}`}>
-        <p className="label mb-1">{isOutbound ? 'You' : leadName || 'Lead'} · SMS</p>
-        {entry.body && <p>{entry.body}</p>}
-        {entry.media_url && (
-          /\.(png|jpe?g|gif|webp)$/i.test(entry.media_url) ? (
-            <a href={api.resolveMediaUrl(entry.media_url)} target="_blank" rel="noreferrer">
-              <img
-                src={api.resolveMediaUrl(entry.media_url)}
-                alt="attachment"
-                className="mt-1 max-h-40 max-w-full object-cover"
-              />
+    <li className="flex items-start gap-2 border-b py-2 last:border-b-0">
+      <Icon size={16} strokeWidth={1.5} aria-hidden="true" className="mt-0.5 shrink-0 text-muted-foreground" />
+      <div className="min-w-0 flex-1">
+        <div className="flex flex-wrap items-baseline gap-2 text-sm">
+          <span className="label">{d.label}</span>
+          <span className="min-w-0 break-words font-medium text-foreground">{d.title}</span>
+          {d.extra && <span className="border border-strong px-2 py-0.5 font-mono text-xs uppercase text-foreground">{d.extra}</span>}
+          {d.by && <span className="text-muted-foreground">by {d.by}</span>}
+          <span className="ml-auto font-mono text-xs tabular-nums text-muted-foreground">{formatDateTime(entry.timestamp)}</span>
+        </div>
+        {d.body && <p className="mt-1 whitespace-pre-wrap text-sm text-muted-foreground">{d.body}</p>}
+        {d.media &&
+          (/\.(png|jpe?g|gif|webp)$/i.test(d.media) ? (
+            <a href={api.resolveMediaUrl(d.media)} target="_blank" rel="noreferrer">
+              <img src={api.resolveMediaUrl(d.media)} alt="Text attachment" className="mt-1 max-h-40 max-w-full object-cover" />
             </a>
           ) : (
-            <a
-              href={api.resolveMediaUrl(entry.media_url)}
-              target="_blank"
-              rel="noreferrer"
-              className="mt-1 flex items-center gap-1 text-sm underline"
-            >
+            <a href={api.resolveMediaUrl(d.media)} target="_blank" rel="noreferrer" className="mt-1 flex items-center gap-1 text-sm underline">
               <File size={16} strokeWidth={1.5} aria-hidden="true" className="shrink-0" />
-              {entry.media_url.split('/').pop()}
+              {d.media.split('/').pop()}
             </a>
-          )
-        )}
-        <p className="mt-1 font-mono text-xs tabular-nums text-muted-foreground">{formatDateTime(entry.timestamp)}</p>
+          ))}
       </div>
-    </div>
+    </li>
   );
 }
 
@@ -375,6 +376,9 @@ export default function LeadActionHub({ lead }) {
   const [emailOpen, setEmailOpen] = useState(false);
   const [timeline, setTimeline] = useState([]);
   const [loadingTimeline, setLoadingTimeline] = useState(true);
+  const [filter, setFilter] = useState('all');
+  const filterTypes = TIMELINE_FILTERS.find((f) => f.value === filter)?.types;
+  const shown = filterTypes ? timeline.filter((e) => filterTypes.includes(e.type)) : timeline;
 
   const loadTimeline = () => {
     setLoadingTimeline(true);
@@ -427,14 +431,26 @@ export default function LeadActionHub({ lead }) {
       {smsOpen && <SmsCompose lead={lead} onSent={loadTimeline} />}
       {emailOpen && <EmailCompose lead={lead} onSent={loadTimeline} />}
 
-      <Panel className="max-h-64 overflow-y-auto px-4 py-2">
-        <p className="label mb-2 pt-2">History</p>
+      <Panel className="space-y-2 px-4 py-2">
+        <div className="flex flex-wrap items-center justify-between gap-2 pt-2">
+          <p className="label">Timeline</p>
+          <Segmented
+            label="Timeline filter"
+            options={TIMELINE_FILTERS.map(({ value, label }) => ({ value, label }))}
+            value={filter}
+            onChange={setFilter}
+          />
+        </div>
         {loadingTimeline ? (
           <p className="label pb-2">Loading…</p>
-        ) : timeline.length === 0 ? (
-          <p className="pb-2 text-sm text-muted-foreground">No calls, messages, or emails yet.</p>
+        ) : shown.length === 0 ? (
+          <p className="pb-2 text-sm text-muted-foreground">{timeline.length === 0 ? 'Nothing here yet.' : 'Nothing of this kind yet.'}</p>
         ) : (
-          timeline.map((entry) => <TimelineEntry key={`${entry.type}-${entry.id}`} entry={entry} leadName={lead.name} />)
+          <ul className="max-h-[32rem] overflow-y-auto border-t">
+            {shown.map((entry) => (
+              <TimelineEntry key={`${entry.type}-${entry.id}`} entry={entry} leadName={lead.name} />
+            ))}
+          </ul>
         )}
       </Panel>
     </div>

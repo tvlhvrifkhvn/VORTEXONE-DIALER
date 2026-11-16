@@ -316,7 +316,7 @@ Gate extra: the meter equals the sum of the call costs in the test data; screens
 - C2A: done
 - C2B: done
 - C2C: done
-- C2D: not started
+- C2D: done
 - C2E: not started
 - C3A: not started
 - C3B: not started
