@@ -84,9 +84,9 @@ function CallScreenInner({ leadId }) {
 
   // Submission path handed to the shared DispositionPanel — the panel owns
   // the note text and the DNC confirmation, this owns how it's sent.
-  const handlePanelDisposition = async ({ disposition, note: panelNote, onRetrying, stageId }) => {
+  const handlePanelDisposition = async ({ disposition, note: panelNote, onRetrying, stageId, task }) => {
     setActionError(null);
-    await submitDisposition({ disposition, note: panelNote, onRetrying, stageId });
+    await submitDisposition({ disposition, note: panelNote, onRetrying, stageId, task });
     setLastDisposition(disposition);
   };
 

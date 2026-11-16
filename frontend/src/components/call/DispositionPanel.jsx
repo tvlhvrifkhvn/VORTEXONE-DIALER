@@ -15,6 +15,7 @@ import * as api from '../../lib/api';
 import { useCampaign } from '../../hooks/useCampaign';
 import { useStages } from '../../hooks/useStages';
 import Field from '../ui/Field';
+import { defaultDue } from '../tasks/TaskForm';
 
 const DEFAULT_PITCH_SCRIPT = (repName) =>
   `Hi, I'm ${repName} from Vortexone Agency. We offer virtual assistant services for real ` +
@@ -149,6 +150,10 @@ export default function DispositionPanel({
   // C2B: optional stage for this outcome; '' = Auto (the server's rules).
   const { stages } = useStages();
   const [stageId, setStageId] = useState('');
+  // C3A: an optional follow-up task sent with the outcome.
+  const [followUp, setFollowUp] = useState(false);
+  const [followTitle, setFollowTitle] = useState('');
+  const [followDue, setFollowDue] = useState(defaultDue);
 
   const locked = disabled || submitting;
 
@@ -158,6 +163,9 @@ export default function DispositionPanel({
     setNote('');
     setError(null);
     setStageId('');
+    setFollowUp(false);
+    setFollowTitle('');
+    setFollowDue(defaultDue());
   }, [callId]);
 
   const submitOutcome = async (disposition) => {
@@ -168,7 +176,10 @@ export default function DispositionPanel({
     // the panel stays open and says so until it is saved or gives up.
     const onRetrying = (attempt, max) => setRetrying(`Not saved yet — retrying (${attempt + 1} of ${max})…`);
     try {
-      await onDispositionSubmit({ disposition, note, onRetrying, ...(stageId ? { stageId: Number(stageId) } : {}) });
+      const task = followUp && followTitle.trim() && followDue
+        ? { title: followTitle.trim(), due_at: new Date(followDue).toISOString(), type: 'call' }
+        : null;
+      await onDispositionSubmit({ disposition, note, onRetrying, ...(stageId ? { stageId: Number(stageId) } : {}), ...(task ? { task } : {}) });
     } catch (err) {
       setError(`Couldn't save this outcome: ${err.message} Click it again to retry.`);
     } finally {
@@ -221,7 +232,7 @@ export default function DispositionPanel({
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [locked, note, stageId]);
+  }, [locked, note, stageId, followUp, followTitle, followDue]);
 
   return (
     <div className="space-y-4">
@@ -272,6 +283,34 @@ export default function DispositionPanel({
             </Field>
           </div>
         )}
+        {/* C3A: an optional follow-up task, created only when the outcome saves. */}
+        <div className="flex flex-wrap items-center gap-2">
+          <label className="flex min-h-10 items-center gap-2 text-sm text-foreground">
+            <input type="checkbox" checked={followUp} onChange={(e) => setFollowUp(e.target.checked)} disabled={locked} className="h-4 w-4 accent-primary" />
+            Follow-up task
+          </label>
+          {followUp && (
+            <>
+              <Field
+                value={followTitle}
+                onChange={(e) => setFollowTitle(e.target.value)}
+                maxLength={200}
+                placeholder="e.g. Call back with pricing"
+                aria-label="Follow-up task"
+                className="min-w-[12rem] flex-1 text-sm"
+                disabled={locked}
+              />
+              <Field
+                type="datetime-local"
+                value={followDue}
+                onChange={(e) => setFollowDue(e.target.value)}
+                aria-label="Follow-up due"
+                className="font-mono text-sm"
+                disabled={locked}
+              />
+            </>
+          )}
+        </div>
         {/* D highlight: a 2px primary outline, no animation. */}
         <div ref={dispositionRef} className={highlight ? 'outline outline-2 outline-offset-4 outline-primary' : ''}>
           <DispositionButtons onSelect={handleSelect} disabled={locked} />

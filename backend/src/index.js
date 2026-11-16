@@ -30,6 +30,7 @@ const campaignRoutes = require('./routes/campaigns');
 const pipelineRoutes = require('./routes/pipeline');
 const customFieldRoutes = require('./routes/customFields');
 const { viewsRouter, bulkRouter } = require('./routes/viewsBulk');
+const taskRoutes = require('./routes/tasks');
 
 const app = express();
 
@@ -74,6 +75,8 @@ app.use('/api/campaigns/:id/fields', customFieldRoutes);
 app.use('/api/campaigns', campaignRoutes);
 app.use('/api/pipeline', pipelineRoutes);
 app.use('/api/views', viewsRouter);
+app.use('/api/tasks', taskRoutes);
+app.use('/api/today', taskRoutes.todayRouter);
 app.use('/api/leads/bulk', bulkRouter);
 app.use('/api/leads', campaignRoutes.leadRouter);
 app.use('/api/leads', pipelineRoutes.leadRouter);

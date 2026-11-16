@@ -9,7 +9,7 @@ const { ApiError } = require('../middleware/errorHandler');
 async function getTimeline(leadId) {
   const id = Number(leadId);
   if (!Number.isInteger(id) || id <= 0) throw new ApiError(400, 'The lead id must be a positive whole number');
-  const [calls, messages, notes, optEvents, emails, history] = await Promise.all([
+  const [calls, messages, notes, optEvents, emails, history, taskRows] = await Promise.all([
     db.query(
       `SELECT id, started_at AS timestamp, disposition, duration_seconds, note, was_recorded
        FROM call_history WHERE lead_id = $1 ORDER BY started_at DESC`,
@@ -40,6 +40,11 @@ async function getTimeline(leadId) {
        ORDER BY h.created_at DESC, h.id DESC`,
       [id]
     ),
+    // C3A: tasks, at the time they were created.
+    db.query(
+      `SELECT id, created_at AS timestamp, title, type, due_at, done_at, source FROM tasks WHERE lead_id = $1 ORDER BY created_at DESC`,
+      [id]
+    ),
   ]);
 
   // The import is the lead's first history row with source "import"; every
@@ -55,6 +60,7 @@ async function getTimeline(leadId) {
     ...optEvents.rows.map((o) => ({ type: 'sms_opt', ...o })),
     ...stageChanges.map((s) => ({ type: 'stage', ...s })),
     ...imports.map((i) => ({ type: 'import', ...i })),
+    ...taskRows.rows.map(({ type: taskType, ...t }) => ({ type: 'task', task_type: taskType, ...t })),
   ].sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp) || (b.type === 'import') - (a.type === 'import'));
 
   return {
@@ -64,6 +70,7 @@ async function getTimeline(leadId) {
     emails: emails.rows,
     stageChanges,
     imports,
+    tasks: taskRows.rows,
     timeline,
   };
 }

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowRight, File, Mail, MessageSquare, Paperclip, Phone, StickyNote, Upload, X } from 'lucide-react';
+import { ArrowRight, File, ListTodo, Mail, MessageSquare, Paperclip, Phone, StickyNote, Upload, X } from 'lucide-react';
 import Panel from '../ui/Panel';
 import Button from '../ui/Button';
 import Field from '../ui/Field';
@@ -320,6 +320,14 @@ function describe(entry, leadName) {
       return { icon: Mail, label: entry.direction === 'inbound' ? 'Email · in' : 'Email', title: entry.subject || '(no subject)', body: entry.body };
     case 'note':
       return { icon: StickyNote, label: 'Note', title: entry.body };
+    case 'task':
+      return {
+        icon: ListTodo,
+        label: 'Task',
+        title: entry.title,
+        extra: entry.done_at ? 'Done' : null,
+        body: `Due ${formatDateTime(entry.due_at)}${entry.source === 'disposition' ? ' · from an outcome' : ''}`,
+      };
     case 'import':
       return { icon: Upload, label: 'Import', title: `Imported into ${entry.to_stage || 'the pipeline'}`, by: entry.user_name };
     case 'stage':

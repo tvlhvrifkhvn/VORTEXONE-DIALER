@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { FileText, MessageSquare, MessageSquareWarning, MicOff, PauseCircle, Tag, User } from 'lucide-react';
+import { FileText, ListTodo, MessageSquare, MessageSquareWarning, MicOff, PauseCircle, Tag, User } from 'lucide-react';
 import Panel from '../ui/Panel';
 import Button from '../ui/Button';
 import Field from '../ui/Field';
@@ -7,6 +7,8 @@ import Badge from '../ui/Badge';
 import Keycap from '../ui/Keycap';
 import { SmsCompose } from '../leads/LeadActionHub';
 import ObjectionPanel from './ObjectionPanel';
+import Dialog from '../ui/Dialog';
+import TaskForm from '../tasks/TaskForm';
 import * as api from '../../lib/api';
 import { sendWithRetry } from '../../lib/retry';
 
@@ -50,6 +52,7 @@ export default function CallActionGrid({ lead, callId, onLeadUpdated, muted = fa
   const [error, setError] = useState(null);
   const [flash, setFlash] = useState(null);
   const [onHold, setOnHold] = useState(false);
+  const [taskOpen, setTaskOpen] = useState(false); // C3A: the ADD TASK dialog
 
   const toggle = (panel) => {
     setError(null);
@@ -153,8 +156,9 @@ export default function CallActionGrid({ lead, callId, onLeadUpdated, muted = fa
         />
       </div>
 
-      {/* Own full-width row so the 2x3 grid above keeps its layout (and the
-          rep's muscle memory). */}
+      {/* Own row so the 2x3 grid above keeps its layout (and the rep's muscle
+          memory). C3A: Objection and Add task share it. */}
+      <div className="grid grid-cols-2 gap-2">
       <button
         type="button"
         onClick={() => toggle('objection')}
@@ -167,6 +171,40 @@ export default function CallActionGrid({ lead, callId, onLeadUpdated, muted = fa
         <MessageSquareWarning size={20} strokeWidth={1.5} aria-hidden="true" />
         Objection
       </button>
+      <button
+        type="button"
+        onClick={() => setTaskOpen(true)}
+        aria-haspopup="dialog"
+        className="flex min-h-11 w-full items-center justify-center gap-2 border border-strong px-2 font-mono text-xs font-medium uppercase tracking-button text-foreground transition-colors duration-150 hover:bg-muted"
+      >
+        <ListTodo size={20} strokeWidth={1.5} aria-hidden="true" />
+        Add task
+      </button>
+      </div>
+
+      {taskOpen && (
+        <Dialog title={`Add task · ${lead.name}`} onClose={() => setTaskOpen(false)} className="max-w-2xl">
+          <TaskForm
+            busy={busy}
+            onSubmit={async (task) => {
+              setBusy(true);
+              setError(null);
+              try {
+                await api.createTask({ ...task, leadId: lead.id });
+                setTaskOpen(false);
+                showFlash('Task added');
+                return true;
+              } catch (err) {
+                setError(err.message);
+                return false;
+              } finally {
+                setBusy(false);
+              }
+            }}
+          />
+          {error && <p role="alert" className="mt-2 text-sm text-signal">{error}</p>}
+        </Dialog>
+      )}
 
       {(muted || onHold) && (
         <Badge tone="solid">{[muted && 'Muted', onHold && 'On hold'].filter(Boolean).join(' · ')}</Badge>
