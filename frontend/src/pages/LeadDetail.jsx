@@ -129,7 +129,7 @@ export default function LeadDetail() {
     setError(null);
     try {
       await api.deleteLead(lead.id);
-      navigate('/');
+      navigate('/leads');
     } catch (err) {
       setError(err.message);
       setDeleting(false);
@@ -150,7 +150,7 @@ export default function LeadDetail() {
         <Panel className="mt-6 max-w-md space-y-4 p-6">
           <p className="label">Lead not found</p>
           {error && <p className="text-sm text-muted-foreground">{error}</p>}
-          <Button onClick={() => navigate('/')}>Back to dashboard →</Button>
+          <Button onClick={() => navigate('/leads')}>Back to leads →</Button>
         </Panel>
       </AppShell>
     );

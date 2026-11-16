@@ -48,7 +48,8 @@ const pages = args.pages.split(',').map((p) => p.trim()).filter(Boolean);
 
 const ROUTES = {
   login: '/login',
-  dashboard: '/',
+  today: '/',
+  dashboard: '/leads',
   dialer: '/dialer',
   manual: '/call/manual',
   call: args.lead ? `/call/${args.lead}` : null,

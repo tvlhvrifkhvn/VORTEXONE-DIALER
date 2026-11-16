@@ -286,7 +286,7 @@ export function useCall(leadId) {
           // the dashboard show the summary automatically.
           const stats = await endDialingSession();
           if (stats) localStorage.setItem(PENDING_SUMMARY_KEY, JSON.stringify(stats));
-          navigate('/');
+          navigate('/leads'); // C3B: back to the list the selection came from
         } else {
           navigate('/call/next');
         }

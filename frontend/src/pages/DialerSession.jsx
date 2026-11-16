@@ -62,10 +62,10 @@ function NoSessionState({ onGoToDashboard }) {
     <Panel className="mt-6 max-w-md space-y-4 p-6">
       <h2 className="label">No dialing session</h2>
       <p className="text-base text-foreground">
-        Select leads and a line count on the dashboard, then start a dialing session to see it here.
+        Start a dialing session from Today, or select leads and a line count on the Leads page, to see it here.
       </p>
       <Button variant="primary" onClick={onGoToDashboard}>
-        Go to dashboard →
+        Go to leads →
       </Button>
     </Panel>
   );
@@ -157,7 +157,7 @@ export default function DialerSession() {
             onDispositionSubmit={handleMultilineDisposition}
           />
         ) : (
-          <NoSessionState onGoToDashboard={() => navigate('/')} />
+          <NoSessionState onGoToDashboard={() => navigate('/leads')} />
         )}
       </div>
 

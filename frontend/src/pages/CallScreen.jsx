@@ -172,7 +172,7 @@ function CallScreenInner({ leadId }) {
         <p className="label">Call not started</p>
         <p className="text-base font-medium text-foreground">Couldn't start this call</p>
         <p className="text-sm text-muted-foreground">{error}</p>
-        <Button onClick={() => navigate('/')}>Back to dashboard →</Button>
+        <Button onClick={() => navigate('/leads')}>Back to leads →</Button>
       </Panel>
     );
   }
@@ -269,8 +269,8 @@ function CallScreenInner({ leadId }) {
               <Button variant="primary" className="w-full" onClick={() => navigate('/call/next')}>
                 Next lead →
               </Button>
-              <Button variant="ghost" className="w-full" onClick={() => navigate('/')}>
-                Back to dashboard
+              <Button variant="ghost" className="w-full" onClick={() => navigate('/leads')}>
+                Back to leads
               </Button>
             </Panel>
           )}
