@@ -10,6 +10,7 @@ const aiCsvMapper = require('./aiCsvMapper');
 const callingHours = require('./callingHours');
 const settingsStore = require('./settings');
 const smsService = require('./smsService');
+const campaigns = require('./campaigns');
 
 const SMS_OPTED_OUT_REASON = 'Imported, opted out of texts: this number replied STOP earlier';
 
@@ -506,6 +507,9 @@ async function mergePhase(jobId, state) {
 async function savePhase(jobId, state) {
   // New leads get the owner's default max attempts (F-48), read once per import.
   const maxAttempts = await settingsStore.defaultMaxAttempts();
+  // C1C: the job's campaign decides "already in another file" and the phoneless identity scope.
+  const { rows: jobRows } = await db.query('SELECT campaign_id FROM import_jobs WHERE id = $1', [jobId]);
+  const jobCampaignId = jobRows[0] ? jobRows[0].campaign_id : null;
   const { rows: toSave } = await db.query('SELECT count(*)::int AS n FROM import_rows WHERE job_id = $1 AND outcome IS NULL', [jobId]);
   await db.query(`UPDATE import_jobs SET phase = 'saving', rows_to_save = $2, saved_rows = 0 WHERE id = $1`, [jobId, toSave[0].n]);
 
@@ -535,20 +539,27 @@ async function savePhase(jobId, state) {
       const phones = batch.filter((r) => r.prep.phone).map((r) => r.prep.phone);
       const { rows: dncRows } = await client.query('SELECT phone FROM dnc_list WHERE phone = ANY($1)', [phones]);
       const { rows: existingRows } = await client.query(
-        `SELECT phone, (dnc_flag OR status = 'dnc') AS is_dnc FROM leads WHERE phone = ANY($1)`,
+        `SELECT l.phone, (l.dnc_flag OR l.status = 'dnc') AS is_dnc, l.campaign_id, c.file_number, c.name AS campaign_name
+         FROM leads l JOIN campaigns c ON c.id = l.campaign_id WHERE l.phone = ANY($1)`,
         [phones]
       );
       const phoneless = batch.filter((r) => !r.prep.phone && r.prep.name && r.prep.state);
       const { rows: identityRows } = await client.query(
         `SELECT lower(name) AS n, state FROM leads
-         WHERE phone IS NULL AND deleted_at IS NULL
+         WHERE phone IS NULL AND deleted_at IS NULL AND campaign_id = $3
            AND (lower(name), state) IN (SELECT * FROM unnest($1::text[], $2::text[]))`,
-        [phoneless.map((r) => r.prep.name.toLowerCase()), phoneless.map((r) => r.prep.state)]
+        [phoneless.map((r) => r.prep.name.toLowerCase()), phoneless.map((r) => r.prep.state), jobCampaignId]
       );
       // A number on the DNC list, or belonging to a lead already marked DNC
       // (even if the list itself lacks it), is never imported as dialable.
       const dnc = new Set([...dncRows.map((r) => r.phone), ...existingRows.filter((r) => r.is_dnc).map((r) => r.phone)]);
       const existing = new Set(existingRows.map((r) => r.phone));
+      // Phones already held by a lead of another campaign (one phone = one lead = one campaign, D1).
+      const otherFile = new Map(
+        existingRows
+          .filter((r) => r.campaign_id !== jobCampaignId)
+          .map((r) => [r.phone, campaigns.fileLabel({ file_number: r.file_number, name: r.campaign_name })])
+      );
       const identities = new Set(identityRows.map((r) => `${r.n}|${r.state}`));
 
       const updates = [];
@@ -574,7 +585,9 @@ async function savePhase(jobId, state) {
               : `Phone number is on the DNC list: ${p.phone}`,
           });
         }
-        else if (p.phone && existing.has(p.phone)) updates.push({ id: r.id, prep: p, outcome: 'already_in_list', reason: `Already in your list (same phone number): ${p.phone}` });
+        else if (p.phone && otherFile.has(p.phone)) {
+          updates.push({ id: r.id, prep: p, outcome: 'already_in_list', reason: `Already in ${otherFile.get(p.phone)} (same phone number)` });
+        } else if (p.phone && existing.has(p.phone)) updates.push({ id: r.id, prep: p, outcome: 'already_in_list', reason: `Already in your list (same phone number): ${p.phone}` });
         else if (!p.phone && (identities.has(`${p.nameKey}|${p.state}`) || phonelessSeen.has(`${p.nameKey}|${p.state}`))) {
           updates.push({ id: r.id, prep: p, outcome: 'already_in_list', reason: `Already in your list (same name and state, no phone number): ${p.name} (${p.state})` });
         } else {

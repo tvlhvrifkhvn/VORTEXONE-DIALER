@@ -2,6 +2,8 @@ const path = require('path');
 const PDFDocument = require('pdfkit');
 const reports = require('./reports');
 const reportingPeriod = require('./reportingPeriod');
+const campaigns = require('./campaigns');
+const campaignScope = require('./campaignScope');
 
 const THEME = {
   blue: '#3B82F6',
@@ -139,7 +141,7 @@ function buildColumns(doc, usableWidth, rows) {
   });
 }
 
-function drawHeader(doc, usableWidth, repName, period) {
+function drawHeader(doc, usableWidth, repName, period, fileName) {
   doc
     .font(FONT_BOLD)
     .fontSize(18)
@@ -149,7 +151,7 @@ function drawHeader(doc, usableWidth, repName, period) {
   // The day or range, and the timezone every time on the page is in.
   const periodLine = period.kind === 'range' ? `From ${period.label}` : period.label;
   doc.font(FONT).fontSize(9.5).fillColor(THEME.subtle)
-    .text(`${periodLine}  ·  Times in ${period.timezone}  ·  ${repName}`, MARGIN, MARGIN + 26, { width: usableWidth });
+    .text(`${fileName}  ·  ${periodLine}  ·  Times in ${period.timezone}  ·  ${repName}`, MARGIN, MARGIN + 26, { width: usableWidth });
 
   const ruleY = doc.y + 6;
   doc.moveTo(MARGIN, ruleY).lineTo(MARGIN + usableWidth, ruleY).strokeColor(THEME.border).lineWidth(1).stroke();
@@ -271,12 +273,19 @@ function drawFooters(doc, usableWidth) {
 
 /** Builds the call report PDF for a period (reportingPeriod.resolvePeriod;
  * default the reporting day containing now) as a Buffer. */
-async function buildDailyReportBuffer(periodInput, repName = 'Talha Arif') {
+async function buildDailyReportBuffer(periodInput, repName = 'Talha Arif', campaignId) {
   const period = periodInput || (await reportingPeriod.resolvePeriod());
+  // C1C: the header names the file, or "All files".
+  let fileName = 'All files';
+  if (campaignId !== campaignScope.ALL) {
+    const campaign = await campaigns.getById(campaignId);
+    if (!campaign) throw new Error(`pdfExport: unknown campaign ${campaignId}`);
+    fileName = campaigns.fileLabel(campaign);
+  }
 
   // Headline numbers and table rows come from the same period and the same
   // WHERE clause (reports.periodStats / periodCalls): the counts always match.
-  const [summary, rows] = await Promise.all([reports.periodStats(period), reports.periodCalls(period)]);
+  const [summary, rows] = await Promise.all([reports.periodStats(period, campaignId), reports.periodCalls(period, campaignId)]);
 
   const tableRows = rows.map((r, i) => ({
     index: i + 1,
@@ -306,7 +315,7 @@ async function buildDailyReportBuffer(periodInput, repName = 'Talha Arif') {
     doc.on('end', () => resolve(Buffer.concat(chunks)));
     doc.on('error', reject);
 
-    drawHeader(doc, usableWidth, repName, period);
+    drawHeader(doc, usableWidth, repName, period, fileName);
     drawSummary(doc, usableWidth, summary);
 
     if (tableRows.length === 0) {

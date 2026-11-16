@@ -6,16 +6,19 @@ const colleagueIntel = require('../services/colleagueIntel');
 const preCallBrief = require('../services/preCallBrief');
 const { asyncHandler } = require('../middleware/asyncHandler');
 const { requireAuth } = require('../middleware/auth');
-const { requireCampaign } = require('../middleware/campaign');
+const { requireCampaign, campaignOrAll } = require('../middleware/campaign');
+const campaignScope = require('../services/campaignScope');
 
 const router = express.Router();
 router.use(requireAuth);
 
 router.get(
   '/',
+  campaignOrAll,
   asyncHandler(async (req, res) => {
     // Checked and bounded (F-53): a bad value is a 400.
-    const result = await leadQueue.list(leadQueue.parseListQuery(req.query));
+    const campaignId = req.campaign ? req.campaign.id : campaignScope.ALL;
+    const result = await leadQueue.list({ ...leadQueue.parseListQuery(req.query), campaignId });
     res.json(result);
   })
 );

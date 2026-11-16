@@ -1,5 +1,6 @@
 const db = require('../db');
 const reportingPeriod = require('./reportingPeriod');
+const campaignScope = require('./campaignScope');
 
 function withConnectRate(row) {
   return {
@@ -27,8 +28,9 @@ const PERIOD_CALLS_WHERE = `ch.started_at >= $1 AND ch.started_at < $2 AND ${PLA
  * contacts, voicemails, no-answers, DNC and the connect rate. Powers the
  * dashboard stat cards, the daily goal, the Reports page and the PDF.
  */
-async function periodStats(period) {
+async function periodStats(period, campaignId) {
   const p = period || (await reportingPeriod.resolvePeriod());
+  const s = campaignScope.scope('ch', campaignId, 3); // C1C: one file or ALL
   const { rows } = await db.query(
     `SELECT
        count(*)::int AS dials,
@@ -37,22 +39,23 @@ async function periodStats(period) {
        count(*) FILTER (WHERE ch.disposition = 'no_answer')::int AS "noAnswers",
        count(*) FILTER (WHERE ch.disposition = 'dnc')::int AS dnc
      FROM call_history ch
-     WHERE ${PERIOD_CALLS_WHERE}`,
-    [p.start, p.end]
+     WHERE ${PERIOD_CALLS_WHERE} AND ${s.sql}`,
+    [p.start, p.end, ...s.params]
   );
   return { ...withConnectRate(rows[0]), period: reportingPeriod.describe(p) };
 }
 
 /** The same calls, one row each, oldest first — the PDF table. */
-async function periodCalls(period) {
+async function periodCalls(period, campaignId) {
+  const s = campaignScope.scope('ch', campaignId, 3);
   const { rows } = await db.query(
     `SELECT ch.id, ch.started_at, ch.duration_seconds, ch.disposition, ch.note, ch.is_manual, ch.was_abandoned,
             ch.ended_at, ch.to_number, l.name, l.phone, l.state, l.brokerage
      FROM call_history ch
      LEFT JOIN leads l ON l.id = ch.lead_id
-     WHERE ${PERIOD_CALLS_WHERE}
+     WHERE ${PERIOD_CALLS_WHERE} AND ${s.sql}
      ORDER BY ch.started_at ASC, ch.id ASC`,
-    [period.start, period.end]
+    [period.start, period.end, ...s.params]
   );
   return rows;
 }
@@ -61,29 +64,34 @@ async function periodCalls(period) {
 const todayStats = periodStats;
 
 /** Per-state contact counts and connect rate — powers the /reports page. */
-async function perStateReport() {
+async function perStateReport(campaignId) {
+  // Per state: scoped on the lead's campaign (a lead's calls follow it).
+  const s = campaignScope.scope('l', campaignId, 1);
   const { rows } = await db.query(
     `SELECT l.state,
             count(ch.id)::int AS dials,
             count(*) FILTER (WHERE ch.disposition = 'contacted')::int AS contacts
      FROM leads l
      LEFT JOIN call_history ch ON ch.lead_id = l.id AND ${PLACED_CALL_SQL}
+     WHERE ${s.sql}
      GROUP BY l.state
-     ORDER BY l.state ASC`
+     ORDER BY l.state ASC`,
+    s.params
   );
   return rows.map(withConnectRate);
 }
 
 /** Today's ad-hoc dial-pad calls (no lead) — the per-state report can't
  * carry these (no lead means no state), so they get their own small list. */
-async function manualCallsToday(period) {
+async function manualCallsToday(period, campaignId) {
   const p = period || (await reportingPeriod.resolvePeriod());
+  const s = campaignScope.scope('ch', campaignId, 3);
   const { rows } = await db.query(
     `SELECT id, to_number, started_at, ended_at, duration_seconds
      FROM call_history ch
-     WHERE is_manual = true AND ${PERIOD_CALLS_WHERE}
+     WHERE is_manual = true AND ${PERIOD_CALLS_WHERE} AND ${s.sql}
      ORDER BY started_at DESC`,
-    [p.start, p.end]
+    [p.start, p.end, ...s.params]
   );
   return rows;
 }

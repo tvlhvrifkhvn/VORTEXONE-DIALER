@@ -474,11 +474,15 @@ function buildListFilters({ search, status, dateFrom, dateTo }) {
   return { where: clauses.length ? `WHERE ${clauses.join(' AND ')}` : '', params };
 }
 
-async function list({ search, status, dateFrom, dateTo, state, page = 1, pageSize = 50 } = {}) {
+async function list({ search, status, dateFrom, dateTo, state, page = 1, pageSize = 50, campaignId } = {}) {
   await releaseStaleLocks();
 
   const filters = { search, status, dateFrom, dateTo };
-  const { where, params } = buildListFilters(filters);
+  const built = buildListFilters(filters);
+  // C1C: one campaign, or ALL (scope gives TRUE and no params).
+  const s = campaignScope.scope('leads', campaignId, built.params.length + 1);
+  const params = [...built.params, ...s.params];
+  const where = `${built.where} AND ${s.sql}`;
   const stateClause = state ? `${where ? 'AND' : 'WHERE'} state = $${params.length + 1}` : '';
   const allParams = state ? [...params, state] : params;
 
@@ -486,7 +490,8 @@ async function list({ search, status, dateFrom, dateTo, state, page = 1, pageSiz
   // Sort so the most urgent leads always surface first: a due callback,
   // then never-dialed leads, then in_queue leads that have waited longest.
   const { rows } = await db.query(
-    `SELECT leads.*, (dnc_list.id IS NOT NULL) AS is_dnc_flagged
+    `SELECT leads.*, (dnc_list.id IS NOT NULL) AS is_dnc_flagged,
+            (SELECT c.file_number FROM campaigns c WHERE c.id = leads.campaign_id) AS file_number
      FROM leads
      LEFT JOIN dnc_list ON dnc_list.phone = leads.phone
      ${where} ${stateClause}
@@ -509,8 +514,7 @@ async function list({ search, status, dateFrom, dateTo, state, page = 1, pageSiz
     allParams
   );
 
-  // list() is scoped in C1C; until then "up next" stays the head across all files (as before).
-  const next = await peekNext(campaignScope.ALL);
+  const next = await peekNext(campaignId);
 
   return {
     leads: rows.map((lead) => ({ ...lead, isUpNext: next?.id === lead.id })),
@@ -704,10 +708,12 @@ async function softDelete(leadId) {
 async function search(q) {
   if (!q || !q.trim()) return [];
   const { rows } = await db.query(
-    `SELECT * FROM leads
-     WHERE deleted_at IS NULL
-       AND (name ILIKE $1 OR phone ILIKE $1 OR brokerage ILIKE $1)
-     ORDER BY created_at DESC
+    // Global on purpose (C1C): each hit says which file it is in.
+    `SELECT l.*, c.file_number, c.name AS campaign_name
+     FROM leads l JOIN campaigns c ON c.id = l.campaign_id
+     WHERE l.deleted_at IS NULL
+       AND (l.name ILIKE $1 OR l.phone ILIKE $1 OR l.brokerage ILIKE $1)
+     ORDER BY l.created_at DESC
      LIMIT 10`,
     [likeContains(q.trim())]
   );
