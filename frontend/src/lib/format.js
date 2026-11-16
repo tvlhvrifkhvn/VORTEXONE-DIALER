@@ -34,3 +34,10 @@ export function formatRelativeToNow(value) {
   const diffDay = Math.round(diffHour / 24);
   return rtf.format(diffDay, 'day');
 }
+
+/** C4B: a cost in cents as dollars — "$12.30"; `precise` keeps a fraction of a cent ("$0.014"). */
+export function formatCents(cents, { precise = false } = {}) {
+  if (cents === null || cents === undefined || Number.isNaN(Number(cents))) return '—';
+  const digits = precise ? 3 : 2;
+  return `$${(Number(cents) / 100).toLocaleString('en-US', { minimumFractionDigits: digits, maximumFractionDigits: digits })}`;
+}

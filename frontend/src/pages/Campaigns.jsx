@@ -47,6 +47,7 @@ function toForm(c) {
     companyLabel: c.company_label || '',
     dailyGoal: c.daily_goal ?? '',
     defaultMaxAttempts: c.default_max_attempts ?? '',
+    monthlyBudget: c.monthly_budget_cents === null || c.monthly_budget_cents === undefined ? '' : String(Number(c.monthly_budget_cents) / 100),
     aiContext: c.ai_context || '',
     pitchScript: c.pitch_script || '',
   };
@@ -147,6 +148,8 @@ function EditSection({ campaign, disabled, onSaved }) {
         companyLabel: form.companyLabel,
         dailyGoal: form.dailyGoal === '' ? null : Number(form.dailyGoal),
         defaultMaxAttempts: form.defaultMaxAttempts === '' ? null : Number(form.defaultMaxAttempts),
+        // C4B: dollars in the form, cents in the file; empty = no budget of its own.
+        monthlyBudgetCents: form.monthlyBudget === '' ? null : Math.round(Number(form.monthlyBudget) * 100),
         aiContext: form.aiContext,
         pitchScript: form.pitchScript,
       });
@@ -179,6 +182,11 @@ function EditSection({ campaign, disabled, onSaved }) {
           <div>
             <label htmlFor="file-max-attempts" className="label mb-2 block">Max attempts (1–10)</label>
             <Field id="file-max-attempts" type="number" min="1" max="10" value={form.defaultMaxAttempts} onChange={set('defaultMaxAttempts')} placeholder="Global" className="w-32 font-mono tabular-nums" disabled={disabled} />
+          </div>
+          <div>
+            <label htmlFor="file-monthly-budget" className="label mb-2 block">Monthly budget · USD</label>
+            <Field id="file-monthly-budget" type="number" min="0" step="0.01" value={form.monthlyBudget} onChange={set('monthlyBudget')} placeholder="No limit" className="w-40 font-mono tabular-nums" disabled={disabled} />
+            <p className="mt-2 text-sm text-muted-foreground">Dialing in this file stops at 100 %. The global budget in Settings applies too.</p>
           </div>
         </div>
         <div>
