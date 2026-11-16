@@ -12,8 +12,9 @@ router.use(requireAuth);
 
 router.get(
   '/types',
+  requireCampaign,
   asyncHandler(async (req, res) => {
-    const types = await objectionService.listTypes({ includeInactive: req.query.includeInactive === '1' });
+    const types = await objectionService.listTypes({ campaignId: req.campaign.id, includeInactive: req.query.includeInactive === '1' });
     res.json({ types });
   })
 );
@@ -30,8 +31,9 @@ router.post(
 // Must precede /types/:id so "reorder" isn't read as an id.
 router.post(
   '/types/reorder',
+  requireCampaign,
   asyncHandler(async (req, res) => {
-    const types = await objectionService.reorderTypes(req.body.ids);
+    const types = await objectionService.reorderTypes(req.body.ids, req.campaign.id);
     res.json({ types });
   })
 );
@@ -51,8 +53,9 @@ router.put(
 
 router.get(
   '/hints',
+  requireCampaign,
   asyncHandler(async (req, res) => {
-    const hints = await rebuttalCoach.getHints();
+    const hints = await rebuttalCoach.getHints(req.campaign.id);
     res.json({ hints });
   })
 );
@@ -67,8 +70,10 @@ router.get(
 
 router.post(
   '/types/:id/suggestions/regenerate',
+  requireCampaign,
   asyncHandler(async (req, res) => {
-    const result = await rebuttalCoach.regenerate(req.params.id);
+    // A shared objection type speaks for the header's file (C1D).
+    const result = await rebuttalCoach.regenerate(req.params.id, req.campaign.id);
     res.json(result);
   })
 );
@@ -135,17 +140,19 @@ router.delete(
 
 router.get(
   '/report',
+  requireCampaign,
   asyncHandler(async (req, res) => {
     const { dateFrom, dateTo, state, officeKey } = req.query;
-    const report = await objectionService.getReport({ dateFrom, dateTo, state, officeKey });
+    const report = await objectionService.getReport({ dateFrom, dateTo, state, officeKey, campaignId: req.campaign.id });
     res.json(report);
   })
 );
 
 router.get(
   '/offices',
+  requireCampaign,
   asyncHandler(async (req, res) => {
-    const offices = await objectionService.listOffices();
+    const offices = await objectionService.listOffices(req.campaign.id);
     res.json({ offices });
   })
 );

@@ -1,4 +1,5 @@
 const db = require('../db');
+const campaignScope = require('./campaignScope');
 const { ApiError } = require('../middleware/errorHandler');
 const smsAdapter = require('../telephony/smsIndex');
 const { normalizePhone } = require('../utils/phoneNormalize');
@@ -103,8 +104,13 @@ function segmentCount(body) {
 
 /** Templates saved before the placeholder check may contain unsupported
  * tokens: they're kept, flagged needs_fixing, and can't be sent. */
-async function listTemplates() {
-  const { rows } = await db.query('SELECT * FROM sms_templates ORDER BY created_at DESC');
+async function listTemplates(campaignId) {
+  // C1D: the campaign's templates plus the shared ones (campaign_id null).
+  const s = campaignScope.scope(null, campaignId, 1);
+  const { rows } = await db.query(
+    `SELECT * FROM sms_templates WHERE ${s.sql} OR campaign_id IS NULL ORDER BY created_at DESC`,
+    s.params
+  );
   return rows.map((t) => {
     const invalid = invalidTokens(t.body);
     return { ...t, needs_fixing: invalid.length > 0, invalid_tokens: invalid };
@@ -270,7 +276,10 @@ async function sendBulkSms(leadIds, templateId) {
   return summary;
 }
 
-async function getInbox({ page = 1, limit = 20 } = {}) {
+async function getInbox({ page = 1, limit = 20, campaignId } = {}) {
+  // C1D: by the lead's campaign, or ALL. Unmatched texts (no lead) are listed
+  // separately (getUnmatchedInbound) and show in every campaign and in ALL.
+  const s = campaignScope.scope('l', campaignId, 3);
   const offset = (Math.max(1, page) - 1) * limit;
   const { rows } = await db.query(
     `SELECT l.id AS "leadId", l.name AS "leadName", l.brokerage,
@@ -286,9 +295,10 @@ async function getInbox({ page = 1, limit = 20 } = {}) {
      JOIN LATERAL (
        SELECT body, sent_at FROM sms_messages WHERE lead_id = l.id ORDER BY sent_at DESC LIMIT 1
      ) last_msg ON true
+     WHERE ${s.sql}
      ORDER BY last_msg.sent_at DESC
      LIMIT $1 OFFSET $2`,
-    [limit, offset]
+    [limit, offset, ...s.params]
   );
   return rows;
 }

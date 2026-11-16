@@ -94,3 +94,11 @@
 - 2026-11-16 · C1C · The lead list's "up next" marker comes from the same scope as the list (ALL → across files) · it matches what the rep is looking at
 - 2026-11-16 · C1C · The PDF prints the file label (or "All files") at the start of the subtitle line · the header keeps its layout; no new line or font
 - 2026-11-16 · C1C · No frontend change: the stored file goes in X-Campaign-Id on every request already; choosing ALL comes with the switcher in C1E
+- 2026-11-16 · C1D · One new helper, services/aiContext.js, turns a campaigns row into the prompt words (ai_context, company label, "agent" for kind real_estate, "prospect"/"colleague" otherwise) · each AI file takes it as an argument; nothing reads a "current campaign"
+- 2026-11-16 · C1D · The prompts say "What we do: <ai_context>" where they named VA services for US real estate agents · with File 01 the ai_context says exactly that, so the meaning is unchanged; the real-estate examples (Keller Williams, License #) appear only for kind real_estate
+- 2026-11-16 · C1D · The mapper's schema field stays "brokerage" (it is the JSON key the code reads back); the prompt explains it as the campaign's company label · renaming the field would touch import code outside this phase
+- 2026-11-16 · C1D · A shared objection type (campaign_id null) asked to regenerate uses the header's campaign context; a file's own type uses its file · the type carries its campaign when it has one (D5)
+- 2026-11-16 · C1D · noteExpander and colleagueIntel have no real-estate wording in a prompt, so they are unchanged · nothing to replace
+- 2026-11-16 · C1D · Unmatched inbound texts stay in their own unscoped list next to the inbox, so they show in every file and in ALL · no lead means no campaign
+- 2026-11-16 · C1D · [campaign] added to the objection list, reorder, hints, regenerate, report and offices routes, the template list and /imports/analyze; [campaign or ALL] on the inbox · the frontend already sends the header on every request
+- 2026-11-16 · C1D · The test file 12 turns IMPORT_AI on in its own process and points GROQ_BASE_URL at a local stub · run.js keeps AI off for every other file; no request leaves the machine

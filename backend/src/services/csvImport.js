@@ -11,6 +11,7 @@ const callingHours = require('./callingHours');
 const settingsStore = require('./settings');
 const smsService = require('./smsService');
 const campaigns = require('./campaigns');
+const aiContext = require('./aiContext');
 
 const SMS_OPTED_OUT_REASON = 'Imported, opted out of texts: this number replied STOP earlier';
 
@@ -270,10 +271,10 @@ async function isJobCancelled(jobId) {
  * still fails after every attempt is returned untouched and flagged — one bad
  * chunk must never fail the whole file.
  */
-async function cleanChunkWithRetry(chunk, mapping) {
+async function cleanChunkWithRetry(chunk, mapping, ctx) {
   for (let attempt = 0; attempt < RETRY_DELAYS_MS.length; attempt++) {
     try {
-      const cleaned = await aiCsvMapper.cleanRowsChunk(chunk, mapping);
+      const cleaned = await aiCsvMapper.cleanRowsChunk(chunk, mapping, ctx);
       return { ...cleaned, needsManualReview: false };
     } catch (err) {
       const isLastAttempt = attempt === RETRY_DELAYS_MS.length - 1;
@@ -357,7 +358,7 @@ async function cleanPhase(jobId, mapping, state) {
           result = { cleanedRows: chunk, originals: new Map(), skippedIndexes: new Set(), needsManualReview: false };
           state.rowsNotAiCleaned += chunk.length;
         } else {
-          result = await cleanChunkWithRetry(chunk, mapping);
+          result = await cleanChunkWithRetry(chunk, mapping, state.aiContext);
           // Circuit breaker: once a chunk has failed every AI attempt the
           // service is treated as down for the rest of this job, instead of
           // each chunk paying for the full retry cycle again.
@@ -526,7 +527,8 @@ async function savePhase(jobId, state) {
     const needsState = batch.filter((r) => r.prep.name && !r.prep.state);
     if (needsState.length > 0 && !state.aiDown) {
       const guesses = await aiCsvMapper.guessStates(
-        needsState.map((r, index) => ({ index, name: r.prep.name, address: r.prep.address || '', brokerage: r.prep.brokerage || '' }))
+        needsState.map((r, index) => ({ index, name: r.prep.name, address: r.prep.address || '', brokerage: r.prep.brokerage || '' })),
+        state.aiContext
       );
       for (const [index, guessed] of guesses) if (needsState[index]) needsState[index].prep.state = guessed;
     }
@@ -762,6 +764,8 @@ async function processImportJob(jobId) {
     aiRenamed: 0,
     ambiguousSameName: 0,
     cancelled: false,
+    // C1D: the AI prompts speak about the job's campaign.
+    aiContext: await aiContext.forCampaignId(job.campaign_id),
   };
   try {
     const mapping = job.mapping || {};
