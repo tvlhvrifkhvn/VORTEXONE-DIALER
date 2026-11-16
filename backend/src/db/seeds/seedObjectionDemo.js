@@ -74,8 +74,8 @@ async function createLeads() {
     leadsByOffice[key] = [];
     for (let i = 1; i <= office.count; i++) {
       const { rows } = await db.query(
-        `INSERT INTO leads (name, phone, brokerage, address, state, status, missing_phone, office_key)
-         VALUES ($1, NULL, $2, $3, $4, 'contacted', true, $5)
+        `INSERT INTO leads (name, phone, brokerage, address, state, status, missing_phone, office_key, campaign_id)
+         VALUES ($1, NULL, $2, $3, $4, 'contacted', true, $5, (SELECT id FROM campaigns WHERE file_number = 1))
          RETURNING id`,
         [
           `${DEMO_PREFIX}${office.brokerage.split(' ')[0]} Agent ${i}`,
@@ -111,9 +111,9 @@ async function seed() {
 
       const { rows } = await db.query(
         `INSERT INTO call_history (lead_id, started_at, ended_at, duration_seconds, disposition,
-                                   disposition_at, from_number, telephony_state, was_mock)
+                                   disposition_at, from_number, telephony_state, was_mock, campaign_id)
          VALUES ($1, now() - interval '1 hour', now() - interval '55 minutes', 300, $2,
-                 now() - interval '55 minutes', $3, 'ended', true)
+                 now() - interval '55 minutes', $3, 'ended', true, (SELECT campaign_id FROM leads WHERE id = $1))
          RETURNING id`,
         [leadId, disposition, DEMO_MARKER]
       );

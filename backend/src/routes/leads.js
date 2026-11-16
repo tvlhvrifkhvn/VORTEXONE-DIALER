@@ -6,6 +6,7 @@ const colleagueIntel = require('../services/colleagueIntel');
 const preCallBrief = require('../services/preCallBrief');
 const { asyncHandler } = require('../middleware/asyncHandler');
 const { requireAuth } = require('../middleware/auth');
+const { requireCampaign } = require('../middleware/campaign');
 
 const router = express.Router();
 router.use(requireAuth);
@@ -52,8 +53,10 @@ router.post(
 // every other lead comes from a CSV import.
 router.post(
   '/',
+  requireCampaign,
   asyncHandler(async (req, res) => {
-    const lead = await leadQueue.create(req.body);
+    const body = req.body && typeof req.body === 'object' && !Array.isArray(req.body) ? req.body : null;
+    const lead = await leadQueue.create(body && { ...body, campaignId: req.campaign.id });
     res.status(201).json({ lead });
   })
 );

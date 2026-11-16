@@ -34,6 +34,23 @@ async function resetDb() {
   );
   const names = rows.map((r) => `"${r.tablename}"`).join(', ');
   await db.query(`TRUNCATE ${names} RESTART IDENTITY CASCADE`);
+  // File 01 as migration 033 seeds it (id 1 after the identity restart).
+  await db.query(
+    `INSERT INTO campaigns (file_number, name, slug, kind, status, company_label, ai_context)
+     VALUES (1, 'Real Estate', 'real-estate', 'real_estate', 'active', 'Brokerage',
+             'Vortexone Agency offers virtual-assistant services (lead follow-up, appointment setting and admin support) to real estate agents in the United States.')`
+  );
+}
+
+/** Creates another campaign straight in the database (File 02, 03, …). */
+async function createCampaign({ name, status = 'active', kind = 'custom' } = {}) {
+  const { rows } = await db.query(
+    `INSERT INTO campaigns (file_number, name, slug, kind, status, company_label)
+     SELECT COALESCE(max(file_number), 0) + 1, $1, $2, $3, $4, 'Company' FROM campaigns
+     RETURNING *`,
+    [name, String(name).toLowerCase().replace(/[^a-z0-9]+/g, '-'), kind, status]
+  );
+  return rows[0];
 }
 
 /** Calling hours on or off (the setting the app reads; refreshes its cache). */
@@ -41,11 +58,13 @@ async function setCallingHours(enforced) {
   await settings.setSetting('calling_hours_enforced', enforced ? 'true' : 'false');
 }
 
-/** Every HTTP call of the tests goes through here. */
-async function request(token, method, path, body, { headers = {}, form = null } = {}) {
+/** Every HTTP call of the tests goes through here. Sends X-Campaign-Id
+ * (File 01 by default; `campaign: null` sends none, a value overrides it). */
+async function request(token, method, path, body, { headers = {}, form = null, campaign = 1 } = {}) {
   await start();
   const h = { ...headers };
   if (token) h.Authorization = `Bearer ${token}`;
+  if (campaign !== null && h['X-Campaign-Id'] === undefined) h['X-Campaign-Id'] = String(campaign);
   let payload;
   if (form) payload = form;
   else if (body !== undefined) {
@@ -104,6 +123,7 @@ async function createLead(fields = {}) {
     state: 'TX',
     status: 'in_queue',
     max_attempts: 5,
+    campaign_id: 1,
     ...fields,
   };
   delete lead.areaCode;
@@ -175,6 +195,7 @@ module.exports = {
   db,
   start,
   resetDb,
+  createCampaign,
   setupFile,
   setCallingHours,
   request,

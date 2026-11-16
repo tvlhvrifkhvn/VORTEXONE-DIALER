@@ -24,7 +24,7 @@ test('report totals equal the call rows; a failed dial is not counted', async ()
   // A dial the provider refused: kept as a 'failed' row, not a placed call.
   const lead = await h.createLead();
   await h.db.query(
-    "INSERT INTO call_history (lead_id, user_id, from_number, was_mock, telephony_state) VALUES ($1, $2, '+15550000000', true, 'failed')",
+    "INSERT INTO call_history (lead_id, user_id, from_number, was_mock, telephony_state, campaign_id) VALUES ($1, $2, '+15550000000', true, 'failed', 1)",
     [lead.id, rep.user.id]
   );
 

@@ -5,6 +5,7 @@ const smsAdapter = require('../telephony/smsIndex');
 const mediaUpload = require('../services/mediaUpload');
 const { asyncHandler } = require('../middleware/asyncHandler');
 const { requireAuth } = require('../middleware/auth');
+const { requireCampaign } = require('../middleware/campaign');
 const { ApiError } = require('../middleware/errorHandler');
 
 const router = express.Router();
@@ -60,9 +61,10 @@ router.get(
 
 router.post(
   '/templates',
+  requireCampaign,
   asyncHandler(async (req, res) => {
     const { name, body } = req.body;
-    const template = await smsService.createTemplate({ userId: req.user.sub, name, body });
+    const template = await smsService.createTemplate({ userId: req.user.sub, name, body, campaignId: req.campaign.id });
     res.status(201).json({ template });
   })
 );

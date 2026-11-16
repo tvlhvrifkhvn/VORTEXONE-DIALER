@@ -111,14 +111,14 @@ async function listTemplates() {
   });
 }
 
-async function createTemplate({ userId, name, body }) {
+async function createTemplate({ userId, name, body, campaignId = null }) {
   if (!name || !name.trim() || !body || !body.trim()) {
     throw new ApiError(400, 'Name and message body are required');
   }
   assertTemplateBody(body);
   const { rows } = await db.query(
-    `INSERT INTO sms_templates (user_id, name, body) VALUES ($1, $2, $3) RETURNING *`,
-    [userId, name.trim(), body]
+    `INSERT INTO sms_templates (user_id, name, body, campaign_id) VALUES ($1, $2, $3, $4) RETURNING *`,
+    [userId, name.trim(), body, campaignId]
   );
   return rows[0];
 }

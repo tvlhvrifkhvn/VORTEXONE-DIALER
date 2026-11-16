@@ -26,6 +26,7 @@ const settingsRoutes = require('./routes/settings');
 const smsRoutes = require('./routes/sms');
 const emailRoutes = require('./routes/email');
 const objectionRoutes = require('./routes/objections');
+const campaignRoutes = require('./routes/campaigns');
 
 const app = express();
 
@@ -66,6 +67,8 @@ app.get('/health', (req, res) => res.json({ status: 'ok' }));
 app.use('/api', apiLimiter);
 
 app.use('/api/auth', authRoutes);
+app.use('/api/campaigns', campaignRoutes);
+app.use('/api/leads', campaignRoutes.leadRouter);
 app.use('/api/leads', leadsRoutes);
 app.use('/api/calls', callsRoutes);
 app.use('/api/dispositions', dispositionsRoutes);

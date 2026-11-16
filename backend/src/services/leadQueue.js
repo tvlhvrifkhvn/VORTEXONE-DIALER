@@ -554,15 +554,17 @@ async function validateLeadInput(input, { partial = false } = {}) {
 async function create(input) {
   // F-53: a missing or non-object body is a 400, not a TypeError 500.
   if (!input || typeof input !== 'object' || Array.isArray(input)) throw new ApiError(400, 'Send the lead as a JSON object');
-  const { name, phone, state, email = null, address = null, brokerage = null } = input;
+  const { name, phone, state, email = null, address = null, brokerage = null, campaignId } = input;
+  // C1A: a new lead belongs to the campaign the route passes (req.campaign.id).
+  if (!Number.isInteger(campaignId) || campaignId <= 0) throw new ApiError(400, 'A new lead needs a file (campaign)');
   const valid = await validateLeadInput({ name, phone, state, email });
   const normalizedPhone = valid.phone;
   const normalizedState = valid.state;
 
   try {
     const { rows } = await db.query(
-      `INSERT INTO leads (name, phone, email, address, brokerage, state, status, office_key, tz_zones, max_attempts)
-       VALUES ($1, $2, $3, $4, $5, $6, 'new', $7, $8, $9)
+      `INSERT INTO leads (name, phone, email, address, brokerage, state, status, office_key, tz_zones, max_attempts, campaign_id)
+       VALUES ($1, $2, $3, $4, $5, $6, 'new', $7, $8, $9, $10)
        RETURNING *`,
       [
         valid.name,
@@ -574,6 +576,7 @@ async function create(input) {
         buildOfficeKey({ brokerage, address, state: normalizedState }),
         callingHours.zonesForLead({ phone: normalizedPhone, state: normalizedState, address }),
         await settingsStore.defaultMaxAttempts(), // F-48: the owner's default, for new leads
+        campaignId,
       ]
     );
     // A number that replied STOP before (the SMS opt-out list) starts opted

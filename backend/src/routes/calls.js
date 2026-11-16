@@ -7,6 +7,7 @@ const leadLifecycle = require('../services/leadLifecycle');
 const dialingSession = require('../services/dialingSession');
 const { asyncHandler } = require('../middleware/asyncHandler');
 const { requireAuth } = require('../middleware/auth');
+const { requireActiveCampaign } = require('../middleware/campaign');
 
 const router = express.Router();
 
@@ -65,6 +66,7 @@ router.use(requireAuth);
 // so a duplicate/parallel start can never become a second call.
 router.post(
   '/',
+  requireActiveCampaign,
   asyncHandler(async (req, res) => {
     const { leadId, sessionId, redial } = req.body;
 
@@ -110,8 +112,9 @@ router.post(
 // Manual dial pad — places a call to a typed-in number, not tied to any lead.
 router.post(
   '/manual/start',
+  requireActiveCampaign,
   asyncHandler(async (req, res) => {
-    const call = await callSession.startManual({ userId: req.user.sub, toNumberRaw: req.body.toNumber });
+    const call = await callSession.startManual({ userId: req.user.sub, toNumberRaw: req.body.toNumber, campaignId: req.campaign.id });
     res.status(201).json({ call });
   })
 );
@@ -120,6 +123,7 @@ router.post(
 // them arrives over GET /api/calls/stream, not in these responses.
 router.post(
   '/multiline/start',
+  requireActiveCampaign,
   asyncHandler(async (req, res) => {
     const result = await callSession.startMultilineSession(
       req.user.sub,

@@ -23,10 +23,12 @@ const DISPOSITION_TO_STAT = {
   dnc: 'total_dnc',
 };
 
-async function startSession(userId, mode = 'power') {
+async function startSession(userId, mode = 'power', campaignId) {
+  // C1A: a dial session belongs to one campaign (the active one).
+  if (!Number.isInteger(campaignId) || campaignId <= 0) throw new ApiError(400, 'A dial session needs a file (campaign)');
   const { rows } = await db.query(
-    'INSERT INTO dialing_sessions (user_id, mode) VALUES ($1, $2) RETURNING id',
-    [userId, mode]
+    'INSERT INTO dialing_sessions (user_id, mode, campaign_id) VALUES ($1, $2, $3) RETURNING id',
+    [userId, mode, campaignId]
   );
   return rows[0].id;
 }

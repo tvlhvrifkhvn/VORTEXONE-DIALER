@@ -1,6 +1,8 @@
 // Central API client — the frontend never talks to the database directly,
 // every read/write goes through this file. See CLAUDE.md → API-first.
 
+import { getCampaignId, setCampaignId, DEFAULT_CAMPAIGN_ID } from './campaign';
+
 const BACKEND_PORT = 4000;
 
 /**
@@ -71,7 +73,7 @@ function showServerErrorToast() {
   setTimeout(() => toast.remove(), TOAST_AUTO_DISMISS_MS);
 }
 
-async function request(path, { method = 'GET', body, isFormData = false } = {}) {
+async function request(path, { method = 'GET', body, isFormData = false, campaignRetried = false } = {}) {
   const token = getToken();
   let res;
   try {
@@ -80,6 +82,8 @@ async function request(path, { method = 'GET', body, isFormData = false } = {}) 
       headers: {
         ...(isFormData ? {} : { 'Content-Type': 'application/json' }),
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        // The active campaign ("file"), on every request including uploads.
+        'X-Campaign-Id': getCampaignId(),
       },
       body: isFormData ? body : body !== undefined ? JSON.stringify(body) : undefined,
     });
@@ -104,6 +108,12 @@ async function request(path, { method = 'GET', body, isFormData = false } = {}) 
   const data = contentType.includes('application/json') ? await res.json() : await res.blob();
 
   if (!res.ok) {
+    // The stored file no longer exists or was archived: fall back to File 01
+    // and try once more.
+    if (res.status === 400 && data && data.code === 'campaign_invalid' && !campaignRetried && getCampaignId() !== DEFAULT_CAMPAIGN_ID) {
+      setCampaignId(DEFAULT_CAMPAIGN_ID);
+      return request(path, { method, body, isFormData, campaignRetried: true });
+    }
     if (res.status >= 500) showServerErrorToast();
     const message = (data && data.error) || res.statusText || 'Request failed';
     const error = new Error(message);

@@ -65,8 +65,8 @@ async function start({ lead, userId, sessionId = null }) {
   const fromNumber = MOCK_FROM_NUMBER;
 
   const { rows } = await db.query(
-    `INSERT INTO call_history (lead_id, user_id, from_number, was_mock, telephony_state, session_id)
-     VALUES ($1, $2, $3, true, 'ringing', $4)
+    `INSERT INTO call_history (lead_id, user_id, from_number, was_mock, telephony_state, session_id, campaign_id)
+     VALUES ($1, $2, $3, true, 'ringing', $4, (SELECT campaign_id FROM leads WHERE id = $1))
      RETURNING *`,
     [lead.id, userId, fromNumber, sessionId]
   );
@@ -111,7 +111,9 @@ async function get(callHistoryId) {
  * already on the DNC list, so the dial pad can't be used to route around
  * that protection.
  */
-async function startManual({ userId, toNumberRaw }) {
+async function startManual({ userId, toNumberRaw, campaignId }) {
+  // C1A: a dial-pad call has no lead; it takes the active campaign.
+  if (!Number.isInteger(campaignId) || campaignId <= 0) throw new ApiError(400, 'A call needs a file (campaign)');
   const toNumber = normalizePhone(toNumberRaw);
   if (!toNumber) throw new ApiError(400, 'Enter a valid 10-digit US phone number');
 
@@ -127,10 +129,10 @@ async function startManual({ userId, toNumberRaw }) {
   const fromNumber = MOCK_FROM_NUMBER;
 
   const { rows } = await db.query(
-    `INSERT INTO call_history (lead_id, user_id, from_number, to_number, is_manual, was_mock, telephony_state)
-     VALUES (NULL, $1, $2, $3, true, true, 'ringing')
+    `INSERT INTO call_history (lead_id, user_id, from_number, to_number, is_manual, was_mock, telephony_state, campaign_id)
+     VALUES (NULL, $1, $2, $3, true, true, 'ringing', $4)
      RETURNING *`,
-    [userId, fromNumber, toNumber]
+    [userId, fromNumber, toNumber, campaignId]
   );
   const call = rows[0];
 
@@ -212,8 +214,8 @@ async function placeSlotCall(session, slot) {
   const fromNumber = MOCK_FROM_NUMBER;
 
   const { rows } = await db.query(
-    `INSERT INTO call_history (lead_id, user_id, from_number, was_mock, telephony_state, session_id, slot_number)
-     VALUES ($1, $2, $3, true, 'ringing', $4, $5)
+    `INSERT INTO call_history (lead_id, user_id, from_number, was_mock, telephony_state, session_id, slot_number, campaign_id)
+     VALUES ($1, $2, $3, true, 'ringing', $4, $5, (SELECT campaign_id FROM leads WHERE id = $1))
      RETURNING *`,
     [lead.id, session.userId, fromNumber, session.sessionId, slotNumber]
   );

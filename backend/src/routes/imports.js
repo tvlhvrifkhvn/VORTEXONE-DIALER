@@ -8,6 +8,7 @@ const xlsxParser = require('../services/xlsxParser');
 const aiCsvMapper = require('../services/aiCsvMapper');
 const { asyncHandler } = require('../middleware/asyncHandler');
 const { requireAuth } = require('../middleware/auth');
+const { requireActiveCampaign } = require('../middleware/campaign');
 const { ApiError } = require('../middleware/errorHandler');
 
 const router = express.Router();
@@ -105,9 +106,10 @@ router.post(
 // (or corrected) column mapping; this is what actually writes leads.
 router.post(
   '/commit',
+  requireActiveCampaign,
   asyncHandler(async (req, res) => {
     const { mapping, rows, filename } = req.body;
-    const summary = await csvImport.commitImport({ mapping, rows, userId: req.user.sub, filename });
+    const summary = await csvImport.commitImport({ mapping, rows, userId: req.user.sub, filename, campaignId: req.campaign.id });
     res.json(summary);
   })
 );
@@ -122,6 +124,7 @@ router.post(
 // single "Sheet1" plus .xlsx/.xls with any number of sheets.
 router.post(
   '/upload',
+  requireActiveCampaign,
   acceptFile(uploadToDisk.single('file')),
   asyncHandler(async (req, res) => {
     if (!req.file) throw new ApiError(400, 'No file uploaded (expected multipart field "file")');
@@ -132,7 +135,7 @@ router.post(
     }
 
     // The rows go straight from the file into the job's import_rows, batch by batch.
-    const jobId = await csvImport.createImportJob({ userId: req.user.sub, filename: req.file.originalname || null });
+    const jobId = await csvImport.createImportJob({ userId: req.user.sub, filename: req.file.originalname || null, campaignId: req.campaign.id });
     let parsed;
     try {
       parsed = await xlsxParser.readUploadInBatches(req.file.path, req.file.originalname || '', csvImport.IMPORT_BATCH_SIZE, (sheet, rows, first) =>
@@ -186,6 +189,7 @@ router.post(
 // setImmediate regardless of what the browser does next.
 router.post(
   '/process',
+  requireActiveCampaign,
   asyncHandler(async (req, res) => {
     const { jobId, sheets: selectedSheets, mapping } = req.body;
     if (!jobId) throw new ApiError(400, 'jobId is required');

@@ -586,9 +586,9 @@ async function savePhase(jobId, state) {
       if (inserts.length > 0) {
         const cols = inserts.map((r) => r.prep);
         const { rows: insertedRows } = await client.query(
-          `INSERT INTO leads (name, phone, email, address, brokerage, state, status, missing_phone, office_key, original_phone, extension, tz_zones, max_attempts)
+          `INSERT INTO leads (name, phone, email, address, brokerage, state, status, missing_phone, office_key, original_phone, extension, tz_zones, max_attempts, campaign_id)
            SELECT t.name, t.phone, t.email, t.address, t.brokerage, t.state, 'new', t.phone IS NULL, t.office_key, t.original_phone, t.extension,
-                  string_to_array(t.tz_zones, ','), $11
+                  string_to_array(t.tz_zones, ','), $11, (SELECT campaign_id FROM import_jobs WHERE id = $12)
            FROM unnest($1::text[], $2::text[], $3::text[], $4::text[], $5::text[], $6::text[], $7::text[], $8::text[], $9::text[], $10::text[])
              AS t(name, phone, email, address, brokerage, state, office_key, original_phone, extension, tz_zones)
            ON CONFLICT (phone) DO NOTHING
@@ -606,6 +606,7 @@ async function savePhase(jobId, state) {
             // Time zone(s) for calling hours, joined with ',' ('' = unknown).
             cols.map((p) => callingHours.zonesForLead(p).join(',')),
             maxAttempts, // F-48: the owner's default for new leads
+            jobId, // C1A: leads go to the import job's campaign
           ]
         );
         const insertedPhones = new Set(insertedRows.map((r) => r.phone));
@@ -790,14 +791,14 @@ async function processImportJob(jobId) {
  * POST /api/imports/commit) by running them through the same job pipeline,
  * and returns the summary.
  */
-async function commitImport({ mapping, rows, userId, filename }) {
+async function commitImport({ mapping, rows, userId, filename, campaignId }) {
   if (!hasNameMapping(mapping) || !mapping.phone) {
     throw new ApiError(400, 'mapping must include at least name (or first/last name) and phone');
   }
   if (!Array.isArray(rows) || rows.length === 0) {
     throw new ApiError(400, 'No rows to import');
   }
-  const jobId = await createImportJob({ userId, filename });
+  const jobId = await createImportJob({ userId, filename, campaignId });
   for (let i = 0; i < rows.length; i += IMPORT_BATCH_SIZE) {
     await stageRows(jobId, 'Sheet1', rows.slice(i, i + IMPORT_BATCH_SIZE), i + 1);
   }
@@ -812,12 +813,14 @@ async function commitImport({ mapping, rows, userId, filename }) {
   return job.result_summary;
 }
 
-async function createImportJob({ userId, filename }) {
+async function createImportJob({ userId, filename, campaignId }) {
+  // C1A: the job (and so every lead it writes) belongs to one campaign.
+  if (!Number.isInteger(campaignId) || campaignId <= 0) throw new ApiError(400, 'An import needs a file (campaign)');
   const { rows } = await db.query(
-    `INSERT INTO import_jobs (user_id, filename, status, total_rows, mapping)
-     VALUES ($1, $2, 'pending', 0, '{}')
+    `INSERT INTO import_jobs (user_id, filename, status, total_rows, mapping, campaign_id)
+     VALUES ($1, $2, 'pending', 0, '{}', $3)
      RETURNING id`,
-    [userId || null, filename || null]
+    [userId || null, filename || null, campaignId]
   );
   return rows[0].id;
 }
