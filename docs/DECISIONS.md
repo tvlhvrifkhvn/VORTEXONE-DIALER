@@ -163,3 +163,12 @@
 - 2026-11-16 · C2E · Bulk file move is supervisor only, like the single move; the strip shows it to supervisors only · same rule as C1A
 - 2026-11-16 · C2E · View counts refresh every 30 s and after a save; a view button is pressed when the current filters equal its filters · live without a heavy poll
 - 2026-11-16 · C2E · Phone, state and added cells never wrap; the table scrolls sideways when the file's list fields don't fit · the stage and field columns made rows three lines tall at 1440px (DESIGN.md: 48px rows)
+- 2026-11-16 · C3A · "Due" = open and due before the end of the current reporting day (owner's timezone and day start); "overdue" = open and due before now; "now" comes from Node, never Postgres now() · matches the Reports day; lets the tests move the clock
+- 2026-11-16 · C3A · A task on a lead takes the lead's file (D5); a task without a lead needs the header file · one rule, no hidden campaign
+- 2026-11-16 · C3A · A follow-up task sent with a disposition is checked before the outcome is saved and created right after it succeeds; a bad task refuses the whole request · never an outcome saved with its task silently lost
+- 2026-11-16 · C3A · Undo of a disposition keeps the follow-up task and answers keptTasks plus a message; the task is found by lead, source disposition and created after the outcome · the plan's rule; tasks carry no call id (section 2)
+- 2026-11-16 · C3A · Today's "stale" list: open-stage leads past the auto stage, not DNC, whose last activity (later of updated_at and last stage move) is 7+ days old, with no open task · the plan's definition; same activity measure as the board
+- 2026-11-16 · C3A · Unread texts in Today are per lead and leave out texts from unknown numbers · they have no file; the Inbox shows them
+- 2026-11-16 · C3A · ADD TASK shares the call screen's bottom row with Objection (two columns); the 2×3 grid above is unchanged · the grid's layout and muscle memory stay
+- 2026-11-16 · C3A · The outcome panel's follow-up row is a checkbox that reveals a title and due field (default tomorrow 10:00, type call) · optional and out of the way; no new hotkeys
+- 2026-11-16 · C3A · Any user can create, complete and delete tasks · daily work, like moving a lead's stage

@@ -313,6 +313,15 @@ export const bulkMoveStage = (leadIds, stageId) => request('/leads/bulk/stage', 
 export const bulkTag = (leadIds, tag, action) => request('/leads/bulk/tag', { method: 'POST', body: { leadIds, tag, action } });
 export const bulkMoveCampaign = (leadIds, campaignId) => request('/leads/bulk/campaign', { method: 'POST', body: { leadIds, campaignId } });
 
+// tasks and Today (C3A)
+export const listLeadTasks = (leadId) => request(`/tasks?leadId=${leadId}`);
+export const createTask = (task) => request('/tasks', { method: 'POST', body: task });
+export const updateTask = (id, changes) => request(`/tasks/${id}`, { method: 'PUT', body: changes });
+export const completeTask = (id) => request(`/tasks/${id}/complete`, { method: 'POST' });
+export const reopenTask = (id) => request(`/tasks/${id}/reopen`, { method: 'POST' });
+export const deleteTask = (id) => request(`/tasks/${id}`, { method: 'DELETE' });
+export const getToday = (campaign) => request('/today', { campaign });
+
 // campaigns ("files", C1E)
 export const listCampaigns = () => request('/campaigns');
 export const createCampaign = (fields) => request('/campaigns', { method: 'POST', body: fields });
