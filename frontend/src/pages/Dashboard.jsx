@@ -5,6 +5,8 @@ import StateSidebar from '../components/layout/StateSidebar';
 import LeadTable from '../components/leads/LeadTable';
 import LeadFilters from '../components/leads/LeadFilters';
 import BulkSmsModal from '../components/leads/BulkSmsModal';
+import SavedViewsBar from '../components/leads/SavedViewsBar';
+import BulkActions from '../components/leads/BulkActions';
 import StatCard from '../components/stats/StatCard';
 import QueueHoursCards from '../components/stats/QueueHoursCards';
 import Panel from '../components/ui/Panel';
@@ -228,6 +230,8 @@ export default function Dashboard() {
           />
 
           <div className="min-w-0 flex-1 space-y-4">
+            {/* C2E: saved views with live counts. */}
+            <SavedViewsBar filters={filters} emptyFilters={EMPTY_FILTERS} onApply={setFilters} />
             <Panel className="p-4">
               <LeadFilters filters={filters} onChange={setFilters} />
             </Panel>
@@ -247,6 +251,8 @@ export default function Dashboard() {
                     Clear selection
                   </Button>
                 </div>
+                {/* C2E: stage, tag and file actions on the selection. */}
+                <BulkActions selectedIds={selectedIds} onDone={() => refresh()} />
               </Panel>
             )}
 

@@ -303,6 +303,16 @@ export const deleteCampaignField = (campaignId, fieldId) => request(`/campaigns/
 export const reorderCampaignFields = (campaignId, ids) =>
   request(`/campaigns/${campaignId}/fields/reorder`, { method: 'POST', body: { ids } });
 
+// saved views and bulk actions (C2E)
+export const listViews = ({ counts = false } = {}) => request(`/views${counts ? '?counts=1' : ''}`);
+export const createView = (name, filters) => request('/views', { method: 'POST', body: { name, filters } });
+export const renameView = (id, name) => request(`/views/${id}`, { method: 'PUT', body: { name } });
+export const deleteView = (id) => request(`/views/${id}`, { method: 'DELETE' });
+export const reorderViews = (ids) => request('/views/reorder', { method: 'POST', body: { ids } });
+export const bulkMoveStage = (leadIds, stageId) => request('/leads/bulk/stage', { method: 'POST', body: { leadIds, stageId } });
+export const bulkTag = (leadIds, tag, action) => request('/leads/bulk/tag', { method: 'POST', body: { leadIds, tag, action } });
+export const bulkMoveCampaign = (leadIds, campaignId) => request('/leads/bulk/campaign', { method: 'POST', body: { leadIds, campaignId } });
+
 // campaigns ("files", C1E)
 export const listCampaigns = () => request('/campaigns');
 export const createCampaign = (fields) => request('/campaigns', { method: 'POST', body: fields });

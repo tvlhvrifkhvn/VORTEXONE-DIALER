@@ -445,4 +445,5 @@ module.exports = {
   recordInitial,
   board,
   setDealValue,
+  moveWith, // C2E: a move inside the caller's transaction (bulk)
 };

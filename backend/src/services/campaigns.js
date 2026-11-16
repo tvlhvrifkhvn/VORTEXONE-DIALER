@@ -192,27 +192,9 @@ async function moveLead(leadId, toCampaignId, { userId = null } = {}) {
   const client = await db.getClient();
   try {
     await client.query('BEGIN');
-    const { rows } = await client.query('SELECT id, status, campaign_id, pipeline_stage_id FROM leads WHERE id = $1 AND deleted_at IS NULL FOR UPDATE', [leadId]);
-    const lead = rows[0];
-    if (!lead) throw new ApiError(404, 'Lead not found');
-    if (lead.status === 'in_progress') throw new ApiError(409, 'This lead is being dialed right now; move it after the call');
-    if (lead.campaign_id === target.id) {
-      await client.query('COMMIT');
-      return (await client.query('SELECT * FROM leads WHERE id = $1', [leadId])).rows[0];
-    }
-    // C2A: the lead starts over in the target file's first stage (I12, I13).
-    const firstStage = await pipeline.firstStageId(client, target.id);
-    const { rows: moved } = await client.query(
-      `UPDATE leads SET campaign_id = $2, pipeline_stage_id = $3, won_at = NULL, lost_reason = NULL, updated_at = now()
-       WHERE id = $1 RETURNING *`,
-      [leadId, target.id, firstStage]
-    );
-    await client.query(
-      `INSERT INTO lead_stage_history (lead_id, from_stage_id, to_stage_id, source, user_id) VALUES ($1, $2, $3, 'move', $4)`,
-      [leadId, lead.pipeline_stage_id, firstStage, userId]
-    );
+    const moved = await moveLeadWith(client, leadId, target, { userId });
     await client.query('COMMIT');
-    return moved[0];
+    return moved;
   } catch (err) {
     await client.query('ROLLBACK');
     throw err;
@@ -221,4 +203,27 @@ async function moveLead(leadId, toCampaignId, { userId = null } = {}) {
   }
 }
 
-module.exports = { KINDS, STATUSES, fileLabel, slugify, list, getById, create, update, setStatus, moveLead };
+/** The move itself, inside the caller's transaction (C2E bulk uses it too). */
+async function moveLeadWith(client, leadId, target, { userId = null } = {}) {
+  const { rows } = await client.query('SELECT id, status, campaign_id, pipeline_stage_id FROM leads WHERE id = $1 AND deleted_at IS NULL FOR UPDATE', [leadId]);
+  const lead = rows[0];
+  if (!lead) throw new ApiError(404, 'Lead not found');
+  if (lead.status === 'in_progress') throw new ApiError(409, 'This lead is being dialed right now; move it after the call');
+  if (lead.campaign_id === target.id) {
+    return (await client.query('SELECT * FROM leads WHERE id = $1', [leadId])).rows[0];
+  }
+  // C2A: the lead starts over in the target file's first stage (I12, I13).
+  const firstStage = await pipeline.firstStageId(client, target.id);
+  const { rows: moved } = await client.query(
+    `UPDATE leads SET campaign_id = $2, pipeline_stage_id = $3, won_at = NULL, lost_reason = NULL, updated_at = now()
+     WHERE id = $1 RETURNING *`,
+    [leadId, target.id, firstStage]
+  );
+  await client.query(
+    `INSERT INTO lead_stage_history (lead_id, from_stage_id, to_stage_id, source, user_id) VALUES ($1, $2, $3, 'move', $4)`,
+    [leadId, lead.pipeline_stage_id, firstStage, userId]
+  );
+  return moved[0];
+}
+
+module.exports = { KINDS, STATUSES, fileLabel, slugify, list, getById, create, update, setStatus, moveLead, moveLeadWith };

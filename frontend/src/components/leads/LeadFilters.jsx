@@ -60,6 +60,28 @@ export default function LeadFilters({ filters, onChange }) {
           ))}
         </Field>
       </div>
+      {/* C2E: tag, attempts, quiet leads, overdue callbacks. */}
+      <div>
+        <label htmlFor="filter-tag" className="label mb-2 block">Tag</label>
+        <Field id="filter-tag" value={filters.tag || ''} onChange={(e) => update({ tag: e.target.value || undefined })} placeholder="e.g. hot" className="w-32" />
+      </div>
+      <div>
+        <label htmlFor="filter-min-attempts" className="label mb-2 block">Attempts ≥</label>
+        <Field id="filter-min-attempts" type="number" min="0" max="100" value={filters.minAttempts || ''} onChange={(e) => update({ minAttempts: e.target.value || undefined })} className="w-24 font-mono tabular-nums" />
+      </div>
+      <div>
+        <label htmlFor="filter-quiet" className="label mb-2 block">No activity · days</label>
+        <Field id="filter-quiet" type="number" min="1" max="3650" value={filters.noActivityDays || ''} onChange={(e) => update({ noActivityDays: e.target.value || undefined })} className="w-24 font-mono tabular-nums" />
+      </div>
+      <label className="flex min-h-10 items-center gap-2 self-end text-sm text-foreground">
+        <input
+          type="checkbox"
+          checked={String(filters.callbackOverdue) === 'true'}
+          onChange={(e) => update({ callbackOverdue: e.target.checked ? 'true' : undefined })}
+          className="h-4 w-4 accent-primary"
+        />
+        Callback overdue
+      </label>
       <fieldset>
         <legend className="label mb-2">Added</legend>
         <div className="flex items-center gap-2">
