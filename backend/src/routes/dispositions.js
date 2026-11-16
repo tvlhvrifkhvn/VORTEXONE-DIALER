@@ -9,12 +9,12 @@ router.use(requireAuth);
 router.post(
   '/',
   asyncHandler(async (req, res) => {
-    const { callId, disposition, note, scheduledAt } = req.body;
+    const { callId, disposition, note, scheduledAt, stageId } = req.body;
     if (!callId || !disposition) {
       return res.status(400).json({ error: 'callId and disposition are required' });
     }
     const result = await leadLifecycle.applyDisposition({
-      callHistoryId: callId, disposition, note, scheduledAt, user: req.user,
+      callHistoryId: callId, disposition, note, scheduledAt, user: req.user, stageId, // C2A: optional stage
     });
     res.json(result);
   })

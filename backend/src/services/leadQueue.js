@@ -421,7 +421,7 @@ const MAX_LIST_LIMIT = 10000;
 const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
 
 /** Checks GET /api/leads query values; 400 with a plain message for a bad one. */
-function parseListQuery({ search, status, dateFrom, dateTo, state, page, limit } = {}) {
+function parseListQuery({ search, status, dateFrom, dateTo, state, page, limit, stageId } = {}) {
   const int = (value, name, min, max, fallback) => {
     if (value === undefined || value === '') return fallback;
     const n = Number(value);
@@ -445,12 +445,13 @@ function parseListQuery({ search, status, dateFrom, dateTo, state, page, limit }
     state: text(state, 'state'),
     dateFrom: date(dateFrom, 'dateFrom'),
     dateTo: date(dateTo, 'dateTo'),
+    stageId: int(stageId, 'stageId', 1, 2147483647, undefined), // C2A
     page: int(page, 'page', 1, 1000000, 1),
     pageSize: int(limit, 'limit', 1, MAX_LIST_LIMIT, 50),
   };
 }
 
-function buildListFilters({ search, status, dateFrom, dateTo }) {
+function buildListFilters({ search, status, dateFrom, dateTo, stageId }) {
   const clauses = ['deleted_at IS NULL'];
   const params = [];
 
@@ -470,14 +471,18 @@ function buildListFilters({ search, status, dateFrom, dateTo }) {
     params.push(dateTo);
     clauses.push(`created_at <= $${params.length}`);
   }
+  if (stageId) {
+    params.push(stageId);
+    clauses.push(`pipeline_stage_id = $${params.length}`);
+  }
 
   return { where: clauses.length ? `WHERE ${clauses.join(' AND ')}` : '', params };
 }
 
-async function list({ search, status, dateFrom, dateTo, state, page = 1, pageSize = 50, campaignId } = {}) {
+async function list({ search, status, dateFrom, dateTo, state, page = 1, pageSize = 50, campaignId, stageId } = {}) {
   await releaseStaleLocks();
 
-  const filters = { search, status, dateFrom, dateTo };
+  const filters = { search, status, dateFrom, dateTo, stageId };
   const built = buildListFilters(filters);
   // C1C: one campaign, or ALL (scope gives TRUE and no params).
   const s = campaignScope.scope('leads', campaignId, built.params.length + 1);
@@ -491,7 +496,9 @@ async function list({ search, status, dateFrom, dateTo, state, page = 1, pageSiz
   // then never-dialed leads, then in_queue leads that have waited longest.
   const { rows } = await db.query(
     `SELECT leads.*, (dnc_list.id IS NOT NULL) AS is_dnc_flagged,
-            (SELECT c.file_number FROM campaigns c WHERE c.id = leads.campaign_id) AS file_number
+            (SELECT c.file_number FROM campaigns c WHERE c.id = leads.campaign_id) AS file_number,
+            (SELECT s.name FROM pipeline_stages s WHERE s.id = leads.pipeline_stage_id) AS stage_name,
+            (SELECT s.kind FROM pipeline_stages s WHERE s.id = leads.pipeline_stage_id) AS stage_kind
      FROM leads
      LEFT JOIN dnc_list ON dnc_list.phone = leads.phone
      ${where} ${stateClause}
@@ -581,9 +588,17 @@ async function create(input) {
 
   try {
     const { rows } = await db.query(
-      `INSERT INTO leads (name, phone, email, address, brokerage, state, status, office_key, tz_zones, max_attempts, campaign_id)
-       VALUES ($1, $2, $3, $4, $5, $6, 'new', $7, $8, $9, $10)
-       RETURNING *`,
+      // C2A: the lead starts in its campaign's first stage (I13), with a history row.
+      `WITH ins AS (
+         INSERT INTO leads (name, phone, email, address, brokerage, state, status, office_key, tz_zones, max_attempts, campaign_id, pipeline_stage_id)
+         VALUES ($1, $2, $3, $4, $5, $6, 'new', $7, $8, $9, $10,
+                 (SELECT id FROM pipeline_stages WHERE campaign_id = $10 ORDER BY position, id LIMIT 1))
+         RETURNING *
+       ), hist AS (
+         INSERT INTO lead_stage_history (lead_id, from_stage_id, to_stage_id, source)
+         SELECT id, NULL, pipeline_stage_id, 'create' FROM ins
+       )
+       SELECT * FROM ins`,
       [
         valid.name,
         normalizedPhone,

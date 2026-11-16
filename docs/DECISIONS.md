@@ -115,3 +115,15 @@
 - 2026-11-16 · C1E · Campaign templates live in pages/Campaigns.jsx (Real estate = File 01's context and the old default pitch; Roofing = roofing supplement wording; Blank = custom) · they only prefill the create request
 - 2026-11-16 · C1E · Status tags on the Files page: active outline, paused muted, archived dashed; archive asks for a confirm and wears "⊘" · DESIGN.md section 5, destructive buttons
 - 2026-11-16 · C1E · audit/scripts/reskin-shots.js gains the page name `campaigns` · the gate needs a screenshot of the new page
+- 2026-11-16 · C2A · I12 is enforced by the database too: pipeline_stages has UNIQUE (id, campaign_id) and leads a foreign key (pipeline_stage_id, campaign_id) to it · a lead can never point at another file's stage, whatever code path writes it; moving a lead between files updates both columns in one statement
+- 2026-11-16 · C2A · One won, one lost and at most one auto stage per file are partial unique indexes; the service refuses deleting won/lost, deleting a stage that holds leads, and any order or delete that leaves a won/lost stage first · section 2 and C2A rules, held in two places
+- 2026-11-16 · C2A · A stage move never changes leads.status or leads.updated_at; the board ranks leads by the later of updated_at and their last stage move (lead_stage_history) · D2: the dialer's list and batch order use updated_at, so CRM moves must not reorder them
+- 2026-11-16 · C2A · The backfill writes no history rows · they would be 100,000+ rows saying nothing; history starts with the first real move
+- 2026-11-16 · C2A · A new stage is added just before the won/lost stages · the board reads left to right and closed stages stay at the end
+- 2026-11-16 · C2A · A move to the same stage writes no history and returns moved:false (on a lost stage it can still update the lost reason) · "every move writes history" means every change of stage
+- 2026-11-16 · C2A · DNC found by the queue or a slot (markDncFromQueue/Slot) moves the lead to Lost with history source "disposition" · it is the dialer's DNC outcome; the source list in section 2 has no closer value
+- 2026-11-16 · C2A · An explicit stageId on a disposition that isn't one of the lead's file answers 400 and the whole disposition rolls back · nothing half-applied; the rep can resend without the stage
+- 2026-11-16 · C2A · won_at is set to now() whenever a lead enters the won stage and cleared when it leaves; lost_reason is kept only on the lost stage ("Do not call" for DNC) · section 2 columns, one rule each
+- 2026-11-16 · C2A · Stage add/rename/reorder/delete is supervisor only; reading the board and moving a lead are for every user · stages are file settings; moving leads is daily work
+- 2026-11-16 · C2A · Creating a lead by hand records history with no user (leadQueue.create has no user); imports record the job's user · no route change outside the phase's list
+- 2026-11-16 · C2A · Measured on 100,000 leads in two files: the 035 backfill takes 2.8 s; board(50,000-lead file, 20 per stage) about 240 ms · fine for now; C2B can page per stage if a file grows much larger

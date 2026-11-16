@@ -55,7 +55,7 @@ leadRouter.post(
   asyncHandler(async (req, res) => {
     const to = Number(req.body?.campaignId);
     if (!Number.isInteger(to) || to <= 0) throw new ApiError(400, 'campaignId is required');
-    res.json({ lead: await campaigns.moveLead(Number(req.params.id), to) });
+    res.json({ lead: await campaigns.moveLead(Number(req.params.id), to, { userId: req.user.sub }) });
   })
 );
 

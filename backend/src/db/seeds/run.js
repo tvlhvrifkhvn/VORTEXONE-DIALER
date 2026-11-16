@@ -36,8 +36,9 @@ async function seed() {
 
   for (const lead of SAMPLE_LEADS) {
     await db.query(
-      `INSERT INTO leads (name, phone, address, brokerage, state, status, campaign_id)
-       VALUES ($1, $2, $3, $4, $5, 'in_queue', (SELECT id FROM campaigns WHERE file_number = 1))
+      `INSERT INTO leads (name, phone, address, brokerage, state, status, campaign_id, pipeline_stage_id)
+       VALUES ($1, $2, $3, $4, $5, 'in_queue', (SELECT id FROM campaigns WHERE file_number = 1),
+               (SELECT s.id FROM pipeline_stages s JOIN campaigns c ON c.id = s.campaign_id WHERE c.file_number = 1 ORDER BY s.position, s.id LIMIT 1))
        ON CONFLICT (phone) DO NOTHING`,
       [lead.name, lead.phone, lead.address, lead.brokerage, lead.state]
     );

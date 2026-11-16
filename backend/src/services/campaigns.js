@@ -2,6 +2,7 @@
 // a lead between them (docs/CRM_PLAN.md sections 1 and 2, phase C1A).
 const db = require('../db');
 const { ApiError } = require('../middleware/errorHandler');
+const pipeline = require('./pipeline');
 
 const KINDS = ['real_estate', 'roofing_supplement', 'custom'];
 const STATUSES = ['active', 'paused', 'archived'];
@@ -106,6 +107,8 @@ async function create(input = {}) {
         fields.default_max_attempts ?? null, fields.monthly_budget_cents ?? null,
       ]
     );
+    // C2A: the new file's pipeline, from its kind's template.
+    await pipeline.createTemplateStages(client, rows[0].id, kind);
     await client.query('COMMIT');
     return rows[0];
   } catch (err) {
@@ -182,20 +185,31 @@ async function setStatus(id, status) {
 
 /** Moves a lead to another campaign. Refused while the lead is being
  * dialed. Its old call rows keep the campaign they were made in. */
-async function moveLead(leadId, toCampaignId) {
+async function moveLead(leadId, toCampaignId, { userId = null } = {}) {
   const target = await getById(toCampaignId);
   if (!target) throw new ApiError(404, 'File not found');
   if (target.status === 'archived') throw new ApiError(409, `${fileLabel(target)} is archived`);
   const client = await db.getClient();
   try {
     await client.query('BEGIN');
-    const { rows } = await client.query('SELECT id, status, campaign_id FROM leads WHERE id = $1 AND deleted_at IS NULL FOR UPDATE', [leadId]);
+    const { rows } = await client.query('SELECT id, status, campaign_id, pipeline_stage_id FROM leads WHERE id = $1 AND deleted_at IS NULL FOR UPDATE', [leadId]);
     const lead = rows[0];
     if (!lead) throw new ApiError(404, 'Lead not found');
     if (lead.status === 'in_progress') throw new ApiError(409, 'This lead is being dialed right now; move it after the call');
+    if (lead.campaign_id === target.id) {
+      await client.query('COMMIT');
+      return (await client.query('SELECT * FROM leads WHERE id = $1', [leadId])).rows[0];
+    }
+    // C2A: the lead starts over in the target file's first stage (I12, I13).
+    const firstStage = await pipeline.firstStageId(client, target.id);
     const { rows: moved } = await client.query(
-      'UPDATE leads SET campaign_id = $2, updated_at = now() WHERE id = $1 RETURNING *',
-      [leadId, target.id]
+      `UPDATE leads SET campaign_id = $2, pipeline_stage_id = $3, won_at = NULL, lost_reason = NULL, updated_at = now()
+       WHERE id = $1 RETURNING *`,
+      [leadId, target.id, firstStage]
+    );
+    await client.query(
+      `INSERT INTO lead_stage_history (lead_id, from_stage_id, to_stage_id, source, user_id) VALUES ($1, $2, $3, 'move', $4)`,
+      [leadId, lead.pipeline_stage_id, firstStage, userId]
     );
     await client.query('COMMIT');
     return moved[0];

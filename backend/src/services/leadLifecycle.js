@@ -3,6 +3,7 @@ const { ApiError } = require('../middleware/errorHandler');
 const dncCheck = require('./dncCheck');
 const dialingSession = require('./dialingSession');
 const callLifecycle = require('./callLifecycle');
+const pipeline = require('./pipeline');
 
 const UNDO_WINDOW_SECONDS = 10;
 const REQUEUE_HOURS = 4;
@@ -57,6 +58,10 @@ function snapshotOf(lead) {
     dnc_flag: lead.dnc_flag,
     locked_by: lead.locked_by,
     locked_at: lead.locked_at,
+    // C2A: the CRM stage fields, so Undo puts them back too.
+    pipeline_stage_id: lead.pipeline_stage_id,
+    won_at: lead.won_at,
+    lost_reason: lead.lost_reason,
   };
 }
 
@@ -66,7 +71,7 @@ function snapshotOf(lead) {
  * rules in CLAUDE.md. Stores a snapshot of the lead's pre-disposition state
  * so undoDisposition() can restore it within the 10s undo window.
  */
-async function applyDisposition({ callHistoryId, disposition, note, scheduledAt, user }) {
+async function applyDisposition({ callHistoryId, disposition, note, scheduledAt, user, stageId }) {
   if (!DISPOSITIONS.includes(disposition)) {
     throw new ApiError(400, `Unknown disposition: ${disposition}`);
   }
@@ -142,7 +147,11 @@ async function applyDisposition({ callHistoryId, disposition, note, scheduledAt,
       `UPDATE leads SET ${setSql} WHERE id = $1 RETURNING *`,
       [lead.id, ...setKeys.map((k) => updates[k])]
     );
-    const updatedLead = updatedRows[0];
+    let updatedLead = updatedRows[0];
+
+    // C2A: the stage rules (an explicit stageId wins; contacted -> auto stage; dnc -> lost).
+    const staged = await pipeline.onDisposition(client, updatedLead, disposition, stageId, user?.sub ?? null);
+    if (staged) updatedLead = staged;
 
     if (disposition === 'dnc') {
       await dncCheck.addToDncList(lead.phone, { source: 'manual', leadId: lead.id, client });
@@ -255,6 +264,8 @@ async function undoDisposition({ callHistoryId, user }) {
         snapshot.cold_at, snapshot.cold_reason, snapshot.dnc_flag, snapshot.locked_by, snapshot.locked_at,
       ]
     );
+    // C2A: stage, won_at and lost_reason back as they were (history row, source undo).
+    await pipeline.restoreSnapshot(client, call.lead_id, snapshot, user?.sub ?? null);
 
     // ended_at / duration_seconds stay: the call itself did end. Only the
     // disposition is reopened — clearing ended_at would make the row look
@@ -483,7 +494,9 @@ async function markDncFromQueue(leadId) {
      RETURNING *`,
     [leadId]
   );
-  return rows[0] || null;
+  if (!rows[0]) return null;
+  // C2A: a DNC lead sits in its file's lost stage ("Do not call").
+  return (await pipeline.markLost(db, leadId)) || rows[0];
 }
 
 /**
@@ -497,6 +510,7 @@ async function markDncFromSlot(leadId) {
      WHERE id = $1`,
     [leadId]
   );
+  await pipeline.markLost(db, leadId); // C2A: the lost stage, "Do not call"
 }
 
 module.exports = {
