@@ -51,7 +51,7 @@ test('the stale-lock sweep frees a lock older than 30 s with no live call', asyn
 test('a soft-deleted lead is never dialed (queue or by id)', async () => {
   const lead = await h.createLead();
   await h.db.query('UPDATE leads SET deleted_at = now() WHERE id = $1', [lead.id]);
-  const queued = await leadQueue.candidates(1000);
+  const queued = await leadQueue.candidates({ campaignId: 1, limit: 1000 });
   assert.ok(!queued.some((l) => l.id === lead.id));
   const byId = await h.dial(reps[0].api, lead.id);
   assert.equal(byId.status, 404);

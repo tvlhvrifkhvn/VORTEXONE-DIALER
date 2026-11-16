@@ -450,7 +450,7 @@ async function reserveSlot(session, slotNumber) {
       }
       const nextId = session.leadIds.shift();
       try {
-        lead = await leadQueue.lockNext({ userId: session.userId, leadId: nextId });
+        lead = await leadQueue.lockNext({ userId: session.userId, leadId: nextId, campaignId: session.campaignId });
       } catch (err) {
         // That specific lead is no longer dialable (handled since selection,
         // DNC'd, outside calling hours, etc.) — move to the next selected id
@@ -461,7 +461,7 @@ async function reserveSlot(session, slotNumber) {
       try {
         // Reuses the existing queue + calling-hours logic exactly as
         // single-line dialing does.
-        lead = await leadQueue.lockNext({ userId: session.userId });
+        lead = await leadQueue.lockNext({ userId: session.userId, campaignId: session.campaignId });
       } catch (err) {
         // Queue exhausted, or nothing dialable inside calling hours right now.
         emitSlot(session, placeholder, 'idle', { message: err.message });
@@ -532,19 +532,22 @@ function queueRefill(session, slotNumber) {
  * the older single-line selected-power-dial flow already used). Omitted or
  * empty, the session dials the general queue exactly as before.
  */
-async function startMultilineSession(userId, sessionId, lineCount = MULTILINE_SLOTS, selectedLeadIds = null) {
+async function startMultilineSession(userId, sessionId, lineCount = MULTILINE_SLOTS, selectedLeadIds = null, campaignId) {
+  if (!Number.isInteger(campaignId) || campaignId <= 0) throw new ApiError(400, 'A multi-line session needs a file (campaign)');
   await stopMultilineSession(userId);
 
   const lines = Math.min(MULTILINE_SLOTS, Math.max(1, Number(lineCount) || MULTILINE_SLOTS));
 
   let orderedLeadIds = null;
   if (Array.isArray(selectedLeadIds) && selectedLeadIds.length > 0) {
-    const ordered = await leadQueue.batchQueue(selectedLeadIds);
+    // C1B: a selection keeps only this campaign's leads.
+    const ordered = await leadQueue.batchQueue(selectedLeadIds, campaignId);
     orderedLeadIds = ordered.map((lead) => lead.id);
   }
 
   const session = {
     userId,
+    campaignId, // C1B: every refill dials from this campaign only
     sessionId: sessionId || null,
     slots: new Map(),
     stopped: false,

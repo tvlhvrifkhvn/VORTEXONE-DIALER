@@ -22,8 +22,9 @@ router.get(
 
 router.get(
   '/state-counts',
+  requireCampaign,
   asyncHandler(async (req, res) => {
-    const counts = await leadQueue.countsByState();
+    const counts = await leadQueue.countsByState(req.campaign.id);
     res.json({ counts });
   })
 );
@@ -42,9 +43,10 @@ router.get(
 // of the regular in_queue-driven dialer.
 router.post(
   '/batch-queue',
+  requireCampaign,
   asyncHandler(async (req, res) => {
     const { leadIds } = req.body;
-    const leads = await leadQueue.batchQueue(leadIds);
+    const leads = await leadQueue.batchQueue(leadIds, req.campaign.id);
     res.json({ leads });
   })
 );

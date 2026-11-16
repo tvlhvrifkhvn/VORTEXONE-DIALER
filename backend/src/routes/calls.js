@@ -75,7 +75,7 @@ router.post(
       lead = await leadQueue.refreshOwnLock(leadId, req.user.sub);
     }
     if (!lead) {
-      lead = await leadQueue.lockNext({ userId: req.user.sub, leadId: leadId || null });
+      lead = await leadQueue.lockNext({ userId: req.user.sub, leadId: leadId || null, campaignId: req.campaign.id });
     }
 
     const call = await callSession.start({ lead, userId: req.user.sub, sessionId: sessionId || null });
@@ -129,7 +129,8 @@ router.post(
       req.user.sub,
       req.body.sessionId || null,
       req.body.lineCount,
-      req.body.leadIds
+      req.body.leadIds,
+      req.campaign.id
     );
     res.status(201).json(result);
   })

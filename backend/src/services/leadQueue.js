@@ -8,6 +8,8 @@ const smsService = require('./smsService');
 const { normalizePhone } = require('../utils/phoneNormalize');
 const { buildOfficeKey } = require('../utils/officeKey');
 const { US_STATES } = require('../utils/usStates');
+const campaignScope = require('./campaignScope');
+const campaigns = require('./campaigns');
 
 const LOCK_TIMEOUT_SECONDS = 30;
 
@@ -110,7 +112,9 @@ async function backfillZones(batchSize = 2000) {
  * hours can never fill the first page and starve the rest. Unknown zone
  * ({}) never matches. $3 NULL = calling hours off, no filter.
  */
-async function candidates(limit = 50) {
+async function candidates({ campaignId, limit = 50 } = {}) {
+  // C1B: the queue is per campaign (scope throws on a missing id).
+  const s = campaignScope.scope(null, campaignId, 4);
   await releaseStaleLocks();
   await backfillZones();
   const openZones = await callingHours.openZonesNow();
@@ -122,16 +126,17 @@ async function candidates(limit = 50) {
        AND status = ANY($1)
        AND (next_action_at IS NULL OR next_action_at <= now())
        AND ($3::text[] IS NULL OR (cardinality(tz_zones) > 0 AND tz_zones <@ $3::text[]))
+       AND ${s.sql}
      ${CANDIDATE_ORDER_SQL}
      LIMIT $2`,
-    [DIALABLE_STATUSES, limit, openZones]
+    [DIALABLE_STATUSES, limit, openZones, ...s.params]
   );
   return rows;
 }
 
 /** The lead the dialer would call next (calling hours included). Read-only. */
-async function peekNext() {
-  const rows = await candidates(1);
+async function peekNext(campaignId) {
+  const rows = await candidates({ campaignId, limit: 1 });
   return rows[0] || null;
 }
 
@@ -141,7 +146,9 @@ async function peekNext() {
  * Dialing"). Throws ApiError for anything that makes the lead undialable
  * right now so the route can surface a clear message.
  */
-async function lockNext({ userId, leadId = null }) {
+async function lockNext({ userId, leadId = null, campaignId }) {
+  campaignScope.scope(null, campaignId, 1); // C1B: a real campaign id is required (no ALL)
+  if (campaignId === campaignScope.ALL) throw new ApiError(400, 'Dialing needs one file, not ALL');
   await releaseStaleLocks();
 
   let lead;
@@ -150,6 +157,11 @@ async function lockNext({ userId, leadId = null }) {
     const { rows } = await db.query('SELECT * FROM leads WHERE id = $1 AND deleted_at IS NULL', [leadId]);
     lead = rows[0];
     if (!lead) throw new ApiError(404, 'Lead not found');
+    // C1B: a lead is only dialed from its own campaign.
+    if (Number(lead.campaign_id) !== Number(campaignId)) {
+      const own = await campaigns.getById(lead.campaign_id);
+      throw new ApiError(409, `This lead belongs to ${own ? campaigns.fileLabel(own) : `file ${lead.campaign_id}`}`);
+    }
     // This by-id path bypasses candidates() entirely, so it needs its own
     // phoneless guard — otherwise a flagged lead clicked from the table dials.
     if (lead.missing_phone || !lead.phone) {
@@ -171,7 +183,7 @@ async function lockNext({ userId, leadId = null }) {
     // atomically, so a candidate another request just took is skipped
     // instead of being locked a second time. Bounded: CLAIM_ROUNDS re-queries.
     for (let round = 0; round < CLAIM_ROUNDS; round++) {
-      const inHours = await candidates();
+      const inHours = await candidates({ campaignId });
       if (inHours.length === 0) break;
       for (const candidate of inHours) {
         // A queued lead whose number is on the DNC list (e.g. added after
@@ -351,7 +363,8 @@ async function listNotes(leadId) {
  * leads can be called now, how many wait for their calling hours to open,
  * how many have an unknown time zone, and when the next waiting ones open.
  */
-async function countsByState() {
+async function countsByState(campaignId) {
+  const s = campaignScope.scope(null, campaignId, 2);
   await releaseStaleLocks();
   await backfillZones();
   const { rows } = await db.query(
@@ -359,9 +372,9 @@ async function countsByState() {
             count(*) FILTER (WHERE missing_phone = false AND status = ANY($1) AND (next_action_at IS NULL OR next_action_at <= now()))::int AS dialable,
             count(*) FILTER (WHERE missing_phone = false AND status IN ('new', 'in_queue'))::int AS uncontacted
      FROM leads
-     WHERE deleted_at IS NULL
+     WHERE deleted_at IS NULL AND ${s.sql}
      GROUP BY state, tz_zones`,
-    [DIALABLE_STATUSES]
+    [DIALABLE_STATUSES, ...s.params]
   );
   const enforced = await callingHours.isEnforced();
   const now = new Date();
@@ -496,7 +509,8 @@ async function list({ search, status, dateFrom, dateTo, state, page = 1, pageSiz
     allParams
   );
 
-  const next = await peekNext();
+  // list() is scoped in C1C; until then "up next" stays the head across all files (as before).
+  const next = await peekNext(campaignScope.ALL);
 
   return {
     leads: rows.map((lead) => ({ ...lead, isUpNext: next?.id === lead.id })),
@@ -708,11 +722,12 @@ async function search(q) {
  * explicitly picked stays in the list even if it's not currently dialable,
  * so the count the frontend shows matches what it asked for.
  */
-async function batchQueue(ids) {
+async function batchQueue(ids, campaignId) {
+  const s = campaignScope.scope(null, campaignId, 2);
   if (!Array.isArray(ids) || ids.length === 0) return [];
   const { rows } = await db.query(
     `SELECT * FROM leads
-     WHERE id = ANY($1) AND deleted_at IS NULL AND missing_phone = false
+     WHERE id = ANY($1) AND deleted_at IS NULL AND missing_phone = false AND ${s.sql}
      ORDER BY
        CASE
          WHEN status = 'callback_scheduled' THEN 0
@@ -723,7 +738,7 @@ async function batchQueue(ids) {
        CASE WHEN status = 'callback_scheduled' THEN next_action_at END ASC,
        CASE WHEN status = 'in_queue' THEN updated_at END ASC,
        created_at DESC`,
-    [ids]
+    [ids, ...s.params]
   );
   return rows;
 }
