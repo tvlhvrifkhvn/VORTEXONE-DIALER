@@ -235,7 +235,7 @@ export function useCall(leadId) {
   }, [lead, startCallFor]);
 
   const submitDisposition = useCallback(
-    async ({ disposition, note, scheduledAt, onRetrying }) => {
+    async ({ disposition, note, scheduledAt, onRetrying, stageId }) => {
       if (!call) return null;
       stopPolling();
       // If an earlier try did reach the server (the response was lost), the
@@ -251,7 +251,7 @@ export function useCall(leadId) {
         result = await sendWithRetry(
           async (attempt) => {
             try {
-              return await api.submitDisposition({ callId: call.id, disposition, note, scheduledAt });
+              return await api.submitDisposition({ callId: call.id, disposition, note, scheduledAt, stageId });
             } catch (err) {
               // A resend refused because the first try was saved after all.
               if (attempt > 1 && err.status === 409 && /already has a disposition/i.test(err.message)) {

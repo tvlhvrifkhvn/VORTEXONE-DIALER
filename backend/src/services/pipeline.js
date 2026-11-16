@@ -367,11 +367,15 @@ async function recordInitial(executor, leads, source, userId = null) {
 /**
  * Each stage of the campaign with its lead count and up to `perStage` of its
  * most recently active leads (the later of the lead's last update and its
- * last stage move).
+ * last stage move). With `stageId` (C2B, a column's LOAD MORE) only that
+ * stage's leads come back, starting after `offset`.
  */
-async function board(campaignId, { perStage = DEFAULT_PER_STAGE } = {}) {
+async function board(campaignId, { perStage = DEFAULT_PER_STAGE, stageId = null, offset = 0 } = {}) {
   const limit = Math.min(MAX_PER_STAGE, Math.max(1, Number.isInteger(Number(perStage)) ? Number(perStage) : DEFAULT_PER_STAGE));
+  const only = stageId === null || stageId === undefined || stageId === '' ? null : positiveInt(stageId, 'stageId');
+  const skip = Number.isInteger(Number(offset)) && Number(offset) > 0 ? Number(offset) : 0;
   const stages = await listStages(campaignId);
+  if (only !== null && !stages.some((s) => s.id === only)) throw new ApiError(400, "That stage isn't one of this file's");
   const { rows } = await db.query(
     `SELECT * FROM (
        SELECT l.id, l.name, l.phone, l.state, l.brokerage, l.status, l.pipeline_stage_id,
@@ -385,20 +389,41 @@ async function board(campaignId, { perStage = DEFAULT_PER_STAGE } = {}) {
        LEFT JOIN LATERAL (
          SELECT max(created_at) AS moved_at FROM lead_stage_history WHERE lead_id = l.id
        ) h ON true
-       WHERE l.campaign_id = $1 AND l.deleted_at IS NULL
+       WHERE l.campaign_id = $1 AND l.deleted_at IS NULL AND ($3::int IS NULL OR l.pipeline_stage_id = $3::int)
      ) ranked
-     WHERE rn <= $2
+     WHERE rn > $4 AND rn <= $4 + $2
      ORDER BY pipeline_stage_id, rn`,
-    [campaignId, limit]
+    [campaignId, limit, only, skip]
   );
   const byStage = new Map(stages.map((s) => [s.id, []]));
   for (const { rn: _rn, ...lead } of rows) {
     if (byStage.has(lead.pipeline_stage_id)) byStage.get(lead.pipeline_stage_id).push(lead);
   }
+  const shown = only === null ? stages : stages.filter((s) => s.id === only);
   return {
     perStage: limit,
-    stages: stages.map((s) => ({ ...s, count: s.lead_count, leads: byStage.get(s.id) || [] })),
+    offset: skip,
+    stages: shown.map((s) => ({ ...s, count: s.lead_count, leads: byStage.get(s.id) || [] })),
   };
+}
+
+/** C2B: the lead's deal value in cents (null clears it). */
+async function setDealValue(leadId, cents) {
+  const id = positiveInt(leadId, 'The lead id');
+  let value = null;
+  if (cents !== null && cents !== undefined && cents !== '') {
+    value = Number(cents);
+    if (!Number.isInteger(value) || value < 0 || value > 100000000000) {
+      throw new ApiError(400, 'The deal value must be a whole number of cents, 0 or more');
+    }
+  }
+  // A CRM field: leads.updated_at stays as it is (the dialer orders by it).
+  const { rows } = await db.query(
+    'UPDATE leads SET deal_value_cents = $2 WHERE id = $1 AND deleted_at IS NULL RETURNING *',
+    [id, value]
+  );
+  if (!rows[0]) throw new ApiError(404, 'Lead not found');
+  return rows[0];
 }
 
 module.exports = {
@@ -419,4 +444,5 @@ module.exports = {
   restoreSnapshot,
   recordInitial,
   board,
+  setDealValue,
 };

@@ -13,6 +13,7 @@ import Import from './pages/Import';
 import Reports from './pages/Reports';
 import Settings from './pages/Settings';
 import Campaigns from './pages/Campaigns';
+import Pipeline from './pages/Pipeline';
 import Styleguide from './pages/Styleguide';
 
 function RequireAuth({ children }) {
@@ -39,6 +40,14 @@ function AppRoutes() {
         element={
           <RequireAuth>
             <Dashboard />
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/pipeline"
+        element={
+          <RequireAuth>
+            <Pipeline />
           </RequireAuth>
         }
       />

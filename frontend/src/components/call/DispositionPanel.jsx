@@ -13,6 +13,8 @@ import { useAuth } from '../../hooks/useAuth';
 import { formatDateTime } from '../../lib/format';
 import * as api from '../../lib/api';
 import { useCampaign } from '../../hooks/useCampaign';
+import { useStages } from '../../hooks/useStages';
+import Field from '../ui/Field';
 
 const DEFAULT_PITCH_SCRIPT = (repName) =>
   `Hi, I'm ${repName} from Vortexone Agency. We offer virtual assistant services for real ` +
@@ -144,6 +146,9 @@ export default function DispositionPanel({
   const [showDncConfirm, setShowDncConfirm] = useState(false);
   const [highlight, setHighlight] = useState(false);
   const dispositionRef = useRef(null);
+  // C2B: optional stage for this outcome; '' = Auto (the server's rules).
+  const { stages } = useStages();
+  const [stageId, setStageId] = useState('');
 
   const locked = disabled || submitting;
 
@@ -152,6 +157,7 @@ export default function DispositionPanel({
   useEffect(() => {
     setNote('');
     setError(null);
+    setStageId('');
   }, [callId]);
 
   const submitOutcome = async (disposition) => {
@@ -162,7 +168,7 @@ export default function DispositionPanel({
     // the panel stays open and says so until it is saved or gives up.
     const onRetrying = (attempt, max) => setRetrying(`Not saved yet — retrying (${attempt + 1} of ${max})…`);
     try {
-      await onDispositionSubmit({ disposition, note, onRetrying });
+      await onDispositionSubmit({ disposition, note, onRetrying, ...(stageId ? { stageId: Number(stageId) } : {}) });
     } catch (err) {
       setError(`Couldn't save this outcome: ${err.message} Click it again to retry.`);
     } finally {
@@ -200,7 +206,8 @@ export default function DispositionPanel({
   useEffect(() => {
     const handler = (e) => {
       const tag = e.target?.tagName;
-      if (tag === 'TEXTAREA' || tag === 'INPUT') return;
+      // SELECT too (C2B): typing in the stage picker must never pick an outcome.
+      if (tag === 'TEXTAREA' || tag === 'INPUT' || tag === 'SELECT') return;
       if (locked) return;
 
       if (e.key === 'v' || e.key === 'V') handleSelect('voicemail');
@@ -214,7 +221,7 @@ export default function DispositionPanel({
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [locked, note]);
+  }, [locked, note, stageId]);
 
   return (
     <div className="space-y-4">
@@ -242,6 +249,29 @@ export default function DispositionPanel({
             </span>
           }
         />
+        {/* C2B: optional stage move with the outcome (Auto = the file's rules). */}
+        {stages.length > 0 && (
+          <div className="flex flex-wrap items-center gap-2">
+            <label htmlFor={`outcome-stage-${callId || 'none'}`} className="label">
+              Move to stage
+            </label>
+            <Field
+              as="select"
+              id={`outcome-stage-${callId || 'none'}`}
+              value={stageId}
+              onChange={(e) => setStageId(e.target.value)}
+              disabled={locked}
+              className="w-56 text-sm"
+            >
+              <option value="">Auto</option>
+              {stages.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.name}
+                </option>
+              ))}
+            </Field>
+          </div>
+        )}
         {/* D highlight: a 2px primary outline, no animation. */}
         <div ref={dispositionRef} className={highlight ? 'outline outline-2 outline-offset-4 outline-primary' : ''}>
           <DispositionButtons onSelect={handleSelect} disabled={locked} />

@@ -1,10 +1,12 @@
 import Field from '../ui/Field';
 import { STATUS_LABELS } from '../../styles/theme';
 import { useCampaign } from '../../hooks/useCampaign';
+import { useStages } from '../../hooks/useStages';
 
 export default function LeadFilters({ filters, onChange }) {
   const update = (patch) => onChange({ ...filters, ...patch });
   const companyWord = (useCampaign().active?.company_label || 'Brokerage').toLowerCase(); // C1E
+  const { stages } = useStages(); // C2B
 
   return (
     <div className="flex flex-wrap items-end gap-4">
@@ -37,6 +39,25 @@ export default function LeadFilters({ filters, onChange }) {
             {label}
           </option>
         ))}
+        </Field>
+      </div>
+      <div>
+        <label htmlFor="filter-stage" className="label mb-2 block">
+          Stage
+        </label>
+        <Field
+          as="select"
+          id="filter-stage"
+          value={filters.stageId || ''}
+          onChange={(e) => update({ stageId: e.target.value || undefined })}
+          className="w-48"
+        >
+          <option value="">All stages</option>
+          {stages.map((s) => (
+            <option key={s.id} value={s.id}>
+              {s.name}
+            </option>
+          ))}
         </Field>
       </div>
       <fieldset>

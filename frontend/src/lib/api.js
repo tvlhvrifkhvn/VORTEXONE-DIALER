@@ -275,6 +275,25 @@ export const getTodayStats = (period, campaign) => request(`/reports/today${peri
 export const getPerStateReport = (campaign) => request('/reports/per-state', { campaign });
 export const getManualCallsToday = (period, campaign) => request(`/reports/manual-today${periodQuery(period)}`, { campaign });
 
+// pipeline (C2A/C2B). `campaign` overrides the active file (the Files page edits any file).
+export const getPipelineStages = (campaign) => request('/pipeline/stages', { campaign });
+export const createPipelineStage = (name, campaign) => request('/pipeline/stages', { method: 'POST', body: { name }, campaign });
+export const renamePipelineStage = (id, name) => request(`/pipeline/stages/${id}`, { method: 'PUT', body: { name } });
+export const reorderPipelineStages = (ids, campaign) => request('/pipeline/stages/reorder', { method: 'POST', body: { ids }, campaign });
+export const deletePipelineStage = (id) => request(`/pipeline/stages/${id}`, { method: 'DELETE' });
+export const getPipelineBoard = ({ perStage, stageId, offset } = {}) => {
+  const q = new URLSearchParams();
+  if (perStage) q.set('perStage', perStage);
+  if (stageId) q.set('stageId', stageId);
+  if (offset) q.set('offset', offset);
+  const qs = q.toString();
+  return request(`/pipeline/board${qs ? `?${qs}` : ''}`);
+};
+export const moveLeadStage = (leadId, stageId, lostReason) =>
+  request(`/leads/${leadId}/stage`, { method: 'POST', body: { stageId, lostReason } });
+export const setLeadDealValue = (leadId, dealValueCents) =>
+  request(`/leads/${leadId}/deal`, { method: 'PUT', body: { dealValueCents } });
+
 // campaigns ("files", C1E)
 export const listCampaigns = () => request('/campaigns');
 export const createCampaign = (fields) => request('/campaigns', { method: 'POST', body: fields });

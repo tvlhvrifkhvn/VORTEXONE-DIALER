@@ -4,6 +4,7 @@ import { ArrowLeft, PhoneOff } from 'lucide-react';
 import AppShell from '../components/layout/AppShell';
 import LeadActionHub from '../components/leads/LeadActionHub';
 import ColleagueCard from '../components/leads/ColleagueCard';
+import LeadStagePanel from '../components/pipeline/LeadStagePanel';
 import Panel from '../components/ui/Panel';
 import Button from '../components/ui/Button';
 import Field from '../components/ui/Field';
@@ -190,6 +191,9 @@ export default function LeadDetail() {
             </div>
           )}
         </Panel>
+
+        {/* C2B: stage, lost reason and deal value. Only when the lead is in the active file (else the page switches). */}
+        {String(lead.campaign_id) === String(activeId) && <LeadStagePanel lead={lead} onChange={setLead} />}
 
         <ColleagueCard leadId={lead.id} />
 

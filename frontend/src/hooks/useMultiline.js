@@ -136,14 +136,14 @@ export function useMultiline({ enabled = true } = {}) {
    * backend to free that slot — which promotes any held live call to be
    * handled next before dialing a new lead in.
    */
-  const submitDispositionFor = useCallback(async (line, { disposition, note, onRetrying }) => {
+  const submitDispositionFor = useCallback(async (line, { disposition, note, onRetrying, stageId }) => {
     if (!line?.callId) throw new Error('That line is no longer active.');
     // Retried on a 429 / network error, never sent twice (lib/retry.js).
     const alreadySaved = async () => ((await api.getCall(line.callId)).call.disposition ? { saved: true } : null);
     await sendWithRetry(
       async (attempt) => {
         try {
-          return await api.submitDisposition({ callId: line.callId, disposition, note });
+          return await api.submitDisposition({ callId: line.callId, disposition, note, stageId });
         } catch (err) {
           if (attempt > 1 && err.status === 409 && /already has a disposition/i.test(err.message)) return { saved: true };
           throw err;

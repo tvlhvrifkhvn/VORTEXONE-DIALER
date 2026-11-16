@@ -309,6 +309,9 @@ export default function AppShell({ children }) {
           </div>
 
           <nav aria-label="Main" className="flex flex-wrap">
+            <NavLink to="/pipeline" className={navLinkClasses}>
+              Pipeline
+            </NavLink>
             <NavLink to="/" end className={navLinkClasses}>
               Leads
             </NavLink>
@@ -344,7 +347,8 @@ export default function AppShell({ children }) {
           </nav>
 
           <div className="flex items-center gap-4">
-            {user && <span className="text-sm text-muted-foreground">{user.name}</span>}
+            {/* C2B: hidden below 2xl so the header stays one row with the PIPELINE link. */}
+            {user && <span className="hidden text-sm text-muted-foreground 2xl:inline">{user.name}</span>}
             <Button onClick={() => navigate('/call/manual')} title="Dial a number">
               <Phone size={16} strokeWidth={1.5} aria-hidden="true" />
               Dial
