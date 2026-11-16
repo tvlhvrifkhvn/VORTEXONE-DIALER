@@ -500,6 +500,10 @@ function IntegrationsSection() {
         Configure the Groq API key used for AI CSV column mapping and the Expand note button — without it,
         those features degrade gracefully (manual mapping, notes unchanged).
       </p>
+      <p className="text-sm text-muted-foreground">
+        A key saved here lives in this app's database: it stays through restarts, but not if the Codespace is deleted or
+        rebuilt. For a key that always stays, add a GitHub Codespaces secret named GROQ_API_KEY; a key saved here wins over it.
+      </p>
       <form onSubmit={handleSave} className="space-y-3">
         <div>
           <label htmlFor="groq-key" className="label mb-2 block">
