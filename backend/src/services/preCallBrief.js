@@ -7,6 +7,7 @@ const { timezoneForState } = require('./callingHours');
 const { getTimeline } = require('./smsService');
 const { getColleagueSummary } = require('./colleagueIntel');
 const { getHints } = require('./rebuttalCoach');
+const aiContext = require('./aiContext');
 
 /**
  * The brief shown while a call dials and rings, so the rep never goes in
@@ -121,13 +122,14 @@ async function activityFingerprint(leadId) {
 
 async function gather(leadId) {
   const { rows: leadRows } = await db.query(
-    'SELECT id, name, brokerage, address, state, tags FROM leads WHERE id = $1 AND deleted_at IS NULL',
+    'SELECT id, name, brokerage, address, state, tags, campaign_id FROM leads WHERE id = $1 AND deleted_at IS NULL',
     [leadId]
   );
   const lead = leadRows[0];
   if (!lead) throw new ApiError(404, 'Lead not found');
 
-  const [timeline, callStats, colleagues, objectionRows, hints] = await Promise.all([
+  // C1D: the lead carries its campaign; the brief speaks about that campaign.
+  const [timeline, callStats, colleagues, objectionRows, hints, ctx] = await Promise.all([
     getTimeline(leadId),
     // Finished calls only: the call ringing right now isn't a prior attempt.
     db.query(
@@ -150,7 +152,8 @@ async function gather(leadId) {
        ORDER BY co.objection_type_id, co.created_at DESC`,
       [leadId]
     ),
-    getHints(),
+    getHints(lead.campaign_id),
+    aiContext.forCampaignId(lead.campaign_id),
   ]);
 
   // A call with neither outcome nor note is the one dialing now (or an
@@ -171,19 +174,22 @@ async function gather(leadId) {
     timeline.notes.length === 0 &&
     objections.length === 0;
 
-  return { lead, recent, prior, last, colleagues, objections, firstCall };
+  return { lead, recent, prior, last, colleagues, objections, firstCall, ctx };
 }
 
-function colleagueOpener(colleagues) {
+function colleagueOpener(colleagues, ctx) {
   if (!colleagues?.interested) return null;
   const where = colleagues.officeLabel ? ` at ${colleagues.officeLabel}` : ' at your office';
+  // C1D: "agent" for real estate, "colleague" for any other campaign.
+  const one = ctx && ctx.kind !== 'real_estate' ? 'colleague' : 'agent';
+  const article = /^[aeiou]/.test(one) ? 'an' : 'a';
   // F-42: say exactly how many: "another agent" for one, "{n} agents" for more.
   if (colleagues.clients > 0) {
-    return `We already support ${colleagues.clients === 1 ? 'an agent' : `${colleagues.clients} agents`}${where}.`;
+    return `We already support ${colleagues.clients === 1 ? `${article} ${one}` : `${colleagues.clients} ${one}s`}${where}.`;
   }
   return colleagues.interested === 1
-    ? `Another agent${where} has already been interested in what we do.`
-    : `${colleagues.interested} agents${where} have already been interested in what we do.`;
+    ? `Another ${one}${where} has already been interested in what we do.`
+    : `${colleagues.interested} ${one}s${where} have already been interested in what we do.`;
 }
 
 function buildInstant(data) {
@@ -203,7 +209,7 @@ function buildInstant(data) {
   return {
     headline: segments.join(' · '),
     firstCall,
-    opener: colleagueOpener(colleagues),
+    opener: colleagueOpener(colleagues, data.ctx),
     details: {
       name: lead.name,
       brokerage: lead.brokerage,
@@ -228,13 +234,13 @@ function buildInstant(data) {
   };
 }
 
-const SYSTEM_PROMPT = `You brief a cold caller at Vortexone, a small agency offering virtual assistant
-services (lead follow-up, appointment setting, admin support) to US real estate agents.
+// C1D: what the business does and who picks up come from the campaign (ctx).
+const systemPrompt = (ctx) => `You brief a cold caller at Vortexone. What we do: ${ctx.aiContext}
 The call is ringing now. You get the facts about this lead as JSON.
 
 Write exactly two sentences:
 1. summary — the situation in plain words, from the facts only.
-2. opener — one natural line the rep could open with when the agent picks up.
+2. opener — one natural line the rep could open with when the ${ctx.leadNoun} picks up.
 
 Rules — follow every one:
 - Use ONLY the facts in the JSON. Never invent names, dates, numbers, results, or claims.
@@ -251,7 +257,7 @@ function buildMessages(data, instant) {
   const facts = {
     lead: {
       name: data.lead.name,
-      brokerage: data.lead.brokerage,
+      [data.ctx.companyKey]: data.lead.brokerage, // "brokerage" for File 01
       city: instant.details.city,
       state: data.lead.state,
       localTime: instant.details.localTime,
@@ -274,7 +280,7 @@ function buildMessages(data, instant) {
       : null,
   };
   return [
-    { role: 'system', content: SYSTEM_PROMPT },
+    { role: 'system', content: systemPrompt(data.ctx) },
     { role: 'user', content: JSON.stringify(facts, null, 2) },
   ];
 }

@@ -2,6 +2,7 @@ const db = require('../db');
 const { ApiError } = require('../middleware/errorHandler');
 const { officeLabelFromKey } = require('../utils/officeKey');
 const reportingPeriod = require('./reportingPeriod');
+const campaignScope = require('./campaignScope');
 
 // A call that still went well despite the objection. The brief lists
 // "interested, callback, meeting": `contacted` is the "Spoke / Interested"
@@ -30,11 +31,14 @@ function uniqueViolation(err) {
 // Objection types (Settings)
 // ---------------------------------------------------------------------------
 
-async function listTypes({ includeInactive = false } = {}) {
+async function listTypes({ campaignId, includeInactive = false } = {}) {
+  // C1D: the campaign's own types plus the shared ones (campaign_id null).
+  const s = campaignScope.scope(null, campaignId, 1);
   const { rows } = await db.query(
-    `SELECT id, label, is_active, sort_order FROM objection_types
-     ${includeInactive ? '' : 'WHERE is_active = true'}
-     ORDER BY sort_order ASC, id ASC`
+    `SELECT id, label, is_active, sort_order, campaign_id FROM objection_types
+     WHERE (${s.sql} OR campaign_id IS NULL) ${includeInactive ? '' : 'AND is_active = true'}
+     ORDER BY sort_order ASC, id ASC`,
+    s.params
   );
   return rows;
 }
@@ -86,7 +90,7 @@ async function updateType(id, { label, isActive }) {
 
 /** Takes the full list of ids in their new order and rewrites sort_order to
  * match, in one transaction so a half-applied reorder is never visible. */
-async function reorderTypes(ids) {
+async function reorderTypes(ids, campaignId) {
   if (!Array.isArray(ids) || ids.length === 0) throw new ApiError(400, 'ids must be a non-empty array');
   const client = await db.getClient();
   try {
@@ -101,7 +105,7 @@ async function reorderTypes(ids) {
   } finally {
     client.release();
   }
-  return listTypes({ includeInactive: true });
+  return listTypes({ campaignId, includeInactive: true }); // C1D: the list the rep is looking at
 }
 
 // ---------------------------------------------------------------------------
@@ -181,7 +185,8 @@ async function defaultRange() {
  * — it just reads zero. Inactive types are kept whenever they have data, which
  * is what keeps a deactivated objection visible in the report.
  */
-async function getReport({ dateFrom, dateTo, state, officeKey } = {}) {
+async function getReport({ dateFrom, dateTo, state, officeKey, campaignId } = {}) {
+  const s = campaignScope.scope('ot', campaignId, 4);
   const range = await defaultRange();
   const from = dateFrom || range.dateFrom;
   const to = dateTo || range.dateTo;
@@ -191,11 +196,13 @@ async function getReport({ dateFrom, dateTo, state, officeKey } = {}) {
   const last = await reportingPeriod.resolvePeriod({ date: to });
   if (last.end <= first.start) throw new ApiError(400, '"dateTo" must not be before "dateFrom"');
 
-  const params = [first.start, last.end, POSITIVE_OUTCOMES];
+  const params = [first.start, last.end, POSITIVE_OUTCOMES, ...s.params];
   const filters = [
     'co.created_at >= $1',
     'co.created_at < $2',
   ];
+  // C1D: only this campaign's calls count (the lead's campaign when the call row is gone).
+  if (s.params.length) filters.push('COALESCE(ch.campaign_id, l.campaign_id) = $4');
   if (state) {
     params.push(String(state).toUpperCase());
     filters.push(`l.state = $${params.length}`);
@@ -219,6 +226,7 @@ async function getReport({ dateFrom, dateTo, state, officeKey } = {}) {
             count(*) FILTER (WHERE lg.disposition = ANY($3))::int                   AS positive
      FROM objection_types ot
      LEFT JOIN logged lg ON lg.objection_type_id = ot.id
+     WHERE (${s.sql} OR ot.campaign_id IS NULL)
      GROUP BY ot.id
      ORDER BY count DESC, ot.sort_order ASC`,
     params
@@ -235,13 +243,15 @@ async function getReport({ dateFrom, dateTo, state, officeKey } = {}) {
   return { dateFrom: from, dateTo: to, objections };
 }
 
-async function listOffices() {
+async function listOffices(campaignId) {
+  const s = campaignScope.scope(null, campaignId, 1);
   const { rows } = await db.query(
     `SELECT office_key, max(brokerage) AS brokerage, count(*)::int AS leads
      FROM leads
-     WHERE office_key IS NOT NULL AND deleted_at IS NULL
+     WHERE office_key IS NOT NULL AND deleted_at IS NULL AND ${s.sql}
      GROUP BY office_key
-     ORDER BY office_key ASC`
+     ORDER BY office_key ASC`,
+    s.params
   );
   return rows.map((r) => ({
     officeKey: r.office_key,

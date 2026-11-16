@@ -55,21 +55,25 @@ function unavailableResult() {
   return { mapping, confidence, needsReview: [...SCHEMA_FIELDS], unavailable: true, message: UNAVAILABLE_MESSAGE };
 }
 
-function buildPrompt(headers, sampleRows) {
+function buildPrompt(headers, sampleRows, ctx) {
+  const company = ctx.companyLabel.toLowerCase();
+  const realEstate = ctx.kind === 'real_estate';
   const sample = sampleRows
     .map((row, i) => `Row ${i + 1}: ${JSON.stringify(row)}`)
     .join('\n');
 
-  return `You are mapping CSV columns from a real-estate agent lead list onto a fixed schema.
+  // C1D: the business and its words come from the campaign (ctx), not hardcoded.
+  return `You are mapping CSV columns from a lead list onto a fixed schema.
+Who the leads are (business context): ${ctx.aiContext}
 
 Schema fields: ${SCHEMA_FIELDS.join(', ')}
 
 Field meanings:
-- brokerage: the agent's brokerage/office name. Prefer a column literally holding an
-  office or brokerage name (e.g. "office"), even when many of its cells are blank.
-- source: a SECONDARY column that sometimes carries the brokerage name when the
-  brokerage column's cell is blank (e.g. a "source" column reading "Keller Williams").
-  Map it here rather than to brokerage — blank brokerage cells fall back to it per row.
+- brokerage: the ${ctx.leadNoun}'s ${company}/office name (the schema calls it "brokerage"). Prefer a column literally holding an
+  office or ${company} name (e.g. "office"), even when many of its cells are blank.
+- source: a SECONDARY column that sometimes carries the ${company} name when the
+  ${company} column's cell is blank (e.g. a "source" column reading ${realEstate ? '"Keller Williams"' : 'a company name'}).
+  Map it here rather than to brokerage — blank ${company} cells fall back to it per row.
 - address: a full street address, if the file has one.
 - city: a city/locality column, including messy scraped forms like
   "boise id usa" or "texas-city, TX". Map those here, not to address.
@@ -102,7 +106,8 @@ function safeParseJson(text) {
  * our fixed lead schema. Returns the mapping plus a needsReview list for any
  * field the model wasn't confident about, so the UI can flag it for a human.
  */
-async function mapColumns(headers, sampleRows = []) {
+async function mapColumns(headers, sampleRows = [], ctx) {
+  if (!ctx) throw new Error('mapColumns: the campaign AI context is required');
   if (!Array.isArray(headers) || headers.length === 0) {
     throw new ApiError(400, 'headers must be a non-empty array');
   }
@@ -113,7 +118,7 @@ async function mapColumns(headers, sampleRows = []) {
   const completion = await groq.chat.completions.create({
     model: MODEL,
     temperature: 0,
-    messages: [{ role: 'user', content: buildPrompt(headers, sampleRows.slice(0, 3)) }],
+    messages: [{ role: 'user', content: buildPrompt(headers, sampleRows.slice(0, 3), ctx) }],
   });
 
   const text = completion.choices?.[0]?.message?.content || '';
@@ -141,17 +146,23 @@ async function mapColumns(headers, sampleRows = []) {
 
 const CLEAN_BATCH_SIZE = 20;
 
-function buildCleaningPrompt(batch) {
+function buildCleaningPrompt(batch, ctx) {
+  const company = ctx.companyLabel.toLowerCase();
+  const junkExamples = ctx.kind === 'real_estate'
+    ? '"MARKET CENTER", "Keller Williams Realty Boise", "Coldwell Banker"'
+    : '"ACME ROOFING LLC", "Main Office"';
+  const licenseRule = ctx.kind === 'real_estate' ? '   - Remove anything matching "License #: [alphanumeric]"\n' : '   - Remove license or registration numbers glued to the name\n';
   const rows = batch.map((r) => `${r.index}: ${JSON.stringify(r.fields)}`).join('\n');
 
-  return `You are a data cleaning assistant. Clean each row of real estate agent data. Source files are
+  return `You are a data cleaning assistant. Clean each row of lead data (${ctx.leadNounPlural}).
+Business context: ${ctx.aiContext}
+Source files are
 inconsistent — many rows will have blank/missing state or address. That is completely normal and is
 NEVER a reason to skip a row.
 
 1. NAME cleaning rules:
-   - Remove anything matching "License #: [alphanumeric]"
-   - Remove " - null" or "null" anywhere in the name
-   - Remove brokerage/company names mixed into the name field (e.g. "MARKET CENTER", "Keller Williams Realty Boise", "Coldwell Banker")
+${licenseRule}   - Remove " - null" or "null" anywhere in the name
+   - Remove ${company}/company names mixed into the name field (e.g. ${junkExamples})
    - Keep only "First Last" or "First Middle Last" format
    - Only mark a row SKIP if, after removing that junk, there is no real person name left at all —
      never skip a row just because state/address is blank or because you're unsure of the state.
@@ -195,7 +206,8 @@ function hasContent(value) {
  * must be a real US code, and a "cleaned" name still carrying the junk it was
  * asked to strip is rejected in favour of the original.
  */
-async function cleanRowsChunk(chunk, mapping) {
+async function cleanRowsChunk(chunk, mapping, ctx) {
+  if (!ctx) throw new Error('cleanRowsChunk: the campaign AI context is required');
   const result = { cleanedRows: chunk, originals: new Map(), skippedIndexes: new Set() };
   if (!Array.isArray(chunk) || chunk.length === 0) return result;
   if (!mapping || !mapping.name) return result;
@@ -215,7 +227,7 @@ async function cleanRowsChunk(chunk, mapping) {
   const completion = await groq.chat.completions.create({
     model: MODEL,
     temperature: 0,
-    messages: [{ role: 'user', content: buildCleaningPrompt(batch) }],
+    messages: [{ role: 'user', content: buildCleaningPrompt(batch, ctx) }],
   });
 
   const text = completion.choices?.[0]?.message?.content || '';
@@ -279,7 +291,8 @@ async function cleanRowsChunk(chunk, mapping) {
  * pass through with their original raw mapped values — never dropped — and
  * are counted in needsManualReviewCount so the caller can flag them.
  */
-async function cleanRows(rows, mapping) {
+async function cleanRows(rows, mapping, ctx) {
+  if (!ctx) throw new Error('cleanRows: the campaign AI context is required');
   const result = { rows, cleanedCount: 0, skippedCount: 0, needsManualReviewCount: 0, originals: new Map() };
   if (!Array.isArray(rows) || rows.length === 0) return result;
   if (!mapping || !mapping.name) return result;
@@ -306,7 +319,7 @@ async function cleanRows(rows, mapping) {
       const completion = await groq.chat.completions.create({
         model: MODEL,
         temperature: 0,
-        messages: [{ role: 'user', content: buildCleaningPrompt(batch) }],
+        messages: [{ role: 'user', content: buildCleaningPrompt(batch, ctx) }],
       });
       const text = completion.choices?.[0]?.message?.content || '';
       const match = text.match(/\[[\s\S]*\]/);
@@ -379,12 +392,14 @@ async function cleanRows(rows, mapping) {
   return result;
 }
 
-function buildStateGuessPrompt(batch) {
+function buildStateGuessPrompt(batch, ctx) {
   const lines = batch
-    .map((r) => `${r.index}: name="${r.name || ''}", address="${r.address || ''}", brokerage="${r.brokerage || ''}"`)
+    .map((r) => `${r.index}: name="${r.name || ''}", address="${r.address || ''}", ${ctx.companyKey}="${r.brokerage || ''}"`)
     .join('\n');
 
-  return `Each line below is a US real-estate lead with no recognizable state on file. Guess the
+  return `Each line below is a US lead (${ctx.leadNoun}) with no recognizable state on file.
+Business context: ${ctx.aiContext}
+Guess the
 2-letter US state code ONLY when the text plainly implies one (e.g. a city you're certain is in
 that state, or a state name/abbreviation embedded in the text). If you are not confident, answer
 null — never guess randomly.
@@ -403,7 +418,8 @@ Respond with ONLY a JSON array, no prose, shaped exactly like:
  * as a "null" answer, so a bad guess never corrupts a lead's state (state
  * drives calling-hours enforcement, see CLAUDE.md).
  */
-async function guessStates(candidates) {
+async function guessStates(candidates, ctx) {
+  if (!ctx) throw new Error('guessStates: the campaign AI context is required');
   const results = new Map();
   if (!Array.isArray(candidates) || candidates.length === 0) return results;
 
@@ -417,7 +433,7 @@ async function guessStates(candidates) {
       const completion = await groq.chat.completions.create({
         model: MODEL,
         temperature: 0,
-        messages: [{ role: 'user', content: buildStateGuessPrompt(batch) }],
+        messages: [{ role: 'user', content: buildStateGuessPrompt(batch, ctx) }],
       });
       const text = completion.choices?.[0]?.message?.content || '';
       const match = text.match(/\[[\s\S]*\]/);
@@ -435,4 +451,4 @@ async function guessStates(candidates) {
   return results;
 }
 
-module.exports = { SCHEMA_FIELDS, mapColumns, guessStates, cleanRows, cleanRowsChunk };
+module.exports = { SCHEMA_FIELDS, mapColumns, guessStates, cleanRows, cleanRowsChunk, buildPrompt, buildCleaningPrompt, buildStateGuessPrompt };

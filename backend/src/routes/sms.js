@@ -5,7 +5,7 @@ const smsAdapter = require('../telephony/smsIndex');
 const mediaUpload = require('../services/mediaUpload');
 const { asyncHandler } = require('../middleware/asyncHandler');
 const { requireAuth } = require('../middleware/auth');
-const { requireCampaign } = require('../middleware/campaign');
+const { requireCampaign, campaignOrAll } = require('../middleware/campaign');
 const { ApiError } = require('../middleware/errorHandler');
 
 const router = express.Router();
@@ -53,8 +53,9 @@ router.post(
 
 router.get(
   '/templates',
+  requireCampaign,
   asyncHandler(async (req, res) => {
-    const templates = await smsService.listTemplates();
+    const templates = await smsService.listTemplates(req.campaign.id);
     res.json({ templates });
   })
 );
@@ -106,9 +107,11 @@ router.post(
 
 router.get(
   '/inbox',
+  campaignOrAll,
   asyncHandler(async (req, res) => {
     const { page, limit } = req.query;
     const leads = await smsService.getInbox({
+      campaignId: req.campaignId,
       page: page ? Number(page) : undefined,
       limit: limit ? Number(limit) : undefined,
     });

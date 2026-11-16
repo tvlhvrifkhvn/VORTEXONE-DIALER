@@ -8,7 +8,8 @@ const xlsxParser = require('../services/xlsxParser');
 const aiCsvMapper = require('../services/aiCsvMapper');
 const { asyncHandler } = require('../middleware/asyncHandler');
 const { requireAuth } = require('../middleware/auth');
-const { requireActiveCampaign } = require('../middleware/campaign');
+const { requireActiveCampaign, requireCampaign } = require('../middleware/campaign');
+const aiContext = require('../services/aiContext');
 const { ApiError } = require('../middleware/errorHandler');
 
 const router = express.Router();
@@ -77,18 +78,21 @@ router.post(
 // of the plain heuristic guessMapping(). Does not touch /preview or /commit.
 router.post(
   '/analyze',
+  requireCampaign,
   acceptFile(upload.single('file')),
   requireCsvFile,
   asyncHandler(async (req, res) => {
     const { headers, rows } = csvImport.parseCsv(req.file.buffer);
     const sampleRows = rows.slice(0, 4);
-    const result = await aiCsvMapper.mapColumns(headers, sampleRows);
+    // C1D: the AI prompts speak about the header's campaign.
+    const ctx = aiContext.fromCampaign(req.campaign);
+    const result = await aiCsvMapper.mapColumns(headers, sampleRows, ctx);
 
     // Second AI pass: clean the row values themselves (license numbers and
     // brokerages glued into names, "boise id usa" instead of a state). Runs
     // after mapping because it needs to know which column is which. Rows are
     // returned already cleaned, so the preview and the commit both use them.
-    const cleaning = await aiCsvMapper.cleanRows(rows, result.mapping);
+    const cleaning = await aiCsvMapper.cleanRows(rows, result.mapping, ctx);
 
     res.json({
       headers,
@@ -159,7 +163,7 @@ router.post(
     // part — is what moves to the background job.
     let mappingResult;
     try {
-      mappingResult = await aiCsvMapper.mapColumns(headers, sampleRows);
+      mappingResult = await aiCsvMapper.mapColumns(headers, sampleRows, aiContext.fromCampaign(req.campaign));
     } catch {
       // AI failed (unreachable, bad key, bad answer): same as unavailable.
       mappingResult = { mapping: csvImport.guessMapping(headers), confidence: {}, needsReview: [], unavailable: true };
