@@ -199,7 +199,7 @@ function DialingDefaultsSection() {
             <option value={3}>3 lines</option>
           </Field>
           <p className="mt-2 text-sm text-muted-foreground">
-            How many leads a dialing session rings at once. Adjustable per session on the dashboard.
+            How many leads a dialing session rings at once. Adjustable per session on the Leads page.
           </p>
         </div>
         <div
@@ -308,7 +308,7 @@ function ReportingDaySection() {
             className="w-64"
           />
           <p className="mt-2 text-sm text-muted-foreground">
-            An IANA name, e.g. Asia/Karachi. "Today" on the dashboard, the daily goal, reports and the PDF use this timezone.
+            An IANA name, e.g. Asia/Karachi. The Today page, the daily goal, reports and the PDF use this timezone.
           </p>
         </div>
         <div>

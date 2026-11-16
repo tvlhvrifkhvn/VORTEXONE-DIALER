@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { ArrowRight, File, ListTodo, Mail, MessageSquare, Paperclip, Phone, StickyNote, Upload, X } from 'lucide-react';
 import Panel from '../ui/Panel';
 import Button from '../ui/Button';
@@ -380,7 +380,8 @@ const TIMELINE_POLL_MS = 8000;
  * panel's "action hub". */
 export default function LeadActionHub({ lead }) {
   const navigate = useNavigate();
-  const [smsOpen, setSmsOpen] = useState(false);
+  const [searchParams] = useSearchParams();
+  const [smsOpen, setSmsOpen] = useState(() => searchParams.get('reply') === '1'); // C3B: REPLY from Today
   const [emailOpen, setEmailOpen] = useState(false);
   const [timeline, setTimeline] = useState([]);
   const [loadingTimeline, setLoadingTimeline] = useState(true);

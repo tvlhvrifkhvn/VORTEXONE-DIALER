@@ -172,3 +172,10 @@
 - 2026-11-16 · C3A · ADD TASK shares the call screen's bottom row with Objection (two columns); the 2×3 grid above is unchanged · the grid's layout and muscle memory stay
 - 2026-11-16 · C3A · The outcome panel's follow-up row is a checkbox that reveals a title and due field (default tomorrow 10:00, type call) · optional and out of the way; no new hotkeys
 - 2026-11-16 · C3A · Any user can create, complete and delete tasks · daily work, like moving a lead's stage
+- 2026-11-16 · C3B · Links that meant "the leads list" (call screen and lead page "back", lead delete, a finished selected session, the empty dialer) now go to /leads; the manual dial pad and the session summary return to Today · each goes back where that work started; Today is the home
+- 2026-11-16 · C3B · Today's DUE TODAY merges the four C3A lists into one: overdue first, then by time, gone-quiet last; a filter (All, Callbacks, Replies, Tasks, Gone quiet) narrows it · one place to work through; the plan's CALL / REPLY / OPEN per kind
+- 2026-11-16 · C3B · REPLY opens the lead page with the SMS composer already open (?reply=1) · the reply happens where the conversation history is
+- 2026-11-16 · C3B · The TODAY badge counts callbacks and tasks due today (overdue included), refreshed every 60 s; replies stay on the INBOX badge · no double counting between the two badges
+- 2026-11-16 · C3B · START DIALING SESSION on Today dials the file's queue with the user's default lines (Settings); picking leads and a line count stays on the Leads page · the only primary button on Today
+- 2026-11-16 · C3B · Nav items are px-2 and the "OUTREACH" word shows from 2xl up · the TODAY item and its badge made the one-row header too wide at 1440
+- 2026-11-16 · C3B · The pipeline section shows each stage as a count tile linking to /pipeline · counts at a glance; the board is one click away

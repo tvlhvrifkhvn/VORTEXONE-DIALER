@@ -14,7 +14,7 @@ import { getActiveSessionId } from '../../hooks/useCall';
 import * as api from '../../lib/api';
 
 const navLinkClasses = ({ isActive }) =>
-  `inline-flex min-h-10 items-center px-3 font-mono text-sm font-medium uppercase tracking-button transition-colors duration-150 ${
+  `inline-flex min-h-10 items-center px-2 font-mono text-sm font-medium uppercase tracking-button transition-colors duration-150 ${
     isActive ? 'bg-foreground text-background' : 'text-foreground hover:bg-muted'
   }`;
 
@@ -222,6 +222,28 @@ function useSmsInboxPoll() {
   return unreadLeadCount;
 }
 
+const TODAY_POLL_MS = 60000;
+
+/** C3B: how many callbacks and tasks are due today (overdue included), for the TODAY badge. */
+function useTodayDue() {
+  const [due, setDue] = useState(0);
+  useEffect(() => {
+    let cancelled = false;
+    const poll = () =>
+      api
+        .getToday()
+        .then((t) => !cancelled && setDue(t.callbacks.total + t.tasks.total))
+        .catch(() => {});
+    poll();
+    const id = setInterval(poll, TODAY_POLL_MS);
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+    };
+  }, []);
+  return due;
+}
+
 const SESSION_POLL_MS = 2000;
 
 /** Whether a dialing session is currently running, for the navbar's "Live"
@@ -276,6 +298,7 @@ export default function AppShell({ children }) {
   const [darkMode, setDarkMode] = useState(getInitialDarkMode);
   const sessionLive = useSessionLive();
   const unreadSmsCount = useSmsInboxPoll();
+  const todayDue = useTodayDue();
 
   useEffect(() => {
     document.documentElement.dataset.theme = darkMode ? 'ink' : 'paper';
@@ -300,7 +323,7 @@ export default function AppShell({ children }) {
           <div className="flex items-center gap-6">
             <span className="flex items-baseline gap-2">
               <span className="text-lg font-semibold tracking-[-0.01em] text-foreground">VORTEX ONE</span>
-              <span className="font-mono text-xs font-medium uppercase tracking-label text-muted-foreground">
+              <span className="hidden font-mono text-xs font-medium uppercase tracking-label text-muted-foreground 2xl:inline">
                 Outreach
               </span>
             </span>
@@ -309,10 +332,24 @@ export default function AppShell({ children }) {
           </div>
 
           <nav aria-label="Main" className="flex flex-wrap">
+            {/* C3B: section 4 order. */}
+            <NavLink to="/" end className={navLinkClasses}>
+              {({ isActive }) => (
+                <span className="inline-flex items-center gap-2">
+                  Today
+                  {todayDue > 0 && (
+                    <Badge tone={isActive ? 'muted' : 'solid'} className="tabular-nums">
+                      {todayDue}
+                      <span className="sr-only"> due</span>
+                    </Badge>
+                  )}
+                </span>
+              )}
+            </NavLink>
             <NavLink to="/pipeline" className={navLinkClasses}>
               Pipeline
             </NavLink>
-            <NavLink to="/" end className={navLinkClasses}>
+            <NavLink to="/leads" className={navLinkClasses}>
               Leads
             </NavLink>
             <NavLink to="/dialer" className={navLinkClasses}>

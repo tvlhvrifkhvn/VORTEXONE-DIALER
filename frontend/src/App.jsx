@@ -14,6 +14,7 @@ import Reports from './pages/Reports';
 import Settings from './pages/Settings';
 import Campaigns from './pages/Campaigns';
 import Pipeline from './pages/Pipeline';
+import Today from './pages/Today';
 import Styleguide from './pages/Styleguide';
 
 function RequireAuth({ children }) {
@@ -35,8 +36,17 @@ function AppRoutes() {
   return (
     <Routes key={version}>
       <Route path="/login" element={<Login />} />
+      {/* C3B: Today is home; the leads list moved to /leads. */}
       <Route
         path="/"
+        element={
+          <RequireAuth>
+            <Today />
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/leads"
         element={
           <RequireAuth>
             <Dashboard />

@@ -32,7 +32,7 @@ export default function ManualCall() {
           type="button"
           onClick={() => navigate('/')}
           disabled={callInFlight}
-          title={callInFlight ? 'Hang up before leaving this page' : 'Back to dashboard'}
+          title={callInFlight ? 'Hang up before leaving this page' : 'Back to Today'}
           className="flex min-h-10 items-center gap-2 font-mono text-sm font-medium uppercase tracking-button text-muted-foreground transition-colors duration-150 hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40"
         >
           <ArrowLeft size={16} strokeWidth={1.5} aria-hidden="true" />
