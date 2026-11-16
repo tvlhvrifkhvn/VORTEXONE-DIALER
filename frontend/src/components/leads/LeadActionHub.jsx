@@ -271,6 +271,22 @@ export function EmailCompose({ lead, onSent }) {
 }
 
 function TimelineEntry({ entry, leadName }) {
+  // C2C: stage changes and the import event, one plain line each (C2D draws them fully).
+  if (entry.type === 'stage' || entry.type === 'import') {
+    const text =
+      entry.type === 'import'
+        ? `Imported into ${entry.to_stage || 'the pipeline'}`
+        : entry.from_stage
+          ? `Stage: ${entry.from_stage} → ${entry.to_stage || 'a deleted stage'}`
+          : `Added in ${entry.to_stage || 'the pipeline'}`;
+    return (
+      <div className="border-b py-2 text-sm text-muted-foreground last:border-b-0">
+        <span className="font-medium text-foreground">{text}</span>
+        {entry.user_name ? ` by ${entry.user_name}` : ''} ·{' '}
+        <span className="font-mono text-xs tabular-nums">{formatDateTime(entry.timestamp)}</span>
+      </div>
+    );
+  }
   if (entry.type === 'sms_opt') {
     // A change to the lead's SMS opt-out (a STOP / START text, or the rep's button).
     const label = entry.action === 'opt_out' ? 'Opted out of texts' : 'Opted back in to texts';

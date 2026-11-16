@@ -13,6 +13,7 @@ const smsService = require('./smsService');
 const campaigns = require('./campaigns');
 const aiContext = require('./aiContext');
 const pipeline = require('./pipeline');
+const customFields = require('./customFields');
 
 const SMS_OPTED_OUT_REASON = 'Imported, opted out of texts: this number replied STOP earlier';
 
@@ -43,6 +44,27 @@ const CITY_FIELD = 'city';
 const NAME_PART_FIELDS = ['first_name', 'last_name'];
 const ZIP_FIELD = 'zip';
 const MAPPABLE_FIELDS = [...LEAD_FIELDS, ...NAME_PART_FIELDS, CITY_FIELD, ZIP_FIELD, SOURCE_FIELD];
+// C2C: each campaign field is an extra, optional mapping target "custom.<key>".
+const CUSTOM_PREFIX = 'custom.';
+const customTargets = (defs = []) => defs.map((d) => `${CUSTOM_PREFIX}${d.key}`);
+const headerKey = (text) => String(text).toLowerCase().replace(/[^a-z0-9]/g, '');
+
+/** Maps an unused header whose name equals a custom field's key or label. */
+function guessCustom(mapping, headers, defs) {
+  if (!defs || defs.length === 0) return mapping;
+  const used = new Set(Object.values(mapping).filter(Boolean));
+  for (const d of defs) {
+    const target = `${CUSTOM_PREFIX}${d.key}`;
+    if (mapping[target]) continue;
+    const wanted = [headerKey(d.key), headerKey(d.label)];
+    const h = headers.find((x) => !used.has(x) && wanted.includes(headerKey(x)));
+    if (h) {
+      mapping[target] = h;
+      used.add(h);
+    }
+  }
+  return mapping;
+}
 
 /** The raw name of a row: the mapped name column, or first + last name joined. */
 function rawName(row, mapping) {
@@ -113,7 +135,7 @@ const NOT_A_NAME = ['first', 'last', 'company', 'office', 'broker', 'file', 'use
  * (and is the whole mapping when AI is unavailable). The user can change any
  * of it in the preview before importing.
  */
-function guessMapping(headers) {
+function guessMapping(headers, customDefs = []) {
   const normalized = headers.map((h) => ({ header: h, key: String(h).toLowerCase().replace(/[^a-z0-9]/g, '') }));
   const mapping = {};
   const used = new Set();
@@ -147,12 +169,12 @@ function guessMapping(headers) {
     delete mapping.first_name;
     delete mapping.last_name;
   }
-  return mapping;
+  return guessCustom(mapping, headers, customDefs);
 }
 
 /** The AI's mapping, with any field it didn't map filled from guessMapping
  * (the AI knows nothing about first/last name or zip columns). */
-function completeMapping(aiMapping, headers) {
+function completeMapping(aiMapping, headers, customDefs = []) {
   const mapping = { ...(aiMapping || {}) };
   const used = new Set(Object.values(mapping).filter(Boolean));
   for (const [field, header] of Object.entries(guessMapping(headers))) {
@@ -165,7 +187,7 @@ function completeMapping(aiMapping, headers) {
     delete mapping.first_name;
     delete mapping.last_name;
   }
-  return mapping;
+  return guessCustom(mapping, headers, customDefs);
 }
 
 /** The locality half of a merge identity — whichever of city/address/state the
@@ -220,7 +242,19 @@ function prepareRow(row, mapping) {
     city: city || null,
     brokerage: resolveBrokerage(row, mapping) || null,
     state: US_STATES.includes(state) ? state : null,
+    ...customCells(row, mapping),
   };
+}
+
+/** C2C: the raw cells of the mapped custom.<key> columns ({ custom } or nothing). */
+function customCells(row, mapping) {
+  const custom = {};
+  for (const [target, header] of Object.entries(mapping || {})) {
+    if (!target.startsWith(CUSTOM_PREFIX) || !header) continue;
+    const value = cleanText(row[header]);
+    if (value) custom[target.slice(CUSTOM_PREFIX.length)] = value;
+  }
+  return Object.keys(custom).length ? { custom } : {};
 }
 
 /** Fills the gaps in `into` from `from` — same person seen twice in one file.
@@ -237,6 +271,7 @@ function mergePrep(into, from) {
     if (!merged[field] && from[field]) merged[field] = from[field];
   }
   if (from.name && (!merged.name || from.name.length < merged.name.length)) merged.name = from.name;
+  if (from.custom) merged.custom = { ...from.custom, ...(merged.custom || {}) }; // C2C: fill gaps
   return merged;
 }
 
@@ -513,6 +548,8 @@ async function savePhase(jobId, state) {
   const { rows: jobRows } = await db.query('SELECT campaign_id, user_id FROM import_jobs WHERE id = $1', [jobId]);
   const jobCampaignId = jobRows[0] ? jobRows[0].campaign_id : null;
   const jobUserId = jobRows[0] ? jobRows[0].user_id : null;
+  // C2C: the job campaign's fields; a custom value that can't be read is dropped (the row's outcome never changes).
+  const fieldDefs = jobCampaignId ? await customFields.list(jobCampaignId) : [];
   const { rows: toSave } = await db.query('SELECT count(*)::int AS n FROM import_rows WHERE job_id = $1 AND outcome IS NULL', [jobId]);
   await db.query(`UPDATE import_jobs SET phase = 'saving', rows_to_save = $2, saved_rows = 0 WHERE id = $1`, [jobId, toSave[0].n]);
 
@@ -603,14 +640,15 @@ async function savePhase(jobId, state) {
       if (inserts.length > 0) {
         const cols = inserts.map((r) => r.prep);
         const { rows: insertedRows } = await client.query(
-          `INSERT INTO leads (name, phone, email, address, brokerage, state, status, missing_phone, office_key, original_phone, extension, tz_zones, max_attempts, campaign_id, pipeline_stage_id)
+          `INSERT INTO leads (name, phone, email, address, brokerage, state, status, missing_phone, office_key, original_phone, extension, tz_zones, max_attempts, campaign_id, pipeline_stage_id, custom)
            SELECT t.name, t.phone, t.email, t.address, t.brokerage, t.state, 'new', t.phone IS NULL, t.office_key, t.original_phone, t.extension,
                   string_to_array(t.tz_zones, ','), $11, (SELECT campaign_id FROM import_jobs WHERE id = $12),
                   -- C2A: the job campaign's first stage (I13)
                   (SELECT s.id FROM pipeline_stages s WHERE s.campaign_id = (SELECT campaign_id FROM import_jobs WHERE id = $12)
-                   ORDER BY s.position, s.id LIMIT 1)
-           FROM unnest($1::text[], $2::text[], $3::text[], $4::text[], $5::text[], $6::text[], $7::text[], $8::text[], $9::text[], $10::text[])
-             AS t(name, phone, email, address, brokerage, state, office_key, original_phone, extension, tz_zones)
+                   ORDER BY s.position, s.id LIMIT 1),
+                  t.custom
+           FROM unnest($1::text[], $2::text[], $3::text[], $4::text[], $5::text[], $6::text[], $7::text[], $8::text[], $9::text[], $10::text[], $13::jsonb[])
+             AS t(name, phone, email, address, brokerage, state, office_key, original_phone, extension, tz_zones, custom)
            ON CONFLICT (phone) DO NOTHING
            RETURNING id, phone, pipeline_stage_id`,
           [
@@ -627,6 +665,7 @@ async function savePhase(jobId, state) {
             cols.map((p) => callingHours.zonesForLead(p).join(',')),
             maxAttempts, // F-48: the owner's default for new leads
             jobId, // C1A: leads go to the import job's campaign
+            cols.map((p) => JSON.stringify(customFields.coerceForImport(fieldDefs, p.custom))), // C2C: $13
           ]
         );
         await pipeline.recordInitial(client, insertedRows, 'import', jobUserId); // C2A: one history row per new lead
@@ -1050,6 +1089,7 @@ async function getImportHistory() {
 module.exports = {
   LEAD_FIELDS,
   MAPPABLE_FIELDS,
+  customTargets,
   parseCsv,
   guessMapping,
   completeMapping,

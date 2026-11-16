@@ -10,6 +10,7 @@ const { asyncHandler } = require('../middleware/asyncHandler');
 const { requireAuth } = require('../middleware/auth');
 const { requireActiveCampaign, requireCampaign } = require('../middleware/campaign');
 const aiContext = require('../services/aiContext');
+const customFields = require('../services/customFields');
 const { ApiError } = require('../middleware/errorHandler');
 
 const router = express.Router();
@@ -157,21 +158,23 @@ router.post(
     }
 
     const { headers, sampleRows } = parsed;
+    // C2C: the file's custom fields are extra, optional mapping targets.
+    const fieldDefs = await customFields.list(req.campaign.id);
 
     // One quick AI call for the suggested mapping (falls back to the
     // heuristic guess when Groq isn't configured). Row cleaning — the slow
     // part — is what moves to the background job.
     let mappingResult;
     try {
-      mappingResult = await aiCsvMapper.mapColumns(headers, sampleRows, aiContext.fromCampaign(req.campaign));
+      mappingResult = await aiCsvMapper.mapColumns(headers, sampleRows, aiContext.fromCampaign(req.campaign), fieldDefs);
     } catch {
       // AI failed (unreachable, bad key, bad answer): same as unavailable.
-      mappingResult = { mapping: csvImport.guessMapping(headers), confidence: {}, needsReview: [], unavailable: true };
+      mappingResult = { mapping: csvImport.guessMapping(headers, fieldDefs), confidence: {}, needsReview: [], unavailable: true };
     }
     if (mappingResult.unavailable) {
-      mappingResult = { ...mappingResult, mapping: csvImport.guessMapping(headers) };
+      mappingResult = { ...mappingResult, mapping: csvImport.guessMapping(headers, fieldDefs) };
     } else {
-      mappingResult = { ...mappingResult, mapping: csvImport.completeMapping(mappingResult.mapping, headers) };
+      mappingResult = { ...mappingResult, mapping: csvImport.completeMapping(mappingResult.mapping, headers, fieldDefs) };
     }
 
     await csvImport.setUploadResult(jobId, { totalRows: parsed.totalRows, mapping: mappingResult.mapping });
@@ -182,7 +185,8 @@ router.post(
       totalRows: parsed.totalRows,
       sheetRowCounts: parsed.sheetRowCounts,
       headers,
-      fields: csvImport.MAPPABLE_FIELDS,
+      fields: [...csvImport.MAPPABLE_FIELDS, ...csvImport.customTargets(fieldDefs)],
+      customFields: fieldDefs.map((d) => ({ target: `custom.${d.key}`, label: d.label, type: d.type })),
       sampleRows,
       ...mappingResult,
     });

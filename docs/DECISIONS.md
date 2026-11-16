@@ -138,3 +138,12 @@
 - 2026-11-16 · C2B · The stage editor moves stages with ↑/↓ buttons, not drag · keyboard first; the server refuses an order that puts won/lost first and the editor shows that message
 - 2026-11-16 · C2B · The deal value is typed in dollars (1500 or 1500.50) and stored in cents; empty clears it · section 2 stores cents; people think in dollars
 - 2026-11-16 · C2B · audit/scripts/reskin-shots.js gains the page name `pipeline` · the gate screenshots the board
+- 2026-11-16 · C2C · A field's key and type never change after creation; label, options and show_in_list can · stored values depend on both; changing a type would leave values that no longer match
+- 2026-11-16 · C2C · Deleting a field also removes its key from the file's leads.custom · no orphan values that a later field with the same key would inherit
+- 2026-11-16 · C2C · Edits are strict (400 names the field and the expected type); imports are lenient and drop a cell they can't read, keeping the row's outcome · "the import accounting must not change": a custom column never makes a row fail
+- 2026-11-16 · C2C · In edits, null or '' clears a key; a patch merges into leads.custom (custom || set) - clear · the lead page can send one field at a time
+- 2026-11-16 · C2C · A custom target is guessed when a header equals the field's key or label (letters and digits only, any case), and the AI mapper gets them as optional targets · same idea as the core synonyms; never sent to review
+- 2026-11-16 · C2C · smsService.getTimeline stays: preCallBrief still calls it (the grep showed another caller) · the plan says remove it only when nothing else uses it
+- 2026-11-16 · C2C · The timeline keeps the old response shape and adds stageChanges and imports; the import event is the lead's lead_stage_history row with source import · the lead page keeps working; leads have no import job id, the history row has the time
+- 2026-11-16 · C2C · LeadActionHub shows stage and import entries as one plain line each · without it they fell through to the SMS bubble as empty "Lead · SMS" items; C2D draws them fully
+- 2026-11-16 · C2C · updateFields with custom or deal_value_cents bumps updated_at like any edit; PUT /api/leads/:id/deal (C2B) still doesn't · an edit through the lead form is an edit; the pipeline's deal shortcut stays out of the dialer's order
