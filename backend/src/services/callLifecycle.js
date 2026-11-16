@@ -1,4 +1,5 @@
 const db = require('../db');
+const costEngine = require('./costEngine');
 const { ApiError } = require('../middleware/errorHandler');
 
 /**
@@ -29,7 +30,11 @@ async function markEnded(callHistoryId, durationSeconds) {
        SET telephony_state = 'ended',
            ended_at = COALESCE(c.ended_at, now()),
            duration_seconds = COALESCE(c.duration_seconds, $2,
-             GREATEST(0, EXTRACT(EPOCH FROM (now() - c.started_at))::int))
+             GREATEST(0, EXTRACT(EPOCH FROM (now() - c.started_at))::int)),
+           -- C4A: billed seconds from the state the call had (this statement overwrites it).
+           billed_seconds = COALESCE(c.billed_seconds,
+             CASE WHEN c.telephony_state IN ('answered', 'voicemail_detected')
+                  THEN (CEIL(GREATEST(0, COALESCE(c.duration_seconds, $2, GREATEST(0, EXTRACT(EPOCH FROM (now() - c.started_at))::int))) / 60.0)::int * 60) ELSE 0 END)
        FROM prev
        WHERE c.id = prev.id AND c.telephony_state <> 'failed'
        RETURNING c.lead_id, c.user_id, c.disposition, prev.prev_ended_at
@@ -44,6 +49,8 @@ async function markEnded(callHistoryId, durationSeconds) {
        AND l.locked_by = closed.user_id`,
     [callHistoryId, duration]
   );
+  // C4A: the estimate, stored once (when rates exist).
+  await costEngine.settle(callHistoryId);
 }
 
 /**

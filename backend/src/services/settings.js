@@ -48,6 +48,11 @@ const API_SETTINGS = {
   reporting_timezone: { maxLength: 64 },                 // reportingPeriod.js
   day_start_time: { maxLength: 5 },                      // reportingPeriod.js
   default_max_attempts: { maxLength: 2 },                // new leads (F-48), see defaultMaxAttempts()
+  // C4A: rates in cents (decimals allowed) and the global monthly budget; empty = not set (costEngine.js).
+  rate_outbound_cents_per_min: { maxLength: 16 },
+  rate_recording_cents_per_min: { maxLength: 16 },
+  rate_per_call_cents: { maxLength: 16 },
+  monthly_budget_cents: { maxLength: 16 },
 };
 
 // ---- default max attempts (F-48) ----------------------------------------------

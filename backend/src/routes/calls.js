@@ -5,6 +5,7 @@ const leadQueue = require('../services/leadQueue');
 const callSession = require('../services/callSession');
 const leadLifecycle = require('../services/leadLifecycle');
 const dialingSession = require('../services/dialingSession');
+const costEngine = require('../services/costEngine');
 const { asyncHandler } = require('../middleware/asyncHandler');
 const { requireAuth } = require('../middleware/auth');
 const { requireActiveCampaign } = require('../middleware/campaign');
@@ -69,6 +70,7 @@ router.post(
   requireActiveCampaign,
   asyncHandler(async (req, res) => {
     const { leadId, sessionId, redial } = req.body;
+    await costEngine.assertBudget(req.campaign.id); // C4A: 409 once the budget is reached
 
     let lead;
     if (leadId && redial === true) {
@@ -114,6 +116,7 @@ router.post(
   '/manual/start',
   requireActiveCampaign,
   asyncHandler(async (req, res) => {
+    await costEngine.assertBudget(req.campaign.id); // C4A
     const call = await callSession.startManual({ userId: req.user.sub, toNumberRaw: req.body.toNumber, campaignId: req.campaign.id });
     res.status(201).json({ call });
   })
@@ -125,6 +128,7 @@ router.post(
   '/multiline/start',
   requireActiveCampaign,
   asyncHandler(async (req, res) => {
+    await costEngine.assertBudget(req.campaign.id); // C4A
     const result = await callSession.startMultilineSession(
       req.user.sub,
       req.body.sessionId || null,

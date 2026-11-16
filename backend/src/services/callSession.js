@@ -9,6 +9,7 @@ const dncCheck = require('./dncCheck');
 const { ApiError } = require('../middleware/errorHandler');
 const { normalizePhone } = require('../utils/phoneNormalize');
 const callingHours = require('./callingHours');
+const costEngine = require('./costEngine');
 
 // Reserved-for-fiction NANP range (555-0100 through 555-0199) — safe
 // placeholder until phone_numbers is populated with real numbers in phase 2.
@@ -165,9 +166,14 @@ async function endManualCall(callHistoryId, user) {
     const now = new Date();
     const durationSeconds = Math.max(0, Math.round((now - new Date(call.started_at)) / 1000));
     await db.query(
-      `UPDATE call_history SET ended_at = $2, duration_seconds = $3, telephony_state = 'ended' WHERE id = $1`,
+      // C4A: billed seconds from the state before this statement overwrites it.
+      `UPDATE call_history SET ended_at = $2, duration_seconds = $3::int, telephony_state = 'ended',
+         billed_seconds = COALESCE(billed_seconds, CASE WHEN telephony_state IN ('answered', 'voicemail_detected')
+           THEN (CEIL($3::int / 60.0)::int * 60) ELSE 0 END)
+       WHERE id = $1`,
       [callHistoryId, now, durationSeconds]
     );
+    await costEngine.settle(callHistoryId);
   }
 
   return get(callHistoryId);
@@ -500,6 +506,11 @@ async function dialIntoSlot(session, slotNumber) {
       });
       return;
     }
+    // C4A: once the budget is reached the session stops refilling; calls in progress finish normally.
+    if ((await costEngine.budgetState(session.campaignId)).state === 'reached') {
+      emitSlot(session, { slotNumber, lead: {}, callId: null }, 'idle', { message: costEngine.BUDGET_REACHED_MESSAGE });
+      return;
+    }
     const slot = await reserveSlot(session, slotNumber);
     if (!slot) return;
     if (await placeSlotCall(session, slot)) return;
@@ -723,11 +734,16 @@ async function recoverAfterRestart() {
   const { rows: calls } = await db.query(
     `UPDATE call_history
      SET ended_at = now(), was_abandoned = true, telephony_state = CASE WHEN telephony_state = 'failed' THEN 'failed' ELSE 'ended' END,
-         duration_seconds = COALESCE(duration_seconds, GREATEST(0, EXTRACT(EPOCH FROM (now() - started_at))::int))
+         duration_seconds = COALESCE(duration_seconds, GREATEST(0, EXTRACT(EPOCH FROM (now() - started_at))::int)),
+         -- C4A: billed seconds from the state before this statement overwrites it.
+         billed_seconds = CASE WHEN telephony_state IN ('answered', 'voicemail_detected')
+           THEN (CEIL(GREATEST(0, COALESCE(duration_seconds, EXTRACT(EPOCH FROM (now() - started_at))::int)) / 60.0)::int * 60)
+           WHEN telephony_state = 'failed' THEN NULL ELSE 0 END
      WHERE ended_at IS NULL AND disposition IS NULL
      RETURNING lead_id`
   );
   const released = await leadLifecycle.releaseAbandoned(calls.map((c) => c.lead_id));
+  await costEngine.settle(); // C4A
   return { sessions, calls: calls.length, leads: released.length };
 }
 
