@@ -127,3 +127,14 @@
 - 2026-11-16 · C2A · Stage add/rename/reorder/delete is supervisor only; reading the board and moving a lead are for every user · stages are file settings; moving leads is daily work
 - 2026-11-16 · C2A · Creating a lead by hand records history with no user (leadQueue.create has no user); imports record the job's user · no route change outside the phase's list
 - 2026-11-16 · C2A · Measured on 100,000 leads in two files: the 035 backfill takes 2.8 s; board(50,000-lead file, 20 per stage) about 240 ms · fine for now; C2B can page per stage if a file grows much larger
+- 2026-11-16 · C2B · Two small API additions: board takes stageId + offset (one column's LOAD MORE, same order as the board, no repeats) and PUT /api/leads/:id/deal saves deal_value_cents · the phase needs both; C2C's updateFields can accept deal_value_cents too without conflict
+- 2026-11-16 · C2B · Drag and drop is native HTML5 with a custom data type; MOVE → is the keyboard path (menu button, Tab and Enter; no arrow or Esc handlers) · no new dependency; Esc ends calls (DESIGN.md section 5)
+- 2026-11-16 · C2B · A move on the board reloads the board; a polite live region announces "Moved X to Y" · simple and correct counts; screen readers hear the result of a drop
+- 2026-11-16 · C2B · Stage tags: won solid, lost muted, open outline (hooks/useStages.js stageTone) · mirrors the status tags: done solid, parked muted
+- 2026-11-16 · C2B · The outcome panel's MOVE TO STAGE select sits above the 3×2 grid, defaults to Auto and resets on every call; the grid, its order and hotkeys are unchanged · Auto keeps the server's rules (C2A); one optional control, out of the grid
+- 2026-11-16 · C2B · The V/N/D and M/Esc handlers also ignore keys typed in a SELECT · type-ahead in the stage picker must never pick an outcome or toggle mute; the smoke still passes
+- 2026-11-16 · C2B · The header hides the user's name below 2xl (1536px) · the PIPELINE link made the one-row header 13px too wide at 1440
+- 2026-11-16 · C2B · The board's scroll box is position: relative · the cards' sr-only labels are absolute and otherwise escaped it, widening the page to 1562px
+- 2026-11-16 · C2B · The stage editor moves stages with ↑/↓ buttons, not drag · keyboard first; the server refuses an order that puts won/lost first and the editor shows that message
+- 2026-11-16 · C2B · The deal value is typed in dollars (1500 or 1500.50) and stored in cents; empty clears it · section 2 stores cents; people think in dollars
+- 2026-11-16 · C2B · audit/scripts/reskin-shots.js gains the page name `pipeline` · the gate screenshots the board

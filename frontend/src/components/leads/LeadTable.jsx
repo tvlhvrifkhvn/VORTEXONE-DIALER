@@ -5,7 +5,7 @@ import LeadRow from './LeadRow';
 
 // No Actions column — calling, snoozing and scheduling all moved to the lead
 // page, which a row click opens.
-const COLUMNS = ['Lead', 'Phone', 'State', 'Attempts', 'Status', 'Added'];
+const COLUMNS = ['Lead', 'Phone', 'State', 'Attempts', 'Status', 'Stage', 'Added']; // C2B: Stage
 const CALLBACK_DUE_SOON_MS = 2 * 60 * 60 * 1000;
 
 function isCallbackDueSoon(lead) {

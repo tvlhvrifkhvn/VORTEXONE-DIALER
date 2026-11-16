@@ -84,9 +84,9 @@ function CallScreenInner({ leadId }) {
 
   // Submission path handed to the shared DispositionPanel — the panel owns
   // the note text and the DNC confirmation, this owns how it's sent.
-  const handlePanelDisposition = async ({ disposition, note: panelNote, onRetrying }) => {
+  const handlePanelDisposition = async ({ disposition, note: panelNote, onRetrying, stageId }) => {
     setActionError(null);
-    await submitDisposition({ disposition, note: panelNote, onRetrying });
+    await submitDisposition({ disposition, note: panelNote, onRetrying, stageId });
     setLastDisposition(disposition);
   };
 
@@ -151,7 +151,7 @@ function CallScreenInner({ leadId }) {
   useEffect(() => {
     const handler = (e) => {
       const tag = e.target?.tagName;
-      if (tag === 'TEXTAREA' || tag === 'INPUT') return;
+      if (tag === 'TEXTAREA' || tag === 'INPUT' || tag === 'SELECT') return; // C2B: the outcome's stage picker
 
       if (e.key === 'Escape') {
         if (!hungUp && !isFinalized) setShowHangupConfirm(true);

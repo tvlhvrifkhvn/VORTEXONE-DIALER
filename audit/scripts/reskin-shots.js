@@ -59,6 +59,7 @@ const ROUTES = {
   reports: '/reports',
   settings: '/settings',
   campaigns: '/settings/campaigns',
+  pipeline: '/pipeline',
   styleguide: '/styleguide',
 };
 

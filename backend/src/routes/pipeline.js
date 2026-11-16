@@ -64,7 +64,8 @@ router.get(
   '/board',
   requireCampaign,
   asyncHandler(async (req, res) => {
-    res.json(await pipeline.board(req.campaign.id, { perStage: req.query.perStage }));
+    const { perStage, stageId, offset } = req.query;
+    res.json(await pipeline.board(req.campaign.id, { perStage, stageId, offset }));
   })
 );
 
@@ -83,6 +84,15 @@ leadRouter.post(
       userId: req.user.sub,
     });
     res.json(result);
+  })
+);
+
+// C2B: PUT /api/leads/:id/deal { dealValueCents } (null clears it).
+leadRouter.put(
+  '/:id/deal',
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    res.json({ lead: await pipeline.setDealValue(req.params.id, req.body?.dealValueCents) });
   })
 );
 

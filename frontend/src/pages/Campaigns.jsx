@@ -14,6 +14,7 @@ import SectionLabel from '../components/ui/SectionLabel';
 import { useAuth } from '../hooks/useAuth';
 import { useCampaign, fileLabel } from '../hooks/useCampaign';
 import * as api from '../lib/api';
+import StageEditor from '../components/pipeline/StageEditor';
 
 const TEMPLATES = {
   real_estate: {
@@ -279,6 +280,7 @@ export default function Campaigns() {
           }}
         />
         {editing && <EditSection campaign={editing} disabled={!isSupervisor} onSaved={() => refresh()} />}
+        {editing && <StageEditor key={editing.id} campaign={editing} disabled={!isSupervisor} />}
       </div>
     </AppShell>
   );

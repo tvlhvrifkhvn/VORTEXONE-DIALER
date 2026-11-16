@@ -7,6 +7,7 @@ import AttemptBadge from './AttemptBadge';
 import { formatPhone, formatDateTime } from '../../lib/format';
 import { DIAL_MODE_KEY } from '../../hooks/useCall';
 import LeadLocalTime from './LeadLocalTime';
+import { stageTone } from '../../hooks/useStages';
 
 const STALE_MS = 7 * 24 * 60 * 60 * 1000;
 const STALE_STATUSES = ['new', 'in_queue'];
@@ -100,6 +101,9 @@ export default function LeadRow({
       </td>
       <td className="px-3 py-3">
         <StatusBadge status={lead.status} />
+      </td>
+      <td className="px-3 py-3">
+        {lead.stage_name ? <Badge tone={stageTone(lead.stage_kind)}>{lead.stage_name}</Badge> : <span className="text-muted-foreground">—</span>}
       </td>
       <td className="px-3 py-3 font-mono text-xs tabular-nums text-muted-foreground">{formatDateTime(lead.created_at)}</td>
     </tr>
