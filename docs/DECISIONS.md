@@ -68,3 +68,11 @@
 - 2026-11-15 · R7 · The styleguide token list moved to src/styles/tokens.js · the grep audit forbids raw hex outside src/styles/
 - 2026-11-15 · R7 · Date, datetime-local and time inputs get the focus ring on :focus and :focus-within · the keyboard pass found Tab landing on their built-in calendar button with no ring (the input matches neither :focus nor :focus-visible there)
 - 2026-11-15 · R7 · New checks committed: audit/scripts/reskin-grep.sh (the R7 grep audit; forces a UTF-8 locale so the emoji check works) and audit/scripts/reskin-a11y.js (labels, names, focus ring on every tab stop) · repeatable for the CRM phases
+- 2026-11-15 · C0B · Tests talk to the real Express app over HTTP (src/index.js is required with PORT=0; node --test runs each file in its own process with --test-force-exit) · index.js listens when required, and there is no separate app factory to use without a code change
+- 2026-11-15 · C0B · The runner sets a dummy GROQ_API_KEY, GROQ_BASE_URL to a closed local port and IMPORT_AI=off · config/index.js still falls back to a hardcoded key when GROQ_API_KEY is empty (PR #27 is unmerged), so an empty value would call the real Groq
+- 2026-11-15 · C0B · Calling-hours boundaries are tested through assertCallingHours(lead, date) with explicit dates; the on/off switch through the settings API and a by-id dial · faking the process clock a day ahead would expire the test JWTs (12 h)
+- 2026-11-15 · C0B · "Undo after the window" moves the Node clock 60 s ahead (setNowOffset); Postgres now() is unaffected · the check compares Date.now() with disposition_at
+- 2026-11-15 · C0B · "Editing a phone to a DNC number" documents today's behavior: the edit is refused (409) and the old number stays; a DNC lead's own number can't be changed (409) · tests record current behavior, not wished behavior
+- 2026-11-15 · C0B · A failed dial is inserted as a 'failed' call row in the report test · the mock adapter never refuses a dial
+- 2026-11-15 · C0B · The claimLead mutation is "status = ANY($3) OR true", not a deleted line · deleting the line leaves $3 unused and Postgres rejects the query, so failures would come from SQL errors, not from the tests
+- 2026-11-15 · C0B · docs/CRM_PLAN.md gains the "next" protocol (merge the open phase PR, run the next phase, stop) · the owner drives the phases by saying "next"

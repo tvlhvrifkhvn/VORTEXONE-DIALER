@@ -67,7 +67,7 @@ Update the lines for files you change, in the same commit. Built from grep (migr
 
 ## MIDDLEWARE (backend/src/middleware)
 - auth.js: requireAuth — verifies the JWT, sets req.user
-- rateLimit.js: loginLimiter (5/min), apiLimiter (100/min, keyed by user or IP)
+- rateLimit.js: loginLimiter (5/min), apiLimiter (100/min, keyed by user or IP); RATE_LIMIT_API_MAX / RATE_LIMIT_LOGIN_MAX raise them only when NODE_ENV=test (maxFor, API_MAX, LOGIN_MAX)
 - asyncHandler.js: wraps async handlers so rejections reach the error handler
 - errorHandler.js: errorHandler, notFound, ApiError (status + code)
 
@@ -122,4 +122,7 @@ Update the lines for files you change, in the same commit. Built from grep (migr
 - `bash audit/scripts/reskin-grep.sh`: design-rule grep; must print nothing
 - `node audit/scripts/reskin-shots.js --seg <x> --pages <list> [--lead <id>] [--smoke]`: screenshots and the M/Esc/D/V/N smoke (AUDIT_PASSWORD set)
 - `node audit/scripts/reskin-a11y.js --lead <id>`: labels, names and focus rings on Dashboard, call, lead, Settings
-- `cd backend && npm run migrate` · `npm run seed` · `npm run verify` (from C0B on)
+- `cd backend && npm run migrate` · `npm run seed`
+- `cd backend && npm run verify`: tests/run.js drops and creates `vortex_verify` (refuses any other name), migrates it, runs tests/*.test.js with node:test one file at a time (mock providers, test JWT secret, no AI, raised rate limits), prints a PASS/FAIL table, drops the database
+- tests/helpers.js: setupFile (reset + hours off + answered calls), request/client (every HTTP call; add headers here), createUser (logs in), createLead (backfills zones), getLead, nextPhone, dial, setOutcome (mock outcome), setNowOffset/resetClock (Node clock), setCallingHours, waitFor
+- tests/01-auth-settings · 02-dispositions (all 7 + max attempts + Undo) · 03-locks · 04-dnc · 05-import · 06-calling-hours · 07-reports-sms · 08-invariants (I1–I8)

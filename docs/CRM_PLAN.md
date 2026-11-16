@@ -4,6 +4,8 @@ Goal: Vortex One Outreach becomes a simple CRM with campaigns ("files"). Each ca
 
 How it runs: one phase per Claude Code session, on a branch `claude/crm-<phase>-<slug>` from the newest `latest`, with one PR into `latest`. The owner merges it before the next phase starts.
 
+When the owner says "next": merge the open phase PR (that is the approval), take the first phase in Status that is "not started", run it exactly as its section and section 0 say, open its PR, report, and stop. Don't merge a PR whose gate failed and don't start a phase on top of one: report instead. "fix: …" changes the open PR; "stop" leaves everything as it is.
+
 ## Section 0: rules for every phase
 1. Read only:
    - docs/CODEMAP.md,
@@ -305,7 +307,7 @@ Gate extra: the meter equals the sum of the call costs in the test data; screens
 
 ## Status
 - C0A: done
-- C0B: not started
+- C0B: done
 - C1A: not started
 - C1B: not started
 - C1C: not started
