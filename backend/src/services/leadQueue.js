@@ -288,12 +288,12 @@ async function getHistory(leadId) {
 }
 
 /** Appends a tag to a lead, ignoring duplicates and blank input. */
-async function addTag(leadId, rawTag) {
+async function addTag(leadId, rawTag, executor = db) {
   const tag = (rawTag || '').replace(/\s+/g, ' ').trim();
   if (!tag) throw new ApiError(400, 'Tag cannot be empty');
   if (tag.length > 40) throw new ApiError(400, 'Tag is too long (40 characters max)');
 
-  const { rows } = await db.query(
+  const { rows } = await executor.query(
     `UPDATE leads
      SET tags = CASE WHEN $2 = ANY(tags) THEN tags ELSE array_append(tags, $2) END,
          updated_at = now()
@@ -305,8 +305,8 @@ async function addTag(leadId, rawTag) {
   return rows[0];
 }
 
-async function removeTag(leadId, rawTag) {
-  const { rows } = await db.query(
+async function removeTag(leadId, rawTag, executor = db) {
+  const { rows } = await executor.query(
     `UPDATE leads SET tags = array_remove(tags, $2), updated_at = now()
      WHERE id = $1 AND deleted_at IS NULL
      RETURNING *`,
@@ -422,7 +422,7 @@ const MAX_LIST_LIMIT = 10000;
 const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
 
 /** Checks GET /api/leads query values; 400 with a plain message for a bad one. */
-function parseListQuery({ search, status, dateFrom, dateTo, state, page, limit, stageId } = {}) {
+function parseListQuery({ search, status, dateFrom, dateTo, state, page, limit, stageId, tag, minAttempts, noActivityDays, callbackOverdue } = {}) {
   const int = (value, name, min, max, fallback) => {
     if (value === undefined || value === '') return fallback;
     const n = Number(value);
@@ -447,12 +447,21 @@ function parseListQuery({ search, status, dateFrom, dateTo, state, page, limit, 
     dateFrom: date(dateFrom, 'dateFrom'),
     dateTo: date(dateTo, 'dateTo'),
     stageId: int(stageId, 'stageId', 1, 2147483647, undefined), // C2A
+    // C2E: tag, minimum attempts, no activity for N days, callback overdue.
+    tag: text(tag, 'tag'),
+    minAttempts: int(minAttempts, 'minAttempts', 0, 100, undefined),
+    noActivityDays: int(noActivityDays, 'noActivityDays', 1, 3650, undefined),
+    callbackOverdue: callbackOverdue === undefined || callbackOverdue === '' || callbackOverdue === false || callbackOverdue === 'false' || callbackOverdue === '0'
+      ? undefined
+      : callbackOverdue === true || callbackOverdue === 'true' || callbackOverdue === '1'
+        ? true
+        : (() => { throw new ApiError(400, 'callbackOverdue must be true or false'); })(),
     page: int(page, 'page', 1, 1000000, 1),
     pageSize: int(limit, 'limit', 1, MAX_LIST_LIMIT, 50),
   };
 }
 
-function buildListFilters({ search, status, dateFrom, dateTo, stageId }) {
+function buildListFilters({ search, status, dateFrom, dateTo, stageId, tag, minAttempts, noActivityDays, callbackOverdue }) {
   const clauses = ['deleted_at IS NULL'];
   const params = [];
 
@@ -476,14 +485,30 @@ function buildListFilters({ search, status, dateFrom, dateTo, stageId }) {
     params.push(stageId);
     clauses.push(`pipeline_stage_id = $${params.length}`);
   }
+  if (tag) {
+    params.push(tag);
+    clauses.push(`$${params.length} = ANY(leads.tags)`);
+  }
+  if (minAttempts !== undefined) {
+    params.push(minAttempts);
+    clauses.push(`attempts >= $${params.length}`);
+  }
+  if (noActivityDays) {
+    // "No activity": no update to the lead (calls, outcomes and edits all touch it) for N days.
+    params.push(noActivityDays);
+    clauses.push(`leads.updated_at < now() - make_interval(days => $${params.length})`);
+  }
+  if (callbackOverdue) {
+    clauses.push(`(status = 'callback_scheduled' AND next_action_at < now())`);
+  }
 
   return { where: clauses.length ? `WHERE ${clauses.join(' AND ')}` : '', params };
 }
 
-async function list({ search, status, dateFrom, dateTo, state, page = 1, pageSize = 50, campaignId, stageId } = {}) {
+async function list({ search, status, dateFrom, dateTo, state, page = 1, pageSize = 50, campaignId, stageId, tag, minAttempts, noActivityDays, callbackOverdue } = {}) {
   await releaseStaleLocks();
 
-  const filters = { search, status, dateFrom, dateTo, stageId };
+  const filters = { search, status, dateFrom, dateTo, stageId, tag, minAttempts, noActivityDays, callbackOverdue };
   const built = buildListFilters(filters);
   // C1C: one campaign, or ALL (scope gives TRUE and no params).
   const s = campaignScope.scope('leads', campaignId, built.params.length + 1);

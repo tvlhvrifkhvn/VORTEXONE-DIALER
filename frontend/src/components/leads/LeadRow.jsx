@@ -75,7 +75,7 @@ export default function LeadRow({
         </div>
         <div className="truncate text-sm text-muted-foreground" title={lead.brokerage || ''}>{lead.brokerage || '—'}</div>
       </td>
-      <td className="px-3 py-3 text-foreground">
+      <td className="whitespace-nowrap px-3 py-3 text-foreground">
         <div className="flex items-center gap-2 font-mono tabular-nums">
           {lead.missing_phone ? (
             <span className="font-sans text-sm italic text-muted-foreground">
@@ -94,7 +94,7 @@ export default function LeadRow({
           )}
         </div>
       </td>
-      <td className="px-3 py-3 text-foreground">
+      <td className="whitespace-nowrap px-3 py-3 text-foreground">
         <div className="font-mono">{lead.state}</div>
         <LeadLocalTime lead={lead} />
       </td>
@@ -107,7 +107,7 @@ export default function LeadRow({
       <td className="px-3 py-3">
         {lead.stage_name ? <Badge tone={stageTone(lead.stage_kind)}>{lead.stage_name}</Badge> : <span className="text-muted-foreground">—</span>}
       </td>
-      <td className="px-3 py-3 font-mono text-xs tabular-nums text-muted-foreground">{formatDateTime(lead.created_at)}</td>
+      <td className="whitespace-nowrap px-3 py-3 font-mono text-xs tabular-nums text-muted-foreground">{formatDateTime(lead.created_at)}</td>
       {listFields.map((f) => (
         <td
           key={f.key}

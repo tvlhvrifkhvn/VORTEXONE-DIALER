@@ -154,3 +154,12 @@
 - 2026-11-16 · C2D · Select options are edited as one comma-separated field · simple, keyboard-friendly; the server trims and removes duplicates
 - 2026-11-16 · C2D · List-field columns sit after ADDED in the leads table; numbers right-aligned in mono, long text cut with the full value in the tooltip · DESIGN.md table rules
 - 2026-11-16 · C2D · Custom targets in the import mapping read "<Label> · field" · tells them apart from the core lead fields
+- 2026-11-16 · C2E · Saved views belong to one user and one file; filters are stored as the list's query strings and checked with parseListQuery on save · "the same filter object the list route accepts"; a view can never hold a filter the list refuses
+- 2026-11-16 · C2E · "No activity for N days" means leads.updated_at older than N days · calls, outcomes, notes and edits all touch updated_at; stage moves don't (C2A) and so don't count as activity
+- 2026-11-16 · C2E · "Callback overdue" = status callback_scheduled with next_action_at in the past · the dialer's own callback time
+- 2026-11-16 · C2E · Bulk actions lock the selected leads in id order in one transaction and call the single-lead logic with that client (addTag/removeTag take an optional executor; campaigns.moveLeadWith split out of moveLead) · one transaction as the plan asks, no deadlock between two bulk requests, the single-lead rules stay in one place
+- 2026-11-16 · C2E · A skipped lead is reported with a reason: being dialed right now, not found, in another file (stage), already in that file (file move) · the selection strip says how many were skipped and why
+- 2026-11-16 · C2E · Bulk stage moves write history source bulk; bulk file moves keep source move (the single file move's source) · a file move is a file move however many leads it covers
+- 2026-11-16 · C2E · Bulk file move is supervisor only, like the single move; the strip shows it to supervisors only · same rule as C1A
+- 2026-11-16 · C2E · View counts refresh every 30 s and after a save; a view button is pressed when the current filters equal its filters · live without a heavy poll
+- 2026-11-16 · C2E · Phone, state and added cells never wrap; the table scrolls sideways when the file's list fields don't fit · the stage and field columns made rows three lines tall at 1440px (DESIGN.md: 48px rows)
