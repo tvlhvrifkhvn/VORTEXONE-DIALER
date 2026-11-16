@@ -187,3 +187,4 @@
 - 2026-11-16 · C4A · A budget of 0 counts as reached; no budget (empty) means no limit; with no rates set nothing is ever blocked · a 0 budget is a deliberate stop; the plan's "no rates = no blocking"
 - 2026-11-16 · C4A · The budget is checked at the three dial entry points (Redial included) and before each multi-line refill; a call in progress is never cut · the plan's rule 11: budget is global, no campaign bypasses it
 - 2026-11-16 · C4A · Measured on 100,000 calls: the first settle after rates are entered takes 2.3 s (one time); a budget check before a dial about 55 ms · acceptable per dial; the catch-up happens once
+- 2026-11-16 · F-01 · The hard-coded Groq key is removed from backend/src/config/index.js (groqApiKey = GROQ_API_KEY or null); tests/20-no-secrets fails if a real gsk_ key is ever written into backend/src or frontend/src · supersedes the old PR #27, which was stacked on pre-CRM code; the key in git history must be revoked in the Groq console
