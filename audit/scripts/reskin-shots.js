@@ -58,6 +58,7 @@ const ROUTES = {
   import: '/import',
   reports: '/reports',
   settings: '/settings',
+  campaigns: '/settings/campaigns',
   styleguide: '/styleguide',
 };
 

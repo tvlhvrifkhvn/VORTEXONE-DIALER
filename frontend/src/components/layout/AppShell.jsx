@@ -4,7 +4,7 @@ import { Phone, Search } from 'lucide-react';
 import Button from '../ui/Button';
 import Field from '../ui/Field';
 import Badge from '../ui/Badge';
-import FileTag from '../ui/FileTag';
+import CampaignSwitcher from './CampaignSwitcher';
 import Meter from '../ui/Meter';
 import Segmented from '../ui/Segmented';
 import StatusDot from '../ui/StatusDot';
@@ -304,13 +304,13 @@ export default function AppShell({ children }) {
                 Outreach
               </span>
             </span>
-            {/* Static until CRM Phase 1C turns it into the campaign switcher. */}
-            <FileTag number={1} name="Real Estate" />
+            {/* C1E: the FileTag is the campaign switcher. */}
+            <CampaignSwitcher />
           </div>
 
           <nav aria-label="Main" className="flex flex-wrap">
             <NavLink to="/" end className={navLinkClasses}>
-              Dashboard
+              Leads
             </NavLink>
             <NavLink to="/dialer" className={navLinkClasses}>
               <span className="inline-flex items-center gap-2">

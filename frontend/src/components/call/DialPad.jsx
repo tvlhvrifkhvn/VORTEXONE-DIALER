@@ -7,6 +7,7 @@ import ActionButton from '../ui/ActionButton';
 import { formatDuration, formatPhone } from '../../lib/format';
 import { US_STATES } from '../../lib/usStates';
 import * as api from '../../lib/api';
+import { useCampaign } from '../../hooks/useCampaign';
 
 const POLL_MS = 600;
 const KEYS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '*', '0', '#'];
@@ -49,6 +50,7 @@ const TELEPHONY_LABELS = {
 /** Minimal add-lead form shown after a manual call ends — entirely
  * optional, pre-filled with the number just dialed. */
 function SaveAsLeadForm({ phone, onSaved, onSkip }) {
+  const companyLabel = useCampaign().active?.company_label || 'Brokerage'; // C1E
   const [fields, setFields] = useState({ name: '', state: '', brokerage: '' });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
@@ -108,7 +110,7 @@ function SaveAsLeadForm({ phone, onSaved, onSkip }) {
       </div>
       <div>
         <label htmlFor="save-lead-brokerage" className="label mb-2 block">
-          Brokerage (optional)
+          {companyLabel} (optional)
         </label>
         <Field
           id="save-lead-brokerage"

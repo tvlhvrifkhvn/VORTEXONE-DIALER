@@ -17,6 +17,8 @@ import { useLeads, useStateCounts } from '../hooks/useLeads';
 import { DIAL_MODE_KEY, startDialingSession } from '../hooks/useCall';
 import * as api from '../lib/api';
 import { useUserSettings } from '../hooks/useUserSettings';
+import { useCampaign } from '../hooks/useCampaign';
+import { useAuth } from '../hooks/useAuth';
 
 const EMPTY_FILTERS = { search: '', status: '', dateFrom: '', dateTo: '', state: null };
 const DEFAULT_GOAL = 100;
@@ -25,8 +27,9 @@ const DEFAULT_GOAL = 100;
 // be changed per session.
 const DEFAULT_LINES = 3;
 
-const goalFrom = (settings) => {
-  const n = Number(settings?.daily_goal);
+// C1E: the daily goal belongs to the active file.
+const goalFrom = (campaign) => {
+  const n = Number(campaign?.daily_goal);
   return Number.isFinite(n) && n > 0 ? n : DEFAULT_GOAL;
 };
 const linesFrom = (settings) => {
@@ -36,14 +39,18 @@ const linesFrom = (settings) => {
 
 /** Below the stat cards — a goal Meter toward the daily dial goal. */
 function DailyGoalTracker({ dials }) {
-  const { settings, save } = useUserSettings();
-  const goal = goalFrom(settings);
+  const { active, refresh } = useCampaign();
+  const { user } = useAuth();
+  const canEdit = user?.role === 'supervisor'; // only a supervisor changes a file
+  const goal = goalFrom(active);
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(String(goal));
 
   const saveGoal = () => {
     const next = Number(draft);
-    if (Number.isInteger(next) && next > 0) save('daily_goal', next).catch(() => {});
+    if (Number.isInteger(next) && next > 0 && active) {
+      api.updateCampaign(active.id, { dailyGoal: next }).then(refresh).catch(() => {});
+    }
     setEditing(false);
   };
 
@@ -51,7 +58,7 @@ function DailyGoalTracker({ dials }) {
     <Panel className="space-y-2 p-4">
       <Meter label="Daily goal · dials" value={dials} max={goal} tone="goal" />
       <div className="flex justify-end">
-        {editing ? (
+        {!canEdit ? null : editing ? (
           <div className="flex items-center gap-2">
             <label htmlFor="daily-goal" className="label">
               Goal

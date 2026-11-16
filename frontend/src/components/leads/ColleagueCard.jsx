@@ -3,6 +3,7 @@ import { Building2 } from 'lucide-react';
 import Panel from '../ui/Panel';
 import SectionLabel from '../ui/SectionLabel';
 import * as api from '../../lib/api';
+import { useCampaign } from '../../hooks/useCampaign';
 
 /** "Sep 18" — short enough to sit inside a chip. */
 function shortDate(value) {
@@ -18,9 +19,10 @@ function brandOf(officeLabel) {
   return (officeLabel || '').split(' · ')[0] || 'their office';
 }
 
-function openerFor(summary) {
-  if (summary.clients > 0) return `I'm already supporting agents at ${brandOf(summary.officeLabel)}`;
-  if (summary.interested > 0) return `I've been speaking with a few agents at ${brandOf(summary.officeLabel)}`;
+// C1E: "agents" in a real estate file, "people" in any other.
+function openerFor(summary, people = 'agents') {
+  if (summary.clients > 0) return `I'm already supporting ${people} at ${brandOf(summary.officeLabel)}`;
+  if (summary.interested > 0) return `I've been speaking with a few ${people} at ${brandOf(summary.officeLabel)}`;
   return null;
 }
 
@@ -33,6 +35,8 @@ function openerFor(summary) {
 // lives here because the card renders nothing when there are no colleagues.
 export default function ColleagueCard({ leadId, index }) {
   const [summary, setSummary] = useState(null);
+  const { active } = useCampaign();
+  const people = !active || active.kind === 'real_estate' ? 'agents' : 'people';
 
   useEffect(() => {
     let cancelled = false;
@@ -49,7 +53,7 @@ export default function ColleagueCard({ leadId, index }) {
 
   if (!summary || !summary.totalColleagues) return null;
 
-  const opener = openerFor(summary);
+  const opener = openerFor(summary, people);
   // Spec table: mono keys, tabular values.
   const stats = [
     ['Colleagues', summary.totalColleagues],
