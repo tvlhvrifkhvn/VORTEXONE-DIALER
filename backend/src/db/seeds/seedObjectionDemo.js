@@ -74,8 +74,9 @@ async function createLeads() {
     leadsByOffice[key] = [];
     for (let i = 1; i <= office.count; i++) {
       const { rows } = await db.query(
-        `INSERT INTO leads (name, phone, brokerage, address, state, status, missing_phone, office_key, campaign_id)
-         VALUES ($1, NULL, $2, $3, $4, 'contacted', true, $5, (SELECT id FROM campaigns WHERE file_number = 1))
+        `INSERT INTO leads (name, phone, brokerage, address, state, status, missing_phone, office_key, campaign_id, pipeline_stage_id)
+         VALUES ($1, NULL, $2, $3, $4, 'contacted', true, $5, (SELECT id FROM campaigns WHERE file_number = 1),
+                 (SELECT s.id FROM pipeline_stages s JOIN campaigns c ON c.id = s.campaign_id WHERE c.file_number = 1 ORDER BY s.position, s.id LIMIT 1))
          RETURNING id`,
         [
           `${DEMO_PREFIX}${office.brokerage.split(' ')[0]} Agent ${i}`,

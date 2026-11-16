@@ -12,6 +12,7 @@ const db = require('../src/db');
 const app = require('../src/index');
 const leadQueue = require('../src/services/leadQueue');
 const settings = require('../src/services/settings');
+const pipeline = require('../src/services/pipeline');
 
 const PASSWORD = 'Verify-pass-1';
 let server = null;
@@ -40,6 +41,8 @@ async function resetDb() {
      VALUES (1, 'Real Estate', 'real-estate', 'real_estate', 'active', 'Brokerage',
              'Vortexone Agency offers virtual-assistant services (lead follow-up, appointment setting and admin support) to real estate agents in the United States.')`
   );
+  // C2A: File 01's stages, as migration 035 makes them.
+  await pipeline.createTemplateStages(db, 1, 'real_estate');
 }
 
 /** Creates another campaign straight in the database (File 02, 03, …). */
@@ -50,6 +53,7 @@ async function createCampaign({ name, status = 'active', kind = 'custom' } = {})
      RETURNING *`,
     [name, String(name).toLowerCase().replace(/[^a-z0-9]+/g, '-'), kind, status]
   );
+  await pipeline.createTemplateStages(db, rows[0].id, kind); // C2A
   return rows[0];
 }
 
@@ -127,6 +131,8 @@ async function createLead(fields = {}) {
     ...fields,
   };
   delete lead.areaCode;
+  // C2A: a lead always has a stage of its own campaign (I12, I13): the first one by default.
+  if (lead.pipeline_stage_id === undefined) lead.pipeline_stage_id = await pipeline.firstStageId(db, lead.campaign_id);
   const cols = Object.keys(lead);
   const { rows } = await db.query(
     `INSERT INTO leads (${cols.join(', ')}) VALUES (${cols.map((_, i) => `$${i + 1}`).join(', ')}) RETURNING *`,

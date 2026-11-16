@@ -12,6 +12,7 @@ const settingsStore = require('./settings');
 const smsService = require('./smsService');
 const campaigns = require('./campaigns');
 const aiContext = require('./aiContext');
+const pipeline = require('./pipeline');
 
 const SMS_OPTED_OUT_REASON = 'Imported, opted out of texts: this number replied STOP earlier';
 
@@ -509,8 +510,9 @@ async function savePhase(jobId, state) {
   // New leads get the owner's default max attempts (F-48), read once per import.
   const maxAttempts = await settingsStore.defaultMaxAttempts();
   // C1C: the job's campaign decides "already in another file" and the phoneless identity scope.
-  const { rows: jobRows } = await db.query('SELECT campaign_id FROM import_jobs WHERE id = $1', [jobId]);
+  const { rows: jobRows } = await db.query('SELECT campaign_id, user_id FROM import_jobs WHERE id = $1', [jobId]);
   const jobCampaignId = jobRows[0] ? jobRows[0].campaign_id : null;
+  const jobUserId = jobRows[0] ? jobRows[0].user_id : null;
   const { rows: toSave } = await db.query('SELECT count(*)::int AS n FROM import_rows WHERE job_id = $1 AND outcome IS NULL', [jobId]);
   await db.query(`UPDATE import_jobs SET phase = 'saving', rows_to_save = $2, saved_rows = 0 WHERE id = $1`, [jobId, toSave[0].n]);
 
@@ -601,13 +603,16 @@ async function savePhase(jobId, state) {
       if (inserts.length > 0) {
         const cols = inserts.map((r) => r.prep);
         const { rows: insertedRows } = await client.query(
-          `INSERT INTO leads (name, phone, email, address, brokerage, state, status, missing_phone, office_key, original_phone, extension, tz_zones, max_attempts, campaign_id)
+          `INSERT INTO leads (name, phone, email, address, brokerage, state, status, missing_phone, office_key, original_phone, extension, tz_zones, max_attempts, campaign_id, pipeline_stage_id)
            SELECT t.name, t.phone, t.email, t.address, t.brokerage, t.state, 'new', t.phone IS NULL, t.office_key, t.original_phone, t.extension,
-                  string_to_array(t.tz_zones, ','), $11, (SELECT campaign_id FROM import_jobs WHERE id = $12)
+                  string_to_array(t.tz_zones, ','), $11, (SELECT campaign_id FROM import_jobs WHERE id = $12),
+                  -- C2A: the job campaign's first stage (I13)
+                  (SELECT s.id FROM pipeline_stages s WHERE s.campaign_id = (SELECT campaign_id FROM import_jobs WHERE id = $12)
+                   ORDER BY s.position, s.id LIMIT 1)
            FROM unnest($1::text[], $2::text[], $3::text[], $4::text[], $5::text[], $6::text[], $7::text[], $8::text[], $9::text[], $10::text[])
              AS t(name, phone, email, address, brokerage, state, office_key, original_phone, extension, tz_zones)
            ON CONFLICT (phone) DO NOTHING
-           RETURNING id, phone`,
+           RETURNING id, phone, pipeline_stage_id`,
           [
             cols.map((p) => p.name),
             cols.map((p) => p.phone || null),
@@ -624,6 +629,7 @@ async function savePhase(jobId, state) {
             jobId, // C1A: leads go to the import job's campaign
           ]
         );
+        await pipeline.recordInitial(client, insertedRows, 'import', jobUserId); // C2A: one history row per new lead
         const insertedPhones = new Set(insertedRows.map((r) => r.phone));
         // Numbers that replied STOP before: imported (and dialable) but opted out of texts.
         const { rows: supp } = await client.query('SELECT phone FROM sms_suppressions WHERE phone = ANY($1)', [
