@@ -15,6 +15,7 @@ import { useAuth } from '../hooks/useAuth';
 import { useCampaign, fileLabel } from '../hooks/useCampaign';
 import * as api from '../lib/api';
 import StageEditor from '../components/pipeline/StageEditor';
+import FieldEditor from '../components/fields/FieldEditor';
 
 const TEMPLATES = {
   real_estate: {
@@ -281,6 +282,7 @@ export default function Campaigns() {
         />
         {editing && <EditSection campaign={editing} disabled={!isSupervisor} onSaved={() => refresh()} />}
         {editing && <StageEditor key={editing.id} campaign={editing} disabled={!isSupervisor} />}
+        {editing && <FieldEditor key={`f-${editing.id}`} campaign={editing} disabled={!isSupervisor} />}
       </div>
     </AppShell>
   );

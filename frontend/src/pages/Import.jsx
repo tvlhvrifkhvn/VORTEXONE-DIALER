@@ -311,8 +311,13 @@ export default function Import() {
   // C1E: the import goes into the active file; a paused file can't import.
   const { active } = useCampaign();
   const paused = active?.status === 'paused';
-  const labelOf = (field) =>
-    field === 'brokerage' ? (active?.company_label || 'brokerage').toLowerCase() : FIELD_LABELS[field] || field;
+  // C2D: custom targets read as the field's label ("custom.roof_type" → "Roof Type · field").
+  const labelOf = (field) => {
+    if (field === 'brokerage') return (active?.company_label || 'brokerage').toLowerCase();
+    const custom = analysis?.customFields?.find((c) => c.target === field);
+    if (custom) return `${custom.label} · field`;
+    return FIELD_LABELS[field] || field;
+  };
 
   const selectedRowCount = selectedSheets.reduce((sum, name) => sum + (analysis?.sheetRowCounts?.[name] || 0), 0);
 

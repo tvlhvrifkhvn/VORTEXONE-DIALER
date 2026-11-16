@@ -294,6 +294,15 @@ export const moveLeadStage = (leadId, stageId, lostReason) =>
 export const setLeadDealValue = (leadId, dealValueCents) =>
   request(`/leads/${leadId}/deal`, { method: 'PUT', body: { dealValueCents } });
 
+// custom fields per file (C2C/C2D)
+export const getCampaignFields = (campaignId) => request(`/campaigns/${campaignId}/fields`);
+export const createCampaignField = (campaignId, field) => request(`/campaigns/${campaignId}/fields`, { method: 'POST', body: field });
+export const updateCampaignField = (campaignId, fieldId, changes) =>
+  request(`/campaigns/${campaignId}/fields/${fieldId}`, { method: 'PUT', body: changes });
+export const deleteCampaignField = (campaignId, fieldId) => request(`/campaigns/${campaignId}/fields/${fieldId}`, { method: 'DELETE' });
+export const reorderCampaignFields = (campaignId, ids) =>
+  request(`/campaigns/${campaignId}/fields/reorder`, { method: 'POST', body: { ids } });
+
 // campaigns ("files", C1E)
 export const listCampaigns = () => request('/campaigns');
 export const createCampaign = (fields) => request('/campaigns', { method: 'POST', body: fields });

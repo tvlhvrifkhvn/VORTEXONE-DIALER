@@ -2,6 +2,7 @@ import { useNavigate } from 'react-router-dom';
 import Panel from '../ui/Panel';
 import Button from '../ui/Button';
 import LeadRow from './LeadRow';
+import { useCustomFields } from '../../hooks/useCustomFields';
 
 // No Actions column — calling, snoozing and scheduling all moved to the lead
 // page, which a row click opens.
@@ -48,6 +49,8 @@ export default function LeadTable({
   onClearPage = () => {},
   onSelectAllFiltered = () => {},
 }) {
+  // C2D: the file's fields marked "show in list" get a column each.
+  const listFields = useCustomFields().fields.filter((f) => f.show_in_list);
   // Leads with a callback due within the next 2 hours float to the top
   // (stable sort keeps everything else in its existing order).
   const orderedLeads = [...leads].sort((a, b) => Number(isCallbackDueSoon(b)) - Number(isCallbackDueSoon(a)));
@@ -94,6 +97,11 @@ export default function LeadTable({
                 {col}
               </th>
             ))}
+            {listFields.map((f) => (
+              <th key={`custom-${f.key}`} className={`label px-3 py-3 font-medium ${f.type === 'number' ? 'text-right' : ''}`}>
+                {f.label}
+              </th>
+            ))}
           </tr>
         </thead>
         <tbody>
@@ -105,6 +113,7 @@ export default function LeadTable({
               callbackDueSoon={isCallbackDueSoon(lead)}
               selected={selectedIds.has(lead.id)}
               onToggleSelect={onToggleLead}
+              listFields={listFields}
             />
           ))}
         </tbody>

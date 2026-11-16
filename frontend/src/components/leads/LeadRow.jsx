@@ -8,6 +8,7 @@ import { formatPhone, formatDateTime } from '../../lib/format';
 import { DIAL_MODE_KEY } from '../../hooks/useCall';
 import LeadLocalTime from './LeadLocalTime';
 import { stageTone } from '../../hooks/useStages';
+import { formatCustomValue } from '../../hooks/useCustomFields';
 
 const STALE_MS = 7 * 24 * 60 * 60 * 1000;
 const STALE_STATUSES = ['new', 'in_queue'];
@@ -22,6 +23,7 @@ export default function LeadRow({
   callbackDueSoon = false,
   selected = false,
   onToggleSelect = () => {},
+  listFields = [],
 }) {
   const navigate = useNavigate();
   const [lead, setLead] = useState(leadProp);
@@ -106,6 +108,15 @@ export default function LeadRow({
         {lead.stage_name ? <Badge tone={stageTone(lead.stage_kind)}>{lead.stage_name}</Badge> : <span className="text-muted-foreground">—</span>}
       </td>
       <td className="px-3 py-3 font-mono text-xs tabular-nums text-muted-foreground">{formatDateTime(lead.created_at)}</td>
+      {listFields.map((f) => (
+        <td
+          key={f.key}
+          className={`max-w-[12rem] truncate px-3 py-3 text-sm text-foreground ${f.type === 'number' ? 'text-right font-mono tabular-nums' : ''} ${f.type === 'date' ? 'font-mono' : ''}`}
+          title={formatCustomValue(f, lead.custom?.[f.key])}
+        >
+          {formatCustomValue(f, lead.custom?.[f.key])}
+        </td>
+      ))}
     </tr>
   );
 }
