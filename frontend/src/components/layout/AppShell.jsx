@@ -5,6 +5,7 @@ import Button from '../ui/Button';
 import Field from '../ui/Field';
 import Badge from '../ui/Badge';
 import CampaignSwitcher from './CampaignSwitcher';
+import SpendMeter from './SpendMeter';
 import Meter from '../ui/Meter';
 import Segmented from '../ui/Segmented';
 import StatusDot from '../ui/StatusDot';
@@ -390,6 +391,20 @@ export default function AppShell({ children }) {
               <Phone size={16} strokeWidth={1.5} aria-hidden="true" />
               Dial
             </Button>
+            <Button variant="ghost" onClick={handleLogout}>
+              Log out
+            </Button>
+          </div>
+        </div>
+
+        {/* Row 2: search, import progress, then the spend meter beside the theme
+            toggle (C4B, section 4; row 1 has no room for both at 1440) and the
+            four US clocks. */}
+        <div className="flex flex-wrap items-center gap-6 border-t px-6 py-2">
+          <GlobalSearch />
+          <ImportProgressBadge />
+          <div className="ml-auto flex flex-wrap items-center gap-6">
+            <SpendMeter />
             <Segmented
               label="Theme"
               options={[
@@ -399,17 +414,6 @@ export default function AppShell({ children }) {
               value={darkMode ? 'ink' : 'paper'}
               onChange={(v) => setDarkMode(v === 'ink')}
             />
-            <Button variant="ghost" onClick={handleLogout}>
-              Log out
-            </Button>
-          </div>
-        </div>
-
-        {/* Row 2: search, import progress and the four US clocks. */}
-        <div className="flex flex-wrap items-center gap-6 border-t px-6 py-2">
-          <GlobalSearch />
-          <ImportProgressBadge />
-          <div className="ml-auto">
             <TimeZoneClock />
           </div>
         </div>

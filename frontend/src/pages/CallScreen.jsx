@@ -6,6 +6,7 @@ import CallActionGrid from '../components/call/CallActionGrid';
 import BriefCard from '../components/call/BriefCard';
 import ColleagueCard from '../components/leads/ColleagueCard';
 import CallControls from '../components/call/CallControls';
+import CallCostRow from '../components/call/CallCostRow';
 import DispositionPanel, { ScriptPanel } from '../components/call/DispositionPanel';
 import Panel from '../components/ui/Panel';
 import Button from '../components/ui/Button';
@@ -193,6 +194,10 @@ function CallScreenInner({ leadId }) {
           <section>
             <SectionLabel index="02" title="Active call" className="mb-2" />
             <CallContactHeader lead={lead} call={call} ended={ended} />
+            {/* C4B: this call's estimated cost; session time and dials during a session. */}
+            <div className="mt-2">
+              <CallCostRow call={call} />
+            </div>
           </section>
 
           <ColleagueCard leadId={lead.id} index="03" />
