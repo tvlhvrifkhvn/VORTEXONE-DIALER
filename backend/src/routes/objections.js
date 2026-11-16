@@ -3,6 +3,7 @@ const objectionService = require('../services/objectionService');
 const rebuttalCoach = require('../services/rebuttalCoach');
 const { asyncHandler } = require('../middleware/asyncHandler');
 const { requireAuth } = require('../middleware/auth');
+const { requireCampaign } = require('../middleware/campaign');
 
 const router = express.Router();
 router.use(requireAuth);
@@ -19,8 +20,9 @@ router.get(
 
 router.post(
   '/types',
+  requireCampaign,
   asyncHandler(async (req, res) => {
-    const type = await objectionService.createType(req.body.label);
+    const type = await objectionService.createType(req.body.label, { campaignId: req.campaign.id });
     res.status(201).json({ type });
   })
 );

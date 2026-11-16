@@ -39,14 +39,15 @@ async function listTypes({ includeInactive = false } = {}) {
   return rows;
 }
 
-async function createType(rawLabel) {
+async function createType(rawLabel, { campaignId = null } = {}) {
   const label = cleanLabel(rawLabel);
   try {
+    // C1A: a type belongs to a campaign (or is shared when campaignId is null).
     const { rows } = await db.query(
-      `INSERT INTO objection_types (label, sort_order)
-       VALUES ($1, (SELECT COALESCE(max(sort_order), 0) + 1 FROM objection_types))
-       RETURNING id, label, is_active, sort_order`,
-      [label]
+      `INSERT INTO objection_types (label, sort_order, campaign_id)
+       VALUES ($1, (SELECT COALESCE(max(sort_order), 0) + 1 FROM objection_types), $2)
+       RETURNING id, label, is_active, sort_order, campaign_id`,
+      [label, campaignId]
     );
     return rows[0];
   } catch (err) {

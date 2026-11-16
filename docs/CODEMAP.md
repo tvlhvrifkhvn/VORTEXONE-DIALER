@@ -1,7 +1,9 @@
 # Code map (Vortex One Outreach, repo vortexone-dialer)
 Update the lines for files you change, in the same commit. Built from grep (migrations, module.exports, routes, imports), checked on `latest` 66ab018.
 
-## TABLES (backend/src/db/migrations, 001–032; the next new file is 033)
+## TABLES (backend/src/db/migrations, 001–033; the next new file is 034)
+- campaigns (033): id, file_number (unique), name (unique), slug (unique), kind (real_estate | roofing_supplement | custom), status (active | paused | archived), company_label, ai_context, pitch_script, daily_goal, default_max_attempts, monthly_budget_cents, created_at, archived_at; File 01 "Real Estate" seeded
+- campaign_id (033): NOT NULL on leads, call_history, dialing_sessions, import_jobs (backfilled to File 01); nullable (= shared) on sms_templates, objection_types; indexes leads(campaign_id), call_history(campaign_id, started_at)
 - users: id, email (unique), password_hash, name, role (rep | supervisor), created_at
 - leads: id, name, phone (UNIQUE, E.164), email, address, brokerage, state, status (lifecycle), attempts, max_attempts, next_action_at, cold_at, cold_reason, dnc_flag, locked_by→users, locked_at, deleted_at (007), sms_opt_out (015), missing_phone (017), tags[] (018), office_key (020), original_phone, extension (023), tz_zones[] (027), created_at, updated_at
 - call_history: id, lead_id→leads (NULL for manual calls, 013), user_id→users, started_at, ended_at, duration_seconds, disposition, note, from_number, was_mock, telephony_state, telephony_call_id, pre_disposition_snapshot (JSONB), disposition_at, session_id→dialing_sessions, slot_number, was_abandoned (008), to_number, is_manual (013), recording_url, was_recorded (014)
@@ -20,53 +22,58 @@ Update the lines for files you change, in the same commit. Built from grep (migr
 - sms_opt_events: opt-out/opt-in log (029); sms_suppressions: phone (PK), source (inbound_keyword | rep | backfill) (031)
 - lead_notes: id, lead_id→leads, call_id→call_history, user_id, body, created_at (018)
 - email_messages: id, lead_id→leads, direction, subject, body, status, sent_at (019)
-- objection_types: id, label (UNIQUE), is_active, sort_order (021)
+- objection_types: id, label, is_active, sort_order (021), campaign_id (033); unique (campaign_id, label) where campaign_id is set and unique (label) where it is null (033 replaced UNIQUE(label))
 - call_objections: id, call_id→call_history, lead_id, objection_type_id, rebuttal_used; unique (call, type)
 - rebuttal_suggestions: id, objection_type_id, suggestion, based_on_count, generated_at, status (022), review_note, reviewed_at; 032 adds the expired state
 
 ## SERVICES (backend/src/services: logic; routes call these, no SQL in routes)
+- campaigns.js: campaigns ("files") — KINDS, STATUSES, fileLabel ("FILE 02 · NAME"), slugify, list, getById, create (next file_number, unique slug; supervisor via route), update, setStatus (refuses while a lead is in_progress; never archives the last active file), moveLead(leadId, toCampaignId) (refused while in_progress; old calls keep their campaign)
+- campaignScope.js: the scoping helper — ALL, scope(alias, campaignId, paramIndex) → { sql, params } (ALL → TRUE, no params)
 - aiCsvMapper.js: AI column mapping and row cleanup for imports (Groq) — SCHEMA_FIELDS, mapColumns, guessStates, cleanRows, cleanRowsChunk
 - authService.js: login and profile — countSupervisors, login, getById, updateProfile
 - callLifecycle.js: end/fail a call row and ownership guards — markEnded, markFailed, assertCanActOn, assertLeadNotTaken
-- callSession.js: placing calls (single, manual dial pad, multi-line), the event stream — start, get, startManual, endManualCall, MOCK_FROM_NUMBER, MULTILINE_SLOTS, callEvents, startMultilineSession, dropMultilineSlot, takeMultilineCall, releaseActiveSlot, stopMultilineSession, streamOpened, streamClosed, clearConnectionTimers, recoverAfterRestart (internal: reserveSlot, placeSlotCall, queueRefill, dialIntoSlot)
+- callSession.js: placing calls (single, manual dial pad, multi-line), the event stream — start, get, startManual, endManualCall, MOCK_FROM_NUMBER, MULTILINE_SLOTS, callEvents, startMultilineSession, dropMultilineSlot, takeMultilineCall, releaseActiveSlot, stopMultilineSession, streamOpened, streamClosed, clearConnectionTimers, recoverAfterRestart (internal: reserveSlot, placeSlotCall, queueRefill, dialIntoSlot). Lead calls (start, placeSlotCall) copy the lead's campaign_id; startManual({ userId, toNumberRaw, campaignId })
 - callingHours.js: 8am–9pm enforcement per lead/number zone — assertCallingHours, assertNumberCallingHours, zonesForLead, zonesForNumber, openZones, openZonesNow, zonesOpen, nextOpensAt, isEnforced, isCallingHoursEnforced, isWithinCallingHours, timezoneForState, localHour, ENFORCEMENT_SETTING_KEY, CALLING_HOURS_START, CALLING_HOURS_END
 - colleagueIntel.js: same-office social proof for a lead — getColleagueSummary, LIVE_ANSWER_DISPOSITIONS, CLIENT_TAG, INTERESTED_TAG
-- csvImport.js: CSV/XLSX import jobs (stage, map, save, summary) — LEAD_FIELDS, MAPPABLE_FIELDS, parseCsv, guessMapping, completeMapping, commitImport, getImportHistory, IMPORT_BATCH_SIZE, createImportJob, stageRows, setUploadResult, deleteImportJob, startJob, getImportJob, cancelImportJob, progressOf, expireStaleImports, failInterruptedImports, writeSkippedRowsCsv, processImportJob (internal: savePhase, prepareRow, buildSummary)
-- dialingSession.js: session rows and their stats — STAT_COLUMNS, DISPOSITION_TO_STAT, startSession, endSession, incrementStat, decrementStat, getSessionStats
+- csvImport.js: CSV/XLSX import jobs (stage, map, save, summary) — LEAD_FIELDS, MAPPABLE_FIELDS, parseCsv, guessMapping, completeMapping, commitImport, getImportHistory, IMPORT_BATCH_SIZE, createImportJob, stageRows, setUploadResult, deleteImportJob, startJob, getImportJob, cancelImportJob, progressOf, expireStaleImports, failInterruptedImports, writeSkippedRowsCsv, processImportJob (internal: savePhase, prepareRow, buildSummary). createImportJob({ userId, filename, campaignId }), commitImport({ …, campaignId }); savePhase writes leads to the job's campaign
+- dialingSession.js: session rows and their stats — STAT_COLUMNS, DISPOSITION_TO_STAT, startSession(userId, mode, campaignId), endSession, incrementStat, decrementStat, getSessionStats
 - dncCheck.js: the DNC list — isOnDncList, addToDncList, removeFromDncList, listDnc
 - emailService.js: send one email through the email adapter — sendSingleEmail
 - leadLifecycle.js: every lead status change (dispositions, undo, hangup, DNC, callbacks) — DISPOSITIONS, UNDO_WINDOW_SECONDS, applyDisposition, undoDisposition, hangup, snooze, markDncFromQueue, markDncFromSlot, phoneNumberChanged, releaseAfterFailedDial, releaseAbandoned, scheduleCallback, parseCallbackTime (internal: snapshotOf)
-- leadQueue.js: the queue, locks, lead CRUD, list and search — DIALABLE_STATUSES, releaseStaleLocks, backfillZones, candidates, peekNext, lockNext, refreshOwnLock, create, getById, getHistory, addTag, removeTag, addNote, listNotes, countsByState, list, updateFields, softDelete, search, batchQueue, parseListQuery (internal: claimLead, buildListFilters, validateLeadInput)
+- leadQueue.js: the queue, locks, lead CRUD, list and search — DIALABLE_STATUSES, releaseStaleLocks, backfillZones, candidates, peekNext, lockNext, refreshOwnLock, create, getById, getHistory, addTag, removeTag, addNote, listNotes, countsByState, list, updateFields, softDelete, search, batchQueue, parseListQuery (internal: claimLead, buildListFilters, validateLeadInput). create(input) needs input.campaignId
 - mediaUpload.js: SMS image uploads and /uploads serving — UPLOADS_DIR, saveImage, assertOwnMediaUrl, serveUploads, imageType
 - noteExpander.js: AI "Expand note" — expandNote
-- objectionService.js: objection types, per-call logging, report — POSITIVE_OUTCOMES, listTypes, createType, updateType, reorderTypes, listForCall, logForCall, removeForCall, saveRebuttal, getReport, listOffices
+- objectionService.js: objection types, per-call logging, report — POSITIVE_OUTCOMES, listTypes, createType(label, { campaignId }), updateType, reorderTypes, listForCall, logForCall, removeForCall, saveRebuttal, getReport, listOffices
 - pdfExport.js: the daily report PDF (pdfkit) — buildDailyReportBuffer
 - preCallBrief.js: pre-call brief (instant + AI line) — buildBrief, buildMessages, gather, buildInstant
 - rebuttalCoach.js: AI rebuttal suggestions and review — MODEL, BANNED_PHRASES, INSUFFICIENT_MESSAGE, buildMessages, fewShotExamples, findViolations, generateAndStore, listPending, reviewSuggestion, parseSuggestions, gatherInstances, getSuggestions, regenerate, getHints
 - reportingPeriod.js: reporting timezone and day/period boundaries — TIMEZONE_KEY, DAY_START_KEY, DEFAULT_TIMEZONE, DEFAULT_DAY_START, MAX_RANGE_DAYS, getSettings, validateSetting, dayContaining, dayStarting, resolvePeriod, describe, zonedToInstant
 - reports.js: call stats for a period, per state, manual calls — PLACED_CALL_SQL, todayStats, periodStats, periodCalls, perStateReport, manualCallsToday
 - settings.js: global and per-user settings with a whitelist — getSetting, setSetting, onSettingChanged, registerValidator, readForApi, writeFromApi, API_SETTINGS, defaultMaxAttempts, getUserSettings, setUserSetting, USER_SETTINGS
-- smsService.js: templates, sending, inbox, opt-out/STOP, timeline — mergeFields, renderMessage, renderOrThrow, invalidTokens, TEMPLATE_FIELDS, segmentCount, listTemplates, createTemplate, updateTemplate, deleteTemplate, sendSingleSms, sendBulkSms, getInbox, markRead, optOut, setSmsOptOut, isSuppressed, applySuppressionToNewLeads, keywordAction, receiveInbound, getUnmatchedInbound, countUnmatchedUnread, markUnmatchedRead, getTimeline
+- smsService.js: templates, sending, inbox, opt-out/STOP, timeline — mergeFields, renderMessage, renderOrThrow, invalidTokens, TEMPLATE_FIELDS, segmentCount, listTemplates, createTemplate({ userId, name, body, campaignId }), updateTemplate, deleteTemplate, sendSingleSms, sendBulkSms, getInbox, markRead, optOut, setSmsOptOut, isSuppressed, applySuppressionToNewLeads, keywordAction, receiveInbound, getUnmatchedInbound, countUnmatchedUnread, markUnmatchedRead, getTimeline
 - xlsxParser.js: reading CSV/XLSX uploads — CSV_SHEET_NAME, parseUpload, readUploadInBatches, checkUploadType, headersOf, rowsFor
 
 ## ROUTES (mounted in backend/src/index.js; every router uses requireAuth except POST /api/auth/login and POST /api/sms/inbound; all /api is behind apiLimiter)
+- Campaign header (C1A): [active] = requireActiveCampaign, [campaign] = requireCampaign (middleware/campaign.js). Reads aren't scoped yet (C1B–C1D).
 - /api/auth: POST /login [loginLimiter] → authService.login · GET /me → getById · PUT /profile → updateProfile
-- /api/leads: GET / → leadQueue.parseListQuery, list · GET /state-counts → countsByState · GET /search → search · POST /batch-queue → batchQueue · POST / → create · GET /:id → getById · PUT /:id → updateFields · DELETE /:id → softDelete
+- /api/campaigns: GET / → campaigns.list · POST / [supervisor] → create · PUT /:id [supervisor] → update · POST /:id/status [supervisor] → setStatus · and POST /api/leads/:id/move-campaign [supervisor] → campaigns.moveLead (routes/campaigns.js leadRouter, mounted before routes/leads.js)
+- /api/leads: GET / → leadQueue.parseListQuery, list · GET /state-counts → countsByState · GET /search → search · POST /batch-queue → batchQueue · POST / [campaign] → create · GET /:id → getById · PUT /:id → updateFields · DELETE /:id → softDelete
 - /api/leads/:id: GET /timeline → smsService.getTimeline · GET /history → leadQueue.getHistory · GET /colleagues → colleagueIntel.getColleagueSummary · GET /brief → preCallBrief.buildBrief · POST /tags, DELETE /tags/:tag → addTag, removeTag · GET|POST /notes → listNotes, addNote · POST /callback → leadLifecycle.scheduleCallback · POST /snooze → leadLifecycle.snooze
-- /api/calls: GET /stream (token in query) → callSession.streamOpened · POST / → leadQueue.lockNext, callSession.start · GET /:id → get · POST /:id/hangup → leadLifecycle.hangup, endManualCall · POST /manual/start → startManual · POST /multiline/start|drop|take|release|stop → startMultilineSession, dropMultilineSlot, takeMultilineCall, releaseActiveSlot, stopMultilineSession
+- /api/calls: GET /stream (token in query) → callSession.streamOpened · POST / [active] → leadQueue.lockNext, callSession.start · GET /:id → get · POST /:id/hangup → leadLifecycle.hangup, endManualCall · POST /manual/start [active] → startManual · POST /multiline/start [active], /multiline/drop|take|release|stop → startMultilineSession, dropMultilineSlot, takeMultilineCall, releaseActiveSlot, stopMultilineSession
 - /api/dispositions: POST / → leadLifecycle.applyDisposition · POST /:callId/undo → undoDisposition
-- /api/sessions: POST /start → dialingSession.startSession · POST /end → endSession
-- /api/imports: POST /preview, /analyze [upload] → csvImport.parseCsv, guessMapping · POST /commit → commitImport · POST /upload → xlsxParser.checkUploadType · POST /process → startJob, processImportJob · GET /status/:jobId → getImportJob, progressOf · POST /cancel/:jobId → cancelImportJob · GET /:jobId/skipped.csv → writeSkippedRowsCsv · GET /history → getImportHistory
+- /api/sessions: POST /start [active] → dialingSession.startSession · POST /end → endSession
+- /api/imports: POST /preview, /analyze [upload] → csvImport.parseCsv, guessMapping · POST /commit [active] → commitImport · POST /upload [active] → xlsxParser.checkUploadType, createImportJob · POST /process [active] → startJob, processImportJob · GET /status/:jobId → getImportJob, progressOf · POST /cancel/:jobId → cancelImportJob · GET /:jobId/skipped.csv → writeSkippedRowsCsv · GET /history → getImportHistory
 - /api/reports: GET /today → reports.todayStats · GET /per-state → perStateReport · GET /manual-today → manualCallsToday (period via reportingPeriod.resolvePeriod)
 - /api/exports: GET /daily-pdf → pdfExport.buildDailyReportBuffer
-- /api/sms: POST /inbound (webhook) → smsAdapter.verifyInbound, parseInbound, smsService.receiveInbound · POST /upload-media → mediaUpload.saveImage · GET|POST /templates, PUT|DELETE /templates/:id → listTemplates, createTemplate, updateTemplate, deleteTemplate · POST /send → sendSingleSms · POST /bulk-send → sendBulkSms · GET /inbox → getInbox, getUnmatchedInbound · POST /mark-read/:leadId, /mark-read-unmatched/:messageId → markRead, markUnmatchedRead · POST /opt-out/:leadId → optOut
+- /api/sms: POST /inbound (webhook) → smsAdapter.verifyInbound, parseInbound, smsService.receiveInbound · POST /upload-media → mediaUpload.saveImage · GET|POST /templates (POST [campaign]), PUT|DELETE /templates/:id → listTemplates, createTemplate, updateTemplate, deleteTemplate · POST /send → sendSingleSms · POST /bulk-send → sendBulkSms · GET /inbox → getInbox, getUnmatchedInbound · POST /mark-read/:leadId, /mark-read-unmatched/:messageId → markRead, markUnmatchedRead · POST /opt-out/:leadId → optOut
 - /api/email: POST /send → emailService.sendSingleEmail
-- /api/objections: GET|POST /types, POST /types/reorder, PUT /types/:id → objectionService · GET /hints → rebuttalCoach.getHints · GET /types/:id/suggestions, POST …/regenerate, GET /suggestions/pending, PUT /suggestions/:id → rebuttalCoach · GET|POST /calls/:callId, PUT|DELETE /calls/:callId/:typeId → listForCall, logForCall, saveRebuttal, removeForCall · GET /report → getReport · GET /offices → listOffices
+- /api/objections: GET|POST /types (POST [campaign]), POST /types/reorder, PUT /types/:id → objectionService · GET /hints → rebuttalCoach.getHints · GET /types/:id/suggestions, POST …/regenerate, GET /suggestions/pending, PUT /suggestions/:id → rebuttalCoach · GET|POST /calls/:callId, PUT|DELETE /calls/:callId/:typeId → listForCall, logForCall, saveRebuttal, removeForCall · GET /report → getReport · GET /offices → listOffices
 - /api/ai: POST /expand-note → noteExpander.expandNote
 - /api/settings: GET /me, PUT /me/:key → getUserSettings, setUserSetting · GET /:key → readForApi · PUT /:key → writeFromApi (supervisor only)
 
 ## MIDDLEWARE (backend/src/middleware)
 - auth.js: requireAuth — verifies the JWT, sets req.user
+- campaign.js: X-Campaign-Id → requireCampaign (exists, not archived; sets req.campaign), requireActiveCampaign (also active; paused → 409 campaign_paused), campaignOrAll (or ALL; sets req.campaignId); bad/missing → 400 code campaign_invalid
 - rateLimit.js: loginLimiter (5/min), apiLimiter (100/min, keyed by user or IP); RATE_LIMIT_API_MAX / RATE_LIMIT_LOGIN_MAX raise them only when NODE_ENV=test (maxFor, API_MAX, LOGIN_MAX)
 - asyncHandler.js: wraps async handlers so rejections reach the error handler
 - errorHandler.js: errorHandler, notFound, ApiError (status + code)
@@ -103,7 +110,8 @@ Update the lines for files you change, in the same commit. Built from grep (migr
 - hooks/useMultiline.js: multi-line session state from the event stream
 - hooks/useLeads.js: useLeads (paged list), useStateCounts
 - hooks/useBrief.js: pre-call brief · hooks/useImportJob.js: the running import job · hooks/useUserSettings.js: per-user settings
-- lib/api.js: every API call goes through `request()`; the 500 toast; openCallStream (EventSource); resolveMediaUrl
+- lib/api.js: every API call goes through `request()` (sends X-Campaign-Id from lib/campaign.js; on 400 campaign_invalid resets to File 01 and retries once); the 500 toast; openCallStream (EventSource); resolveMediaUrl
+- lib/campaign.js: getCampaignId / setCampaignId on localStorage `vortex.campaign` (default "1"), DEFAULT_CAMPAIGN_ID
 - lib/format.js: phone, date, duration formats · lib/retry.js: sendWithRetry · lib/usStates.js
 
 ## FRONTEND COMPONENTS (frontend/src/components)
@@ -125,4 +133,4 @@ Update the lines for files you change, in the same commit. Built from grep (migr
 - `cd backend && npm run migrate` · `npm run seed`
 - `cd backend && npm run verify`: tests/run.js drops and creates `vortex_verify` (refuses any other name), migrates it, runs tests/*.test.js with node:test one file at a time (mock providers, test JWT secret, no AI, raised rate limits), prints a PASS/FAIL table, drops the database
 - tests/helpers.js: setupFile (reset + hours off + answered calls), request/client (every HTTP call; add headers here), createUser (logs in), createLead (backfills zones), getLead, nextPhone, dial, setOutcome (mock outcome), setNowOffset/resetClock (Node clock), setCallingHours, waitFor
-- tests/01-auth-settings · 02-dispositions (all 7 + max attempts + Undo) · 03-locks · 04-dnc · 05-import · 06-calling-hours · 07-reports-sms · 08-invariants (I1–I8)
+- tests/01-auth-settings · 02-dispositions (all 7 + max attempts + Undo) · 03-locks · 04-dnc · 05-import · 06-calling-hours · 07-reports-sms · 08-invariants (I1–I8) · 09-campaigns (C1A: I10, I11, write paths, paused/archived, header, moveLead, setStatus, objection labels). helpers: request sends X-Campaign-Id (File 01 default; `campaign: null` omits it), createLead campaign_id 1, resetDb re-seeds File 01, createCampaign
