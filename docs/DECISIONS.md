@@ -89,3 +89,8 @@
 - 2026-11-16 · C1B · leadQueue.list() keeps its "up next" marker across ALL files (peekNext(ALL)) until C1C scopes list() · list() belongs to C1C; this keeps today's behavior instead of half-scoping it
 - 2026-11-16 · C1B · No new index: the queue query on 100k leads in 2 equal files uses a parallel seq scan, as it did before C1B (same plan shape), and idx_leads_campaign when the file is small; median read 50.5 ms before, 31.6 ms after · the +20% budget holds without a migration
 - 2026-11-16 · C1B · tests/09: the two tests that dialed a File-NN lead under the File 01 header now send the lead's own file · C1B makes that dial a 409 on purpose
+- 2026-11-16 · C1C · An import row whose phone belongs to another file keeps the outcome already_in_list (reason "Already in FILE NN · NAME (same phone number)") · the summary buckets and their totals stay as they are; only the reason says which file
+- 2026-11-16 · C1C · list() rows carry file_number through a subquery, not a JOIN · the list filters use bare column names (name, status, created_at) that campaigns also has; a JOIN would make them ambiguous
+- 2026-11-16 · C1C · The lead list's "up next" marker comes from the same scope as the list (ALL → across files) · it matches what the rep is looking at
+- 2026-11-16 · C1C · The PDF prints the file label (or "All files") at the start of the subtitle line · the header keeps its layout; no new line or font
+- 2026-11-16 · C1C · No frontend change: the stored file goes in X-Campaign-Id on every request already; choosing ALL comes with the switcher in C1E
