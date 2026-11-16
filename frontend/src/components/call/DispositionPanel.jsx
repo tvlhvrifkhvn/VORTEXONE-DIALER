@@ -12,17 +12,21 @@ import SectionLabel from '../ui/SectionLabel';
 import { useAuth } from '../../hooks/useAuth';
 import { formatDateTime } from '../../lib/format';
 import * as api from '../../lib/api';
-import { useUserSettings } from '../../hooks/useUserSettings';
+import { useCampaign } from '../../hooks/useCampaign';
 
 const DEFAULT_PITCH_SCRIPT = (repName) =>
   `Hi, I'm ${repName} from Vortexone Agency. We offer virtual assistant services for real ` +
   'estate agents — lead follow-up, appointment setting, and admin support. Do you currently ' +
   'have VA support on your team?';
 
-/** The rep's own script from Settings (a per-user server setting, F-48), or the default. */
+/** C1E: the active file's script ({name} = the rep), or the default for a
+ * real estate file; another kind of file without a script says so. */
 function PitchScriptText({ repName }) {
-  const { settings } = useUserSettings();
-  return <>{settings?.pitch_script || DEFAULT_PITCH_SCRIPT(repName)}</>;
+  const { active } = useCampaign();
+  const script = active?.pitch_script?.trim();
+  if (script) return <>{script.replaceAll('{name}', repName)}</>;
+  if (!active || active.kind === 'real_estate') return <>{DEFAULT_PITCH_SCRIPT(repName)}</>;
+  return <>No pitch script for this file yet. Add one under Settings → Files.</>;
 }
 
 /** Collapsible sidebar section — arrow toggle, collapsed by default. */

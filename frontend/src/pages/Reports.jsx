@@ -7,6 +7,8 @@ import Panel from '../components/ui/Panel';
 import Button from '../components/ui/Button';
 import Field from '../components/ui/Field';
 import SectionLabel from '../components/ui/SectionLabel';
+import Segmented from '../components/ui/Segmented';
+import { useCampaign, fileLabel } from '../hooks/useCampaign';
 import { formatDuration, formatTime } from '../lib/format';
 import * as api from '../lib/api';
 
@@ -61,11 +63,21 @@ export default function Reports() {
   const [manualCalls, setManualCalls] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  // C1E: THIS FILE (the active file) or ALL FILES ('ALL' on every request).
+  const { active } = useCampaign();
+  const [scope, setScope] = useState('file');
+  const [period, setPeriod] = useState({});
+  const campaign = scope === 'all' ? 'ALL' : undefined;
 
-  const load = (period = {}) => {
+  const load = (nextPeriod = period, nextCampaign = campaign) => {
     setError(null);
     setLoading(true);
-    return Promise.all([api.getTodayStats(period), api.getPerStateReport(), api.getManualCallsToday(period)])
+    setPeriod(nextPeriod);
+    return Promise.all([
+      api.getTodayStats(nextPeriod, nextCampaign),
+      api.getPerStateReport(nextCampaign),
+      api.getManualCallsToday(nextPeriod, nextCampaign),
+    ])
       .then(([todayStats, perState, manual]) => {
         setToday(todayStats);
         setStates(perState.states);
@@ -76,16 +88,34 @@ export default function Reports() {
   };
 
   useEffect(() => {
-    load();
+    load({});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const downloadPdf = (period) => api.downloadDailyPdf(period).catch((err) => setError(err.message));
+  const changeScope = (next) => {
+    setScope(next);
+    load(period, next === 'all' ? 'ALL' : undefined);
+  };
+
+  const downloadPdf = (p) => api.downloadDailyPdf(p, campaign).catch((err) => setError(err.message));
   const periodLabel = today.period ? `${today.period.label} (${today.period.timezone})` : '';
 
   return (
     <AppShell>
       <div className="mx-auto mt-6 max-w-5xl space-y-6">
-        <h1 className="text-2xl font-semibold tracking-[-0.01em] text-foreground">Reports</h1>
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <h1 className="text-2xl font-semibold tracking-[-0.01em] text-foreground">Reports</h1>
+          <Segmented
+            label="Report scope"
+            options={[
+              { value: 'file', label: 'This file' },
+              { value: 'all', label: 'All files' },
+            ]}
+            value={scope}
+            onChange={changeScope}
+          />
+        </div>
+        <p className="label" data-testid="report-scope">{scope === 'all' ? 'All files' : fileLabel(active)}</p>
         <PeriodPicker onApply={load} onPdf={downloadPdf} busy={loading} />
         {periodLabel && <p className="label" data-testid="report-period">{periodLabel}</p>}
         {error && (
@@ -107,7 +137,11 @@ export default function Reports() {
           <>
             <StateReport states={states} />
             <ManualCallsSection calls={manualCalls} />
-            <ObjectionReport />
+            {scope === 'all' ? (
+              <p className="text-sm text-muted-foreground">Objections are reported per file. Choose THIS FILE to see them.</p>
+            ) : (
+              <ObjectionReport />
+            )}
           </>
         )}
       </div>

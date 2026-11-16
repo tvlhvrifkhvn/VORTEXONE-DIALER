@@ -1,5 +1,6 @@
 import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth } from './hooks/useAuth';
+import { CampaignProvider, useCampaign } from './hooks/useCampaign';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import DialerSession from './pages/DialerSession';
@@ -11,6 +12,7 @@ import LeadDetail from './pages/LeadDetail';
 import Import from './pages/Import';
 import Reports from './pages/Reports';
 import Settings from './pages/Settings';
+import Campaigns from './pages/Campaigns';
 import Styleguide from './pages/Styleguide';
 
 function RequireAuth({ children }) {
@@ -27,8 +29,10 @@ function RequireAuth({ children }) {
 }
 
 function AppRoutes() {
+  // C1E: switching the file changes `version`; the key remounts every page.
+  const { version } = useCampaign();
   return (
-    <Routes>
+    <Routes key={version}>
       <Route path="/login" element={<Login />} />
       <Route
         path="/"
@@ -113,6 +117,14 @@ function AppRoutes() {
         }
       />
       <Route
+        path="/settings/campaigns"
+        element={
+          <RequireAuth>
+            <Campaigns />
+          </RequireAuth>
+        }
+      />
+      <Route
         path="/settings"
         element={
           <RequireAuth>
@@ -128,7 +140,9 @@ function AppRoutes() {
 export default function App() {
   return (
     <AuthProvider>
-      <AppRoutes />
+      <CampaignProvider>
+        <AppRoutes />
+      </CampaignProvider>
     </AuthProvider>
   );
 }

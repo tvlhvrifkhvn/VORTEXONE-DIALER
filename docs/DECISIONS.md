@@ -102,3 +102,16 @@
 - 2026-11-16 · C1D · Unmatched inbound texts stay in their own unscoped list next to the inbox, so they show in every file and in ALL · no lead means no campaign
 - 2026-11-16 · C1D · [campaign] added to the objection list, reorder, hints, regenerate, report and offices routes, the template list and /imports/analyze; [campaign or ALL] on the inbox · the frontend already sends the header on every request
 - 2026-11-16 · C1D · The test file 12 turns IMPORT_AI on in its own process and points GROQ_BASE_URL at a local stub · run.js keeps AI off for every other file; no request leaves the machine
+- 2026-11-16 · C1E · The switcher is a plain menu button (aria-haspopup, aria-expanded) that closes on an outside click or a pick; no Esc or arrow-key handlers · DESIGN.md section 5: no new key handlers, Esc ends calls; Tab reaches every item
+- 2026-11-16 · C1E · Switching is refused while the path is /call/… or a dial session id is stored (useCall's session key); the menu prints the reason in signal text and disables the other files · speed and safety during live calls come first
+- 2026-11-16 · C1E · lib/api.js takes a per-request `campaign` ('ALL'); the stored file never becomes ALL · ALL is a read view on Reports and Inbox, never the active file for writes
+- 2026-11-16 · C1E · With ALL FILES the Reports page hides the objection report and says it is per file · the objection routes take one file (C1D); mixing files' types would be misleading
+- 2026-11-16 · C1E · Settings loses its own daily goal field and pitch script editor; section 04 — Files links to /settings/campaigns · the goal and script now belong to the file; one place to edit them
+- 2026-11-16 · C1E · Only a supervisor edits the daily goal (Dashboard's EDIT shows for supervisors only) · PUT /api/campaigns is supervisor only; a rep's edit would fail
+- 2026-11-16 · C1E · The pitch script replaces {name} with the rep's name on the call screen · Settings always said to use {name}; it was shown raw before
+- 2026-11-16 · C1E · A file other than real estate with no script shows "No pitch script for this file yet" instead of the real-estate default · the default pitch is about real estate agents
+- 2026-11-16 · C1E · ColleagueCard says "people" instead of "agents" outside real estate; the lead page and filters use company_label (lower case) for "brokerage" · same rule as the AI words in C1D
+- 2026-11-16 · C1E · Opening a lead of another file switches to that file (toast "Switched to FILE NN · NAME: this lead belongs to it.") unless switching is blocked; then the toast only names the file · the switch remounts the page, so it refetches for the right file
+- 2026-11-16 · C1E · Campaign templates live in pages/Campaigns.jsx (Real estate = File 01's context and the old default pitch; Roofing = roofing supplement wording; Blank = custom) · they only prefill the create request
+- 2026-11-16 · C1E · Status tags on the Files page: active outline, paused muted, archived dashed; archive asks for a confirm and wears "⊘" · DESIGN.md section 5, destructive buttons
+- 2026-11-16 · C1E · audit/scripts/reskin-shots.js gains the page name `campaigns` · the gate needs a screenshot of the new page

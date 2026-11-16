@@ -73,7 +73,8 @@ function showServerErrorToast() {
   setTimeout(() => toast.remove(), TOAST_AUTO_DISMISS_MS);
 }
 
-async function request(path, { method = 'GET', body, isFormData = false, campaignRetried = false } = {}) {
+// `campaign` overrides the stored file for one request ('ALL' on routes that accept it, C1E).
+async function request(path, { method = 'GET', body, isFormData = false, campaignRetried = false, campaign } = {}) {
   const token = getToken();
   let res;
   try {
@@ -83,7 +84,7 @@ async function request(path, { method = 'GET', body, isFormData = false, campaig
         ...(isFormData ? {} : { 'Content-Type': 'application/json' }),
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
         // The active campaign ("file"), on every request including uploads.
-        'X-Campaign-Id': getCampaignId(),
+        'X-Campaign-Id': campaign ? String(campaign) : getCampaignId(),
       },
       body: isFormData ? body : body !== undefined ? JSON.stringify(body) : undefined,
     });
@@ -110,7 +111,7 @@ async function request(path, { method = 'GET', body, isFormData = false, campaig
   if (!res.ok) {
     // The stored file no longer exists or was archived: fall back to File 01
     // and try once more.
-    if (res.status === 400 && data && data.code === 'campaign_invalid' && !campaignRetried && getCampaignId() !== DEFAULT_CAMPAIGN_ID) {
+    if (res.status === 400 && data && data.code === 'campaign_invalid' && !campaign && !campaignRetried && getCampaignId() !== DEFAULT_CAMPAIGN_ID) {
       setCampaignId(DEFAULT_CAMPAIGN_ID);
       return request(path, { method, body, isFormData, campaignRetried: true });
     }
@@ -176,7 +177,7 @@ export const uploadSmsMedia = (file) => {
 };
 export const sendBulkSms = (leadIds, templateId) =>
   request('/sms/bulk-send', { method: 'POST', body: { leadIds, templateId } });
-export const getSmsInbox = (page = 1, limit = 20) => request(`/sms/inbox?page=${page}&limit=${limit}`);
+export const getSmsInbox = (page = 1, limit = 20, campaign) => request(`/sms/inbox?page=${page}&limit=${limit}`, { campaign });
 export const markUnmatchedSmsRead = (messageId) => request(`/sms/mark-read-unmatched/${messageId}`, { method: 'POST' });
 export const markSmsRead = (leadId) => request(`/sms/mark-read/${leadId}`, { method: 'POST' });
 export const optOutSms = (leadId) => request(`/sms/opt-out/${leadId}`, { method: 'POST' });
@@ -269,9 +270,16 @@ const periodQuery = (period = {}) => {
   const s = q.toString();
   return s ? `?${s}` : '';
 };
-export const getTodayStats = (period) => request(`/reports/today${periodQuery(period)}`);
-export const getPerStateReport = () => request('/reports/per-state');
-export const getManualCallsToday = (period) => request(`/reports/manual-today${periodQuery(period)}`);
+// `campaign`: omit for the active file, 'ALL' for every file (Reports' ALL FILES).
+export const getTodayStats = (period, campaign) => request(`/reports/today${periodQuery(period)}`, { campaign });
+export const getPerStateReport = (campaign) => request('/reports/per-state', { campaign });
+export const getManualCallsToday = (period, campaign) => request(`/reports/manual-today${periodQuery(period)}`, { campaign });
+
+// campaigns ("files", C1E)
+export const listCampaigns = () => request('/campaigns');
+export const createCampaign = (fields) => request('/campaigns', { method: 'POST', body: fields });
+export const updateCampaign = (id, fields) => request(`/campaigns/${id}`, { method: 'PUT', body: fields });
+export const setCampaignStatus = (id, status) => request(`/campaigns/${id}/status`, { method: 'POST', body: { status } });
 
 // settings (key/value store — e.g. the Groq API key, see Settings.jsx → Integrations)
 export const getSetting = (key) => request(`/settings/${encodeURIComponent(key)}`);
@@ -287,10 +295,10 @@ export const startSession = (mode) => request('/sessions/start', { method: 'POST
 export const endSession = (sessionId) => request('/sessions/end', { method: 'POST', body: { sessionId } });
 
 // exports — fetched as a blob (not a plain <a href>) so the auth header goes along
-export async function downloadDailyPdf(period) {
+export async function downloadDailyPdf(period, campaign) {
   // Older callers pass a date string.
   const p = typeof period === 'string' ? { date: period } : period || {};
-  const blob = await request(`/exports/daily-pdf${periodQuery(p)}`);
+  const blob = await request(`/exports/daily-pdf${periodQuery(p)}`, { campaign });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;

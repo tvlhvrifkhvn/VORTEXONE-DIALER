@@ -13,6 +13,7 @@ import Badge from '../components/ui/Badge';
 import { US_STATES } from '../lib/usStates';
 import { formatDateTime } from '../lib/format';
 import * as api from '../lib/api';
+import { useCampaign, fileLabel, showToast } from '../hooks/useCampaign';
 
 const EDITABLE_FIELDS = ['name', 'phone', 'email', 'address', 'brokerage', 'state'];
 
@@ -75,6 +76,20 @@ export default function LeadDetail() {
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState(null);
+  // C1E: the company word comes from the file; a lead of another file switches to it.
+  const { active, activeId, campaigns, switchTo } = useCampaign();
+  const companyWord = (active?.company_label || 'Brokerage').toLowerCase();
+
+  useEffect(() => {
+    if (!lead || !campaigns.length || String(lead.campaign_id) === String(activeId)) return;
+    const own = campaigns.find((c) => String(c.id) === String(lead.campaign_id));
+    const label = own ? fileLabel(own) : `file ${lead.campaign_id}`;
+    if (own && own.status !== 'archived' && switchTo(own.id)) {
+      showToast(`Switched to ${label}: this lead belongs to it.`);
+    } else {
+      showToast(`This lead belongs to ${label}.`);
+    }
+  }, [lead, campaigns, activeId, switchTo]);
 
   useEffect(() => {
     setLoading(true);
@@ -153,7 +168,7 @@ export default function LeadDetail() {
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div className="min-w-0">
               <h1 className="truncate text-2xl font-semibold tracking-[-0.01em] text-foreground">{lead.name}</h1>
-              <p className="mt-1 text-base text-muted-foreground">{lead.brokerage || 'No brokerage on file'}</p>
+              <p className="mt-1 text-base text-muted-foreground">{lead.brokerage || `No ${companyWord} on file`}</p>
             </div>
             <StatusBadge status={lead.status} />
           </div>
@@ -190,7 +205,7 @@ export default function LeadDetail() {
           {EDITABLE_FIELDS.map((field) => (
             <div key={field}>
               <label htmlFor={`lead-field-${field}`} className="label mb-2 block">
-                {field}
+                {field === 'brokerage' ? companyWord : field}
               </label>
               {field === 'state' ? (
                 <Field

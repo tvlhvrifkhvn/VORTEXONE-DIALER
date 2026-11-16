@@ -1,8 +1,9 @@
 # Code map (Vortex One Outreach, repo vortexone-dialer)
 Update the lines for files you change, in the same commit. Built from grep (migrations, module.exports, routes, imports), checked on `latest` 66ab018.
 
-## TABLES (backend/src/db/migrations, 001–033; the next new file is 034)
+## TABLES (backend/src/db/migrations, 001–034; the next new file is 035)
 - campaigns (033): id, file_number (unique), name (unique), slug (unique), kind (real_estate | roofing_supplement | custom), status (active | paused | archived), company_label, ai_context, pitch_script, daily_goal, default_max_attempts, monthly_budget_cents, created_at, archived_at; File 01 "Real Estate" seeded
+- 034_campaign_settings_copy (C1E): copies the first supervisor's pitch_script and daily_goal user settings into File 01 where File 01 has none
 - campaign_id (033): NOT NULL on leads, call_history, dialing_sessions, import_jobs (backfilled to File 01); nullable (= shared) on sms_templates, objection_types; indexes leads(campaign_id), call_history(campaign_id, started_at)
 - users: id, email (unique), password_hash, name, role (rep | supervisor), created_at
 - leads: id, name, phone (UNIQUE, E.164), email, address, brokerage, state, status (lifecycle), attempts, max_attempts, next_action_at, cold_at, cold_reason, dnc_flag, locked_by→users, locked_at, deleted_at (007), sms_opt_out (015), missing_phone (017), tags[] (018), office_key (020), original_phone, extension (023), tz_zones[] (027), created_at, updated_at
@@ -96,13 +97,13 @@ Update the lines for files you change, in the same commit. Built from grep (migr
 
 ## FRONTEND ROUTES (frontend/src/App.jsx; all but /login behind RequireAuth, inside AppShell)
 - /login → pages/Login.jsx (useAuth)
-- / → pages/Dashboard.jsx (useLeads, useCall, useUserSettings): stats, goal, lead table, start session
+- / → pages/Dashboard.jsx (useLeads, useCall, useUserSettings, useCampaign): stats, the file's daily goal (supervisor edits it), lead table, start session
 - /dialer → pages/DialerSession.jsx (useMultiline, useCall): multi-line session
 - /call/manual → pages/ManualCall.jsx: dial pad (components/call/DialPad.jsx)
 - /call/:leadId → pages/CallScreen.jsx (useCall, useBrief): the call screen; /call/next dials the next queued lead
-- /leads/:id → pages/LeadDetail.jsx: lead record, LeadActionHub, callback, contact details
-- /inbox → pages/Inbox.jsx · /sms/templates → pages/SmsTemplates.jsx
-- /import → pages/Import.jsx (useImportJob) · /reports → pages/Reports.jsx · /settings → pages/Settings.jsx (useAuth, useUserSettings)
+- /leads/:id → pages/LeadDetail.jsx: lead record, LeadActionHub, callback, contact details; a lead of another file switches to it with a toast (C1E); the company word from company_label
+- /inbox → pages/Inbox.jsx (THIS FILE | ALL FILES) · /sms/templates → pages/SmsTemplates.jsx
+- /import → pages/Import.jsx (useImportJob; shows the target file, blocked while it is paused) · /reports → pages/Reports.jsx (THIS FILE | ALL FILES; objections per file only) · /settings → pages/Settings.jsx (useAuth, useUserSettings; 04 — Files links on) · /settings/campaigns → pages/Campaigns.jsx (C1E: list, create from the Real estate / Roofing / Blank template, edit, pause, resume, archive)
 - /styleguide → pages/Styleguide.jsx (hidden; every ui primitive)
 
 ## FRONTEND HOOKS AND LIB (frontend/src)
@@ -111,7 +112,8 @@ Update the lines for files you change, in the same commit. Built from grep (migr
 - hooks/useMultiline.js: multi-line session state from the event stream
 - hooks/useLeads.js: useLeads (paged list), useStateCounts
 - hooks/useBrief.js: pre-call brief · hooks/useImportJob.js: the running import job · hooks/useUserSettings.js: per-user settings
-- lib/api.js: every API call goes through `request()` (sends X-Campaign-Id from lib/campaign.js; on 400 campaign_invalid resets to File 01 and retries once); the 500 toast; openCallStream (EventSource); resolveMediaUrl
+- hooks/useCampaign.jsx (C1E): CampaignProvider (in App.jsx) and useCampaign() → campaigns, usable, active, activeId, version, switchTo(id), switchBlockedReason (a call or a dial session), refresh; fileLabel(c), showToast(text). App.jsx keys the routes on `version`, so a switch remounts every page
+- lib/api.js: every API call goes through `request()` (sends X-Campaign-Id from lib/campaign.js; on 400 campaign_invalid resets to File 01 and retries once); the 500 toast; openCallStream (EventSource); resolveMediaUrl. C1E: request(…, { campaign }) overrides the header for one call ('ALL'); getTodayStats/getPerStateReport/getManualCallsToday/downloadDailyPdf/getSmsInbox take it; listCampaigns, createCampaign, updateCampaign, setCampaignStatus
 - lib/campaign.js: getCampaignId / setCampaignId on localStorage `vortex.campaign` (default "1"), DEFAULT_CAMPAIGN_ID
 - lib/format.js: phone, date, duration formats · lib/retry.js: sendWithRetry · lib/usStates.js
 
@@ -119,9 +121,9 @@ Update the lines for files you change, in the same commit. Built from grep (migr
 - ui/Panel, Button, Field: panel, button (primary | secondary | ghost), input/select/textarea
 - ui/ActionButton: call, hangup and outcome buttons · ui/Badge: Tag (outline | solid | dashed | muted | signal)
 - ui/Keycap, SectionLabel, FileTag, StatusDot, Meter (goal | budget), Segmented, Dialog
-- layout/AppShell.jsx: header, nav, search, clocks, theme switch · layout/StateSidebar.jsx
-- call/: CallContactHeader, CallHeader (status + timer), CallActionGrid, CallControls, DispositionPanel (notes, V/N/D hotkeys, outcomes), DispositionButtons, NotesField, BriefCard, ObjectionPanel, MultilinePanel, DialPad; ContactCard.jsx is unused
-- leads/: LeadTable, LeadRow, LeadFilters, BulkSmsModal, LeadActionHub (SMS/email compose, timeline), ColleagueCard, LeadLocalTime, StatusBadge, AttemptBadge
+- layout/AppShell.jsx: header, nav (LEADS, …), search, clocks, theme switch · layout/CampaignSwitcher.jsx (C1E): the FileTag as a menu of files, "MANAGE FILES →" · layout/StateSidebar.jsx
+- call/: CallContactHeader, CallHeader (status + timer), CallActionGrid, CallControls, DispositionPanel (notes, V/N/D hotkeys, outcomes), DispositionButtons, NotesField, BriefCard, ObjectionPanel, MultilinePanel, DialPad; ContactCard.jsx is unused · C1E: DispositionPanel's pitch script is the active file's ({name} = the rep); DialPad's company field label is company_label
+- leads/: LeadTable, LeadRow, LeadFilters, BulkSmsModal, LeadActionHub (SMS/email compose, timeline), ColleagueCard, LeadLocalTime, StatusBadge, AttemptBadge · C1E: LeadFilters and ColleagueCard use the file's company label and "agents"/"people"
 - stats/: StatCard, QueueHoursCards, StateReport, ObjectionReport
 - styles/: globals.css (tokens, focus), theme.js (status tags and labels), tokens.js (styleguide list)
 
@@ -129,9 +131,9 @@ Update the lines for files you change, in the same commit. Built from grep (migr
 - `./dev.sh` (start Postgres, migrate, backend :4000, frontend :5173) · `./dev.sh status` · `./dev.sh stop`
 - `cd frontend && npm run build` · `npm run contrast` (token contrast, both themes)
 - `bash audit/scripts/reskin-grep.sh`: design-rule grep; must print nothing
-- `node audit/scripts/reskin-shots.js --seg <x> --pages <list> [--lead <id>] [--smoke]`: screenshots and the M/Esc/D/V/N smoke (AUDIT_PASSWORD set)
+- `node audit/scripts/reskin-shots.js --seg <x> --pages <list> [--lead <id>] [--smoke]`: screenshots and the M/Esc/D/V/N smoke (AUDIT_PASSWORD set) · page `campaigns` = /settings/campaigns (C1E)
 - `node audit/scripts/reskin-a11y.js --lead <id>`: labels, names and focus rings on Dashboard, call, lead, Settings
 - `cd backend && npm run migrate` · `npm run seed`
 - `cd backend && npm run verify`: tests/run.js drops and creates `vortex_verify` (refuses any other name), migrates it, runs tests/*.test.js with node:test one file at a time (mock providers, test JWT secret, no AI, raised rate limits), prints a PASS/FAIL table, drops the database
 - tests/helpers.js: setupFile (reset + hours off + answered calls), request/client (every HTTP call; add headers here), createUser (logs in), createLead (backfills zones), getLead, nextPhone, dial, setOutcome (mock outcome), setNowOffset/resetClock (Node clock), setCallingHours, waitFor
-- tests/01-auth-settings · 02-dispositions (all 7 + max attempts + Undo) · 03-locks · 04-dnc · 05-import · 06-calling-hours · 07-reports-sms · 08-invariants (I1–I8) · 09-campaigns (C1A: I10, I11, write paths, paused/archived, header, moveLead, setStatus, objection labels) · 10-dialer-scoping (C1B: I14 queue / single-line / multi-line queue and selection, cross-file 409, per-file lock, state counts, I15 DNC global) · 11-reads-scoping (C1C: import into another file, other-file reason, identity per file; list per file/ALL, global search; report totals per file = ALL; PDF one file and ALL) · 12-sms-objections-ai (C1D: templates and objection types own + shared, objection report per file, inbox per file / ALL with unmatched everywhere, AI prompts through a local Groq stub: File 01 real-estate context, File 02 its own and no real-estate wording). helpers: request sends X-Campaign-Id (File 01 default; `campaign: null` omits it), createLead campaign_id 1, resetDb re-seeds File 01, createCampaign
+- tests/01-auth-settings · 02-dispositions (all 7 + max attempts + Undo) · 03-locks · 04-dnc · 05-import · 06-calling-hours · 07-reports-sms · 08-invariants (I1–I8) · 09-campaigns (C1A: I10, I11, write paths, paused/archived, header, moveLead, setStatus, objection labels) · 10-dialer-scoping (C1B: I14 queue / single-line / multi-line queue and selection, cross-file 409, per-file lock, state counts, I15 DNC global) · 11-reads-scoping (C1C: import into another file, other-file reason, identity per file; list per file/ALL, global search; report totals per file = ALL; PDF one file and ALL) · 12-sms-objections-ai (C1D: templates and objection types own + shared, objection report per file, inbox per file / ALL with unmatched everywhere, AI prompts through a local Groq stub: File 01 real-estate context, File 02 its own and no real-estate wording) · 13-campaign-settings-copy (C1E: migration 034 fills only empty File 01 values from the first supervisor). helpers: request sends X-Campaign-Id (File 01 default; `campaign: null` omits it), createLead campaign_id 1, resetDb re-seeds File 01, createCampaign

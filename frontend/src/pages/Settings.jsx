@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import AppShell from '../components/layout/AppShell';
 import Panel from '../components/ui/Panel';
 import Button from '../components/ui/Button';
@@ -7,6 +8,7 @@ import SectionLabel from '../components/ui/SectionLabel';
 import { useAuth } from '../hooks/useAuth';
 import * as api from '../lib/api';
 import { useUserSettings } from '../hooks/useUserSettings';
+import { useCampaign, fileLabel } from '../hooks/useCampaign';
 
 // Global, supervisor only (F-48): applies to new leads (created or imported).
 const MAX_ATTEMPTS_KEY = 'default_max_attempts';
@@ -14,15 +16,10 @@ const MAX_ATTEMPTS_KEY = 'default_max_attempts';
 const LEGACY_MAX_ATTEMPTS_KEY = 'vortex_dialer_default_max_attempts';
 
 const DEFAULT_MAX_ATTEMPTS = 5;
-const DEFAULT_GOAL = 100;
 const DEFAULT_LINES = 3;
 // Matches callingHours.js's ENFORCEMENT_SETTING_KEY — server-backed (the
 // settings table), not localStorage, since the backend reads it directly.
 const CALLING_HOURS_KEY = 'calling_hours_enforced';
-const DEFAULT_SCRIPT =
-  "Hi, I'm {name} from Vortexone Agency. We offer virtual assistant services for real " +
-  'estate agents — lead follow-up, appointment setting, and admin support. Do you currently ' +
-  'have VA support on your team?';
 
 
 function ProfileSection() {
@@ -85,15 +82,14 @@ function ProfileSection() {
 function DialingDefaultsSection() {
   const { user } = useAuth();
   const isSupervisor = user?.role === 'supervisor';
-  // Daily goal and default lines are this user's own (server, F-48); max
-  // attempts is a global server setting only a supervisor can change.
+  // Default lines are this user's own (server, F-48); max attempts is a
+  // global server setting only a supervisor can change. The daily goal is
+  // set per file since C1E (Settings → Files).
   const { settings: mine, save: saveMine } = useUserSettings();
   const [maxAttempts, setMaxAttempts] = useState(DEFAULT_MAX_ATTEMPTS);
-  const [dailyGoal, setDailyGoal] = useState(DEFAULT_GOAL);
   const [defaultLines, setDefaultLines] = useState(DEFAULT_LINES);
   useEffect(() => {
     if (!mine) return;
-    if (Number(mine.daily_goal) > 0) setDailyGoal(Number(mine.daily_goal));
     if ([1, 2, 3].includes(Number(mine.default_lines))) setDefaultLines(Number(mine.default_lines));
   }, [mine]);
   useEffect(() => {
@@ -151,7 +147,6 @@ function DialingDefaultsSection() {
     e.preventDefault();
     setError(null);
     try {
-      await saveMine('daily_goal', dailyGoal);
       await saveMine('default_lines', defaultLines);
       // Global settings: only a supervisor can change them (the calling-hours switch saves on its own too).
       if (isSupervisor) {
@@ -187,19 +182,6 @@ function DialingDefaultsSection() {
             Applies to new leads (added or imported from now on). Existing leads keep their own value.
             {!isSupervisor && ' Only a supervisor can change this.'}
           </p>
-        </div>
-        <div>
-          <label htmlFor="default-daily-goal" className="label mb-2 block">
-            Default daily goal
-          </label>
-          <Field
-            id="default-daily-goal"
-            type="number"
-            min="1"
-            value={dailyGoal}
-            onChange={(e) => setDailyGoal(Number(e.target.value))}
-            className="w-32 font-mono tabular-nums"
-          />
         </div>
         <div>
           <label htmlFor="default-lines" className="label mb-2 block">
@@ -354,48 +336,21 @@ function ReportingDaySection() {
   );
 }
 
-function ScriptEditorSection() {
-  // This user's own script (a per-user server setting, F-48).
-  const { settings: mine, save: saveMine } = useUserSettings();
-  const [script, setScript] = useState(DEFAULT_SCRIPT);
-  const [saved, setSaved] = useState(false);
-  const [error, setError] = useState(null);
-  useEffect(() => {
-    if (mine?.pitch_script) setScript(mine.pitch_script);
-  }, [mine]);
-
-  const handleSave = async (e) => {
-    e.preventDefault();
-    setError(null);
-    try {
-      await saveMine('pitch_script', script);
-      setSaved(true);
-      setTimeout(() => setSaved(false), 2000);
-    } catch (err) {
-      setError(err.message);
-    }
-  };
-
+/** C1E: the daily goal and the pitch script are set per file. */
+function FilesSection() {
+  const { active } = useCampaign();
   return (
     <Panel className="space-y-4 p-6">
-      <SectionLabel index="04" title="Pitch script" />
+      <SectionLabel index="04" title="Files" meta={active ? fileLabel(active) : undefined} />
       <p className="text-sm text-muted-foreground">
-        Customize the pitch script shown on the call screen. Use <code>{'{name}'}</code> where your name
-        should appear.
+        Each file has its own pitch script, daily goal, company label and AI context.
       </p>
-      <form onSubmit={handleSave} className="space-y-3">
-        <Field
-          as="textarea"
-          rows={5}
-          aria-label="Pitch script"
-          value={script}
-          onChange={(e) => setScript(e.target.value)}
-          className="w-full resize-none"
-        />
-        {error && <p role="alert" className="text-sm text-signal">{error}</p>}
-        {saved && <p className="font-mono text-xs uppercase text-foreground">✓ Saved</p>}
-        <Button type="submit" variant="primary">Save script</Button>
-      </form>
+      <Link
+        to="/settings/campaigns"
+        className="inline-flex min-h-10 items-center border border-strong px-4 font-mono text-sm font-medium uppercase tracking-button text-foreground transition-colors duration-150 hover:bg-foreground hover:text-background"
+      >
+        Manage files →
+      </Link>
     </Panel>
   );
 }
@@ -642,7 +597,7 @@ export default function Settings() {
         <ProfileSection />
         <DialingDefaultsSection />
         <ReportingDaySection />
-        <ScriptEditorSection />
+        <FilesSection />
         <ObjectionsSection />
         <IntegrationsSection />
       </div>

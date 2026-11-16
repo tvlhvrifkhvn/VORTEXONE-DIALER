@@ -5,6 +5,7 @@ import Panel from '../components/ui/Panel';
 import Button from '../components/ui/Button';
 import Badge from '../components/ui/Badge';
 import SectionLabel from '../components/ui/SectionLabel';
+import Segmented from '../components/ui/Segmented';
 import { formatRelativeToNow } from '../lib/format';
 import * as api from '../lib/api';
 
@@ -22,11 +23,13 @@ export default function Inbox() {
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
   const [confirmingOptOut, setConfirmingOptOut] = useState(null);
+  // C1E: THIS FILE or ALL FILES. Texts from unknown numbers show in both.
+  const [scope, setScope] = useState('file');
 
   const load = () => {
     setLoading(true);
     api
-      .getSmsInbox(page, 20)
+      .getSmsInbox(page, 20, scope === 'all' ? 'ALL' : undefined)
       .then(({ leads, unmatched: fromUnknown }) => {
         setRows(leads);
         setUnmatched(fromUnknown || []);
@@ -34,7 +37,7 @@ export default function Inbox() {
       .finally(() => setLoading(false));
   };
 
-  useEffect(load, [page]);
+  useEffect(load, [page, scope]);
 
   const handleMarkInterested = async (leadId) => {
     await api.markSmsRead(leadId);
@@ -58,8 +61,20 @@ export default function Inbox() {
   return (
     <AppShell>
       <div className="mx-auto mt-6 max-w-4xl space-y-4">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-wrap items-center justify-between gap-4">
           <h1 className="text-2xl font-semibold tracking-[-0.01em] text-foreground">Inbox</h1>
+          <Segmented
+            label="Inbox scope"
+            options={[
+              { value: 'file', label: 'This file' },
+              { value: 'all', label: 'All files' },
+            ]}
+            value={scope}
+            onChange={(next) => {
+              setPage(1);
+              setScope(next);
+            }}
+          />
           <Link
             to="/sms/templates"
             className="font-mono text-sm font-medium uppercase tracking-button text-foreground underline underline-offset-4 hover:bg-muted"

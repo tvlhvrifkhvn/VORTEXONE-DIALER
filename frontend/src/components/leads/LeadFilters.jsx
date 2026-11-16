@@ -1,8 +1,10 @@
 import Field from '../ui/Field';
 import { STATUS_LABELS } from '../../styles/theme';
+import { useCampaign } from '../../hooks/useCampaign';
 
 export default function LeadFilters({ filters, onChange }) {
   const update = (patch) => onChange({ ...filters, ...patch });
+  const companyWord = (useCampaign().active?.company_label || 'Brokerage').toLowerCase(); // C1E
 
   return (
     <div className="flex flex-wrap items-end gap-4">
@@ -12,7 +14,7 @@ export default function LeadFilters({ filters, onChange }) {
         </label>
         <Field
           id="filter-search"
-          placeholder="Name, phone, brokerage…"
+          placeholder={`Name, phone, ${companyWord}…`}
           value={filters.search || ''}
           onChange={(e) => update({ search: e.target.value })}
           className="w-64"

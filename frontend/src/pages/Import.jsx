@@ -7,6 +7,8 @@ import Badge from '../components/ui/Badge';
 import Meter from '../components/ui/Meter';
 import SectionLabel from '../components/ui/SectionLabel';
 import ActionButton from '../components/ui/ActionButton';
+import FileTag from '../components/ui/FileTag';
+import { useCampaign } from '../hooks/useCampaign';
 import { formatDateTime } from '../lib/format';
 import { useImportJob, trackImportJob } from '../hooks/useImportJob';
 import * as api from '../lib/api';
@@ -306,6 +308,12 @@ export default function Import() {
     setError(null);
   };
 
+  // C1E: the import goes into the active file; a paused file can't import.
+  const { active } = useCampaign();
+  const paused = active?.status === 'paused';
+  const labelOf = (field) =>
+    field === 'brokerage' ? (active?.company_label || 'brokerage').toLowerCase() : FIELD_LABELS[field] || field;
+
   const selectedRowCount = selectedSheets.reduce((sum, name) => sum + (analysis?.sheetRowCounts?.[name] || 0), 0);
 
   return (
@@ -352,6 +360,15 @@ export default function Import() {
         {step === 1 && !isActive && (
           <Panel className="space-y-4 p-6">
             <SectionLabel index="01" title="File" />
+            <p className="flex flex-wrap items-center gap-2 text-sm text-foreground">
+              <span className="label">Imports into</span>
+              {active && <FileTag number={active.file_number} name={active.name} />}
+            </p>
+            {paused && (
+              <p role="status" className="border-l-[3px] border-l-primary bg-muted px-4 py-2 text-sm text-foreground">
+                This file is paused. Resume it under Settings → Files, or switch files, to import.
+              </p>
+            )}
             <p className="text-base text-foreground">
               Upload a CSV or Excel file with lead name, phone, and state at minimum.
             </p>
@@ -359,7 +376,7 @@ export default function Import() {
               Columns are matched automatically (with AI when it's available) and you can correct them before
               importing. Any number of rows; very large files (over the upload size limit) need to be split.
             </p>
-            <Button variant="primary" onClick={() => fileInputRef.current?.click()} disabled={uploading}>
+            <Button variant="primary" onClick={() => fileInputRef.current?.click()} disabled={uploading || paused}>
               {uploading ? 'Reading file…' : 'Choose CSV or Excel file'}
             </Button>
             <input
@@ -432,7 +449,7 @@ export default function Import() {
                   return (
                     <div key={field} className="grid grid-cols-[140px_1fr_120px] items-center gap-4 border-b py-2">
                       <label htmlFor={`map-${field}`} className="font-mono text-xs font-medium uppercase text-foreground">
-                        {FIELD_LABELS[field] || field}
+                        {labelOf(field)}
                         {REQUIRED_FIELDS.includes(field) && ' *'}
                       </label>
                       <Field
@@ -468,7 +485,7 @@ export default function Import() {
                   <tr className="border-b text-left">
                     {PREVIEW_FIELDS.map((f) => (
                       <th key={f} className="label px-2 py-2 font-medium">
-                        {f}
+                        {labelOf(f)}
                       </th>
                     ))}
                   </tr>
