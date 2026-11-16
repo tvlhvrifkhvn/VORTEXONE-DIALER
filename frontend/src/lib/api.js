@@ -322,6 +322,10 @@ export const reopenTask = (id) => request(`/tasks/${id}/reopen`, { method: 'POST
 export const deleteTask = (id) => request(`/tasks/${id}`, { method: 'DELETE' });
 export const getToday = (campaign) => request('/today', { campaign });
 
+// spend and sessions (C4A/C4B)
+export const getSpend = (campaign) => request('/spend', { campaign });
+export const getSessionStats = (id) => request(`/sessions/${id}`);
+
 // campaigns ("files", C1E)
 export const listCampaigns = () => request('/campaigns');
 export const createCampaign = (fields) => request('/campaigns', { method: 'POST', body: fields });

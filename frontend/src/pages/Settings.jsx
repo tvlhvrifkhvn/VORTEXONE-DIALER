@@ -9,6 +9,7 @@ import { useAuth } from '../hooks/useAuth';
 import * as api from '../lib/api';
 import { useUserSettings } from '../hooks/useUserSettings';
 import { useCampaign, fileLabel } from '../hooks/useCampaign';
+import { refreshSpend } from '../hooks/useSpend';
 
 // Global, supervisor only (F-48): applies to new leads (created or imported).
 const MAX_ATTEMPTS_KEY = 'default_max_attempts';
@@ -355,6 +356,106 @@ function FilesSection() {
   );
 }
 
+// C4B: the cost rates (cents, decimals allowed) and the global monthly budget
+// (dollars here, cents on the server). Empty = not set. Supervisor only.
+const RATE_FIELDS = [
+  { key: 'rate_outbound_cents_per_min', label: 'Outbound · cents per minute', placeholder: 'e.g. 0.7' },
+  { key: 'rate_recording_cents_per_min', label: 'Recording · cents per minute', placeholder: 'e.g. 0.25' },
+  { key: 'rate_per_call_cents', label: 'Per call · cents', placeholder: 'e.g. 0.4' },
+];
+
+function SpendLimitsSection() {
+  const { user } = useAuth();
+  const isSupervisor = user?.role === 'supervisor';
+  const [values, setValues] = useState({});
+  const [budget, setBudget] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState(null);
+
+  useEffect(() => {
+    Promise.all([...RATE_FIELDS.map((f) => api.getSetting(f.key)), api.getSetting('monthly_budget_cents')])
+      .then((results) => {
+        setValues(Object.fromEntries(RATE_FIELDS.map((f, i) => [f.key, results[i]?.value ?? ''])));
+        const b = results[RATE_FIELDS.length]?.value;
+        setBudget(b === null || b === undefined || b === '' ? '' : String(Number(b) / 100));
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+
+  const handleSave = async (e) => {
+    e.preventDefault();
+    setSaving(true);
+    setMessage(null);
+    try {
+      for (const f of RATE_FIELDS) {
+        const v = String(values[f.key] ?? '').trim();
+        await api.putSetting(f.key, v === '' ? null : v);
+      }
+      const b = budget.trim();
+      await api.putSetting('monthly_budget_cents', b === '' ? null : String(Math.round(Number(b) * 100)));
+      await refreshSpend();
+      setMessage({ type: 'ok', text: 'Spend limits saved.' });
+    } catch (err) {
+      setMessage({ type: 'error', text: err.message });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Panel className="space-y-4 p-6" id="spend-limits">
+      <SectionLabel index="07" title="Spend limits" />
+      <p className="text-sm text-muted-foreground">
+        Your phone provider's real rates. Until one is set, costs read "rates not set" and nothing is blocked. A call's
+        cost is fixed when it ends. At 80 % of a budget the header warns; at 100 % dialing stops.
+      </p>
+      <form onSubmit={handleSave} className="space-y-3">
+        <div className="grid gap-4 sm:grid-cols-3">
+          {RATE_FIELDS.map((f) => (
+            <div key={f.key}>
+              <label htmlFor={`setting-${f.key}`} className="label mb-2 block">{f.label}</label>
+              <Field
+                id={`setting-${f.key}`}
+                inputMode="decimal"
+                value={values[f.key] ?? ''}
+                onChange={(e) => setValues((v) => ({ ...v, [f.key]: e.target.value }))}
+                placeholder={f.placeholder}
+                className="w-full font-mono tabular-nums"
+                disabled={loading || !isSupervisor}
+              />
+            </div>
+          ))}
+        </div>
+        <div>
+          <label htmlFor="setting-monthly-budget" className="label mb-2 block">Global monthly budget · USD</label>
+          <Field
+            id="setting-monthly-budget"
+            type="number"
+            min="0"
+            step="0.01"
+            value={budget}
+            onChange={(e) => setBudget(e.target.value)}
+            placeholder="No limit"
+            className="w-40 font-mono tabular-nums"
+            disabled={loading || !isSupervisor}
+          />
+        </div>
+        {!isSupervisor && <p className="text-sm text-muted-foreground">Only a supervisor can change spend limits.</p>}
+        {message && (
+          <p role={message.type === 'ok' ? 'status' : 'alert'} className={`text-sm ${message.type === 'ok' ? 'text-foreground' : 'text-signal'}`}>
+            {message.text}
+          </p>
+        )}
+        <Button type="submit" variant="primary" disabled={saving || loading || !isSupervisor}>
+          {saving ? 'Saving…' : 'Save spend limits'}
+        </Button>
+      </form>
+    </Panel>
+  );
+}
+
 function IntegrationsSection() {
   const { user } = useAuth();
   const isSupervisor = user?.role === 'supervisor';
@@ -604,6 +705,7 @@ export default function Settings() {
         <FilesSection />
         <ObjectionsSection />
         <IntegrationsSection />
+        <SpendLimitsSection />
       </div>
     </AppShell>
   );

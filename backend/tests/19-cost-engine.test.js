@@ -196,3 +196,19 @@ test('a running multi-line session stops refilling once the budget is reached', 
   await rep.api.post('/api/calls/multiline/stop', {});
   h.setOutcome('answered');
 });
+
+test('C4B: a dialing session\'s stats, for its rep (or a supervisor) only', async () => {
+  const started = await rep.api.post('/api/sessions/start', { mode: 'power' });
+  assert.equal(started.status, 201);
+  const id = started.body.sessionId;
+  const lead = await h.createLead();
+  const call = await rep.api.post('/api/calls', { leadId: lead.id, sessionId: id });
+  assert.equal(call.status, 201, JSON.stringify(call.body));
+  const mine = await rep.api.get(`/api/sessions/${id}`);
+  assert.equal(mine.status, 200);
+  assert.equal(mine.body.session.total_dials, 1);
+  assert.equal((await supervisor.api.get(`/api/sessions/${id}`)).status, 200);
+  const other = await h.createUser({ role: 'rep' });
+  assert.equal((await other.api.get(`/api/sessions/${id}`)).status, 404);
+  await rep.api.post('/api/dispositions', { callId: call.body.call.id, disposition: 'voicemail' });
+});
