@@ -84,3 +84,8 @@
 - 2026-11-16 · C1A · setStatus refuses pausing or archiving while one of the file's leads is in_progress, and never archives the last active file; resume clears archived_at · section 2 / C1A rules
 - 2026-11-16 · C1A · POST /api/leads/:id/move-campaign lives in routes/campaigns.js (leadRouter) and is mounted before routes/leads.js · new behavior in new files; index.js gets only the two mounts
 - 2026-11-16 · C1A · lib/api.js retries once on campaign_invalid only when the stored file isn't already File 01 · avoids a pointless second request when File 01 itself was refused
+- 2026-11-16 · C1B · lockNext with a leadId of another file answers 409 "This lead belongs to FILE NN · NAME" before any other check except "not found" · the rep learns which file to switch to; nothing is locked
+- 2026-11-16 · C1B · GET /api/leads/state-counts and POST /api/leads/batch-queue now need the header ([campaign], no ALL) · section 3 gives them a campaignId; the frontend already sends it on every request
+- 2026-11-16 · C1B · leadQueue.list() keeps its "up next" marker across ALL files (peekNext(ALL)) until C1C scopes list() · list() belongs to C1C; this keeps today's behavior instead of half-scoping it
+- 2026-11-16 · C1B · No new index: the queue query on 100k leads in 2 equal files uses a parallel seq scan, as it did before C1B (same plan shape), and idx_leads_campaign when the file is small; median read 50.5 ms before, 31.6 ms after · the +20% budget holds without a migration
+- 2026-11-16 · C1B · tests/09: the two tests that dialed a File-NN lead under the File 01 header now send the lead's own file · C1B makes that dial a 409 on purpose

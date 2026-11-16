@@ -103,10 +103,11 @@ test('each write path stores the active campaign', async () => {
   assert.equal(rows[0].campaign_id, file.id);
 });
 
-test("a lead's call copies the lead's campaign, not the header's", async () => {
+test("a lead's call copies the lead's campaign", async () => {
+  // C1B: dialing a lead from another file's header is refused (10-dialer-scoping).
   const file = await newFile('Copy From Lead');
   const lead = await h.createLead({ campaign_id: file.id });
-  const call = await h.dial(rep.api, lead.id); // header: File 01
+  const call = await rep.api.post('/api/calls', { leadId: lead.id }, { campaign: file.id });
   assert.equal(call.status, 201, JSON.stringify(call.body));
   assert.equal(await campaignOf('call_history', call.body.call.id), file.id);
 });
@@ -161,7 +162,7 @@ test('moveLead: supervisor only; refused while dialing; old calls keep their cam
 test('setStatus: refused while a lead is being dialed; the last active file cannot be archived', async () => {
   const file = await newFile('Status Rules');
   const lead = await h.createLead({ campaign_id: file.id });
-  const call = await h.dial(rep.api, lead.id);
+  const call = await rep.api.post('/api/calls', { leadId: lead.id }, { campaign: file.id });
   assert.equal(call.status, 201);
   assert.equal((await supervisor.api.post(`/api/campaigns/${file.id}/status`, { status: 'paused' })).status, 409);
   await rep.api.post('/api/dispositions', { callId: call.body.call.id, disposition: 'contacted' });
