@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import * as api from '../lib/api';
+import { pollWhileVisible } from '../lib/poll';
 
 // The active file's spend (C4B: GET /api/spend), shared by the header meter
 // and the call screen: one poll every 30 s, one cache; every user of the hook
@@ -30,12 +31,12 @@ export function useSpend() {
     listeners.add(setSpend);
     if (!timer) {
       load();
-      timer = setInterval(load, POLL_MS);
+      timer = pollWhileVisible(load, POLL_MS);
     }
     return () => {
       listeners.delete(setSpend);
       if (listeners.size === 0) {
-        clearInterval(timer);
+        timer();
         timer = null;
         cache = null;
       }

@@ -1,10 +1,12 @@
 #!/usr/bin/env bash
-# One-command dev startup: Postgres, migrations, backend, frontend.
+# One-command dev startup: git pull, npm install (when needed), Postgres,
+# migrations, backend, frontend.
 # Safe to re-run any time (a Codespace restart, a stale process, whatever) —
 # it kills anything already on 4000/5173 first, so it never doubles up.
 #
 # Usage:
-#   ./dev.sh          # start everything
+#   ./dev.sh          # pull the latest code, install what changed, start everything
+#   VORTEX_NO_PULL=1 ./dev.sh   # the same without git pull
 #   ./dev.sh stop      # stop backend + frontend (leaves Postgres running)
 #   ./dev.sh status     # just print what's up right now
 #   ./dev.sh logs backend|frontend   # tail a log
@@ -81,6 +83,26 @@ cmd_logs() {
 }
 
 cmd_start() {
+  # Latest code first (fast-forward only; skipped with local changes or VORTEX_NO_PULL=1).
+  echo "==> Code"
+  if [ "${VORTEX_NO_PULL:-}" = "1" ]; then
+    echo "    pull skipped (VORTEX_NO_PULL=1)"
+  elif ! git diff --quiet || ! git diff --cached --quiet; then
+    echo "    you have local changes: pull skipped (commit or stash them to update)"
+  elif git pull --ff-only --quiet; then
+    echo "    up to date: $(git log --oneline -1)"
+  else
+    echo "!!  couldn't pull (offline, or the branch has diverged): starting the code you have"
+  fi
+
+  # Dependencies, only when package-lock.json is newer than the last install.
+  for dir in backend frontend; do
+    if [ ! -d "$dir/node_modules" ] || [ "$dir/package-lock.json" -nt "$dir/node_modules/.package-lock.json" ]; then
+      echo "==> $dir: npm install"
+      (cd "$dir" && npm install --no-audit --no-fund) || { echo "!! npm install failed in $dir"; exit 1; }
+    fi
+  done
+
   echo "==> Postgres"
   if own_pg; then
     if own_pg_running; then

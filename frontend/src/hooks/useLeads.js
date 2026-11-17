@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useState } from 'react';
 import * as api from '../lib/api';
+import { pollWhileVisible } from '../lib/poll';
 
-const POLL_MS = 5000;
+// 10 s (was 5): the Leads page alone sent 43 requests a minute while idle.
+const POLL_MS = 10000;
 const CALLBACK_CHECK_MS = 5 * 60 * 1000;
 const CALLBACK_WINDOW_MS = 15 * 60 * 1000;
 const NOTIFIED_KEY = 'vortex_dialer_notified_callbacks';
@@ -95,8 +97,7 @@ export function useLeads(filters) {
   useEffect(() => {
     setLoading(true);
     refresh();
-    const id = setInterval(refresh, POLL_MS);
-    return () => clearInterval(id);
+    return pollWhileVisible(refresh, POLL_MS);
   }, [refresh]);
 
   // Browser notifications for callbacks due soon — independent of the
@@ -121,8 +122,7 @@ export function useStateCounts() {
 
   useEffect(() => {
     refresh();
-    const id = setInterval(refresh, POLL_MS);
-    return () => clearInterval(id);
+    return pollWhileVisible(refresh, POLL_MS);
   }, [refresh]);
 
   return { counts, refresh };
