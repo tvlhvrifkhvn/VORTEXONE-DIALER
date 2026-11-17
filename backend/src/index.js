@@ -33,6 +33,7 @@ const { viewsRouter, bulkRouter } = require('./routes/viewsBulk');
 const taskRoutes = require('./routes/tasks');
 const spendRoutes = require('./routes/spend');
 const assistantRoutes = require('./routes/assistant');
+const leadExportRoutes = require('./routes/leadExport');
 
 const app = express();
 
@@ -85,6 +86,7 @@ app.use('/api/leads/bulk', bulkRouter);
 app.use('/api/leads', campaignRoutes.leadRouter);
 app.use('/api/leads', pipelineRoutes.leadRouter);
 app.use('/api/leads', assistantRoutes.leadRouter);
+app.use('/api/leads', leadExportRoutes);
 app.use('/api/leads', leadsRoutes);
 app.use('/api/calls', callsRoutes);
 app.use('/api/dispositions', dispositionsRoutes);

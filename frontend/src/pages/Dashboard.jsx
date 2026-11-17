@@ -19,7 +19,7 @@ import { useLeads, useStateCounts } from '../hooks/useLeads';
 import { DIAL_MODE_KEY, startDialingSession } from '../hooks/useCall';
 import * as api from '../lib/api';
 import { useUserSettings } from '../hooks/useUserSettings';
-import { useCampaign } from '../hooks/useCampaign';
+import { useCampaign, showToast } from '../hooks/useCampaign';
 import { useAuth } from '../hooks/useAuth';
 import { pollWhileVisible } from '../lib/poll';
 
@@ -123,6 +123,18 @@ export default function Dashboard() {
     localStorage.setItem(DIAL_MODE_KEY, 'multiline');
   }, []);
 
+  const [exportingCsv, setExportingCsv] = useState(false);
+  const handleExportCsv = async () => {
+    setExportingCsv(true);
+    try {
+      await api.downloadLeadsCsv(filters);
+    } catch (err) {
+      showToast(err.message);
+    } finally {
+      setExportingCsv(false);
+    }
+  };
+
   const handleExport = async () => {
     setExporting(true);
     try {
@@ -205,6 +217,10 @@ export default function Dashboard() {
               ) : (
                 'Export PDF ↓'
               )}
+            </Button>
+            {/* C6A: the leads table as CSV with the filters shown. */}
+            <Button onClick={handleExportCsv} disabled={exportingCsv}>
+              {exportingCsv ? 'Exporting…' : 'Export CSV ↓'}
             </Button>
           </div>
 

@@ -7,6 +7,7 @@ import Badge from '../ui/Badge';
 import CampaignSwitcher from './CampaignSwitcher';
 import SpendMeter from './SpendMeter';
 import AssistantPanel from '../assistant/AssistantPanel';
+import ReminderToasts from './ReminderToasts';
 import Meter from '../ui/Meter';
 import Segmented from '../ui/Segmented';
 import StatusDot from '../ui/StatusDot';
@@ -426,6 +427,8 @@ export default function AppShell({ children }) {
       </header>
       <main className="px-6 pb-10">{children}</main>
       {askOpen && <AssistantPanel onClose={() => setAskOpen(false)} />}
+      {/* C6A: task and callback reminders. */}
+      <ReminderToasts />
     </div>
   );
 }

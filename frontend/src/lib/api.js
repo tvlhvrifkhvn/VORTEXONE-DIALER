@@ -324,6 +324,13 @@ export const updateTask = (id, changes) => request(`/tasks/${id}`, { method: 'PU
 export const completeTask = (id) => request(`/tasks/${id}/complete`, { method: 'POST' });
 export const reopenTask = (id) => request(`/tasks/${id}/reopen`, { method: 'POST' });
 export const deleteTask = (id) => request(`/tasks/${id}`, { method: 'DELETE' });
+// C6A: the three task views and the reminders.
+export const getTaskView = (view, { from, to } = {}, campaign) => {
+  const qs = new URLSearchParams({ view, ...(from ? { from } : {}), ...(to ? { to } : {}) }).toString();
+  return request(`/tasks?${qs}`, { campaign });
+};
+export const getDueSoon = () => request('/tasks/due-soon');
+export const ackReminder = (item) => request('/tasks/due-soon/ack', { method: 'POST', body: { kind: item.kind, id: item.id, dueAt: item.due_at } });
 export const getToday = (campaign) => request('/today', { campaign });
 
 // spend and sessions (C4A/C4B)
@@ -357,6 +364,21 @@ export const startSession = (mode) => request('/sessions/start', { method: 'POST
 export const endSession = (sessionId) => request('/sessions/end', { method: 'POST', body: { sessionId } });
 
 // exports — fetched as a blob (not a plain <a href>) so the auth header goes along
+/** C6A: the lead list as CSV, with the list's filters (or { viewId }), for the active file or 'ALL'. */
+export async function downloadLeadsCsv(filters = {}, campaign) {
+  const cleaned = Object.fromEntries(Object.entries(filters).filter(([, v]) => v !== undefined && v !== null && v !== '' && v !== false));
+  const qs = new URLSearchParams(cleaned).toString();
+  const blob = await request(`/leads/export.csv${qs ? `?${qs}` : ''}`, { campaign });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `leads-${new Date().toISOString().slice(0, 10)}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
 export async function downloadDailyPdf(period, campaign) {
   // Older callers pass a date string.
   const p = typeof period === 'string' ? { date: period } : period || {};

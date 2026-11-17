@@ -13,6 +13,7 @@ const db = require('../../db');
 const leadQueue = require('../leadQueue');
 const timeline = require('../timeline');
 const tasks = require('../tasks');
+const taskViews = require('../taskViews');
 const today = require('../today');
 const reports = require('../reports');
 const reportingPeriod = require('../reportingPeriod');
@@ -300,25 +301,11 @@ async function getTasks(args, ctx) {
   const files = await fileNames();
   let rows;
   let total;
-  if (view === 'upcoming') {
-    // Open tasks due after today (C6A adds this view to tasks.js; until then, here).
-    const end = await tasks.endOfToday(now);
-    const s = campaignScope.scope('t', ctx.campaignId, 2);
-    const { rows: r } = await db.query(
-      `SELECT t.id, t.campaign_id, t.lead_id, t.type, t.title, t.due_at, l.name AS lead_name, count(*) OVER ()::int AS total
-       FROM tasks t LEFT JOIN leads l ON l.id = t.lead_id
-       WHERE t.done_at IS NULL AND t.due_at >= $1 AND (t.lead_id IS NULL OR l.deleted_at IS NULL) AND ${s.sql}
-       ORDER BY t.due_at ASC, t.id ASC
-       LIMIT ${MAX_ROWS}`,
-      [end, ...s.params]
-    );
-    rows = r;
-    total = r[0]?.total ?? 0;
-  } else {
-    const due = await tasks.listDue({ campaignId: ctx.campaignId, now, limit: 500 });
-    const start = reportingPeriod.dayContaining(now, await reportingPeriod.getSettings()).start;
-    rows = view === 'overdue' ? due.items.filter((t) => t.overdue) : due.items.filter((t) => new Date(t.due_at) >= start);
-    total = rows.length;
+  {
+    // C6A: the same three views as GET /api/tasks?view=… (services/taskViews.js).
+    const v = await taskViews.list({ view, campaignId: ctx.campaignId, now });
+    rows = v.items;
+    total = v.total;
   }
   const out = rows.map((t) => taskRow(t, files));
   out.forEach((t) => t.lead_id && remember(ctx, t.lead_id, t.lead_name));

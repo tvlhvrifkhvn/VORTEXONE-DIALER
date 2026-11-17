@@ -3,6 +3,7 @@
 const express = require('express');
 const tasks = require('../services/tasks');
 const today = require('../services/today');
+const taskViews = require('../services/taskViews');
 const campaignScope = require('../services/campaignScope');
 const { asyncHandler } = require('../middleware/asyncHandler');
 const { requireAuth } = require('../middleware/auth');
@@ -20,7 +21,27 @@ router.get(
   (req, res, next) => (req.query.leadId ? next() : campaignOrAll(req, res, next)),
   asyncHandler(async (req, res) => {
     if (req.query.leadId) return res.json({ tasks: await tasks.listByLead(req.query.leadId) });
+    // C6A: ?view=overdue|today|upcoming (&from=&to= for upcoming).
+    if (req.query.view) {
+      return res.json(await taskViews.list({ view: req.query.view, campaignId: scopeOf(req), from: req.query.from || undefined, to: req.query.to || undefined }));
+    }
     return res.json(await tasks.listDue({ campaignId: scopeOf(req) }));
+  })
+);
+
+// C6A: reminders. Every file; only what this user hasn't been reminded of today.
+router.get(
+  '/due-soon',
+  asyncHandler(async (req, res) => {
+    res.json(await taskViews.dueSoon({ userId: req.user.sub }));
+  })
+);
+
+router.post(
+  '/due-soon/ack',
+  asyncHandler(async (req, res) => {
+    const b = req.body || {};
+    res.json(await taskViews.markReminded({ userId: req.user.sub, kind: b.kind, id: b.id, dueAt: b.dueAt }));
   })
 );
 
