@@ -16,6 +16,7 @@ import SectionLabel from '../components/ui/SectionLabel';
 import ActionButton from '../components/ui/ActionButton';
 import StatCard from '../components/stats/StatCard';
 import BriefPanel from '../components/assistant/BriefPanel';
+import TaskViewsSection from '../components/tasks/TaskViewsSection';
 import { useCampaign } from '../hooks/useCampaign';
 import { useUserSettings } from '../hooks/useUserSettings';
 import { startDialingSession, DIAL_MODE_KEY } from '../hooks/useCall';
@@ -163,8 +164,11 @@ export default function Today() {
           </Panel>
         </section>
 
+        {/* C6A: OVERDUE | TODAY | UPCOMING with RESCHEDULE. */}
+        <TaskViewsSection index="02" />
+
         <section className="space-y-2">
-          <SectionLabel index="02" title="Pipeline" meta={<Link to="/pipeline" className="underline underline-offset-4 hover:bg-muted">Open the board →</Link>} />
+          <SectionLabel index="03" title="Pipeline" meta={<Link to="/pipeline" className="underline underline-offset-4 hover:bg-muted">Open the board →</Link>} />
           <div className="flex flex-wrap gap-2">
             {stages.map((s) => (
               <Link
@@ -181,7 +185,7 @@ export default function Today() {
         </section>
 
         <section className="space-y-2">
-          <SectionLabel index="03" title="Numbers" />
+          <SectionLabel index="04" title="Numbers" />
           <div className="flex flex-wrap gap-4">
             <StatCard label="Dials today" value={stats.dials} size="display" />
             <StatCard label="Contacts" value={stats.contacts} />
@@ -193,7 +197,7 @@ export default function Today() {
         </section>
 
         {/* C5C: the AI brief, on request only. */}
-        <BriefPanel index="04" />
+        <BriefPanel index="05" />
       </div>
     </AppShell>
   );

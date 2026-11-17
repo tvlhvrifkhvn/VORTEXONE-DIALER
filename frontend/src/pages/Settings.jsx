@@ -11,6 +11,7 @@ import { useUserSettings } from '../hooks/useUserSettings';
 import { useCampaign, fileLabel } from '../hooks/useCampaign';
 import { refreshSpend } from '../hooks/useSpend';
 import AssistantSettings from '../components/assistant/AssistantSettings';
+import ReminderSettings from '../components/tasks/ReminderSettings';
 
 // Global, supervisor only (F-48): applies to new leads (created or imported).
 const MAX_ATTEMPTS_KEY = 'default_max_attempts';
@@ -254,6 +255,10 @@ function DialingDefaultsSection() {
         {saved && <p className="font-mono text-xs uppercase text-foreground">✓ Saved</p>}
         <Button type="submit" variant="primary">Save defaults</Button>
       </form>
+      {/* C6A: browser notifications for reminders (this browser only). */}
+      <div className="border-t pt-4">
+        <ReminderSettings />
+      </div>
     </Panel>
   );
 }
