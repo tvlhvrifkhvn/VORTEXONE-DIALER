@@ -14,6 +14,7 @@ import { useAuth } from '../../hooks/useAuth';
 import { useImportJob } from '../../hooks/useImportJob';
 import { getActiveSessionId } from '../../hooks/useCall';
 import * as api from '../../lib/api';
+import { pollWhileVisible } from '../../lib/poll';
 
 const navLinkClasses = ({ isActive }) =>
   `inline-flex min-h-10 items-center px-2 font-mono text-sm font-medium uppercase tracking-button transition-colors duration-150 ${
@@ -213,10 +214,10 @@ function useSmsInboxPoll() {
       }
     };
     poll();
-    const id = setInterval(poll, SMS_POLL_MS);
+    const stop = pollWhileVisible(poll, SMS_POLL_MS);
     return () => {
       cancelled = true;
-      clearInterval(id);
+      stop();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -237,10 +238,10 @@ function useTodayDue() {
         .then((t) => !cancelled && setDue(t.callbacks.total + t.tasks.total))
         .catch(() => {});
     poll();
-    const id = setInterval(poll, TODAY_POLL_MS);
+    const stop = pollWhileVisible(poll, TODAY_POLL_MS);
     return () => {
       cancelled = true;
-      clearInterval(id);
+      stop();
     };
   }, []);
   return due;

@@ -7,6 +7,7 @@ import Field from '../ui/Field';
 import Segmented from '../ui/Segmented';
 import { formatDateTime } from '../../lib/format';
 import * as api from '../../lib/api';
+import { pollWhileVisible } from '../../lib/poll';
 
 const SEGMENT_SIZE = 160;
 
@@ -411,13 +412,12 @@ export default function LeadActionHub({ lead }) {
   // without closing and reopening. Stopped (interval cleared) on unmount —
   // i.e. when the panel closes.
   useEffect(() => {
-    const id = setInterval(() => {
+    const load = () =>
       api
         .getLeadTimeline(lead.id)
         .then((data) => setTimeline(data.timeline))
         .catch(() => {});
-    }, TIMELINE_POLL_MS);
-    return () => clearInterval(id);
+    return pollWhileVisible(load, TIMELINE_POLL_MS);
   }, [lead.id]);
 
   return (

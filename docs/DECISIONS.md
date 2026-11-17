@@ -213,3 +213,5 @@
 - 2026-11-17 · C5B · The summary never runs on page load: GENERATE first, then REFRESH (skips the 10-minute cache) · Groq calls only on request, as the plan says for the brief
 - 2026-11-17 · C5B · The assistant on/off and model sit in Settings → Integrations below the Groq key, supervisor only (a rep sees them read-only) · the plan's place; the server checks the role too
 - 2026-11-17 · C5B · Gate screenshots use audit/scripts/c5b-groq-stub.js (a local Groq stand-in) and c5b-shots.js, one theme a minute (the app's 100/min limit) · stubbed answers, never the real API
+- 2026-11-17 · Fix · Polls pause while their tab is hidden and catch up when it shows again; the Leads page polls (list, state counts, today's stats) every 10 s instead of 5 · measured: one idle Leads tab sent 43 requests a minute against the shared 100/min per user, so two or three open tabs answered "Too many requests"; now 25 visible and 0 hidden
+- 2026-11-17 · Fix · ./dev.sh also pulls the latest code (fast-forward only; skipped with local changes or VORTEX_NO_PULL=1) and runs npm install when a package-lock.json changed · one command after a Codespace restart

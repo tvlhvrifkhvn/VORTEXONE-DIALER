@@ -6,6 +6,7 @@ import { useCallback, useEffect, useState } from 'react';
 import Button from '../ui/Button';
 import Field from '../ui/Field';
 import * as api from '../../lib/api';
+import { pollWhileVisible } from '../../lib/poll';
 
 const COUNT_POLL_MS = 30000;
 const KEYS = ['search', 'status', 'dateFrom', 'dateTo', 'state', 'stageId', 'tag', 'minAttempts', 'noActivityDays', 'callbackOverdue'];
@@ -39,8 +40,7 @@ export default function SavedViewsBar({ filters, emptyFilters, onApply }) {
 
   useEffect(() => {
     load();
-    const id = setInterval(load, COUNT_POLL_MS);
-    return () => clearInterval(id);
+    return pollWhileVisible(load, COUNT_POLL_MS);
   }, [load]);
 
   const hasFilters = Object.keys(normalizeFilters(filters)).length > 0;

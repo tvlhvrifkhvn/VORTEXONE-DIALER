@@ -21,6 +21,7 @@ import * as api from '../lib/api';
 import { useUserSettings } from '../hooks/useUserSettings';
 import { useCampaign } from '../hooks/useCampaign';
 import { useAuth } from '../hooks/useAuth';
+import { pollWhileVisible } from '../lib/poll';
 
 const EMPTY_FILTERS = { search: '', status: '', dateFrom: '', dateTo: '', state: null };
 const DEFAULT_GOAL = 100;
@@ -115,8 +116,7 @@ export default function Dashboard() {
   useEffect(() => {
     const load = () => api.getTodayStats().then(setStats).catch(() => {});
     load();
-    const id = setInterval(load, 5000);
-    return () => clearInterval(id);
+    return pollWhileVisible(load, 10000);
   }, []);
 
   useEffect(() => {
