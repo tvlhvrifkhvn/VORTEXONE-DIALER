@@ -33,7 +33,7 @@ function Stat({ label, value, display = false }) {
   return (
     <div className="min-w-[7rem]">
       <p className="label">{label}</p>
-      <p className={`font-mono font-medium tabular-nums text-foreground ${display ? 'text-4xl' : 'text-2xl'}`}>{value}</p>
+      <p className={`font-mono font-medium tabular-nums text-foreground ${display ? 'text-display' : 'text-2xl'}`}>{value}</p>
     </div>
   );
 }
