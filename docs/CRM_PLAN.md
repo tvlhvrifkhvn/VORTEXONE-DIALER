@@ -429,7 +429,7 @@ Tests: an activity row is written for a change and not for a GET, and never hold
 - C4A: done
 - C4B: done
 - C5A: done
-- C5B: not started
+- C5B: done
 - C5C: not started
 - C6A: not started
 - C6B: not started
