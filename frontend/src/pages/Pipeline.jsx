@@ -2,8 +2,12 @@
 // count; cards show the name, company, dialer status and last activity.
 // Move a card by native drag and drop or by its "MOVE →" menu (keyboard).
 // "LOAD MORE" pages one column. Stage moves never touch the dialer status.
+// C7E: a search field filters every column (name, company, phone digits or
+// tag; CLEAR restores the board); the board scrolls sideways inside its own
+// area and each column scrolls on its own; cards also show tags and a CALL link.
 import { useCallback, useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
+import Field from '../components/ui/Field';
 import AppShell from '../components/layout/AppShell';
 import Badge from '../components/ui/Badge';
 import Button from '../components/ui/Button';
@@ -16,6 +20,7 @@ import { formatRelativeToNow } from '../lib/format';
 import * as api from '../lib/api';
 
 const PER_STAGE = 20;
+const SEARCH_DEBOUNCE_MS = 300;
 const DRAG_TYPE = 'application/x-vortex-lead';
 
 function LeadCard({ lead, stages, onMove, companyWord }) {
@@ -41,19 +46,37 @@ function LeadCard({ lead, stages, onMove, companyWord }) {
       <p className="truncate text-sm text-muted-foreground" title={lead.brokerage || ''}>
         {lead.brokerage || `No ${companyWord}`}
       </p>
+      {lead.tags?.length > 0 && (
+        <div className="flex flex-wrap gap-1">
+          {lead.tags.map((t) => (
+            <Badge key={t} tone={t.startsWith('list:') ? 'solid' : 'muted'}>
+              {t.startsWith('list:') ? `List · ${t.slice(5)}` : t}
+            </Badge>
+          ))}
+        </div>
+      )}
       <div className="flex items-center justify-between gap-2">
         <StatusBadge status={lead.status} />
         <StageMoveMenu lead={lead} stages={stages} onMove={onMove} />
       </div>
-      <p className="font-mono text-xs tabular-nums text-muted-foreground">
-        <span className="sr-only">Last activity </span>
-        {formatRelativeToNow(lead.activity_at || lead.updated_at)}
-      </p>
+      <div className="flex items-center justify-between gap-2">
+        <p className="font-mono text-xs tabular-nums text-muted-foreground">
+          <span className="sr-only">Last activity </span>
+          {formatRelativeToNow(lead.activity_at || lead.updated_at)}
+        </p>
+        <Link
+          to={`/call/${lead.id}`}
+          className="inline-flex min-h-10 items-center px-2 font-mono text-xs uppercase tracking-button text-foreground underline underline-offset-4 hover:bg-muted"
+          aria-label={`Call ${lead.name}`}
+        >
+          Call
+        </Link>
+      </div>
     </li>
   );
 }
 
-function Column({ stage, stages, onMove, onDropLead, onLoadMore, loadingMore, companyWord }) {
+function Column({ stage, stages, onMove, onDropLead, onLoadMore, loadingMore, companyWord, searching }) {
   const [over, setOver] = useState(false);
   return (
     <section
@@ -71,7 +94,7 @@ function Column({ stage, stages, onMove, onDropLead, onLoadMore, loadingMore, co
         const id = Number(e.dataTransfer.getData(DRAG_TYPE));
         if (id) onDropLead(id, stage);
       }}
-      className={`flex w-72 shrink-0 flex-col border bg-card transition-colors duration-150 ${over ? 'border-strong bg-muted' : ''}`}
+      className={`flex w-72 shrink-0 flex-col border bg-card transition-colors duration-150 lg:max-h-full lg:min-h-0 ${over ? 'border-strong bg-muted' : ''}`}
     >
       <header className="flex items-center justify-between gap-2 border-b px-2 py-2">
         <h2 className="label truncate text-foreground">{stage.name}</h2>
@@ -80,8 +103,8 @@ function Column({ stage, stages, onMove, onDropLead, onLoadMore, loadingMore, co
           <span className="font-mono text-sm tabular-nums text-foreground">{stage.count}</span>
         </span>
       </header>
-      <ul className="flex-1 space-y-2 p-2">
-        {stage.leads.length === 0 && <li className="px-1 py-4 text-sm text-muted-foreground">No leads</li>}
+      <ul className="flex-1 space-y-2 p-2 lg:min-h-0 lg:overflow-y-auto">
+        {stage.leads.length === 0 && <li className="px-1 py-4 text-sm text-muted-foreground">{searching ? 'No matches' : 'No leads'}</li>}
         {stage.leads.map((lead) => (
           <LeadCard key={lead.id} lead={lead} stages={stages} onMove={onMove} companyWord={companyWord} />
         ))}
@@ -105,10 +128,17 @@ export default function Pipeline() {
   const [loadingStage, setLoadingStage] = useState(null);
   const [error, setError] = useState(null);
   const [announce, setAnnounce] = useState('');
+  // C7E: what's typed, and the search in use (debounced).
+  const [query, setQuery] = useState('');
+  const [search, setSearch] = useState('');
+  useEffect(() => {
+    const t = setTimeout(() => setSearch(query.trim()), SEARCH_DEBOUNCE_MS);
+    return () => clearTimeout(t);
+  }, [query]);
 
   const load = useCallback(async () => {
     try {
-      const board = await api.getPipelineBoard({ perStage: PER_STAGE });
+      const board = await api.getPipelineBoard({ perStage: PER_STAGE, search: search || undefined });
       setColumns(board.stages);
       setError(null);
     } catch (err) {
@@ -116,7 +146,7 @@ export default function Pipeline() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [search]);
 
   useEffect(() => {
     load();
@@ -144,7 +174,7 @@ export default function Pipeline() {
   const loadMore = async (stage) => {
     setLoadingStage(stage.id);
     try {
-      const page = await api.getPipelineBoard({ perStage: PER_STAGE, stageId: stage.id, offset: stage.leads.length });
+      const page = await api.getPipelineBoard({ perStage: PER_STAGE, stageId: stage.id, offset: stage.leads.length, search: search || undefined });
       const more = page.stages[0]?.leads || [];
       setColumns((cols) =>
         cols.map((c) => {
@@ -161,13 +191,38 @@ export default function Pipeline() {
   };
 
   return (
-    <AppShell>
-      <div className="mt-6 space-y-4">
-        <div className="flex flex-wrap items-center justify-between gap-4">
+    <AppShell framed>
+      <div className="flex flex-col gap-4 px-6 pb-6 pt-6 lg:h-full lg:min-h-0">
+        <div className="flex flex-wrap items-center justify-between gap-4 lg:shrink-0">
           <h1 className="text-2xl font-semibold tracking-[-0.01em] text-foreground">Pipeline</h1>
           {active && <FileTag number={active.file_number} name={active.name} />}
         </div>
-        <p className="text-sm text-muted-foreground">
+        <div className="flex flex-wrap items-end gap-2 lg:shrink-0">
+          <div>
+            <label htmlFor="pipeline-search" className="label mb-1 block">
+              Search the board
+            </label>
+            <Field
+              id="pipeline-search"
+              type="text"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Name, company, phone or tag"
+              className="w-80 max-w-full"
+            />
+          </div>
+          {query && (
+            <Button variant="ghost" onClick={() => setQuery('')}>
+              Clear
+            </Button>
+          )}
+          {search && (
+            <span className="label pb-3 tabular-nums" role="status">
+              {columns.reduce((n, c) => n + c.count, 0)} match{columns.reduce((n, c) => n + c.count, 0) === 1 ? '' : 'es'}
+            </span>
+          )}
+        </div>
+        <p className="text-sm text-muted-foreground lg:shrink-0">
           Drag a card to another column, or use MOVE →. Moving a lead here never changes its dialer status.
         </p>
         <p role="status" aria-live="polite" className="sr-only">{announce}</p>
@@ -181,7 +236,7 @@ export default function Pipeline() {
           <p className="label">Loading…</p>
         ) : (
           // relative: the cards' sr-only labels (absolute) stay inside the scroll box.
-          <div className="relative flex items-start gap-4 overflow-x-auto pb-4">
+          <div className="relative flex items-start gap-4 overflow-x-auto pb-4 lg:min-h-0 lg:flex-1 lg:items-stretch" data-testid="pipeline-board">
             {columns.map((stage) => (
               <Column
                 key={stage.id}
@@ -192,6 +247,7 @@ export default function Pipeline() {
                 onLoadMore={loadMore}
                 loadingMore={loadingStage === stage.id}
                 companyWord={companyWord}
+                searching={Boolean(search)}
               />
             ))}
           </div>

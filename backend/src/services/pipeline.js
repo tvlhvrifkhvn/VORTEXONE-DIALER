@@ -370,15 +370,23 @@ async function recordInitial(executor, leads, source, userId = null) {
  * last stage move). With `stageId` (C2B, a column's LOAD MORE) only that
  * stage's leads come back, starting after `offset`.
  */
-async function board(campaignId, { perStage = DEFAULT_PER_STAGE, stageId = null, offset = 0 } = {}) {
+// C7E: the board's search matches like the lead search: name, company, phone
+// (any part, so its last digits) or a tag, contains and case-insensitive.
+const BOARD_SEARCH_SQL = `($5::text IS NULL OR l.name ILIKE $5 OR l.brokerage ILIKE $5 OR l.phone ILIKE $5
+  OR EXISTS (SELECT 1 FROM unnest(l.tags) AS tg(t) WHERE tg.t ILIKE $5))`;
+const likeContains = (text) => `%${String(text).replace(/[\\%_]/g, '\\$&')}%`;
+
+async function board(campaignId, { perStage = DEFAULT_PER_STAGE, stageId = null, offset = 0, search = null } = {}) {
   const limit = Math.min(MAX_PER_STAGE, Math.max(1, Number.isInteger(Number(perStage)) ? Number(perStage) : DEFAULT_PER_STAGE));
   const only = stageId === null || stageId === undefined || stageId === '' ? null : positiveInt(stageId, 'stageId');
   const skip = Number.isInteger(Number(offset)) && Number(offset) > 0 ? Number(offset) : 0;
+  const text = typeof search === 'string' && search.trim() ? search.trim().slice(0, 200) : null;
+  const pattern = text ? likeContains(text) : null;
   const stages = await listStages(campaignId);
   if (only !== null && !stages.some((s) => s.id === only)) throw new ApiError(400, "That stage isn't one of this file's");
   const { rows } = await db.query(
     `SELECT * FROM (
-       SELECT l.id, l.name, l.phone, l.state, l.brokerage, l.status, l.pipeline_stage_id,
+       SELECT l.id, l.name, l.phone, l.state, l.brokerage, l.status, l.pipeline_stage_id, l.tags,
               l.deal_value_cents, l.won_at, l.lost_reason, l.updated_at,
               GREATEST(l.updated_at, h.moved_at) AS activity_at,
               row_number() OVER (
@@ -390,11 +398,24 @@ async function board(campaignId, { perStage = DEFAULT_PER_STAGE, stageId = null,
          SELECT max(created_at) AS moved_at FROM lead_stage_history WHERE lead_id = l.id
        ) h ON true
        WHERE l.campaign_id = $1 AND l.deleted_at IS NULL AND ($3::int IS NULL OR l.pipeline_stage_id = $3::int)
+         AND ${BOARD_SEARCH_SQL}
      ) ranked
      WHERE rn > $4 AND rn <= $4 + $2
      ORDER BY pipeline_stage_id, rn`,
-    [campaignId, limit, only, skip]
+    [campaignId, limit, only, skip, pattern]
   );
+  // C7E: with a search, each column's count is its number of matches.
+  let matches = null;
+  if (pattern) {
+    const { rows: m } = await db.query(
+      `SELECT l.pipeline_stage_id, count(*)::int AS n FROM leads l
+       WHERE l.campaign_id = $1 AND l.deleted_at IS NULL AND ($2::int IS NULL OR l.pipeline_stage_id = $2::int)
+         AND ${BOARD_SEARCH_SQL.replace(/\$5/g, () => '$3')}
+       GROUP BY l.pipeline_stage_id`,
+      [campaignId, only, pattern]
+    );
+    matches = new Map(m.map((r) => [r.pipeline_stage_id, r.n]));
+  }
   const byStage = new Map(stages.map((s) => [s.id, []]));
   for (const { rn: _rn, ...lead } of rows) {
     if (byStage.has(lead.pipeline_stage_id)) byStage.get(lead.pipeline_stage_id).push(lead);
@@ -403,7 +424,8 @@ async function board(campaignId, { perStage = DEFAULT_PER_STAGE, stageId = null,
   return {
     perStage: limit,
     offset: skip,
-    stages: shown.map((s) => ({ ...s, count: s.lead_count, leads: byStage.get(s.id) || [] })),
+    search: text,
+    stages: shown.map((s) => ({ ...s, count: matches ? matches.get(s.id) || 0 : s.lead_count, leads: byStage.get(s.id) || [] })),
   };
 }
 

@@ -64,8 +64,8 @@ router.get(
   '/board',
   requireCampaign,
   asyncHandler(async (req, res) => {
-    const { perStage, stageId, offset } = req.query;
-    res.json(await pipeline.board(req.campaign.id, { perStage, stageId, offset }));
+    const { perStage, stageId, offset, search } = req.query; // C7E: search
+    res.json(await pipeline.board(req.campaign.id, { perStage, stageId, offset, search }));
   })
 );
 

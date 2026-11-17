@@ -322,8 +322,9 @@ export const createPipelineStage = (name, campaign) => request('/pipeline/stages
 export const renamePipelineStage = (id, name) => request(`/pipeline/stages/${id}`, { method: 'PUT', body: { name } });
 export const reorderPipelineStages = (ids, campaign) => request('/pipeline/stages/reorder', { method: 'POST', body: { ids }, campaign });
 export const deletePipelineStage = (id) => request(`/pipeline/stages/${id}`, { method: 'DELETE' });
-export const getPipelineBoard = ({ perStage, stageId, offset } = {}) => {
+export const getPipelineBoard = ({ perStage, stageId, offset, search } = {}) => {
   const q = new URLSearchParams();
+  if (search) q.set('search', search); // C7E
   if (perStage) q.set('perStage', perStage);
   if (stageId) q.set('stageId', stageId);
   if (offset) q.set('offset', offset);
