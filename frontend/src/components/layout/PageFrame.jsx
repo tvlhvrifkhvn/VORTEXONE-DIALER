@@ -5,7 +5,7 @@
 // Below 1024px the rails stack under the main column and the page scrolls.
 // Each rail collapses with a small « / » button; the choice is kept per page
 // in localStorage (`vortex.rails.<id>`).
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 const STORAGE = 'vortex.rails.';
 
@@ -47,8 +47,12 @@ function Rail({ side, label, collapsed, onToggle, children }) {
   );
 }
 
-export default function PageFrame({ id, left, right, leftLabel = 'Side menu', rightLabel = 'Side panel', mainClassName = '', children }) {
+export default function PageFrame({ id, left, right, leftLabel = 'Side menu', rightLabel = 'Side panel', mainClassName = '', openRight = 0, children }) {
   const [collapsed, setCollapsed] = useState(() => readCollapsed(id));
+  // C7D: a page can open the right rail (e.g. ADD TASK on the lead page); bump openRight.
+  useEffect(() => {
+    if (openRight) setCollapsed((c) => (c.right ? { ...c, right: false } : c));
+  }, [openRight]);
   const toggle = (side) =>
     setCollapsed((c) => {
       const next = { ...c, [side]: !c[side] };

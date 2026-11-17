@@ -269,3 +269,8 @@
 - 2026-11-18 · C7C · The Leads page keeps its saved-views bar above the table as well as the rail's SMART LISTS · the plan adds the rail; removing the bar would be a behavior change
 - 2026-11-18 · C7C · The rail's FILES entries are disabled during a live dialing session, like the header's file switcher · a session never changes file under you
 - 2026-11-18 · C7C · "Dials today" uses the DESIGN display size (text-display) in the numbers strip · the plan's "display size"
+- 2026-11-18 · C7D · The lead page's top bar sits outside the scrolling regions, so CALL, SMS, EMAIL and ADD TASK never scroll away (at 1280×720 CALL is at y≈195) · the plan's "always visible"
+- 2026-11-18 · C7D · ADD TASK opens the WORK rail if it was collapsed, scrolls to the tasks and puts the cursor in the task field · one click to start typing a task
+- 2026-11-18 · C7D · The composers keep their place and behavior; LeadActionHub just lets the page drive which one is open, and hides its own button row there (the dialer and other users of the hub are unchanged) · the plan's "move existing parts"
+- 2026-11-18 · C7D · The stage shows as an outline tag in the top bar (the lead's file stages); the stage editor itself stays in WORK · the status and the stage are both glanceable without opening a rail
+- 2026-11-18 · C7D · Not changed here: at 1280px the app header (row 1) wraps to two rows since ASK was added in C5B · flagged for the owner; out of C7D's scope

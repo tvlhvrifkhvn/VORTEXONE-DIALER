@@ -401,11 +401,18 @@ const TIMELINE_POLL_MS = 30000; // C7A (was 8 s)
 
 /** Action row + SMS compose + unified timeline — Part E, the lead detail
  * panel's "action hub". */
-export default function LeadActionHub({ lead }) {
+// C7D: `composer` ('sms' | 'email' | null) and `onComposer` let the lead page's
+// top bar open the composers; `hideActions` drops this row's CALL / SMS / EMAIL.
+export default function LeadActionHub({ lead, composer, onComposer, hideActions = false }) {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const [smsOpen, setSmsOpen] = useState(() => searchParams.get('reply') === '1'); // C3B: REPLY from Today
-  const [emailOpen, setEmailOpen] = useState(false);
+  const [ownSms, setOwnSms] = useState(() => searchParams.get('reply') === '1'); // C3B: REPLY from Today
+  const [ownEmail, setOwnEmail] = useState(false);
+  const controlled = onComposer !== undefined;
+  const smsOpen = controlled ? composer === 'sms' : ownSms;
+  const emailOpen = controlled ? composer === 'email' : ownEmail;
+  const setSmsOpen = (fn) => (controlled ? onComposer(fn(smsOpen) ? 'sms' : null) : setOwnSms(fn));
+  const setEmailOpen = (fn) => (controlled ? onComposer(fn(emailOpen) ? 'email' : null) : setOwnEmail(fn));
   const [timeline, setTimeline] = useState([]);
   const [loadingTimeline, setLoadingTimeline] = useState(true);
   const [filter, setFilter] = useState('all');
@@ -444,6 +451,7 @@ export default function LeadActionHub({ lead }) {
 
   return (
     <div className="space-y-4">
+      {!hideActions && (
       <div className="grid grid-cols-3 gap-2">
         <Button variant="primary" onClick={() => navigate(`/call/${lead.id}`)}>
           <Phone size={16} strokeWidth={1.5} aria-hidden="true" />
@@ -458,6 +466,7 @@ export default function LeadActionHub({ lead }) {
           Email
         </Button>
       </div>
+      )}
 
       {smsOpen && <SmsCompose lead={lead} onSent={loadTimeline} />}
       {emailOpen && <EmailCompose lead={lead} onSent={loadTimeline} />}
@@ -477,7 +486,7 @@ export default function LeadActionHub({ lead }) {
         ) : shown.length === 0 ? (
           <p className="pb-2 text-sm text-muted-foreground">{timeline.length === 0 ? 'Nothing here yet.' : 'Nothing of this kind yet.'}</p>
         ) : (
-          <ul className="max-h-[32rem] overflow-y-auto border-t">
+          <ul className={`border-t ${hideActions ? '' : 'max-h-[32rem] overflow-y-auto'}`}>
             {shown.map((entry) => (
               <TimelineEntry key={`${entry.type}-${entry.id}`} entry={entry} leadName={lead.name} />
             ))}
