@@ -89,6 +89,8 @@ export default function BriefCard({ brief, collapsed = false, className = '' }) 
             </p>
           ))}
           {d.tags.length > 0 && <p>Tags: {d.tags.join(', ')}</p>}
+          {/* C6C: the best local hour, same line style. */}
+          {d.bestTime && <p data-testid="brief-best-time">Best time: {d.bestTime}</p>}
         </div>
       )}
     </Panel>

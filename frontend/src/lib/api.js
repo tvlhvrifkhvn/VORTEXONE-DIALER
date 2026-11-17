@@ -330,6 +330,14 @@ export const getTaskView = (view, { from, to } = {}, campaign) => {
   return request(`/tasks?${qs}`, { campaign });
 };
 export const getDueSoon = () => request('/tasks/due-soon');
+// C6C: best time to call, the stage funnel, the activity log.
+export const getBestTime = (leadId) => request(`/leads/${leadId}/best-time`);
+export const getBestHours = (campaign) => request('/reports/best-hours', { campaign });
+export const getFunnel = (period, campaign) => request(`/reports/funnel${periodQuery(period)}`, { campaign });
+export const getActivity = ({ userId, from, to, page } = {}) => {
+  const qs = new URLSearchParams(Object.entries({ userId, from, to, page }).filter(([, v]) => v !== undefined && v !== null && v !== '')).toString();
+  return request(`/activity${qs ? `?${qs}` : ''}`);
+};
 // C6B: duplicates and merge.
 export const getDuplicates = (campaign, limit = 50) => request(`/leads/duplicates?limit=${limit}`, { campaign });
 export const getMergePreview = (primaryId, secondaryId) => request(`/leads/merge-preview?primaryId=${primaryId}&secondaryId=${secondaryId}`);

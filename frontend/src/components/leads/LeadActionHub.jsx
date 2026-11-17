@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { ArrowRight, File, ListTodo, Mail, MessageSquare, Paperclip, Phone, StickyNote, Upload, X } from 'lucide-react';
+import { ArrowRight, File, History, ListTodo, Mail, MessageSquare, Paperclip, Phone, StickyNote, Upload, X } from 'lucide-react';
 import Panel from '../ui/Panel';
 import Button from '../ui/Button';
 import Field from '../ui/Field';
@@ -359,6 +359,8 @@ function describe(entry, leadName) {
         extra: entry.source === 'disposition' ? 'by outcome' : entry.source === 'undo' ? 'undo' : entry.source === 'move' ? 'file move' : null,
         by: entry.user_name,
       };
+    case 'activity': // C6C: a change someone made (activity_log)
+      return { icon: History, label: 'Activity', title: entry.summary, by: entry.user_name };
     default:
       return { icon: File, label: entry.type, title: '' };
   }

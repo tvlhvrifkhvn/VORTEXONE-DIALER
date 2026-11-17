@@ -12,6 +12,7 @@ import { useCampaign, fileLabel } from '../hooks/useCampaign';
 import { refreshSpend } from '../hooks/useSpend';
 import AssistantSettings from '../components/assistant/AssistantSettings';
 import ReminderSettings from '../components/tasks/ReminderSettings';
+import ActivitySection from '../components/activity/ActivitySection';
 
 // Global, supervisor only (F-48): applies to new leads (created or imported).
 const MAX_ATTEMPTS_KEY = 'default_max_attempts';
@@ -703,6 +704,8 @@ function ObjectionsSection() {
 }
 
 export default function Settings() {
+  const { user } = useAuth();
+  const isSupervisor = user?.role === 'supervisor';
   return (
     <AppShell>
       <div className="mx-auto mt-6 max-w-3xl space-y-6">
@@ -714,6 +717,8 @@ export default function Settings() {
         <ObjectionsSection />
         <IntegrationsSection />
         <SpendLimitsSection />
+        {/* C6C: supervisor only. */}
+        {isSupervisor && <ActivitySection index="08" />}
       </div>
     </AppShell>
   );
