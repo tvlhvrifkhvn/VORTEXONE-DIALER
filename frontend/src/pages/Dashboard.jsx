@@ -7,6 +7,7 @@ import LeadFilters from '../components/leads/LeadFilters';
 import BulkSmsModal from '../components/leads/BulkSmsModal';
 import SavedViewsBar from '../components/leads/SavedViewsBar';
 import BulkActions from '../components/leads/BulkActions';
+import DuplicatesView from '../components/leads/DuplicatesView';
 import StatCard from '../components/stats/StatCard';
 import QueueHoursCards from '../components/stats/QueueHoursCards';
 import Panel from '../components/ui/Panel';
@@ -124,6 +125,7 @@ export default function Dashboard() {
   }, []);
 
   const [exportingCsv, setExportingCsv] = useState(false);
+  const [view, setView] = useState('leads'); // C6B: LEADS | DUPLICATES
   const handleExportCsv = async () => {
     setExportingCsv(true);
     try {
@@ -246,6 +248,25 @@ export default function Dashboard() {
           />
 
           <div className="min-w-0 flex-1 space-y-4">
+            {/* C6B: the leads table or the likely duplicates. */}
+            <Segmented
+              label="Leads view"
+              options={[
+                { value: 'leads', label: 'Leads' },
+                { value: 'duplicates', label: 'Duplicates' },
+              ]}
+              value={view}
+              onChange={setView}
+            />
+            {view === 'duplicates' ? (
+              <DuplicatesView
+                onMerged={() => {
+                  refresh();
+                  refreshCounts();
+                }}
+              />
+            ) : (
+            <>
             {/* C2E: saved views with live counts. */}
             <SavedViewsBar filters={filters} emptyFilters={EMPTY_FILTERS} onApply={setFilters} />
             <Panel className="p-4">
@@ -297,6 +318,8 @@ export default function Dashboard() {
               onClearPage={clearPage}
               onSelectAllFiltered={selectAllFiltered}
             />
+            </>
+            )}
           </div>
         </div>
       </div>

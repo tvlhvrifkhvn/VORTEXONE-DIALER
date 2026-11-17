@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, PhoneOff } from 'lucide-react';
 import AppShell from '../components/layout/AppShell';
 import LeadActionHub from '../components/leads/LeadActionHub';
@@ -178,6 +178,16 @@ export default function LeadDetail() {
             <StatusBadge status={lead.status} />
           </div>
 
+          {/* C6B: a merged lead is gone from every list; say where it went. */}
+          {lead.merged_into && (
+            <p role="status" className="border-l-[3px] border-strong bg-muted px-4 py-2 text-sm text-foreground">
+              This lead was merged into{' '}
+              <Link to={`/leads/${lead.merged_into}`} className="underline underline-offset-4">
+                lead #{lead.merged_into}
+              </Link>
+              . Its calls, texts, notes and tasks are there now.
+            </p>
+          )}
           {lead.missing_phone && (
             <p className="flex items-center gap-2 border-l-[3px] border-l-primary bg-muted px-4 py-2 text-sm text-foreground">
               <PhoneOff size={16} strokeWidth={1.5} aria-hidden="true" />
