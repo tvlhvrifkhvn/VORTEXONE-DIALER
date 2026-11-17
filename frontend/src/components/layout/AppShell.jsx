@@ -282,7 +282,9 @@ function ImportProgressBadge() {
   );
 }
 
-export default function AppShell({ children }) {
+// C7B: the header stays fixed; from 1024px the page itself doesn't scroll:
+// the main region does, or, with `framed`, the PageFrame regions inside it.
+export default function AppShell({ children, framed = false }) {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const [darkMode, setDarkMode] = useState(getInitialDarkMode);
@@ -306,8 +308,8 @@ export default function AppShell({ children }) {
   };
 
   return (
-    <div className="min-h-screen bg-background">
-      <header className="border-b">
+    <div className="min-h-screen bg-background lg:flex lg:h-screen lg:flex-col lg:overflow-hidden">
+      <header className="border-b lg:shrink-0">
         {/* Row 1: wordmark and campaign file on the left, nav, then the
             account controls flush right. */}
         <div className="flex flex-wrap items-center justify-between gap-4 px-6 py-3">
@@ -411,7 +413,12 @@ export default function AppShell({ children }) {
           </div>
         </div>
       </header>
-      <main className="px-6 pb-10">{children}</main>
+      <main
+        className={framed ? 'lg:min-h-0 lg:flex-1 lg:overflow-hidden' : 'px-6 pb-10 lg:min-h-0 lg:flex-1 lg:overflow-y-auto'}
+        data-testid="app-main"
+      >
+        {children}
+      </main>
       {askOpen && <AssistantPanel onClose={() => setAskOpen(false)} />}
       {/* C6A: task and callback reminders. */}
       <ReminderToasts />

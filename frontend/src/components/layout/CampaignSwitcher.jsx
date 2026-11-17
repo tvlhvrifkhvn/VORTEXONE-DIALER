@@ -82,7 +82,7 @@ export default function CampaignSwitcher() {
             type="button"
             onClick={() => {
               setOpen(false);
-              navigate('/settings/campaigns');
+              navigate('/settings/files');
             }}
             className="flex min-h-10 w-full items-center border-t px-3 font-mono text-sm font-medium uppercase tracking-button text-foreground transition-colors duration-150 hover:bg-muted"
           >

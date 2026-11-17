@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, NavLink, Navigate, useLocation, useParams } from 'react-router-dom';
 import AppShell from '../components/layout/AppShell';
+import PageFrame from '../components/layout/PageFrame';
+import FilesSettings from './Campaigns';
 import Panel from '../components/ui/Panel';
 import Button from '../components/ui/Button';
 import Field from '../components/ui/Field';
@@ -8,7 +10,6 @@ import SectionLabel from '../components/ui/SectionLabel';
 import { useAuth } from '../hooks/useAuth';
 import * as api from '../lib/api';
 import { useUserSettings } from '../hooks/useUserSettings';
-import { useCampaign, fileLabel } from '../hooks/useCampaign';
 import { refreshSpend } from '../hooks/useSpend';
 import AssistantSettings from '../components/assistant/AssistantSettings';
 import ReminderSettings from '../components/tasks/ReminderSettings';
@@ -49,7 +50,7 @@ function ProfileSection() {
 
   return (
     <Panel className="space-y-4 p-6">
-      <SectionLabel index="01" title="Profile" />
+      <SectionLabel title="Profile" />
       <form onSubmit={handleSave} className="space-y-3">
         <div>
           <label htmlFor="profile-name" className="label mb-2 block">
@@ -166,7 +167,7 @@ function DialingDefaultsSection() {
 
   return (
     <Panel className="space-y-4 p-6">
-      <SectionLabel index="02" title="Dialing defaults" />
+      <SectionLabel title="Dialing defaults" />
       <form onSubmit={handleSave} className="space-y-3">
         <div>
           <label htmlFor="default-max-attempts" className="label mb-2 block">
@@ -302,7 +303,7 @@ function ReportingDaySection() {
 
   return (
     <Panel className="space-y-4 p-6">
-      <SectionLabel index="03" title="Reporting day" />
+      <SectionLabel title="Reporting day" />
       <form onSubmit={handleSave} className="space-y-3">
         <div>
           <label className="label mb-2 block" htmlFor="reporting-timezone">
@@ -340,25 +341,6 @@ function ReportingDaySection() {
         {!isSupervisor && <p className="text-sm text-muted-foreground">Only a supervisor can change the reporting day.</p>}
         <Button type="submit" variant="primary" disabled={loading || !isSupervisor}>Save reporting day</Button>
       </form>
-    </Panel>
-  );
-}
-
-/** C1E: the daily goal and the pitch script are set per file. */
-function FilesSection() {
-  const { active } = useCampaign();
-  return (
-    <Panel className="space-y-4 p-6">
-      <SectionLabel index="04" title="Files" meta={active ? fileLabel(active) : undefined} />
-      <p className="text-sm text-muted-foreground">
-        Each file has its own pitch script, daily goal, company label and AI context.
-      </p>
-      <Link
-        to="/settings/campaigns"
-        className="inline-flex min-h-10 items-center border border-strong px-4 font-mono text-sm font-medium uppercase tracking-button text-foreground transition-colors duration-150 hover:bg-foreground hover:text-background"
-      >
-        Manage files →
-      </Link>
     </Panel>
   );
 }
@@ -413,7 +395,7 @@ function SpendLimitsSection() {
 
   return (
     <Panel className="space-y-4 p-6" id="spend-limits">
-      <SectionLabel index="07" title="Spend limits" />
+      <SectionLabel title="Spend limits" />
       <p className="text-sm text-muted-foreground">
         Your phone provider's real rates. Until one is set, costs read "rates not set" and nothing is blocked. A call's
         cost is fixed when it ends. At 80 % of a budget the header warns; at 100 % dialing stops.
@@ -502,7 +484,7 @@ function IntegrationsSection() {
 
   return (
     <Panel className="space-y-4 p-6" id="integrations">
-      <SectionLabel index="06" title="Integrations" />
+      <SectionLabel title="Integrations" />
       <p className="text-sm text-muted-foreground">
         Configure the Groq API key used for the assistant (ASK and the lead summary), AI CSV column mapping and the
         Expand note button. Without it the assistant says it isn't set up and the rest degrade gracefully (manual
@@ -625,7 +607,7 @@ function ObjectionsSection() {
 
   return (
     <Panel className="space-y-4 p-6">
-      <SectionLabel index="05" title="Objections" />
+      <SectionLabel title="Objections" />
       <p className="text-sm text-muted-foreground">
         The chips shown behind the Objection button on the call screen, in this order. Switching one off hides
         it from the call screen; everything already logged stays in Reports.
@@ -703,23 +685,67 @@ function ObjectionsSection() {
   );
 }
 
+// C7B: a left side menu and one section on the right (/settings/:section;
+// /settings opens Profile). The sections themselves are unchanged. Old links
+// keep working: /settings#spend-limits and #integrations, /settings/campaigns.
+const SECTIONS = [
+  { slug: 'profile', label: 'Profile', render: () => <ProfileSection /> },
+  { slug: 'dialing', label: 'Dialing defaults', render: () => <DialingDefaultsSection /> },
+  { slug: 'reporting-day', label: 'Reporting day', render: () => <ReportingDaySection /> },
+  { slug: 'files', label: 'Files', render: () => <FilesSettings /> },
+  { slug: 'objections', label: 'Objections', render: () => <ObjectionsSection /> },
+  { slug: 'integrations', label: 'Integrations & AI', render: () => <IntegrationsSection /> },
+  { slug: 'spend-limits', label: 'Spend limits', render: () => <SpendLimitsSection /> },
+  { slug: 'sms-templates', label: 'SMS templates', to: '/sms/templates' },
+  { slug: 'activity', label: 'Activity', supervisorOnly: true, render: () => <ActivitySection index={null} /> },
+];
+
+const menuLinkClasses = (active) =>
+  `flex min-h-10 w-full items-center px-3 font-mono text-sm uppercase tracking-button transition-colors duration-150 ${
+    active ? 'bg-foreground text-background' : 'text-foreground hover:bg-muted'
+  }`;
+
 export default function Settings() {
   const { user } = useAuth();
   const isSupervisor = user?.role === 'supervisor';
+  const { section } = useParams();
+  const location = useLocation();
+  const visible = SECTIONS.filter((x) => !x.supervisorOnly || isSupervisor);
+
+  // Old anchors (/settings#spend-limits, #integrations) open their section.
+  const fromHash = !section && location.hash ? visible.find((x) => x.slug === location.hash.slice(1) && x.render) : null;
+  if (fromHash) return <Navigate to={`/settings/${fromHash.slug}`} replace />;
+  const current = visible.find((x) => x.slug === (section || 'profile') && x.render);
+  if (!current) return <Navigate to="/settings/profile" replace />;
+
+  const menu = (
+    <nav aria-label="Settings" className="pt-2">
+      <p className="label mb-2 px-3">Settings</p>
+      <ul className="space-y-1">
+        {visible.map((x) => (
+          <li key={x.slug}>
+            {x.to ? (
+              <Link to={x.to} className={menuLinkClasses(false)}>
+                {x.label} →
+              </Link>
+            ) : (
+              <NavLink to={`/settings/${x.slug}`} className={({ isActive }) => menuLinkClasses(isActive)}>
+                {x.label}
+              </NavLink>
+            )}
+          </li>
+        ))}
+      </ul>
+    </nav>
+  );
+
   return (
-    <AppShell>
-      <div className="mx-auto mt-6 max-w-3xl space-y-6">
-        <h1 className="text-2xl font-semibold tracking-[-0.01em] text-foreground">Settings</h1>
-        <ProfileSection />
-        <DialingDefaultsSection />
-        <ReportingDaySection />
-        <FilesSection />
-        <ObjectionsSection />
-        <IntegrationsSection />
-        <SpendLimitsSection />
-        {/* C6C: supervisor only. */}
-        {isSupervisor && <ActivitySection index="08" />}
-      </div>
+    <AppShell framed>
+      <PageFrame id="settings" left={menu} leftLabel="Settings menu">
+        <div className={`mt-6 space-y-6 ${current.slug === 'files' ? 'max-w-6xl' : 'max-w-3xl'}`} data-testid={`settings-${current.slug}`}>
+          {current.render()}
+        </div>
+      </PageFrame>
     </AppShell>
   );
 }

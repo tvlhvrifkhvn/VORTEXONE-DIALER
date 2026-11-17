@@ -47,7 +47,7 @@ export function NotConfiguredText({ message }) {
   return (
     <>
       {before}
-      <Link to="/settings#integrations" className="underline underline-offset-4">
+      <Link to="/settings/integrations" className="underline underline-offset-4">
         {LINK}
       </Link>
       {after}

@@ -45,7 +45,7 @@ function SplitPanel({ spend }) {
           </tr>
         </tbody>
       </table>
-      <Link to="/settings#spend-limits" className="inline-flex min-h-10 items-center font-mono text-sm uppercase tracking-button text-foreground underline underline-offset-4 hover:bg-muted">
+      <Link to="/settings/spend-limits" className="inline-flex min-h-10 items-center font-mono text-sm uppercase tracking-button text-foreground underline underline-offset-4 hover:bg-muted">
         Rates and budgets →
       </Link>
     </div>
