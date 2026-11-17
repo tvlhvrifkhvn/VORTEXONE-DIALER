@@ -467,7 +467,9 @@ function buildListFilters({ search, status, dateFrom, dateTo, stageId, tag, minA
 
   if (search) {
     params.push(likeContains(search));
-    clauses.push(`(name ILIKE $${params.length} OR leads.phone ILIKE $${params.length} OR brokerage ILIKE $${params.length})`);
+    // C6A: tags match too (contains, case-insensitive).
+    clauses.push(`(name ILIKE $${params.length} OR leads.phone ILIKE $${params.length} OR brokerage ILIKE $${params.length}
+                   OR EXISTS (SELECT 1 FROM unnest(leads.tags) AS tg(t) WHERE tg.t ILIKE $${params.length}))`);
   }
   if (status) {
     params.push(status);
@@ -782,7 +784,8 @@ async function search(q) {
     `SELECT l.*, c.file_number, c.name AS campaign_name
      FROM leads l JOIN campaigns c ON c.id = l.campaign_id
      WHERE l.deleted_at IS NULL
-       AND (l.name ILIKE $1 OR l.phone ILIKE $1 OR l.brokerage ILIKE $1)
+       AND (l.name ILIKE $1 OR l.phone ILIKE $1 OR l.brokerage ILIKE $1
+            OR EXISTS (SELECT 1 FROM unnest(l.tags) AS tg(t) WHERE tg.t ILIKE $1)) -- C6A: tags too
      ORDER BY l.created_at DESC
      LIMIT 10`,
     [likeContains(q.trim())]
@@ -841,4 +844,5 @@ module.exports = {
   search,
   batchQueue,
   parseListQuery,
+  buildListFilters, // C6A: the CSV export uses the list's own filters
 };
