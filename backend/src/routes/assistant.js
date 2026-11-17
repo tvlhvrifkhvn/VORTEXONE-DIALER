@@ -8,6 +8,7 @@ const express = require('express');
 const rateLimit = require('express-rate-limit');
 const assistant = require('../services/assistant');
 const extras = require('../services/assistant/extras');
+const web = require('../services/assistant/web');
 const { asyncHandler } = require('../middleware/asyncHandler');
 const { requireAuth } = require('../middleware/auth');
 const { campaignOrAll } = require('../middleware/campaign');
@@ -46,6 +47,16 @@ router.post(
   handle(async (req, res) => {
     const b = req.body || {};
     res.json(await assistant.ask({ userId: req.user.sub, campaignId: req.campaignId, question: b.question, history: b.history }));
+  })
+);
+
+// C7F: the WEB switch. Only { question } is read: no history, no CRM data.
+router.post(
+  '/web',
+  assistantLimiter,
+  campaignOrAll,
+  handle(async (req, res) => {
+    res.json(await web.webAsk({ userId: req.user.sub, campaignId: req.campaignId, question: req.body?.question }));
   })
 );
 

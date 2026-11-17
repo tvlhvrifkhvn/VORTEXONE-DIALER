@@ -396,6 +396,8 @@ export const askAssistant = (question, history, campaign) =>
   request('/assistant/ask', { method: 'POST', body: { question, history }, campaign });
 export const getBrief = ({ refresh = false } = {}, campaign) => request(`/assistant/brief${refresh ? '?refresh=1' : ''}`, { campaign });
 export const draftMessage = (leadId, channel, intent) => request(`/leads/${leadId}/draft`, { method: 'POST', body: { channel, intent } });
+// C7F: the WEB switch — only the question is sent.
+export const askWeb = (question, campaign) => request('/assistant/web', { method: 'POST', body: { question }, campaign });
 export const getLeadSummary = (id, { refresh = false } = {}) => request(`/leads/${id}/summary${refresh ? '?refresh=1' : ''}`);
 
 // campaigns ("files", C1E)

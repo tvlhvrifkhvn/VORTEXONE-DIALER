@@ -1,0 +1,87 @@
+# Vortex One Outreach: user guide
+
+The assistant answers "how do I…" questions from this file (tool `get_app_help`). One short section per page and per common task. Keep each section under about 12 lines.
+
+## Header and navigation
+- Row 1: the file switcher (FILE 01 · name ▾), the pages TODAY · PIPELINE · LEADS · DIALER · INBOX · IMPORT · REPORTS · SETTINGS, then ASK (the assistant), DIAL (dial any number) and LOG OUT.
+- Row 2: search all leads (name, phone, company or tag, every file), the spend meter (click for the split by file), INK / PAPER theme, and the clocks for the four US time zones (green inside 8am–9pm).
+- The TODAY badge counts callbacks and tasks due today; the INBOX badge counts unread texts.
+
+## Today page
+- The home page, most important first: START DIALING SESSION, a numbers strip (dials today, contacts, connect rate, the daily-goal meter), 01 — TO DO, 02 — PIPELINE.
+- TO DO merges callbacks, tasks, replies and gone-quiet leads. WHEN = OVERDUE · TODAY · UPCOMING; TYPE = ALL · CALLBACKS · TASKS · REPLIES · GONE QUIET. Each row has CALL, REPLY, OPEN, DONE or RESCHEDULE.
+- Gone quiet = leads past Contacted with no activity for 7 days and no open task.
+- Right rail: BRIEF (the AI morning brief: GENERATE, then REFRESH) and NEXT UP (the next 5 callbacks and tasks).
+- Left rail: SMART LISTS, LISTS and FILES.
+
+## Leads page
+- The lead table with filters (search, status, stage, tag, attempts, no activity for N days, callback overdue, date added) and the state list on the left.
+- Click a lead to open its page. Tick leads to select them; the selection strip has SEND BULK SMS, stage / tag / file moves, ADD TO LIST.
+- START DIALING SESSION dials the queue (or your selection) with 1, 2 or 3 lines (LINES). EXPORT PDF (today's report) and EXPORT CSV (the leads with the current filters).
+- LEADS | DUPLICATES switches to likely duplicate pairs (see "Merge duplicates").
+
+## Lead page
+- Top bar: BACK, name, company, status, stage, and CALL · SMS · EMAIL · ADD TASK.
+- Left (PROFILE): contact details (edit, SAVE CHANGES), tags and lists, file fields, best time to call, DELETE LEAD.
+- Middle: the SMS or email composer (with DRAFT WITH AI) when opened, then the timeline (calls, texts, emails, notes, stage changes, tasks, activity) with filters.
+- Right (WORK): tasks, schedule a callback, AI SUMMARY, pipeline stage and deal value, office and colleagues.
+
+## Create a file (campaign)
+- A file is a separate campaign with its own leads, stages, fields, pitch script, AI context, daily goal and budget.
+- Go to SETTINGS → FILES → + NEW FILE, pick a template (Real estate, Roofing or Blank), type a name, CREATE FILE. Only a supervisor can create or change files.
+- Then fill the tabs: BASICS (name, company label, daily goal, max attempts, monthly budget), SCRIPT & AI (AI context, pitch script), STAGES, FIELDS.
+- Switch files with the FILE switcher in the header or the FILES list in the left rail. Pause, resume or archive a file on its FILES page.
+
+## Add a task
+- On a lead page: ADD TASK in the top bar (or the TASKS panel on the right). Type what to do, pick the type (call, email, text, other) and the due date and time, then ADD TASK.
+- After a call: the outcome panel has "Add a follow-up task".
+- On Today, TO DO shows the tasks: DONE marks one done, RESCHEDULE changes its due time. Tasks due soon also pop up as reminders (CALL, OPEN, SNOOZE 10 MIN).
+
+## Make a smart list or a list
+- Smart list = saved filters that update themselves. On LEADS set the filters, then "+ SAVE CURRENT FILTERS" above the table or "+ NEW SMART LIST" in the left rail, and name it. Click it in SMART LISTS to open it; the number is its live count.
+- List = hand-picked people. On LEADS tick the leads, then ADD TO LIST in the selection strip (pick a list or type a new name). "+ NEW LIST" in the left rail does the same for the current selection. Click a list in LISTS to open those leads.
+- A list is stored as a tag "list:<name>" and shows on the lead page as "LIST · name".
+
+## Import leads
+- IMPORT: choose a CSV or Excel file and the target file (campaign). The AI suggests which column is which; check the mapping, then import.
+- Every number on the DNC list is skipped, and so is a number already in the list. Rows without a usable number are imported but marked "no phone" until one is added.
+- The import keeps running if you leave the page (progress in the header); skipped rows can be downloaded as a CSV.
+
+## Move stages (pipeline)
+- PIPELINE shows one column per stage. Drag a card to another column, or use MOVE → on the card. Moving a stage never changes the dialer status.
+- Search the board by name, company, phone digits or tag; CLEAR restores it. Each column scrolls on its own; LOAD MORE shows more cards.
+- On a lead page the stage and the deal value are in WORK. A call outcome can move the stage too (Spoke / Interested → Contacted; DNC → Lost).
+
+## Set call rates and budgets
+- SETTINGS → SPEND LIMITS (supervisor): outbound and recording cents per minute, a per-call fee, and the global monthly budget in dollars. Until a rate is set, spend reads "RATES NOT SET".
+- A file's own monthly budget is on SETTINGS → FILES → BASICS. At 80 % the header warns; at 100 % dialing stops (a call in progress is never cut).
+
+## Dialing session
+- START DIALING SESSION (Today or Leads) dials the queue: callbacks due first, then new leads, then leads waiting longest. LINES = how many leads ring at once (1–3).
+- The dialer only calls inside 8am–9pm local time of the lead (unless a supervisor turned calling hours off) and never calls a DNC number.
+- When someone answers, log the outcome: Spoke / Interested, Voicemail, No answer, Callback (with a time), Bad number, No contact (person), DNC. UNDO is available for 10 seconds.
+- No answer and voicemail come back 4 hours later until the max attempts; then the lead goes cold.
+
+## Hotkeys on the call screen
+- M mutes and unmutes. Esc asks to hang up. D jumps to the outcome buttons. V logs Voicemail. N logs No answer and moves on.
+- Hotkeys never fire while you type in a field (notes, the callback time, a stage picker).
+
+## Inbox, texts and emails
+- INBOX lists text conversations (this file or all files); unread ones first. REPLY opens the lead page with the SMS composer open.
+- A text can use a template or custom text, with {{first_name}}, {{name}}, {{brokerage}}, {{state}}, {{city}}. Texts follow the same 8am–9pm rule as calls.
+- A lead that replied STOP or opted out never gets a text; DNC leads get neither calls nor texts.
+
+## Reports
+- REPORTS: dials, contacts and connect rate for today or a date range, per state, manual calls, objections, BEST HOURS (connect rate by local hour, 90 days) and the STAGE FUNNEL (how many reached each stage, conversion, wins, cost per win). THIS FILE or ALL FILES; EXPORT PDF.
+
+## Assistant (ASK)
+- ASK opens the assistant on the right. THIS FILE or ALL FILES picks which data it looks at. It answers from your CRM data, explains how to use the app, and gives general calling advice (marked "General advice — not from your data").
+- It never sends, dials or changes anything; it can propose a task or a stage move as a card you CONFIRM or DISMISS. CLEAR empties the conversation.
+- Settings: SETTINGS → INTEGRATIONS & AI (Groq key, assistant on/off, model).
+
+## Settings
+- The left menu: Profile, Dialing defaults (max attempts, lines, calling hours, reminder notifications), Reporting day (time zone and day start), Files, Objections, Integrations & AI, Spend limits, SMS templates, Activity (supervisor: who changed what).
+
+## Merge duplicates
+- LEADS → DUPLICATES lists likely pairs (same email; same name and company; same name, state and office). Choose KEEP THIS ONE, then REVIEW MERGE: pick the values that differ, check what moves, MERGE. There is no undo.
+- Everything moves to the kept lead; if either is DNC, the kept lead becomes DNC.
