@@ -35,6 +35,9 @@ const spendRoutes = require('./routes/spend');
 const assistantRoutes = require('./routes/assistant');
 const leadExportRoutes = require('./routes/leadExport');
 const duplicatesRoutes = require('./routes/duplicates');
+const insightsRoutes = require('./routes/insights');
+const { activity } = require('./middleware/activity');
+const activityLog = require('./services/activityLog');
 
 const app = express();
 
@@ -73,6 +76,7 @@ app.get('/health', (req, res) => res.json({ status: 'ok' }));
 // 100 req/min per user (per IP if unauthenticated) on everything under /api.
 // The login route's own stricter 5/min-per-IP limit is applied in auth.js.
 app.use('/api', apiLimiter);
+app.use('/api', activity); // C6C: successful changes go to activity_log (route patterns and ids only)
 
 app.use('/api/auth', authRoutes);
 app.use('/api/campaigns/:id/fields', customFieldRoutes);
@@ -89,12 +93,15 @@ app.use('/api/leads', pipelineRoutes.leadRouter);
 app.use('/api/leads', assistantRoutes.leadRouter);
 app.use('/api/leads', leadExportRoutes);
 app.use('/api/leads', duplicatesRoutes);
+app.use('/api/leads', insightsRoutes.leadRouter);
 app.use('/api/leads', leadsRoutes);
 app.use('/api/calls', callsRoutes);
 app.use('/api/dispositions', dispositionsRoutes);
 app.use('/api/imports', importsRoutes);
 app.use('/api/exports', exportsRoutes);
+app.use('/api/reports', insightsRoutes.reportsRouter);
 app.use('/api/reports', reportsRoutes);
+app.use('/api/activity', insightsRoutes.activityRouter);
 app.use('/api/ai', aiRoutes);
 app.use('/api/sessions', sessionsRoutes);
 app.use('/api/settings', settingsRoutes);
@@ -196,6 +203,24 @@ function startStaleLockSweep() {
 const IMPORT_CLEANUP_INTERVAL_MS = 60 * 60 * 1000;
 let importCleanupTimer = null;
 
+// C6C: activity_log rows older than 180 days are deleted at startup and then daily.
+const ACTIVITY_PURGE_INTERVAL_MS = 24 * 60 * 60 * 1000;
+let activityPurgeTimer = null;
+
+function runActivityPurge() {
+  activityLog
+    .purgeOld()
+    .then((n) => n > 0 && console.log(`Activity log: deleted ${n} row(s) older than ${activityLog.KEEP_DAYS} days`))
+    .catch((err) => console.error('Activity log cleanup failed:', err.message));
+}
+
+function startActivityPurge() {
+  if (require.main !== module) return;
+  runActivityPurge();
+  activityPurgeTimer = setInterval(runActivityPurge, ACTIVITY_PURGE_INTERVAL_MS);
+  activityPurgeTimer.unref();
+}
+
 function runImportCleanup() {
   csvImport
     .expireStaleImports()
@@ -232,6 +257,8 @@ function shutdown(signal) {
   staleLockTimer = null;
   clearInterval(importCleanupTimer);
   importCleanupTimer = null;
+  clearInterval(activityPurgeTimer);
+  activityPurgeTimer = null;
   callSession.clearConnectionTimers();
   console.log(`${signal} received — stale-lock sweep and import cleanup stopped, shutting down`);
   process.exit(0);
@@ -253,6 +280,7 @@ assertSchemaIsMigrated()
       console.log(`Vortex Dialer API listening on port ${config.port} (telephony: ${config.telephonyProvider})`);
       startStaleLockSweep();
       startImportHousekeeping();
+      startActivityPurge();
       recoverCallsAfterRestart();
       backfillLeadZones();
       checkSupervisorExists();

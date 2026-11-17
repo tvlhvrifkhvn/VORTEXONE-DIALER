@@ -139,7 +139,8 @@ test('the timeline lists every event kind, newest first', async () => {
   const res = await rep.api.get(`/api/leads/${lead.id}/timeline`);
   assert.equal(res.status, 200);
   const items = res.body.timeline;
-  assert.deepEqual([...new Set(items.map((i) => i.type))].sort(), ['call', 'email', 'import', 'note', 'sms', 'sms_opt', 'stage']);
+  // C6C: the note added through the API also shows as an activity row.
+  assert.deepEqual([...new Set(items.map((i) => i.type))].sort(), ['activity', 'call', 'email', 'import', 'note', 'sms', 'sms_opt', 'stage']);
   for (let i = 1; i < items.length; i++) {
     assert.ok(new Date(items[i - 1].timestamp) >= new Date(items[i].timestamp), `out of order at ${i}`);
   }

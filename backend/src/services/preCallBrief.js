@@ -8,6 +8,7 @@ const { getTimeline } = require('./smsService');
 const { getColleagueSummary } = require('./colleagueIntel');
 const { getHints } = require('./rebuttalCoach');
 const aiContext = require('./aiContext');
+const bestTime = require('./bestTime');
 
 /**
  * The brief shown while a call dials and rings, so the rep never goes in
@@ -129,7 +130,7 @@ async function gather(leadId) {
   if (!lead) throw new ApiError(404, 'Lead not found');
 
   // C1D: the lead carries its campaign; the brief speaks about that campaign.
-  const [timeline, callStats, colleagues, objectionRows, hints, ctx] = await Promise.all([
+  const [timeline, callStats, colleagues, objectionRows, hints, ctx, best] = await Promise.all([
     getTimeline(leadId),
     // Finished calls only: the call ringing right now isn't a prior attempt.
     db.query(
@@ -154,6 +155,7 @@ async function gather(leadId) {
     ),
     getHints(lead.campaign_id),
     aiContext.forCampaignId(lead.campaign_id),
+    bestTime.forLead(leadId).catch(() => null), // C6C: one line in the brief; never blocks it
   ]);
 
   // A call with neither outcome nor note is the one dialing now (or an
@@ -174,7 +176,7 @@ async function gather(leadId) {
     timeline.notes.length === 0 &&
     objections.length === 0;
 
-  return { lead, recent, prior, last, colleagues, objections, firstCall, ctx };
+  return { lead, recent, prior, last, colleagues, objections, firstCall, ctx, best };
 }
 
 function colleagueOpener(colleagues, ctx) {
@@ -221,6 +223,7 @@ function buildInstant(data) {
       recent: recent.map((item) => describeInteraction(item, lead.state)),
       objections,
       tags: lead.tags || [],
+      bestTime: data.best ? data.best.text : null, // C6C
       colleagues: colleagues?.totalColleagues
         ? {
             officeLabel: colleagues.officeLabel,
