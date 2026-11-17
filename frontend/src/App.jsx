@@ -12,7 +12,6 @@ import LeadDetail from './pages/LeadDetail';
 import Import from './pages/Import';
 import Reports from './pages/Reports';
 import Settings from './pages/Settings';
-import Campaigns from './pages/Campaigns';
 import Pipeline from './pages/Pipeline';
 import Today from './pages/Today';
 import Styleguide from './pages/Styleguide';
@@ -135,16 +134,18 @@ function AppRoutes() {
           </RequireAuth>
         }
       />
+      {/* C7B: Files lives in Settings now; the old address still works. */}
+      <Route path="/settings/campaigns" element={<Navigate to="/settings/files" replace />} />
       <Route
-        path="/settings/campaigns"
+        path="/settings"
         element={
           <RequireAuth>
-            <Campaigns />
+            <Settings />
           </RequireAuth>
         }
       />
       <Route
-        path="/settings"
+        path="/settings/:section"
         element={
           <RequireAuth>
             <Settings />

@@ -1,9 +1,9 @@
 // Settings → Files (C1E): list the campaigns, create one from a template,
 // edit its words and numbers, pause, resume or archive it. Only a
 // supervisor changes files (the API refuses others with 403).
+// C7B: rendered inside Settings (/settings/files); no page frame of its own.
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
-import AppShell from '../components/layout/AppShell';
+import { useSearchParams } from 'react-router-dom';
 import Panel from '../components/ui/Panel';
 import Button from '../components/ui/Button';
 import Field from '../components/ui/Field';
@@ -93,7 +93,7 @@ function CreateSection({ disabled, onCreated }) {
 
   return (
     <Panel className="space-y-4 p-6">
-      <SectionLabel index="02" title="New file" />
+      <SectionLabel title="New file" />
       <form onSubmit={handleCreate} className="space-y-3">
         <div className="space-y-2">
           <p className="label">Start from</p>
@@ -128,7 +128,9 @@ function CreateSection({ disabled, onCreated }) {
   );
 }
 
-function EditSection({ campaign, disabled, onSaved }) {
+// C7B: the file's editable values in two tabs, BASICS and SCRIPT & AI. One
+// form, one save (the same update as before); each tab shows its own fields.
+function EditSection({ campaign, tab, disabled, onSaved }) {
   const [form, setForm] = useState(() => toForm(campaign));
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState(null);
@@ -164,43 +166,48 @@ function EditSection({ campaign, disabled, onSaved }) {
 
   return (
     <Panel className="space-y-4 p-6">
-      <SectionLabel index="03" title="Edit file" meta={fileLabel(campaign)} />
+      <SectionLabel title={tab === 'script' ? 'Script & AI' : 'Basics'} meta={fileLabel(campaign)} />
       <form onSubmit={handleSave} className="space-y-3">
-        <div className="grid gap-4 sm:grid-cols-2">
-          <div>
-            <label htmlFor="file-name" className="label mb-2 block">Name</label>
-            <Field id="file-name" value={form.name} onChange={set('name')} maxLength={60} className="w-full" disabled={disabled} required />
+        {tab === 'basics' ? (
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div>
+              <label htmlFor="file-name" className="label mb-2 block">Name</label>
+              <Field id="file-name" value={form.name} onChange={set('name')} maxLength={60} className="w-full" disabled={disabled} required />
+            </div>
+            <div>
+              <label htmlFor="file-company-label" className="label mb-2 block">Company label</label>
+              <Field id="file-company-label" value={form.companyLabel} onChange={set('companyLabel')} maxLength={40} className="w-full" disabled={disabled} required />
+            </div>
+            <div>
+              <label htmlFor="file-daily-goal" className="label mb-2 block">Daily goal · dials</label>
+              <Field id="file-daily-goal" type="number" min="1" max="100000" value={form.dailyGoal} onChange={set('dailyGoal')} placeholder="100" className="w-32 font-mono tabular-nums" disabled={disabled} />
+            </div>
+            <div>
+              <label htmlFor="file-max-attempts" className="label mb-2 block">Max attempts (1–10)</label>
+              <Field id="file-max-attempts" type="number" min="1" max="10" value={form.defaultMaxAttempts} onChange={set('defaultMaxAttempts')} placeholder="Global" className="w-32 font-mono tabular-nums" disabled={disabled} />
+            </div>
+            <div>
+              <label htmlFor="file-monthly-budget" className="label mb-2 block">Monthly budget · USD</label>
+              <Field id="file-monthly-budget" type="number" min="0" step="0.01" value={form.monthlyBudget} onChange={set('monthlyBudget')} placeholder="No limit" className="w-40 font-mono tabular-nums" disabled={disabled} />
+              <p className="mt-2 text-sm text-muted-foreground">Dialing in this file stops at 100 %. The global budget in Settings applies too.</p>
+            </div>
           </div>
-          <div>
-            <label htmlFor="file-company-label" className="label mb-2 block">Company label</label>
-            <Field id="file-company-label" value={form.companyLabel} onChange={set('companyLabel')} maxLength={40} className="w-full" disabled={disabled} required />
-          </div>
-          <div>
-            <label htmlFor="file-daily-goal" className="label mb-2 block">Daily goal · dials</label>
-            <Field id="file-daily-goal" type="number" min="1" max="100000" value={form.dailyGoal} onChange={set('dailyGoal')} placeholder="100" className="w-32 font-mono tabular-nums" disabled={disabled} />
-          </div>
-          <div>
-            <label htmlFor="file-max-attempts" className="label mb-2 block">Max attempts (1–10)</label>
-            <Field id="file-max-attempts" type="number" min="1" max="10" value={form.defaultMaxAttempts} onChange={set('defaultMaxAttempts')} placeholder="Global" className="w-32 font-mono tabular-nums" disabled={disabled} />
-          </div>
-          <div>
-            <label htmlFor="file-monthly-budget" className="label mb-2 block">Monthly budget · USD</label>
-            <Field id="file-monthly-budget" type="number" min="0" step="0.01" value={form.monthlyBudget} onChange={set('monthlyBudget')} placeholder="No limit" className="w-40 font-mono tabular-nums" disabled={disabled} />
-            <p className="mt-2 text-sm text-muted-foreground">Dialing in this file stops at 100 %. The global budget in Settings applies too.</p>
-          </div>
-        </div>
-        <div>
-          <label htmlFor="file-ai-context" className="label mb-2 block">AI context</label>
-          <Field as="textarea" id="file-ai-context" rows={3} value={form.aiContext} onChange={set('aiContext')} maxLength={2000} className="w-full resize-none" disabled={disabled} />
-          <p className="mt-2 text-sm text-muted-foreground">One or two sentences: what we offer and to whom. The AI suggestions and briefs use it.</p>
-        </div>
-        <div>
-          <label htmlFor="file-pitch-script" className="label mb-2 block">Pitch script</label>
-          <Field as="textarea" id="file-pitch-script" rows={4} value={form.pitchScript} onChange={set('pitchScript')} maxLength={5000} className="w-full resize-none" disabled={disabled} />
-          <p className="mt-2 text-sm text-muted-foreground">
-            Shown on the call screen. Use <code>{'{name}'}</code> where your name should appear.
-          </p>
-        </div>
+        ) : (
+          <>
+            <div>
+              <label htmlFor="file-ai-context" className="label mb-2 block">AI context</label>
+              <Field as="textarea" id="file-ai-context" rows={3} value={form.aiContext} onChange={set('aiContext')} maxLength={2000} className="w-full resize-none" disabled={disabled} />
+              <p className="mt-2 text-sm text-muted-foreground">One or two sentences: what we offer and to whom. The AI suggestions and briefs use it.</p>
+            </div>
+            <div>
+              <label htmlFor="file-pitch-script" className="label mb-2 block">Pitch script</label>
+              <Field as="textarea" id="file-pitch-script" rows={6} value={form.pitchScript} onChange={set('pitchScript')} maxLength={5000} className="w-full resize-none" disabled={disabled} />
+              <p className="mt-2 text-sm text-muted-foreground">
+                Shown on the call screen. Use <code>{'{name}'}</code> where your name should appear.
+              </p>
+            </div>
+          </>
+        )}
         <Message message={message} />
         <Button type="submit" variant="primary" disabled={disabled || busy}>
           {busy ? 'Saving…' : 'Save file'}
@@ -210,15 +217,33 @@ function EditSection({ campaign, disabled, onSaved }) {
   );
 }
 
-export default function Campaigns() {
+const TABS = [
+  { value: 'basics', label: 'Basics' },
+  { value: 'script', label: 'Script & AI' },
+  { value: 'stages', label: 'Stages' },
+  { value: 'fields', label: 'Fields' },
+];
+
+/**
+ * Settings → Files (C7B): the file list in its own column (NEW FILE on top),
+ * the selected file on the right with BASICS · SCRIPT & AI · STAGES · FIELDS.
+ * ?file=<id>&tab=<tab> keep the choice in the address. Pause, resume and
+ * archive sit on the selected file's header row.
+ */
+export default function FilesSettings() {
   const { user } = useAuth();
   const isSupervisor = user?.role === 'supervisor';
   const { campaigns, activeId, refresh } = useCampaign();
-  const [editId, setEditId] = useState(null);
+  const [params, setParams] = useSearchParams();
   const [busyId, setBusyId] = useState(null);
   const [message, setMessage] = useState(null);
 
-  const editing = campaigns.find((c) => c.id === editId) || campaigns.find((c) => String(c.id) === String(activeId)) || null;
+  const creating = params.get('file') === 'new';
+  const tab = TABS.some((t) => t.value === params.get('tab')) ? params.get('tab') : 'basics';
+  const editing = creating
+    ? null
+    : campaigns.find((c) => String(c.id) === params.get('file')) || campaigns.find((c) => String(c.id) === String(activeId)) || null;
+  const select = (next) => setParams({ ...Object.fromEntries(params), ...next }, { replace: true });
 
   const changeStatus = async (c, status) => {
     if (status === 'archived' && !window.confirm(`Archive ${fileLabel(c)}? Its leads stay, but it leaves the file menu.`)) return;
@@ -235,63 +260,89 @@ export default function Campaigns() {
   };
 
   return (
-    <AppShell>
-      <div className="mx-auto mt-6 max-w-4xl space-y-6">
-        <div className="flex items-baseline justify-between gap-4">
-          <h1 className="text-2xl font-semibold tracking-[-0.01em] text-foreground">Files</h1>
-          <Link to="/settings" className="font-mono text-sm uppercase tracking-button text-foreground underline underline-offset-4 hover:bg-muted">
-            ← Settings
-          </Link>
-        </div>
-        {!isSupervisor && <p className="text-sm text-muted-foreground">Only a supervisor can create or change files.</p>}
-
-        <Panel className="space-y-4 p-6">
-          <SectionLabel index="01" title="All files" meta={`${campaigns.length} total`} />
+    <div className="space-y-4" data-testid="files-settings">
+      <div>
+        <h2 className="text-xl font-semibold tracking-[-0.01em] text-foreground">Files</h2>
+        <p className="mt-1 text-sm text-muted-foreground">Each file has its own pitch script, daily goal, company label, AI context, stages and fields.</p>
+        {!isSupervisor && <p className="mt-1 text-sm text-muted-foreground">Only a supervisor can create or change files.</p>}
+      </div>
+      <div className="flex flex-col gap-6 xl:flex-row xl:items-start">
+        {/* The file list: its own column. */}
+        <div className="space-y-2 xl:w-64 xl:shrink-0" aria-label="All files">
+          <Button variant="primary" className="w-full" onClick={() => select({ file: 'new' })} disabled={!isSupervisor}>
+            + New file
+          </Button>
           <ul className="border-t">
-            {campaigns.map((c) => (
-              <li key={c.id} className="flex min-h-12 flex-wrap items-center justify-between gap-4 border-b py-2">
-                <span className="flex items-center gap-4">
-                  <FileTag number={c.file_number} name={c.name} />
-                  <Badge tone={STATUS_TONE[c.status] || 'outline'}>{c.status}</Badge>
-                  {String(c.id) === String(activeId) && <span className="label">Active here</span>}
-                </span>
+            {campaigns.map((c) => {
+              const selected = editing && c.id === editing.id;
+              return (
+                <li key={c.id} className="border-b">
+                  <button
+                    type="button"
+                    onClick={() => select({ file: String(c.id) })}
+                    aria-current={selected ? 'true' : undefined}
+                    className={`flex min-h-12 w-full flex-col items-start gap-1 px-2 py-2 text-left transition-colors duration-150 ${selected ? 'bg-muted' : 'hover:bg-muted'}`}
+                  >
+                    <FileTag number={c.file_number} name={c.name} />
+                    <span className="flex items-center gap-2">
+                      <Badge tone={STATUS_TONE[c.status] || 'outline'}>{c.status}</Badge>
+                      {String(c.id) === String(activeId) && <span className="label">Active here</span>}
+                    </span>
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+          <Message message={message} />
+        </div>
+
+        {/* The selected file. */}
+        <div className="min-w-0 flex-1 space-y-4">
+          {creating ? (
+            <CreateSection
+              disabled={!isSupervisor}
+              onCreated={async (c) => {
+                await refresh();
+                select({ file: String(c.id), tab: 'basics' });
+              }}
+            />
+          ) : editing ? (
+            <>
+              <div className="flex flex-wrap items-center justify-between gap-4">
+                <div className="flex items-center gap-4">
+                  <FileTag number={editing.file_number} name={editing.name} />
+                  <Badge tone={STATUS_TONE[editing.status] || 'outline'}>{editing.status}</Badge>
+                </div>
                 <span className="flex flex-wrap gap-2">
-                  <Button variant="ghost" onClick={() => setEditId(c.id)} aria-label={`Edit ${fileLabel(c)}`}>
-                    Edit
-                  </Button>
-                  {c.status === 'active' && (
-                    <Button onClick={() => changeStatus(c, 'paused')} disabled={!isSupervisor || busyId === c.id} aria-label={`Pause ${fileLabel(c)}`}>
+                  {editing.status === 'active' && (
+                    <Button onClick={() => changeStatus(editing, 'paused')} disabled={!isSupervisor || busyId === editing.id} aria-label={`Pause ${fileLabel(editing)}`}>
                       Pause
                     </Button>
                   )}
-                  {c.status !== 'active' && (
-                    <Button onClick={() => changeStatus(c, 'active')} disabled={!isSupervisor || busyId === c.id} aria-label={`Resume ${fileLabel(c)}`}>
+                  {editing.status !== 'active' && (
+                    <Button onClick={() => changeStatus(editing, 'active')} disabled={!isSupervisor || busyId === editing.id} aria-label={`Resume ${fileLabel(editing)}`}>
                       Resume
                     </Button>
                   )}
-                  {c.status !== 'archived' && (
-                    <Button onClick={() => changeStatus(c, 'archived')} disabled={!isSupervisor || busyId === c.id} aria-label={`Archive ${fileLabel(c)}`}>
+                  {editing.status !== 'archived' && (
+                    <Button onClick={() => changeStatus(editing, 'archived')} disabled={!isSupervisor || busyId === editing.id} aria-label={`Archive ${fileLabel(editing)}`}>
                       ⊘ Archive
                     </Button>
                   )}
                 </span>
-              </li>
-            ))}
-          </ul>
-          <Message message={message} />
-        </Panel>
-
-        <CreateSection
-          disabled={!isSupervisor}
-          onCreated={async (c) => {
-            await refresh();
-            setEditId(c.id);
-          }}
-        />
-        {editing && <EditSection campaign={editing} disabled={!isSupervisor} onSaved={() => refresh()} />}
-        {editing && <StageEditor key={editing.id} campaign={editing} disabled={!isSupervisor} />}
-        {editing && <FieldEditor key={`f-${editing.id}`} campaign={editing} disabled={!isSupervisor} />}
+              </div>
+              <Segmented label="File settings" options={TABS} value={tab} onChange={(t) => select({ tab: t })} />
+              {(tab === 'basics' || tab === 'script') && (
+                <EditSection campaign={editing} tab={tab} disabled={!isSupervisor} onSaved={() => refresh()} />
+              )}
+              {tab === 'stages' && <StageEditor key={editing.id} campaign={editing} disabled={!isSupervisor} />}
+              {tab === 'fields' && <FieldEditor key={`f-${editing.id}`} campaign={editing} disabled={!isSupervisor} />}
+            </>
+          ) : (
+            <p className="text-sm text-muted-foreground">Pick a file on the left.</p>
+          )}
+        </div>
       </div>
-    </AppShell>
+    </div>
   );
 }
