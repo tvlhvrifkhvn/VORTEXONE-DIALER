@@ -53,6 +53,9 @@ const API_SETTINGS = {
   rate_recording_cents_per_min: { maxLength: 16 },
   rate_per_call_cents: { maxLength: 16 },
   monthly_budget_cents: { maxLength: 16 },
+  // C5A: the assistant; unset = on, and the default model (services/assistant/index.js).
+  assistant_enabled: { maxLength: 5 },
+  assistant_model: { maxLength: 100 },
 };
 
 // ---- default max attempts (F-48) ----------------------------------------------
