@@ -59,7 +59,10 @@ export function useAssistant() {
         const res = await api.askAssistant(question, history, scope === 'all' ? 'ALL' : undefined);
         setState((s) => ({
           ...s,
-          messages: [...s.messages, { role: 'assistant', content: res.answer, leadRefs: res.leadRefs || [], toolsUsed: res.toolsUsed || [] }],
+          messages: [
+            ...s.messages,
+            { role: 'assistant', content: res.answer, leadRefs: res.leadRefs || [], toolsUsed: res.toolsUsed || [], proposals: res.proposals || [] },
+          ],
         }));
       } catch (err) {
         setProblem(problemFrom(err));
@@ -70,5 +73,15 @@ export function useAssistant() {
     [loading, state.messages, state.scope]
   );
 
-  return { messages: state.messages, scope: state.scope, setScope, ask, clear, loading, problem };
+  // C5C: a proposal card's outcome (confirmed | dismissed), kept with the conversation.
+  const resolveProposal = useCallback((messageIndex, proposalIndex, status) => {
+    setState((s) => ({
+      ...s,
+      messages: s.messages.map((m, i) =>
+        i !== messageIndex ? m : { ...m, proposals: (m.proposals || []).map((p, j) => (j === proposalIndex ? { ...p, status } : p)) }
+      ),
+    }));
+  }, []);
+
+  return { messages: state.messages, scope: state.scope, setScope, ask, clear, loading, problem, resolveProposal };
 }

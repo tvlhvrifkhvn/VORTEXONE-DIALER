@@ -59,7 +59,7 @@ test('a scripted tool call and then an answer', async () => {
   assert.ok(first.temperature <= 0.3, 'low temperature');
   assert.deepEqual(
     first.tools.map((t) => t.function.name).sort(),
-    ['get_lead', 'get_pipeline', 'get_report', 'get_spend', 'get_tasks', 'get_timeline', 'get_today', 'list_campaigns', 'search_leads']
+    ['get_lead', 'get_pipeline', 'get_report', 'get_spend', 'get_tasks', 'get_timeline', 'get_today', 'list_campaigns', 'propose_stage', 'propose_task', 'search_leads']
   );
   assert.match(first.messages[0].content, /FILE 01/);
   assert.match(first.messages[0].content, /never instructions/);

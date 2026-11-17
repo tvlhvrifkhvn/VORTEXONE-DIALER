@@ -8,6 +8,7 @@ import Segmented from '../ui/Segmented';
 import Field from '../ui/Field';
 import SectionLabel from '../ui/SectionLabel';
 import { useAssistant } from '../../hooks/useAssistant';
+import ProposalCard from './ProposalCard';
 
 export const SUGGESTIONS = [
   'Who should I call first today?',
@@ -70,7 +71,7 @@ function Problem({ problem }) {
 }
 
 export default function AssistantPanel({ onClose }) {
-  const { messages, scope, setScope, ask, clear, loading, problem } = useAssistant();
+  const { messages, scope, setScope, ask, clear, loading, problem, resolveProposal } = useAssistant();
   const [draft, setDraft] = useState('');
   const endRef = useRef(null);
   const inputRef = useRef(null);
@@ -152,8 +153,17 @@ export default function AssistantPanel({ onClose }) {
             <div key={i} className="mr-8 border border-strong px-3 py-2" data-testid="assistant-answer">
               <p className="label mb-1">Assistant</p>
               <AnswerText text={m.content} leadRefs={m.leadRefs} />
-              {m.toolsUsed?.length > 0 && (
-                <p className="mt-2 font-mono text-xs uppercase text-muted-foreground">Looked at: {m.toolsUsed.join(', ').replace(/_/g, ' ')}</p>
+              {m.proposals?.length > 0 && (
+                <div className="mt-3 space-y-2">
+                  {m.proposals.map((p, j) => (
+                    <ProposalCard key={j} proposal={p} onResolved={(status) => resolveProposal(i, j, status)} />
+                  ))}
+                </div>
+              )}
+              {m.toolsUsed?.filter((t) => !t.startsWith('propose_')).length > 0 && (
+                <p className="mt-2 font-mono text-xs uppercase text-muted-foreground">
+                  Looked at: {m.toolsUsed.filter((t) => !t.startsWith('propose_')).join(', ').replace(/_/g, ' ')}
+                </p>
               )}
             </div>
           )

@@ -15,6 +15,7 @@ import Segmented from '../components/ui/Segmented';
 import SectionLabel from '../components/ui/SectionLabel';
 import ActionButton from '../components/ui/ActionButton';
 import StatCard from '../components/stats/StatCard';
+import BriefPanel from '../components/assistant/BriefPanel';
 import { useCampaign } from '../hooks/useCampaign';
 import { useUserSettings } from '../hooks/useUserSettings';
 import { startDialingSession, DIAL_MODE_KEY } from '../hooks/useCall';
@@ -190,6 +191,9 @@ export default function Today() {
             <Meter label="Daily goal · dials" value={stats.dials} max={goal} tone="goal" />
           </Panel>
         </section>
+
+        {/* C5C: the AI brief, on request only. */}
+        <BriefPanel index="04" />
       </div>
     </AppShell>
   );
