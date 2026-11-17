@@ -36,7 +36,7 @@ const TEMPLATES = {
   ],
 };
 
-const SOURCES = ['create', 'import', 'disposition', 'manual', 'undo', 'move', 'bulk'];
+const SOURCES = ['create', 'import', 'disposition', 'manual', 'undo', 'move', 'bulk', 'merge']; // C6B: merge (migration 042)
 const DNC_LOST_REASON = 'Do not call';
 const MAX_NAME_LENGTH = 40;
 const MAX_LOST_REASON_LENGTH = 200;
