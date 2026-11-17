@@ -73,8 +73,45 @@ function showServerErrorToast() {
   setTimeout(() => toast.remove(), TOAST_AUTO_DISMISS_MS);
 }
 
+// C7A: a GET answered 429 waits for Retry-After (at most 10 s) and tries once
+// more without a word. Only if that fails too does the caller get an error, and
+// then a short "Busy — retrying…" (with one quiet toast), not the server's text.
+const RETRY_MAX_WAIT_MS = 10000;
+let busyToastAt = 0;
+function showBusyToast() {
+  if (typeof document === 'undefined' || Date.now() - busyToastAt < 15000) return;
+  busyToastAt = Date.now();
+  const toast = document.createElement('div');
+  toast.textContent = 'Busy — retrying…';
+  toast.setAttribute('role', 'status');
+  toast.className = 'fixed bottom-4 right-4 z-50 border border-strong bg-card px-4 py-3 font-mono text-xs uppercase text-muted-foreground';
+  document.body.appendChild(toast);
+  setTimeout(() => toast.remove(), TOAST_AUTO_DISMISS_MS);
+}
+
 // `campaign` overrides the stored file for one request ('ALL' on routes that accept it, C1E).
-async function request(path, { method = 'GET', body, isFormData = false, campaignRetried = false, campaign } = {}) {
+async function request(path, opts = {}) {
+  try {
+    return await requestOnce(path, opts);
+  } catch (err) {
+    const method = (opts.method || 'GET').toUpperCase();
+    if (err.status !== 429 || method !== 'GET' || opts.rateRetried) throw err;
+    const waitMs = Math.min(RETRY_MAX_WAIT_MS, Math.max(1000, (err.retryAfter || 1) * 1000));
+    await new Promise((r) => setTimeout(r, waitMs));
+    try {
+      return await requestOnce(path, { ...opts, rateRetried: true });
+    } catch (again) {
+      if (again.status === 429) {
+        showBusyToast();
+        again.message = 'Busy — retrying…';
+        again.busy = true;
+      }
+      throw again;
+    }
+  }
+}
+
+async function requestOnce(path, { method = 'GET', body, isFormData = false, campaignRetried = false, campaign } = {}) {
   const token = getToken();
   let res;
   try {
@@ -113,7 +150,7 @@ async function request(path, { method = 'GET', body, isFormData = false, campaig
     // and try once more.
     if (res.status === 400 && data && data.code === 'campaign_invalid' && !campaign && !campaignRetried && getCampaignId() !== DEFAULT_CAMPAIGN_ID) {
       setCampaignId(DEFAULT_CAMPAIGN_ID);
-      return request(path, { method, body, isFormData, campaignRetried: true });
+      return requestOnce(path, { method, body, isFormData, campaignRetried: true });
     }
     // C5B: the assistant shows its own errors (not configured, Groq down) where it was asked.
     const assistantPath = path.startsWith('/assistant/') || /^\/leads\/\d+\/summary/.test(path);
@@ -309,6 +346,7 @@ export const reorderCampaignFields = (campaignId, ids) =>
 
 // saved views and bulk actions (C2E)
 export const listViews = ({ counts = false } = {}) => request(`/views${counts ? '?counts=1' : ''}`);
+export const getViewCounts = () => request('/views/counts'); // C7A: every view's count in one request
 export const createView = (name, filters) => request('/views', { method: 'POST', body: { name, filters } });
 export const renameView = (id, name) => request(`/views/${id}`, { method: 'PUT', body: { name } });
 export const deleteView = (id) => request(`/views/${id}`, { method: 'DELETE' });

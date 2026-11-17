@@ -397,7 +397,7 @@ function TimelineEntry({ entry, leadName }) {
   );
 }
 
-const TIMELINE_POLL_MS = 8000;
+const TIMELINE_POLL_MS = 30000; // C7A (was 8 s)
 
 /** Action row + SMS compose + unified timeline — Part E, the lead detail
  * panel's "action hub". */

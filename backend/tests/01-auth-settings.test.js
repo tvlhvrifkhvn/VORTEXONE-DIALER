@@ -40,20 +40,33 @@ test('a supervisor can write a whitelisted setting', async () => {
   assert.equal(res.status, 200);
 });
 
-test('rate limits keep 100/min and 5/min unless NODE_ENV is test', () => {
+test('rate limits: API 600/min by default, RATE_LIMIT_API_MAX overrides it everywhere; login stays 5/min outside tests', () => {
   const rateLimit = require('../src/middleware/rateLimit');
-  assert.equal(rateLimit.API_MAX, 100);
+  assert.equal(rateLimit.API_MAX, 600); // C7A (was 100)
   assert.equal(rateLimit.LOGIN_MAX, 5);
-  const saved = process.env.NODE_ENV;
+  const saved = { env: process.env.NODE_ENV, api: process.env.RATE_LIMIT_API_MAX, login: process.env.RATE_LIMIT_LOGIN_MAX };
   try {
+    delete process.env.RATE_LIMIT_API_MAX;
+    for (const env of ['production', 'development', 'test']) {
+      process.env.NODE_ENV = env;
+      assert.equal(rateLimit.apiMax(), 600, `default in ${env}`);
+    }
+    process.env.RATE_LIMIT_API_MAX = '900';
+    for (const env of ['production', 'development']) {
+      process.env.NODE_ENV = env;
+      assert.equal(rateLimit.apiMax(), 900, `override in ${env}`);
+    }
+    process.env.RATE_LIMIT_API_MAX = 'lots';
+    assert.equal(rateLimit.apiMax(), 600, 'a bad override is ignored');
+    // The login limit's override still applies only under tests.
+    process.env.RATE_LIMIT_LOGIN_MAX = '50';
     process.env.NODE_ENV = 'production';
-    assert.equal(rateLimit.maxFor('RATE_LIMIT_API_MAX', rateLimit.API_MAX), 100);
     assert.equal(rateLimit.maxFor('RATE_LIMIT_LOGIN_MAX', rateLimit.LOGIN_MAX), 5);
-    process.env.NODE_ENV = 'development';
-    assert.equal(rateLimit.maxFor('RATE_LIMIT_API_MAX', rateLimit.API_MAX), 100);
   } finally {
-    process.env.NODE_ENV = saved;
+    process.env.NODE_ENV = saved.env;
+    if (saved.api === undefined) delete process.env.RATE_LIMIT_API_MAX; else process.env.RATE_LIMIT_API_MAX = saved.api;
+    if (saved.login === undefined) delete process.env.RATE_LIMIT_LOGIN_MAX; else process.env.RATE_LIMIT_LOGIN_MAX = saved.login;
   }
   // Under test, the runner's raised value applies.
-  assert.ok(rateLimit.maxFor('RATE_LIMIT_API_MAX', rateLimit.API_MAX) > 100);
+  assert.ok(rateLimit.apiMax() > 600);
 });

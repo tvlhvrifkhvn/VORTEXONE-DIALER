@@ -19,6 +19,13 @@ viewsRouter.get(
     res.json({ views: await savedViews.list(req.user.sub, req.campaign.id, { counts }) });
   })
 );
+// C7A: every view's count in one request (SavedViewsBar polls this).
+viewsRouter.get(
+  '/counts',
+  asyncHandler(async (req, res) => {
+    res.json({ counts: await savedViews.counts(req.user.sub, req.campaign.id) });
+  })
+);
 viewsRouter.post(
   '/',
   asyncHandler(async (req, res) => {

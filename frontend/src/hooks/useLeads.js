@@ -104,8 +104,7 @@ export function useLeads(filters) {
   // current filters, checked on an interval regardless of what's displayed.
   useEffect(() => {
     checkDueCallbacks();
-    const id = setInterval(checkDueCallbacks, CALLBACK_CHECK_MS);
-    return () => clearInterval(id);
+    return pollWhileVisible(checkDueCallbacks, CALLBACK_CHECK_MS); // C7A
   }, []);
 
   return { leads, total, page, pageSize: PAGE_SIZE, setPage, loading, error, refresh };

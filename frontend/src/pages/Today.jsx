@@ -22,6 +22,8 @@ import { useUserSettings } from '../hooks/useUserSettings';
 import { startDialingSession, DIAL_MODE_KEY } from '../hooks/useCall';
 import { formatDateTime, formatRelativeToNow } from '../lib/format';
 import * as api from '../lib/api';
+import { pollWhileVisible } from '../lib/poll';
+import { useToday } from '../hooks/useToday';
 
 const POLL_MS = 30000;
 const DEFAULT_GOAL = 100;
@@ -78,7 +80,7 @@ export default function Today() {
   const navigate = useNavigate();
   const { active } = useCampaign();
   const { settings } = useUserSettings();
-  const [today, setToday] = useState(null);
+  const today = useToday(); // C7A: the shared Today poll (AppShell's badge uses the same one)
   const [stages, setStages] = useState([]);
   const [stats, setStats] = useState({ dials: 0, contacts: 0, connectRate: 0 });
   const [filter, setFilter] = useState('all');
@@ -87,8 +89,7 @@ export default function Today() {
 
   const load = useCallback(async () => {
     try {
-      const [t, s, st] = await Promise.all([api.getToday(), api.getPipelineStages(), api.getTodayStats()]);
-      setToday(t);
+      const [s, st] = await Promise.all([api.getPipelineStages(), api.getTodayStats()]);
       setStages(s.stages || []);
       setStats(st);
       setError(null);
@@ -99,8 +100,7 @@ export default function Today() {
 
   useEffect(() => {
     load();
-    const id = setInterval(load, POLL_MS);
-    return () => clearInterval(id);
+    return pollWhileVisible(load, POLL_MS);
   }, [load]);
 
   const rows = rowsFrom(today).filter((r) => filter === 'all' || r.kind === filter);

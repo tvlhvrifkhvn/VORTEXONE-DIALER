@@ -407,6 +407,80 @@ Do:
 
 Tests: an activity row is written for a change and not for a GET, and never holds a password or key; the best-time minimum and the local-hour math in two time zones; the funnel numbers on a scripted history. Gate extra: screenshots in both themes.
 
+## Block 3: owner feedback (C7A to C7F)
+Rules for this block:
+- Layout and placement change; behavior doesn't. No route, field, rule or data model changes beyond what a phase names. Every existing feature stays reachable.
+- The call screen keeps its layout, order and hotkeys.
+- App frame: the header stays fixed; below it each region (left rail, main column, right rail, a pipeline column, a list) scrolls on its own. The browser page itself doesn't scroll on desktop (≥1024px). Below 1024px the rails stack under the main column and the page scrolls normally.
+- Rails: left 248px, right 320px, separated by hairlines, using the ui/ primitives and docs/DESIGN.md. Each rail can be collapsed with a small "«" / "»" button; the choice is kept in localStorage.
+- Most important first: the next action sits at the top of each page; reference data goes lower or into a rail.
+
+## C7A Rate-limit fix (Sonnet 5.5, high)
+Why: the API allows 100 requests per minute per user, and the open pages poll often (dial pad 600 ms, timeline 8 s, leads 10 s, one count request per saved view every 30 s, two Today polls, spend, reminders, inbox). Two open tabs share the same limit. The owner sees "Too many requests".
+Read: backend/src/middleware/rateLimit.js, backend/src/index.js (the limiter mount), frontend/src/lib/api.js (`request`), frontend/src/lib/poll.js, hooks/useLeads.js, components/leads/SavedViewsBar.jsx, components/leads/LeadActionHub.jsx (the timeline poll), components/layout/AppShell.jsx (the Today and SMS polls), pages/Today.jsx (its poll), routes/viewsBulk.js (the counts route).
+Do:
+- API limit: 600 requests per minute per user by default, overridable with RATE_LIMIT_API_MAX in every environment (not only tests). The login limit stays 5 per minute. Update the test that checks the defaults.
+- One request for all saved-view counts: `GET /api/views/counts` returns every view's count; SavedViewsBar uses it.
+- Polls: Today data is fetched by one shared poll (AppShell's) that the Today page reuses, instead of two; the lead timeline polls every 30 s instead of 8 s; every poll pauses while the tab is hidden (use lib/poll.js everywhere it isn't used yet). Don't change the call screen's or dial pad's live polling.
+- `request()` in lib/api.js: on a 429 for a GET, wait for Retry-After (max 10 s) and retry once, silently. Show the error only if the retry fails too, as a short "Busy — retrying…" line, not a red error block.
+Tests: the new default and the env override; the counts route returns the same numbers as the single-view route. Gate extra: open Today, Leads (with 5 saved views), a lead page and Inbox in two tabs for 3 minutes in the screenshot script and print the request count per minute (it must stay well under 600) and zero 429s.
+
+## C7B App frame and Settings with a side menu (Sonnet 5.5, medium)
+Read: components/layout/AppShell.jsx, App.jsx, pages/Settings.jsx, pages/Campaigns.jsx, docs/DESIGN.md, the ui/ primitives.
+Do:
+- New `components/layout/PageFrame.jsx`: the three-region layout from the Block 3 rules (optional left rail, main, optional right rail), each scrolling on its own, with the collapse buttons. AppShell gives it the full height under the fixed header. Pages that don't use rails look as they do now, but scroll inside the main region.
+- Settings becomes a left side menu plus one section on the right. Routes `/settings/:section`; `/settings` opens Profile. Menu items, in this order: Profile, Dialing defaults, Reporting day, Files, Objections, Integrations & AI, Spend limits, SMS templates (links to the existing page), Activity (supervisor). The current section content moves as it is: no field or behavior changes.
+- Files (`/settings/files`, the old /settings/campaigns keeps working as a redirect): the file list in a second column; the selected file opens on the right with tabs BASICS (name, company label, goal, max attempts, budget) · SCRIPT & AI (AI context, pitch script) · STAGES · FIELDS. NEW FILE is a button at the top of the list that opens the create form.
+Gate extra: screenshots of every settings section and every Files tab, both themes; a phone-width screenshot of Settings.
+
+## C7C Today page, smart lists and lists (Sonnet 5.5, high)
+Read: pages/Today.jsx, components/assistant/BriefPanel.jsx, components/leads/SavedViewsBar.jsx, services/savedViews.js and routes/viewsBulk.js (signatures only), leadQueue.js tag functions (signatures only), pages/Dashboard.jsx (the leads page), components/layout/PageFrame.jsx.
+Do:
+- Today, main column, top to bottom:
+  1. Header row: title, file, START DIALING SESSION (the only primary button).
+  2. A compact numbers strip: dials today (display size), contacts, connect rate, the daily-goal meter.
+  3. "01 — TO DO": one list that merges the old DUE TODAY and TASKS sections. Two controls: WHEN = OVERDUE · TODAY · UPCOMING, and TYPE = ALL · CALLBACKS · TASKS · REPLIES · GONE QUIET. Each row has its action (CALL, REPLY, OPEN, DONE, RESCHEDULE). Add a one-line help text under TYPE: "Gone quiet = leads past Contacted with no activity for 7 days and no open task."
+  4. "02 — PIPELINE": the stage counts as one compact row linking to the board.
+- Today, right rail: "BRIEF" (the existing BriefPanel) on top, then "NEXT UP": the next 5 callbacks and tasks by time.
+- Left rail on Today and on the Leads page:
+  - "SMART LISTS": the saved views with live counts (from the C7A counts route), click opens the Leads page with that view; "+ NEW SMART LIST" saves the current Leads filters (existing save).
+  - "LISTS": hand-picked lists of people. A list is a tag that starts with "list:" (no new table). Shows each list with its count; "+ NEW LIST" asks for a name. On the Leads page, the selection strip gets "ADD TO LIST" and the lead page tags show list tags as "LIST · name". Clicking a list opens the Leads page filtered by that tag.
+  - "FILES": quick links to switch file (the existing switcher action).
+Tests: a list is a tag (adding to a list adds `list:<name>`), list counts. Gate extra: screenshots of Today (with data in every TO DO type) and the Leads page with both rails, both themes.
+
+## C7D Lead page in three columns (Sonnet 5.5, high)
+Read: pages/LeadDetail.jsx, components/leads/LeadActionHub.jsx, components/assistant/LeadSummaryPanel.jsx, DraftWithAi.jsx, components/leads/ColleagueCard.jsx, components/layout/PageFrame.jsx.
+Do (move existing parts; no behavior change):
+- Top bar across the page, always visible: name, company, status tag, stage, and CALL (primary), SMS, EMAIL, ADD TASK, with BACK on the left.
+- Left rail, "PROFILE": contact details (editable form as today, SAVE CHANGES), tags and lists, custom fields, best time to call, DELETE LEAD at the bottom.
+- Main column: the composer (SMS/email with DRAFT WITH AI) on top when opened from the top bar, then the timeline with its filters, scrolling on its own.
+- Right rail, "WORK": tasks (add, done), schedule a callback, AI summary, pipeline stage and deal value, office and colleagues.
+Gate extra: screenshots of a lead with a full timeline, both themes, and at phone width; CALL must be visible without scrolling at 1280×720.
+
+## C7E Pipeline search and scrolling (Sonnet 5.5, medium)
+Read: pages/Pipeline.jsx, services/pipeline.js `board` and routes/pipeline.js (the board route), the existing MOVE menu code, components/layout/PageFrame.jsx.
+Do:
+- Backend, one named edit: `board` accepts an optional `search` (name, company, phone last digits or tag, same matching as the lead search) and returns only matching cards per stage, with counts of matches.
+- A search field at the top of the board: as you type (debounced), every column shows only the matching cards; a "CLEAR" button restores the board. Drag a card to any column, or use MOVE →, exactly as today.
+- The board scrolls sideways inside its own area; each column scrolls on its own and keeps its LOAD MORE. The page itself doesn't scroll.
+- Cards show name, company, status tag, tags, last activity, and a small CALL link.
+Tests: board search per stage and its counts. Gate extra: screenshots of a search with results in two columns, both themes.
+
+## C7F Smarter assistant (Opus 5.5, high)
+Why: the assistant refuses anything not in the data ("I don't have that information") — even how to use the app, its own model, or general calling advice.
+Read: services/assistant/index.js, tools.js, extras.js, services/bestTime.js, objectionService.js `getReport`, reports.js (funnel function), campaigns.js `getById`, components/assistant/AssistantPanel.jsx, backend/tests (the assistant tests and the Groq tools stub).
+Do:
+- Three kinds of answers, said in the system prompt:
+  1. Your data: anything about leads, tasks, pipeline, numbers, spend: use the tools, cite leads as [lead:ID], never invent data.
+  2. How to use Vortex One Outreach: answer from a new `docs/USER_GUIDE.md` (write it: one short section per page and per common task — create a file/campaign, add a task, make a smart list or list, import, move stages, set rates, dialing session, hotkeys), loaded by a new `get_app_help(topic)` tool.
+  3. General knowledge and advice: cold calling, follow-up timing, objection handling, scripts, US real estate agents, insurance supplementing for roofers, writing texts and emails. Allowed from the model's own knowledge, and marked with one short line "General advice — not from your data." It may combine this with the user's numbers when helpful.
+  The assistant may say which model it runs on (from settings) and what it can and can't do. It still never sends, dials or changes data, and the privacy rules stay.
+- New read-only tools: `get_best_times` (bestTime.js, lead or state), `get_objections` (the objection report), `get_funnel` (the stage funnel), `get_file` (the active file's AI context, company label, pitch script and goals), `get_app_help`.
+- Answers: up to about 12 lines, short markdown lists allowed; when the data is thin, say so and give the best general advice instead of a bare "I don't know".
+- Optional WEB switch in the panel (off by default): when on, the question alone — never CRM data — is sent to a Groq model with built-in web search (for example `openai/gpt-oss-120b` with browser search, or `groq/compound`). If the account or SDK doesn't support it, leave the switch out and say so in the report.
+- Panel: suggested questions grouped as YOUR DATA · HOW DO I · ADVICE; the conversation keeps the last 10 turns.
+Tests (with the stub): a "how do I create a task" question calls get_app_help; a general question returns the general-advice line and no tool calls; data questions still use tools and cite leads; privacy rules unchanged; WEB never sends CRM data. Gate extra: run 10 sample questions against the real Groq key only if the owner sets RUN_LIVE_AI=1, and print the answers.
+
 ## Later (specs get written when their turn comes)
 - Real Telnyx adapter (roadmap Phase C): possible once C1E and C4A are merged.
 - Meetings. Extra phone numbers per lead and a company panel. Email templates and a unified inbox. Sequences. Website lead capture.
@@ -434,3 +508,9 @@ Tests: an activity row is written for a change and not for a GET, and never hold
 - C6A: done
 - C6B: done
 - C6C: done
+- C7A: not started
+- C7B: not started
+- C7C: not started
+- C7D: not started
+- C7E: not started
+- C7F: not started
