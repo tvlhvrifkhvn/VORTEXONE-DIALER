@@ -9,6 +9,7 @@ import CustomFieldsPanel from '../components/leads/CustomFieldsPanel';
 import TagEditor from '../components/leads/TagEditor';
 import TaskPanel from '../components/tasks/TaskPanel';
 import LeadSummaryPanel from '../components/assistant/LeadSummaryPanel';
+import BestTimeHint from '../components/leads/BestTimeHint';
 import Panel from '../components/ui/Panel';
 import Button from '../components/ui/Button';
 import Field from '../components/ui/Field';
@@ -196,6 +197,9 @@ export default function LeadDetail() {
                 : "No phone number on file — this lead can't be dialed until one is added below."}
             </p>
           )}
+
+          {/* C6C: the best local hour to call, from the last 90 days. */}
+          <BestTimeHint leadId={lead.id} />
 
           {/* C2D: tags with add and remove. */}
           <TagEditor lead={lead} onChange={(updated) => setLead((l) => ({ ...l, ...updated }))} />

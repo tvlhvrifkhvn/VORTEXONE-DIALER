@@ -3,6 +3,8 @@ import AppShell from '../components/layout/AppShell';
 import StatCard from '../components/stats/StatCard';
 import StateReport from '../components/stats/StateReport';
 import ObjectionReport from '../components/stats/ObjectionReport';
+import BestHoursTable from '../components/stats/BestHoursTable';
+import StageFunnel from '../components/stats/StageFunnel';
 import Panel from '../components/ui/Panel';
 import Button from '../components/ui/Button';
 import Field from '../components/ui/Field';
@@ -61,6 +63,8 @@ export default function Reports() {
   const [today, setToday] = useState({ dials: 0, contacts: 0, connectRate: 0 });
   const [states, setStates] = useState([]);
   const [manualCalls, setManualCalls] = useState([]);
+  const [bestHours, setBestHours] = useState(null); // C6C
+  const [funnel, setFunnel] = useState(null); // C6C
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   // C1E: THIS FILE (the active file) or ALL FILES ('ALL' on every request).
@@ -77,11 +81,15 @@ export default function Reports() {
       api.getTodayStats(nextPeriod, nextCampaign),
       api.getPerStateReport(nextCampaign),
       api.getManualCallsToday(nextPeriod, nextCampaign),
+      api.getBestHours(nextCampaign),
+      api.getFunnel(nextPeriod, nextCampaign),
     ])
-      .then(([todayStats, perState, manual]) => {
+      .then(([todayStats, perState, manual, best, stageFunnel]) => {
         setToday(todayStats);
         setStates(perState.states);
         setManualCalls(manual.calls);
+        setBestHours(best);
+        setFunnel(stageFunnel);
       })
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
@@ -142,6 +150,9 @@ export default function Reports() {
             ) : (
               <ObjectionReport />
             )}
+            {/* C6C */}
+            <BestHoursTable data={bestHours} index="04" />
+            <StageFunnel data={funnel} index="05" />
           </>
         )}
       </div>
