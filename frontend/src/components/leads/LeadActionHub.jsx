@@ -4,6 +4,7 @@ import { ArrowRight, File, ListTodo, Mail, MessageSquare, Paperclip, Phone, Stic
 import Panel from '../ui/Panel';
 import Button from '../ui/Button';
 import Field from '../ui/Field';
+import DraftWithAi from '../assistant/DraftWithAi';
 import Segmented from '../ui/Segmented';
 import { formatDateTime } from '../../lib/format';
 import * as api from '../../lib/api';
@@ -103,6 +104,16 @@ export function SmsCompose({ lead, onSent }) {
 
   return (
     <div className="space-y-2 border bg-muted p-4">
+      {/* C5C: the draft goes into the custom message; SEND stays the owner's. */}
+      <DraftWithAi
+        leadId={lead.id}
+        channel="sms"
+        onDraft={(d) => {
+          setUseCustom(true);
+          setTemplateId('');
+          setCustomText(d.text);
+        }}
+      />
       <Field
         as="select"
         value={useCustom ? 'custom' : templateId}
@@ -238,6 +249,15 @@ export function EmailCompose({ lead, onSent }) {
 
   return (
     <div className="space-y-2 border bg-muted p-4">
+      {/* C5C: the draft fills subject and body; SEND stays the owner's. */}
+      <DraftWithAi
+        leadId={lead.id}
+        channel="email"
+        onDraft={(d) => {
+          setSubject(d.subject || '');
+          setBody(d.body);
+        }}
+      />
       <Field
         value={subject}
         onChange={(e) => setSubject(e.target.value)}

@@ -333,6 +333,8 @@ export const getSessionStats = (id) => request(`/sessions/${id}`);
 // C5B: the assistant (C5A routes). campaign 'ALL' asks across every file.
 export const askAssistant = (question, history, campaign) =>
   request('/assistant/ask', { method: 'POST', body: { question, history }, campaign });
+export const getBrief = ({ refresh = false } = {}, campaign) => request(`/assistant/brief${refresh ? '?refresh=1' : ''}`, { campaign });
+export const draftMessage = (leadId, channel, intent) => request(`/leads/${leadId}/draft`, { method: 'POST', body: { channel, intent } });
 export const getLeadSummary = (id, { refresh = false } = {}) => request(`/leads/${id}/summary${refresh ? '?refresh=1' : ''}`);
 
 // campaigns ("files", C1E)

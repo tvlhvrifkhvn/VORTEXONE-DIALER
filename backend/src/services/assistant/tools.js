@@ -429,6 +429,43 @@ async function listCampaigns(args, ctx) {
   return capped('files', rows);
 }
 
+// ---- proposals (C5C): recorded for the owner to confirm, never executed --------
+
+const MAX_PROPOSALS = 5;
+
+function recordProposal(ctx, proposal) {
+  if (!ctx.proposals) throw new ToolArgError('Proposals are not available here');
+  if (ctx.proposals.length >= MAX_PROPOSALS) throw new ToolArgError(`At most ${MAX_PROPOSALS} proposals per answer`);
+  ctx.proposals.push(proposal);
+  return { recorded: true, note: 'Shown to the user as a card to confirm or dismiss. Nothing has changed yet: never say it is done.' };
+}
+
+async function proposeTask(args, ctx) {
+  const lead = await loadLead(requiredId(args, 'lead_id'));
+  let checked;
+  try {
+    checked = tasks.checkInput({ title: args.title, type: args.type, dueAt: args.due_at });
+  } catch (err) {
+    throw new ToolArgError(err.message);
+  }
+  remember(ctx, lead.id, lead.name);
+  return recordProposal(ctx, {
+    kind: 'task', leadId: lead.id, leadName: lead.name, title: checked.title, type: checked.type, dueAt: checked.due.toISOString(),
+  });
+}
+
+async function proposeStage(args, ctx) {
+  const lead = await loadLead(requiredId(args, 'lead_id'));
+  const stage = await pipeline.getStage(db, requiredId(args, 'stage_id'));
+  if (!stage || stage.campaign_id !== lead.campaign_id) throw new ToolArgError("That stage isn't one of this lead's file (get_pipeline lists the stages)");
+  if (stage.id === lead.pipeline_stage_id) throw new ToolArgError('The lead is already in that stage');
+  const from = await pipeline.getStage(db, lead.pipeline_stage_id);
+  remember(ctx, lead.id, lead.name);
+  return recordProposal(ctx, {
+    kind: 'stage', leadId: lead.id, leadName: lead.name, stageId: stage.id, stageName: stage.name, stageKind: stage.kind, fromStage: from ? from.name : null,
+  });
+}
+
 // ---- the registry (names, descriptions and JSON schemas sent to the model) -----
 
 const campaignParam = {
@@ -494,6 +531,31 @@ const TOOLS = {
     description: "Call spend in cents: today, this month, the budgets and their state, and the split by file.",
     parameters: { type: 'object', properties: {}, additionalProperties: false },
   },
+  propose_task: {
+    run: proposeTask,
+    description: 'Propose a task for a lead. It is NOT created: the user sees a card and confirms or dismisses it.',
+    parameters: {
+      type: 'object',
+      properties: {
+        lead_id: { type: 'integer' },
+        title: { type: 'string', description: 'Short, e.g. "Call back about pricing".' },
+        due_at: { type: 'string', description: 'ISO 8601 date and time with offset, e.g. 2026-11-18T10:00:00-05:00.' },
+        type: { type: 'string', enum: ['call', 'email', 'text', 'other'] },
+      },
+      required: ['lead_id', 'title', 'due_at'],
+      additionalProperties: false,
+    },
+  },
+  propose_stage: {
+    run: proposeStage,
+    description: "Propose moving a lead to another pipeline stage of its file (get_pipeline lists stage ids). It is NOT moved: the user confirms or dismisses it.",
+    parameters: {
+      type: 'object',
+      properties: { lead_id: { type: 'integer' }, stage_id: { type: 'integer' } },
+      required: ['lead_id', 'stage_id'],
+      additionalProperties: false,
+    },
+  },
   list_campaigns: {
     run: listCampaigns,
     description: 'Every file (campaign) with its number, kind and status, and which one is current.',
@@ -520,4 +582,4 @@ async function run(name, args, ctx) {
   return sanitize(await tool.run(args, ctx));
 }
 
-module.exports = { TOOLS, MAX_ROWS, MAX_TEXT, ToolArgError, specs, run, sanitize, scrubText, last4, getLead, getTimeline };
+module.exports = { periodFor, leadRow, fileNames, TOOLS, MAX_ROWS, MAX_PROPOSALS, MAX_TEXT, ToolArgError, specs, run, sanitize, scrubText, last4, getLead, getTimeline };
