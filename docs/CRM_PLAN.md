@@ -508,7 +508,7 @@ Tests (with the stub): a "how do I create a task" question calls get_app_help; a
 - C6A: done
 - C6B: done
 - C6C: done
-- C7A: not started
+- C7A: done
 - C7B: not started
 - C7C: not started
 - C7D: not started
