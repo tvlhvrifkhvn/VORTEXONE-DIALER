@@ -10,6 +10,7 @@ import * as api from '../lib/api';
 import { useUserSettings } from '../hooks/useUserSettings';
 import { useCampaign, fileLabel } from '../hooks/useCampaign';
 import { refreshSpend } from '../hooks/useSpend';
+import AssistantSettings from '../components/assistant/AssistantSettings';
 
 // Global, supervisor only (F-48): applies to new leads (created or imported).
 const MAX_ATTEMPTS_KEY = 'default_max_attempts';
@@ -494,11 +495,12 @@ function IntegrationsSection() {
   };
 
   return (
-    <Panel className="space-y-4 p-6">
+    <Panel className="space-y-4 p-6" id="integrations">
       <SectionLabel index="06" title="Integrations" />
       <p className="text-sm text-muted-foreground">
-        Configure the Groq API key used for AI CSV column mapping and the Expand note button — without it,
-        those features degrade gracefully (manual mapping, notes unchanged).
+        Configure the Groq API key used for the assistant (ASK and the lead summary), AI CSV column mapping and the
+        Expand note button. Without it the assistant says it isn't set up and the rest degrade gracefully (manual
+        mapping, notes unchanged).
       </p>
       <p className="text-sm text-muted-foreground">
         A key saved here lives in this app's database: it stays through restarts, but not if the Codespace is deleted or
@@ -534,6 +536,7 @@ function IntegrationsSection() {
           {saving ? 'Saving…' : status.configured ? 'Replace key' : 'Save key'}
         </Button>
       </form>
+      <AssistantSettings isSupervisor={isSupervisor} />
     </Panel>
   );
 }

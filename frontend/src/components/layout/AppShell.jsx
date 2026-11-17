@@ -6,6 +6,7 @@ import Field from '../ui/Field';
 import Badge from '../ui/Badge';
 import CampaignSwitcher from './CampaignSwitcher';
 import SpendMeter from './SpendMeter';
+import AssistantPanel from '../assistant/AssistantPanel';
 import Meter from '../ui/Meter';
 import Segmented from '../ui/Segmented';
 import StatusDot from '../ui/StatusDot';
@@ -301,6 +302,7 @@ export default function AppShell({ children }) {
   const sessionLive = useSessionLive();
   const unreadSmsCount = useSmsInboxPoll();
   const todayDue = useTodayDue();
+  const [askOpen, setAskOpen] = useState(false); // C5B: the ASK drawer
 
   useEffect(() => {
     document.documentElement.dataset.theme = darkMode ? 'ink' : 'paper';
@@ -388,6 +390,9 @@ export default function AppShell({ children }) {
           <div className="flex items-center gap-4">
             {/* C2B: hidden below 2xl so the header stays one row with the PIPELINE link. */}
             {user && <span className="hidden text-sm text-muted-foreground 2xl:inline">{user.name}</span>}
+            <Button active={askOpen} aria-expanded={askOpen} onClick={() => setAskOpen((o) => !o)} title="Ask the assistant about your CRM data">
+              Ask
+            </Button>
             <Button onClick={() => navigate('/call/manual')} title="Dial a number">
               <Phone size={16} strokeWidth={1.5} aria-hidden="true" />
               Dial
@@ -420,6 +425,7 @@ export default function AppShell({ children }) {
         </div>
       </header>
       <main className="px-6 pb-10">{children}</main>
+      {askOpen && <AssistantPanel onClose={() => setAskOpen(false)} />}
     </div>
   );
 }

@@ -8,6 +8,7 @@ import LeadStagePanel from '../components/pipeline/LeadStagePanel';
 import CustomFieldsPanel from '../components/leads/CustomFieldsPanel';
 import TagEditor from '../components/leads/TagEditor';
 import TaskPanel from '../components/tasks/TaskPanel';
+import LeadSummaryPanel from '../components/assistant/LeadSummaryPanel';
 import Panel from '../components/ui/Panel';
 import Button from '../components/ui/Button';
 import Field from '../components/ui/Field';
@@ -196,6 +197,9 @@ export default function LeadDetail() {
         {String(lead.campaign_id) === String(activeId) && (
           <CustomFieldsPanel lead={lead} onChange={(updated) => setLead((l) => ({ ...l, ...updated }))} />
         )}
+
+        {/* C5B: the AI summary, on request only. */}
+        <LeadSummaryPanel key={lead.id} leadId={lead.id} />
 
         {/* C3A: tasks (add, complete). */}
         <TaskPanel lead={lead} />
