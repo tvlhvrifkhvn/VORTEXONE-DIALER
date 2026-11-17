@@ -115,10 +115,14 @@ async function request(path, { method = 'GET', body, isFormData = false, campaig
       setCampaignId(DEFAULT_CAMPAIGN_ID);
       return request(path, { method, body, isFormData, campaignRetried: true });
     }
-    if (res.status >= 500) showServerErrorToast();
+    // C5B: the assistant shows its own errors (not configured, Groq down) where it was asked.
+    const assistantPath = path.startsWith('/assistant/') || /^\/leads\/\d+\/summary/.test(path);
+    if (res.status >= 500 && !assistantPath) showServerErrorToast();
     const message = (data && data.error) || res.statusText || 'Request failed';
     const error = new Error(message);
     error.status = res.status;
+    // C5B: the server's machine-readable code (e.g. assistant_not_configured), when it sends one.
+    error.code = (data && data.code) || null;
     // Seconds to wait before trying again (rate limit), when the server says.
     error.retryAfter = Number(res.headers.get('Retry-After')) || null;
     throw error;
@@ -325,6 +329,11 @@ export const getToday = (campaign) => request('/today', { campaign });
 // spend and sessions (C4A/C4B)
 export const getSpend = (campaign) => request('/spend', { campaign });
 export const getSessionStats = (id) => request(`/sessions/${id}`);
+
+// C5B: the assistant (C5A routes). campaign 'ALL' asks across every file.
+export const askAssistant = (question, history, campaign) =>
+  request('/assistant/ask', { method: 'POST', body: { question, history }, campaign });
+export const getLeadSummary = (id, { refresh = false } = {}) => request(`/leads/${id}/summary${refresh ? '?refresh=1' : ''}`);
 
 // campaigns ("files", C1E)
 export const listCampaigns = () => request('/campaigns');

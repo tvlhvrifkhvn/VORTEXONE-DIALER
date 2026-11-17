@@ -206,3 +206,10 @@
 - 2026-11-16 · C5A · A cached summary makes no Groq call and writes no log row; GET …/summary?refresh=1 skips the cache (the C5B REFRESH button) · the log counts model calls (tokens); REFRESH needs a way past the cache
 - 2026-11-16 · C5A · The assistant's own limit (20/min per user) counts every assistant request, a 503 included; run.js doesn't raise it, so the suite can test it (RATE_LIMIT_ASSISTANT_MAX exists for later suites) · the limit itself is under test
 - 2026-11-16 · C5A · assistant_enabled is "true" or "false" (unset = on), like calling_hours_enforced; assistant_model accepts a Groq model name (letters, digits, . _ / : -) · the existing settings form
+- 2026-11-17 · C5B · ASK sits in the header's first row, before DIAL; the drawer is fixed to the right edge over the page, with no scrim and nothing underneath moving · the plan's "drawer on the right, call screen layout unchanged"; the call can be watched while asking
+- 2026-11-17 · C5B · The question box sends on Enter (Shift+Enter for a new line); it's a textarea, which the call screen's hotkeys already skip · no new hotkeys
+- 2026-11-17 · C5B · The THIS FILE | ALL FILES choice is kept with the conversation (sessionStorage) and each question shows which it used · a later answer's scope is never in doubt
+- 2026-11-17 · C5B · Assistant 5xx errors (503 not configured, 502/504 Groq down) don't show the global "Something went wrong" toast; the drawer or the summary panel says what happened · one message, where it was asked
+- 2026-11-17 · C5B · The summary never runs on page load: GENERATE first, then REFRESH (skips the 10-minute cache) · Groq calls only on request, as the plan says for the brief
+- 2026-11-17 · C5B · The assistant on/off and model sit in Settings → Integrations below the Groq key, supervisor only (a rep sees them read-only) · the plan's place; the server checks the role too
+- 2026-11-17 · C5B · Gate screenshots use audit/scripts/c5b-groq-stub.js (a local Groq stand-in) and c5b-shots.js, one theme a minute (the app's 100/min limit) · stubbed answers, never the real API
