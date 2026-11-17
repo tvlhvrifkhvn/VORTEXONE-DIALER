@@ -30,18 +30,29 @@ export default function SavedViewsBar({ filters, emptyFilters, onApply }) {
   const [name, setName] = useState('');
   const [error, setError] = useState(null);
 
-  const load = useCallback(async () => {
+  // C7A: the views once (and after a change); their counts from one request every 30 s.
+  const loadCounts = useCallback(async () => {
     try {
-      setViews((await api.listViews({ counts: true })).views || []);
+      const counts = new Map(((await api.getViewCounts()).counts || []).map((c) => [c.id, c.count]));
+      setViews((list) => list.map((v) => (counts.has(v.id) ? { ...v, count: counts.get(v.id) } : v)));
     } catch {
-      /* the bar stays as it was */
+      /* the counts stay as they were */
     }
   }, []);
 
+  const load = useCallback(async () => {
+    try {
+      setViews((await api.listViews()).views || []);
+    } catch {
+      /* the bar stays as it was */
+    }
+    await loadCounts();
+  }, [loadCounts]);
+
   useEffect(() => {
     load();
-    return pollWhileVisible(load, COUNT_POLL_MS);
-  }, [load]);
+    return pollWhileVisible(loadCounts, COUNT_POLL_MS);
+  }, [load, loadCounts]);
 
   const hasFilters = Object.keys(normalizeFilters(filters)).length > 0;
 

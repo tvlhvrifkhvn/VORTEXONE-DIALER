@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import * as api from '../lib/api';
+import { pollWhileVisible } from '../lib/poll';
 
 // Reminders (C6A): polls GET /api/tasks/due-soon every 60 s and shows each
 // task or callback as a toast at its due time (already due: at once). The
@@ -85,10 +86,10 @@ export function useReminders() {
 
   useEffect(() => {
     poll();
-    const id = setInterval(poll, POLL_MS);
+    const stopPoll = pollWhileVisible(poll, POLL_MS); // C7A: due items are caught up when the tab shows again
     const pending = timers.current;
     return () => {
-      clearInterval(id);
+      stopPoll();
       pending.forEach((t) => clearTimeout(t));
       pending.clear();
     };

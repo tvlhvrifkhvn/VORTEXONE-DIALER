@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import * as api from '../lib/api';
+import { pollWhileVisible } from '../lib/poll';
 
 export const IMPORT_JOB_KEY = 'vortex_dialer_import_job';
 const POLL_MS = 1500;
@@ -28,7 +29,7 @@ function storedJobId() {
 
 function stopPolling() {
   if (pollTimer) {
-    clearInterval(pollTimer);
+    pollTimer();
     pollTimer = null;
   }
 }
@@ -60,7 +61,7 @@ async function pollOnce() {
 function startPolling() {
   if (pollTimer) return;
   pollOnce();
-  pollTimer = setInterval(pollOnce, POLL_MS);
+  pollTimer = pollWhileVisible(pollOnce, POLL_MS); // C7A: paused while hidden, caught up on return
 }
 
 /** Called when a job is kicked off, so polling begins immediately. */

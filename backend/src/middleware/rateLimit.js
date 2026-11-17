@@ -38,15 +38,21 @@ const loginLimiter = rateLimit({
   message: { error: 'Too many login attempts — try again in a minute.' },
 });
 
-// 100 requests per minute per user (falls back to per-IP when unauthenticated).
-const API_MAX = 100;
+// C7A: 600 requests per minute per user (per IP when unauthenticated), so a
+// few open tabs' background polls never reach it. RATE_LIMIT_API_MAX
+// overrides it in every environment (the login limit's override stays tests-only).
+const API_MAX = 600;
+function apiMax() {
+  const raised = Number(process.env.RATE_LIMIT_API_MAX);
+  return Number.isInteger(raised) && raised > 0 ? raised : API_MAX;
+}
 const apiLimiter = rateLimit({
   windowMs: 60 * 1000,
-  max: maxFor('RATE_LIMIT_API_MAX', API_MAX),
+  max: apiMax(),
   standardHeaders: true,
   legacyHeaders: false,
   keyGenerator: userOrIpKey,
   message: { error: 'Too many requests — slow down and try again shortly.' },
 });
 
-module.exports = { loginLimiter, apiLimiter, maxFor, LOGIN_MAX, API_MAX };
+module.exports = { loginLimiter, apiLimiter, maxFor, apiMax, LOGIN_MAX, API_MAX };

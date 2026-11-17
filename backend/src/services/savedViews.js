@@ -5,6 +5,7 @@
 const db = require('../db');
 const { ApiError } = require('../middleware/errorHandler');
 const leadQueue = require('./leadQueue');
+const campaignScope = require('./campaignScope');
 
 const FILTER_KEYS = ['search', 'status', 'dateFrom', 'dateTo', 'state', 'stageId', 'tag', 'minAttempts', 'noActivityDays', 'callbackOverdue'];
 const MAX_NAME = 40;
@@ -113,4 +114,29 @@ async function reorder(userId, campaignId, ids) {
   return list(userId, campaignId);
 }
 
-module.exports = { FILTER_KEYS, list, create, rename, remove, reorder };
+/**
+ * C7A: every view's live count in one call ({ counts: [{ id, count }] }), the
+ * same numbers as the lead list's total for each view's filters, from one
+ * count query per view (no page of rows, no queue peek).
+ */
+async function counts(userId, campaignId) {
+  const views = await list(userId, campaignId);
+  await leadQueue.releaseStaleLocks(); // as the list does before counting
+  const out = [];
+  for (const v of views) {
+    const f = leadQueue.parseListQuery(v.filters);
+    const built = leadQueue.buildListFilters(f);
+    const s = campaignScope.scope('leads', campaignId, built.params.length + 1);
+    const params = [...built.params, ...s.params];
+    let where = `${built.where} AND ${s.sql}`;
+    if (f.state) {
+      params.push(f.state);
+      where += ` AND state = $${params.length}`;
+    }
+    const { rows } = await db.query(`SELECT count(*)::int AS total FROM leads ${where}`, params);
+    out.push({ id: v.id, count: rows[0].total });
+  }
+  return out;
+}
+
+module.exports = { FILTER_KEYS, list, counts, create, rename, remove, reorder };

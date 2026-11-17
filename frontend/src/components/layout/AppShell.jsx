@@ -16,6 +16,7 @@ import { useImportJob } from '../../hooks/useImportJob';
 import { getActiveSessionId } from '../../hooks/useCall';
 import * as api from '../../lib/api';
 import { pollWhileVisible } from '../../lib/poll';
+import { useToday } from '../../hooks/useToday';
 
 const navLinkClasses = ({ isActive }) =>
   `inline-flex min-h-10 items-center px-2 font-mono text-sm font-medium uppercase tracking-button transition-colors duration-150 ${
@@ -226,26 +227,11 @@ function useSmsInboxPoll() {
   return unreadLeadCount;
 }
 
-const TODAY_POLL_MS = 60000;
-
-/** C3B: how many callbacks and tasks are due today (overdue included), for the TODAY badge. */
+/** C3B: how many callbacks and tasks are due today (overdue included), for the TODAY badge.
+ * C7A: from the shared Today poll (hooks/useToday.js), which the Today page reuses. */
 function useTodayDue() {
-  const [due, setDue] = useState(0);
-  useEffect(() => {
-    let cancelled = false;
-    const poll = () =>
-      api
-        .getToday()
-        .then((t) => !cancelled && setDue(t.callbacks.total + t.tasks.total))
-        .catch(() => {});
-    poll();
-    const stop = pollWhileVisible(poll, TODAY_POLL_MS);
-    return () => {
-      cancelled = true;
-      stop();
-    };
-  }, []);
-  return due;
+  const today = useToday();
+  return today ? today.callbacks.total + today.tasks.total : 0;
 }
 
 const SESSION_POLL_MS = 2000;
