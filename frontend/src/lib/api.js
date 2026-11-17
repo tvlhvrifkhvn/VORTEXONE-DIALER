@@ -347,6 +347,9 @@ export const reorderCampaignFields = (campaignId, ids) =>
 // saved views and bulk actions (C2E)
 export const listViews = ({ counts = false } = {}) => request(`/views${counts ? '?counts=1' : ''}`);
 export const getViewCounts = () => request('/views/counts'); // C7A: every view's count in one request
+// C7C: lists = tags starting with "list:".
+export const getLists = (campaign) => request('/leads/lists', { campaign });
+export const addToList = (leadIds, name) => request('/leads/lists/add', { method: 'POST', body: { leadIds, name } });
 export const createView = (name, filters) => request('/views', { method: 'POST', body: { name, filters } });
 export const renameView = (id, name) => request(`/views/${id}`, { method: 'PUT', body: { name } });
 export const deleteView = (id) => request(`/views/${id}`, { method: 'DELETE' });

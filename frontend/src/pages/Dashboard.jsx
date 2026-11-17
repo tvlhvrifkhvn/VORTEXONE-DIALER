@@ -1,11 +1,14 @@
 import { useEffect, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import AppShell from '../components/layout/AppShell';
 import StateSidebar from '../components/layout/StateSidebar';
 import LeadTable from '../components/leads/LeadTable';
 import LeadFilters from '../components/leads/LeadFilters';
 import BulkSmsModal from '../components/leads/BulkSmsModal';
-import SavedViewsBar from '../components/leads/SavedViewsBar';
+import SavedViewsBar, { normalizeFilters } from '../components/leads/SavedViewsBar';
+import AddToList from '../components/leads/AddToList';
+import PageFrame from '../components/layout/PageFrame';
+import LeftRail from '../components/layout/LeftRail';
 import BulkActions from '../components/leads/BulkActions';
 import DuplicatesView from '../components/leads/DuplicatesView';
 import StatCard from '../components/stats/StatCard';
@@ -101,6 +104,24 @@ export default function Dashboard() {
   const navigate = useNavigate();
   const [filters, setFilters] = useState(EMPTY_FILTERS);
   const { leads, total, page, pageSize, setPage, loading, refresh } = useLeads(filters);
+  // C7C: the left rail opens this page with ?view=<smart list> or ?tag=<list tag>.
+  const [params] = useSearchParams();
+  const [railKey, setRailKey] = useState(0);
+  const viewParam = params.get('view');
+  const tagParam = params.get('tag');
+  useEffect(() => {
+    if (viewParam) {
+      api
+        .listViews()
+        .then(({ views }) => {
+          const v = (views || []).find((x) => String(x.id) === viewParam);
+          if (v) setFilters({ ...EMPTY_FILTERS, ...v.filters });
+        })
+        .catch(() => {});
+    } else if (tagParam) {
+      setFilters({ ...EMPTY_FILTERS, tag: tagParam });
+    }
+  }, [viewParam, tagParam]);
   const { counts, refresh: refreshCounts } = useStateCounts();
   const [stats, setStats] = useState({ dials: 0, contacts: 0, connectRate: 0 });
   const { settings: userSettings } = useUserSettings();
@@ -190,8 +211,27 @@ export default function Dashboard() {
     navigate('/dialer', { state: { lineCount, leadIds } });
   };
 
+  // C7C: the rail's "+ NEW SMART LIST" saves these filters; "+ NEW LIST" adds the selection.
+  const saveSmartList = (name) => api.createView(name, normalizeFilters(filters));
+  const newList = async (name) => {
+    if (selectedIds.size === 0) return false;
+    await api.addToList([...selectedIds], name);
+    refresh();
+    return true;
+  };
+  const rail = (
+    <LeftRail
+      activeViewId={viewParam ? Number(viewParam) : null}
+      activeTag={filters.tag && String(filters.tag).startsWith('list:') ? filters.tag : null}
+      onSaveSmartList={saveSmartList}
+      onNewList={newList}
+      refreshKey={railKey}
+    />
+  );
+
   return (
-    <AppShell>
+    <AppShell framed>
+      <PageFrame id="leads" left={rail} leftLabel="Lists and files">
       <div className="mx-auto mt-6 flex max-w-[1440px] flex-col gap-6">
         <div className="flex flex-wrap gap-4">
           <StatCard label="Dials today" value={stats.dials} size="display" />
@@ -290,6 +330,14 @@ export default function Dashboard() {
                 </div>
                 {/* C2E: stage, tag and file actions on the selection. */}
                 <BulkActions selectedIds={selectedIds} onDone={() => refresh()} />
+                {/* C7C: hand-picked lists (list:<name> tags). */}
+                <AddToList
+                  selectedIds={selectedIds}
+                  onDone={() => {
+                    refresh();
+                    setRailKey((k) => k + 1);
+                  }}
+                />
               </Panel>
             )}
 
@@ -323,6 +371,7 @@ export default function Dashboard() {
           </div>
         </div>
       </div>
+      </PageFrame>
     </AppShell>
   );
 }

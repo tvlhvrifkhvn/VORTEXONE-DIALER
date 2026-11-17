@@ -42,7 +42,8 @@ export default function TagEditor({ lead, onChange }) {
         {(lead.tags || []).length === 0 && <li className="text-sm text-muted-foreground">No tags</li>}
         {(lead.tags || []).map((tag) => (
           <li key={tag} className="flex items-center">
-            <Badge>{tag}</Badge>
+            {/* C7C: list:<name> tags are lists. */}
+            <Badge tone={tag.startsWith('list:') ? 'solid' : 'outline'}>{tag.startsWith('list:') ? `List · ${tag.slice(5)}` : tag}</Badge>
             <button
               type="button"
               onClick={() => run(() => api.removeLeadTag(lead.id, tag))}
