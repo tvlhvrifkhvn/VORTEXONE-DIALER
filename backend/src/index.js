@@ -36,6 +36,7 @@ const assistantRoutes = require('./routes/assistant');
 const leadExportRoutes = require('./routes/leadExport');
 const duplicatesRoutes = require('./routes/duplicates');
 const insightsRoutes = require('./routes/insights');
+const leadListsRoutes = require('./routes/leadLists');
 const { activity } = require('./middleware/activity');
 const activityLog = require('./services/activityLog');
 
@@ -94,6 +95,7 @@ app.use('/api/leads', assistantRoutes.leadRouter);
 app.use('/api/leads', leadExportRoutes);
 app.use('/api/leads', duplicatesRoutes);
 app.use('/api/leads', insightsRoutes.leadRouter);
+app.use('/api/leads', leadListsRoutes); // C7C
 app.use('/api/leads', leadsRoutes);
 app.use('/api/calls', callsRoutes);
 app.use('/api/dispositions', dispositionsRoutes);

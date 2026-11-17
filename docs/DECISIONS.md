@@ -262,3 +262,10 @@
 - 2026-11-18 · C7B · BASICS and SCRIPT & AI are two views of the same form and the same SAVE FILE (the same update as before) · no field or behavior change
 - 2026-11-18 · C7B · Links into Settings point at the new addresses (spend meter → /settings/spend-limits, the assistant's not-configured line → /settings/integrations, the file switcher's MANAGE FILES → /settings/files); the old addresses redirect · nothing breaks for a bookmark
 - 2026-11-18 · C7B · The Settings "04 — FILES" summary card is gone: its sentence heads the Files screen, which it used to link to · the menu item now is the Files screen
+- 2026-11-18 · C7C · TO DO's WHEN: OVERDUE = overdue callbacks and tasks plus replies and gone-quiet leads (they wait on you); TODAY = everything due by the end of today (the old DUE TODAY, the default); UPCOMING = tasks and scheduled callbacks after today · replies and quiet leads have no due time, so they sit where action is needed now
+- 2026-11-18 · C7C · Upcoming callbacks come from the lead list (status callback_scheduled, after the end of today); upcoming tasks from GET /api/tasks?view=upcoming; both polled every 60 s while visible · no new route
+- 2026-11-18 · C7C · A list with no members can't exist as a tag, so "+ NEW LIST" adds the Leads selection at once, or keeps the name in this browser until ADD TO LIST uses it · the plan's "no new table"
+- 2026-11-18 · C7C · List names are 1–35 characters ("list:" + name fits the 40-character tag limit); a list tag shows as a solid "LIST · name" on the lead page · lists read differently from plain tags
+- 2026-11-18 · C7C · The Leads page keeps its saved-views bar above the table as well as the rail's SMART LISTS · the plan adds the rail; removing the bar would be a behavior change
+- 2026-11-18 · C7C · The rail's FILES entries are disabled during a live dialing session, like the header's file switcher · a session never changes file under you
+- 2026-11-18 · C7C · "Dials today" uses the DESIGN display size (text-display) in the numbers strip · the plan's "display size"
