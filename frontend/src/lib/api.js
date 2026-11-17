@@ -330,6 +330,10 @@ export const getTaskView = (view, { from, to } = {}, campaign) => {
   return request(`/tasks?${qs}`, { campaign });
 };
 export const getDueSoon = () => request('/tasks/due-soon');
+// C6B: duplicates and merge.
+export const getDuplicates = (campaign, limit = 50) => request(`/leads/duplicates?limit=${limit}`, { campaign });
+export const getMergePreview = (primaryId, secondaryId) => request(`/leads/merge-preview?primaryId=${primaryId}&secondaryId=${secondaryId}`);
+export const mergeLeads = ({ primaryId, secondaryId, fieldChoices }) => request('/leads/merge', { method: 'POST', body: { primaryId, secondaryId, fieldChoices } });
 export const ackReminder = (item) => request('/tasks/due-soon/ack', { method: 'POST', body: { kind: item.kind, id: item.id, dueAt: item.due_at } });
 export const getToday = (campaign) => request('/today', { campaign });
 

@@ -29,17 +29,20 @@ const FIELDS = ['name', 'email', 'address', 'brokerage', 'state'];
 // keeps its campaign_id (calls stay in the file they were made from, like a
 // file move); tasks follow the primary's file.
 const CHILD_TABLES = [
-  { table: 'call_history', label: 'calls' },
-  { table: 'callbacks', label: 'callbacks' },
-  { table: 'dnc_list', label: 'DNC entries' },
-  { table: 'sms_messages', label: 'texts' },
-  { table: 'sms_opt_events', label: 'text opt-in/out events' },
-  { table: 'email_messages', label: 'emails' },
-  { table: 'call_objections', label: 'objections' },
-  { table: 'lead_notes', label: 'notes' },
-  { table: 'lead_stage_history', label: 'stage changes' },
-  { table: 'tasks', label: 'tasks', extraSet: 'campaign_id = $3' },
+  { table: 'call_history', one: 'call', label: 'calls' },
+  { table: 'callbacks', one: 'callback', label: 'callbacks' },
+  { table: 'dnc_list', one: 'DNC entry', label: 'DNC entries' },
+  { table: 'sms_messages', one: 'text', label: 'texts' },
+  { table: 'sms_opt_events', one: 'text opt-in/out event', label: 'text opt-in/out events' },
+  { table: 'email_messages', one: 'email', label: 'emails' },
+  { table: 'call_objections', one: 'objection', label: 'objections' },
+  { table: 'lead_notes', one: 'note', label: 'notes' },
+  { table: 'lead_stage_history', one: 'stage change', label: 'stage changes' },
+  { table: 'tasks', one: 'task', label: 'tasks', extraSet: 'campaign_id = $3' },
 ];
+
+/** "1 call", "3 calls". */
+const counted = (t, n) => `${n} ${n === 1 ? t.one : t.label}`;
 
 const REASONS = {
   email: 'Same email',
@@ -127,7 +130,7 @@ async function leadsById(ids, executor = db) {
 async function counts(leadId, executor = db) {
   const parts = CHILD_TABLES.map((t, i) => `(SELECT count(*)::int FROM ${t.table} WHERE lead_id = $1) AS c${i}`);
   const { rows } = await executor.query(`SELECT ${parts.join(', ')}`, [leadId]);
-  return CHILD_TABLES.map((t, i) => ({ table: t.table, label: t.label, count: rows[0][`c${i}`] }));
+  return CHILD_TABLES.map((t, i) => ({ table: t.table, label: counted(t, rows[0][`c${i}`]).replace(/^\d+ /, ''), count: rows[0][`c${i}`] }));
 }
 
 async function preview({ primaryId, secondaryId }) {
@@ -229,7 +232,7 @@ async function merge({ primaryId, secondaryId, userId = null, fieldChoices } = {
         `UPDATE ${t.table} SET lead_id = $1${t.extraSet ? `, ${t.extraSet}` : ''} WHERE lead_id = $2`,
         t.extraSet ? [pid, sid, p.campaign_id] : [pid, sid]
       );
-      moved.push({ table: t.table, label: t.label, count: res.rowCount });
+      moved.push({ table: t.table, label: counted(t, res.rowCount).replace(/^\d+ /, ''), count: res.rowCount });
     }
 
     // 2. The secondary leaves: soft-deleted, pointing at the primary. A DNC
