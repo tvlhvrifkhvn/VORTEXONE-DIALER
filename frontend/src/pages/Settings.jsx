@@ -3,10 +3,8 @@ import { Link, NavLink, Navigate, useLocation, useParams } from 'react-router-do
 import AppShell from '../components/layout/AppShell';
 import PageFrame from '../components/layout/PageFrame';
 import FilesSettings from './Campaigns';
-import Panel from '../components/ui/Panel';
 import Button from '../components/ui/Button';
 import Field from '../components/ui/Field';
-import SectionLabel from '../components/ui/SectionLabel';
 import { useAuth } from '../hooks/useAuth';
 import * as api from '../lib/api';
 import { useUserSettings } from '../hooks/useUserSettings';
@@ -26,6 +24,20 @@ const DEFAULT_LINES = 3;
 // settings table), not localStorage, since the backend reads it directly.
 const CALLING_HOURS_KEY = 'calling_hours_enforced';
 
+
+// C8D: every section is one header row with its title, content at most 720px
+// wide, one SAVE (solid) at the bottom; no description paragraphs (the user
+// guide explains), except the one line on calling hours.
+function Section({ title, children, wide = false, id }) {
+  return (
+    <section id={id} className={`space-y-4 ${wide ? '' : 'max-w-[720px]'}`}>
+      <div className="flex min-h-11 items-center justify-between gap-4">
+        <h1 className="text-2xl font-semibold tracking-[-0.01em] text-foreground">{title}</h1>
+      </div>
+      {children}
+    </section>
+  );
+}
 
 function ProfileSection() {
   const { user } = useAuth();
@@ -49,9 +61,8 @@ function ProfileSection() {
   };
 
   return (
-    <Panel className="space-y-4 p-6">
-      <SectionLabel title="Profile" />
-      <form onSubmit={handleSave} className="space-y-3">
+    <Section title="Profile">
+      <form onSubmit={handleSave} className="space-y-4">
         <div>
           <label htmlFor="profile-name" className="label mb-2 block">
             Display name
@@ -76,11 +87,11 @@ function ProfileSection() {
             {message.text}
           </p>
         )}
-        <Button type="submit" variant="primary" disabled={saving}>
-          {saving ? 'Saving…' : 'Save profile'}
+        <Button type="submit" variant="solid" disabled={saving}>
+          {saving ? 'Saving…' : 'Save'}
         </Button>
       </form>
-    </Panel>
+    </Section>
   );
 }
 
@@ -166,11 +177,10 @@ function DialingDefaultsSection() {
   };
 
   return (
-    <Panel className="space-y-4 p-6">
-      <SectionLabel title="Dialing defaults" />
-      <form onSubmit={handleSave} className="space-y-3">
+    <Section title="Dialing defaults">
+      <form onSubmit={handleSave} className="space-y-4">
         <div>
-          <label htmlFor="default-max-attempts" className="label mb-2 block">
+          <label htmlFor="default-max-attempts" className="label mb-2 block" title={`Applies to new leads; existing leads keep their own value.${isSupervisor ? '' : ' Only a supervisor can change this.'}`}>
             Default max attempts per lead (1–10)
           </label>
           <Field
@@ -183,13 +193,9 @@ function DialingDefaultsSection() {
             className="w-32 font-mono tabular-nums"
             disabled={!isSupervisor}
           />
-          <p className="mt-2 text-sm text-muted-foreground">
-            Applies to new leads (added or imported from now on). Existing leads keep their own value.
-            {!isSupervisor && ' Only a supervisor can change this.'}
-          </p>
         </div>
         <div>
-          <label htmlFor="default-lines" className="label mb-2 block">
+          <label htmlFor="default-lines" className="label mb-2 block" title="How many leads a dialing session rings at once; the DIAL menu on Leads changes it per session">
             Default simultaneous lines
           </label>
           <Field
@@ -203,9 +209,6 @@ function DialingDefaultsSection() {
             <option value={2}>2 lines</option>
             <option value={3}>3 lines</option>
           </Field>
-          <p className="mt-2 text-sm text-muted-foreground">
-            How many leads a dialing session rings at once. Adjustable per session on the Leads page.
-          </p>
         </div>
         <div
           className={`p-4 ${enforceHours ? 'border border-strong' : 'border-2 border-primary'}`}
@@ -240,28 +243,17 @@ function DialingDefaultsSection() {
             </span>
             {!isSupervisor && <span className="text-sm text-muted-foreground">(only a supervisor can change this)</span>}
           </label>
-          <p className="mt-2 text-sm text-muted-foreground">
-            On by default. Saved as soon as you flip it. When on, the dialer never calls a lead outside
-            8am–9pm in any time zone the lead could be in (from the phone's area code, the address and
-            the state); a lead whose time zone is unknown is not dialed until its state is set. The dial
-            pad uses the number's area code.
-          </p>
-        </div>
-        <div className="border bg-muted p-4 text-sm text-muted-foreground">
-          Recordings are only saved for calls where a real conversation happened —
-          voicemails, no-answers, and busy signals are never recorded. Several US states
-          require verbally notifying the other party that a call may be recorded —
-          consider adding this line to your pitch script.
+          <p className="mt-2 text-sm text-muted-foreground">Saved as soon as you flip it. A lead with an unknown time zone isn't dialed until its state is set.</p>
         </div>
         {error && <p role="alert" className="text-sm text-signal">{error}</p>}
         {saved && <p className="font-mono text-xs uppercase text-foreground">✓ Saved</p>}
-        <Button type="submit" variant="primary">Save defaults</Button>
+        {/* C6A: browser notifications for reminders (this browser only). */}
+        <div className="border-t pt-4">
+          <ReminderSettings />
+        </div>
+        <Button type="submit" variant="solid">Save</Button>
       </form>
-      {/* C6A: browser notifications for reminders (this browser only). */}
-      <div className="border-t pt-4">
-        <ReminderSettings />
-      </div>
-    </Panel>
+    </Section>
   );
 }
 
@@ -302,9 +294,8 @@ function ReportingDaySection() {
   };
 
   return (
-    <Panel className="space-y-4 p-6">
-      <SectionLabel title="Reporting day" />
-      <form onSubmit={handleSave} className="space-y-3">
+    <Section title="Reporting day">
+      <form onSubmit={handleSave} className="space-y-4">
         <div>
           <label className="label mb-2 block" htmlFor="reporting-timezone">
             Reporting timezone
@@ -313,12 +304,11 @@ function ReportingDaySection() {
             id="reporting-timezone"
             value={timezone}
             onChange={(e) => setTimezone(e.target.value)}
+            placeholder="e.g. Asia/Karachi"
+            title="An IANA time zone name. Today, the daily goal, reports and the PDF use it."
             disabled={loading || !isSupervisor}
             className="w-64"
           />
-          <p className="mt-2 text-sm text-muted-foreground">
-            An IANA name, e.g. Asia/Karachi. The Today page, the daily goal, reports and the PDF use this timezone.
-          </p>
         </div>
         <div>
           <label className="label mb-2 block" htmlFor="day-start-time">
@@ -332,16 +322,14 @@ function ReportingDaySection() {
             disabled={loading || !isSupervisor}
             className="w-32"
           />
-          <p className="mt-2 text-sm text-muted-foreground">
-            A day runs from this time to the same time the next day, in the reporting timezone.
-          </p>
         </div>
         {error && <p role="alert" className="text-sm text-signal">{error}</p>}
         {saved && <p className="font-mono text-xs uppercase text-foreground">✓ Saved</p>}
-        {!isSupervisor && <p className="text-sm text-muted-foreground">Only a supervisor can change the reporting day.</p>}
-        <Button type="submit" variant="primary" disabled={loading || !isSupervisor}>Save reporting day</Button>
+        <Button type="submit" variant="solid" disabled={loading || !isSupervisor} title={isSupervisor ? undefined : 'Only a supervisor can change the reporting day'}>
+          Save
+        </Button>
       </form>
-    </Panel>
+    </Section>
   );
 }
 
@@ -394,13 +382,8 @@ function SpendLimitsSection() {
   };
 
   return (
-    <Panel className="space-y-4 p-6" id="spend-limits">
-      <SectionLabel title="Spend limits" />
-      <p className="text-sm text-muted-foreground">
-        Your phone provider's real rates. Until one is set, costs read "rates not set" and nothing is blocked. A call's
-        cost is fixed when it ends. At 80 % of a budget the header warns; at 100 % dialing stops.
-      </p>
-      <form onSubmit={handleSave} className="space-y-3">
+    <Section title="Spend limits" id="spend-limits">
+      <form onSubmit={handleSave} className="space-y-4">
         <div className="grid gap-4 sm:grid-cols-3">
           {RATE_FIELDS.map((f) => (
             <div key={f.key}>
@@ -431,17 +414,16 @@ function SpendLimitsSection() {
             disabled={loading || !isSupervisor}
           />
         </div>
-        {!isSupervisor && <p className="text-sm text-muted-foreground">Only a supervisor can change spend limits.</p>}
         {message && (
           <p role={message.type === 'ok' ? 'status' : 'alert'} className={`text-sm ${message.type === 'ok' ? 'text-foreground' : 'text-signal'}`}>
             {message.text}
           </p>
         )}
-        <Button type="submit" variant="primary" disabled={saving || loading || !isSupervisor}>
-          {saving ? 'Saving…' : 'Save spend limits'}
+        <Button type="submit" variant="solid" disabled={saving || loading || !isSupervisor} title={isSupervisor ? undefined : 'Only a supervisor can change spend limits'}>
+          {saving ? 'Saving…' : 'Save'}
         </Button>
       </form>
-    </Panel>
+    </Section>
   );
 }
 
@@ -483,20 +465,14 @@ function IntegrationsSection() {
   };
 
   return (
-    <Panel className="space-y-4 p-6" id="integrations">
-      <SectionLabel title="Integrations" />
-      <p className="text-sm text-muted-foreground">
-        Configure the Groq API key used for the assistant (ASK and the lead summary), AI CSV column mapping and the
-        Expand note button. Without it the assistant says it isn't set up and the rest degrade gracefully (manual
-        mapping, notes unchanged).
-      </p>
-      <p className="text-sm text-muted-foreground">
-        A key saved here lives in this app's database: it stays through restarts, but not if the Codespace is deleted or
-        rebuilt. For a key that always stays, add a GitHub Codespaces secret named GROQ_API_KEY; a key saved here wins over it.
-      </p>
-      <form onSubmit={handleSave} className="space-y-3">
+    <Section title="Integrations & AI" id="integrations">
+      <form onSubmit={handleSave} className="space-y-4">
         <div>
-          <label htmlFor="groq-key" className="label mb-2 block">
+          <label
+            htmlFor="groq-key"
+            className="label mb-2 block"
+            title="Used by ASK, the AI summary and brief, AI column mapping and EXPAND NOTE. Saved in this app's database; a Codespaces secret GROQ_API_KEY works too (a key saved here wins)."
+          >
             Groq API key
           </label>
           <p className="mb-2 font-mono text-xs uppercase text-foreground" data-testid="groq-key-status">
@@ -516,16 +492,17 @@ function IntegrationsSection() {
             autoComplete="off"
             disabled={!isSupervisor}
           />
-          {!isSupervisor && <p className="mt-2 text-sm text-muted-foreground">Only a supervisor can change this.</p>}
         </div>
         {error && <p role="alert" className="text-sm text-signal">{error}</p>}
         {saved && <p className="font-mono text-xs uppercase text-foreground">✓ Saved</p>}
-        <Button type="submit" variant="primary" disabled={saving || loading || !isSupervisor || !groqKey.trim()}>
+        <Button type="submit" variant="solid" disabled={saving || loading || !isSupervisor || !groqKey.trim()} title={isSupervisor ? undefined : 'Only a supervisor can change this'}>
           {saving ? 'Saving…' : status.configured ? 'Replace key' : 'Save key'}
         </Button>
       </form>
-      <AssistantSettings isSupervisor={isSupervisor} />
-    </Panel>
+      <div className="border-t pt-4">
+        <AssistantSettings isSupervisor={isSupervisor} />
+      </div>
+    </Section>
   );
 }
 
@@ -606,12 +583,7 @@ function ObjectionsSection() {
   };
 
   return (
-    <Panel className="space-y-4 p-6">
-      <SectionLabel title="Objections" />
-      <p className="text-sm text-muted-foreground">
-        The chips shown behind the Objection button on the call screen, in this order. Switching one off hides
-        it from the call screen; everything already logged stays in Reports.
-      </p>
+    <Section title="Objections">
       <ul className="space-y-2">
         {types.map((type, index) => (
           <li key={type.id} className={`flex items-center gap-2 ${type.is_active ? '' : 'opacity-50'}`}>
@@ -672,7 +644,7 @@ function ObjectionsSection() {
           className="flex-1 text-sm"
           maxLength={80}
         />
-        <Button type="submit" variant="primary" disabled={busy || !newLabel.trim()}>
+        <Button type="submit" variant="solid" disabled={busy || !newLabel.trim()}>
           Add
         </Button>
       </form>
@@ -681,7 +653,7 @@ function ObjectionsSection() {
           {message.text}
         </p>
       )}
-    </Panel>
+    </Section>
   );
 }
 
@@ -692,7 +664,7 @@ const SECTIONS = [
   { slug: 'profile', label: 'Profile', render: () => <ProfileSection /> },
   { slug: 'dialing', label: 'Dialing defaults', render: () => <DialingDefaultsSection /> },
   { slug: 'reporting-day', label: 'Reporting day', render: () => <ReportingDaySection /> },
-  { slug: 'files', label: 'Files', render: () => <FilesSettings /> },
+  { slug: 'files', label: 'Files', render: () => <Section title="Files" wide><FilesSettings /></Section> },
   { slug: 'objections', label: 'Objections', render: () => <ObjectionsSection /> },
   { slug: 'integrations', label: 'Integrations & AI', render: () => <IntegrationsSection /> },
   { slug: 'spend-limits', label: 'Spend limits', render: () => <SpendLimitsSection /> },
@@ -742,7 +714,7 @@ export default function Settings() {
   return (
     <AppShell framed>
       <PageFrame id="settings" left={menu} leftLabel="Settings menu">
-        <div className={`mt-6 space-y-6 ${current.slug === 'files' ? 'max-w-6xl' : 'max-w-3xl'}`} data-testid={`settings-${current.slug}`}>
+        <div className={`mt-6 space-y-6 ${current.slug === 'files' ? 'max-w-6xl' : ''}`} data-testid={`settings-${current.slug}`}>
           {current.render()}
         </div>
       </PageFrame>

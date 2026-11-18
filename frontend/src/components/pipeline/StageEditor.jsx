@@ -7,9 +7,7 @@ import Panel from '../ui/Panel';
 import Button from '../ui/Button';
 import Field from '../ui/Field';
 import Badge from '../ui/Badge';
-import SectionLabel from '../ui/SectionLabel';
 import { stageTone } from '../../hooks/useStages';
-import { fileLabel } from '../../hooks/useCampaign';
 import * as api from '../../lib/api';
 
 function StageRow({ stage, index, count, disabled, onRename, onMove, onDelete }) {
@@ -104,11 +102,8 @@ export default function StageEditor({ campaign, disabled }) {
 
   return (
     <Panel className="space-y-4 p-6">
-      <SectionLabel index="04" title="Pipeline stages" meta={fileLabel(campaign)} />
-      <p className="text-sm text-muted-foreground">
-        New leads start in the first stage. A file keeps one won and one lost stage; only an empty open stage can be deleted.
-      </p>
-      <ul className="border-t">
+      {/* C8D: the file's header row is above the tabs; no repeated header here. The rules are the list's tooltip. */}
+      <ul className="border-t" title="New leads start in the first stage. A file keeps one won and one lost stage; only an empty open stage can be deleted.">
         {stages.map((s, i) => (
           <StageRow
             key={s.id}
@@ -135,7 +130,7 @@ export default function StageEditor({ campaign, disabled }) {
             disabled={disabled}
           />
         </div>
-        <Button type="submit" variant="primary" disabled={disabled || busy || !newName.trim()}>
+        <Button type="submit" variant="solid" disabled={disabled || busy || !newName.trim()}>
           Add stage
         </Button>
       </form>
