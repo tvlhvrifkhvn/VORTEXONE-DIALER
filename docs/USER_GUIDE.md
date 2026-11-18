@@ -73,6 +73,12 @@ The assistant answers "how do I…" questions from this file (tool `get_app_help
 - Right (HELP): the PITCH SCRIPT, OBJECTIONS (tap the ones you hear; a tip shows what worked before) and QUICK ACTIONS: ADD TAG, QUICK SMS, ADD TASK, SCHEDULE CALLBACK. On a screen narrower than 1280px these are tabs (SCRIPT · OBJECTIONS · ACTIONS) under the middle column.
 - Notes are saved with the outcome. MUTE and HOLD only change the screen until the real phone provider is connected.
 
+## Dial a number (dial pad)
+- DIAL in the header opens the dial pad. Type or paste a number (or tap the keys), then CALL. RECENT under it lists your last 10 dial-pad calls: click one to put its number back in the pad.
+- During the call: the keys send tones (for phone menus; "Tones sent" shows them). MUTE · HOLD · RECORD · HANG UP sit where CALL was. The first RECORD asks you to remember that some states need everyone's consent to record. MUTE, HOLD, RECORD and tones only change the screen until the real phone provider is connected.
+- If the number belongs to a lead, its name shows with OPEN LEAD ↗ (a new tab). NOTES save on their own ("Saved").
+- When the call ends, the notes are added once to that lead's activity as "Manual call · m:ss · your notes" (and updated if you edit them within 24 hours). With no lead, SAVE AS LEAD creates one and adds the notes to it. A dial-pad call never changes a lead's status or attempts; DNC numbers are refused.
+
 ## Hotkeys on the call screen
 - M mutes and unmutes. Esc asks to hang up. D jumps to the outcome buttons. V logs Voicemail. N logs No answer and moves on.
 - Hotkeys never fire while you type in a field (notes, the callback time, a stage picker).

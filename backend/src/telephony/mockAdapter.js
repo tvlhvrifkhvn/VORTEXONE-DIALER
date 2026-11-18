@@ -55,4 +55,14 @@ function placeCall(fromNumber, toNumber, onEvent) {
   return callId;
 }
 
-module.exports = { placeCall };
+// C8F: the optional functions (telephony/index.js), as no-ops that succeed:
+// the mock has no audio path, so tones and recording change nothing.
+async function sendDigits(_callRef, digits) {
+  return { sent: digits };
+}
+
+async function setRecording(_callRef, on) {
+  return { recording: Boolean(on) };
+}
+
+module.exports = { placeCall, sendDigits, setRecording };

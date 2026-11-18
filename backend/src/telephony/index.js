@@ -46,7 +46,32 @@ function placeCall(fromNumber, toNumber, onEvent) {
   return getAdapter().placeCall(fromNumber, toNumber, onEvent);
 }
 
+/**
+ * C8F: two OPTIONAL adapter functions, beside the unchanged placeCall:
+ *
+ *   sendDigits(callRef, digits)  → touch tones on a live call ([0-9*#])
+ *   setRecording(callRef, on)    → start or stop recording a live call
+ *
+ * callRef is the id placeCall returned. An adapter without one simply
+ * doesn't export it: supports('digits' | 'recording') says so, and the routes
+ * answer 501 "Not available with this provider yet".
+ */
+const FEATURES = { digits: 'sendDigits', recording: 'setRecording' };
+
+function supports(feature) {
+  const fn = FEATURES[feature];
+  return Boolean(fn) && typeof getAdapter()[fn] === 'function';
+}
+
+function sendDigits(callRef, digits) {
+  return getAdapter().sendDigits(callRef, digits);
+}
+
+function setRecording(callRef, on) {
+  return getAdapter().setRecording(callRef, on);
+}
+
 // The provider names this file knows (startup check: config/validateProviders.js).
 const PROVIDERS = Object.keys(adapters);
 
-module.exports = { placeCall, getAdapter, PROVIDERS };
+module.exports = { placeCall, getAdapter, PROVIDERS, supports, sendDigits, setRecording };
