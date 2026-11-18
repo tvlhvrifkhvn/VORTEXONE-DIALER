@@ -9,7 +9,12 @@ function toPublicUser(user) {
 }
 
 async function login(email, password) {
-  const { rows } = await db.query('SELECT * FROM users WHERE email = $1', [email]);
+  // Spaces around the email and its letter case don't matter (phone keyboards
+  // capitalise the first letter; autofill can add a trailing space).
+  const { rows } = await db.query(
+    'SELECT * FROM users WHERE lower(email) = lower($1) ORDER BY (email = $1) DESC, id LIMIT 1',
+    [String(email || '').trim()]
+  );
   const user = rows[0];
   if (!user) throw new ApiError(401, 'Invalid email or password');
 
