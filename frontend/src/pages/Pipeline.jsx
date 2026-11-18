@@ -5,13 +5,20 @@
 // C7E: a search field filters every column (name, company, phone digits or
 // tag; CLEAR restores the board); the board scrolls sideways inside its own
 // area and each column scrolls on its own; cards also show tags and a CALL link.
+// C8D: one header row (Pipeline and the open count; the search field with ×).
+// The board fills the height under it and scrolls sideways only (overflow-y
+// hidden: overflow-x alone made it scroll vertically too). Columns 280px,
+// 12px apart: a header, a card list that scrolls on its own with LOAD MORE at
+// its end; an empty column stays a full-height drop zone; the drop target gets
+// a 2px outline. Cards share one height: name · company · status and last
+// activity, CALL and MOVE → on the right; tags and the drag hint are in the
+// card's tooltip.
 import { useCallback, useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import Field from '../components/ui/Field';
 import AppShell from '../components/layout/AppShell';
 import Badge from '../components/ui/Badge';
 import Button from '../components/ui/Button';
-import FileTag from '../components/ui/FileTag';
 import StatusBadge from '../components/leads/StatusBadge';
 import StageMoveMenu from '../components/pipeline/StageMoveMenu';
 import { useCampaign } from '../hooks/useCampaign';
@@ -25,6 +32,7 @@ const DRAG_TYPE = 'application/x-vortex-lead';
 
 function LeadCard({ lead, stages, onMove, companyWord }) {
   const navigate = useNavigate();
+  const tags = (lead.tags || []).map((t) => (t.startsWith('list:') ? `List · ${t.slice(5)}` : t));
   return (
     <li
       draggable
@@ -33,44 +41,37 @@ function LeadCard({ lead, stages, onMove, companyWord }) {
         e.dataTransfer.setData('text/plain', lead.name);
         e.dataTransfer.effectAllowed = 'move';
       }}
-      className="cursor-grab space-y-2 border border-strong bg-background p-2 active:cursor-grabbing"
+      title={`Drag to another column, or use MOVE →${tags.length ? `\nTags: ${tags.join(', ')}` : ''}`}
+      className="flex h-[6.5rem] cursor-grab gap-2 border border-strong bg-background p-2 active:cursor-grabbing"
+      data-testid="pipeline-card"
     >
-      <button
-        type="button"
-        onClick={() => navigate(`/leads/${lead.id}`)}
-        className="block w-full truncate text-left font-medium text-foreground underline-offset-4 hover:underline"
-        title={`Open ${lead.name}`}
-      >
-        {lead.name}
-      </button>
-      <p className="truncate text-sm text-muted-foreground" title={lead.brokerage || ''}>
-        {lead.brokerage || `No ${companyWord}`}
-      </p>
-      {lead.tags?.length > 0 && (
-        <div className="flex flex-wrap gap-1">
-          {lead.tags.map((t) => (
-            <Badge key={t} tone={t.startsWith('list:') ? 'solid' : 'muted'}>
-              {t.startsWith('list:') ? `List · ${t.slice(5)}` : t}
-            </Badge>
-          ))}
+      <div className="flex min-w-0 flex-1 flex-col justify-between">
+        <button
+          type="button"
+          onClick={() => navigate(`/leads/${lead.id}`)}
+          className="block w-full truncate text-left font-semibold text-foreground underline-offset-4 hover:underline"
+          aria-label={`Open ${lead.name}`}
+        >
+          {lead.name}
+        </button>
+        <p className="truncate text-sm text-muted-foreground">{lead.brokerage || `No ${companyWord}`}</p>
+        <div className="flex min-w-0 items-center gap-2">
+          <StatusBadge status={lead.status} />
+          <span className="truncate font-mono text-xs tabular-nums text-muted-foreground">
+            <span className="sr-only">Last activity </span>
+            {formatRelativeToNow(lead.activity_at || lead.updated_at)}
+          </span>
         </div>
-      )}
-      <div className="flex items-center justify-between gap-2">
-        <StatusBadge status={lead.status} />
-        <StageMoveMenu lead={lead} stages={stages} onMove={onMove} />
       </div>
-      <div className="flex items-center justify-between gap-2">
-        <p className="font-mono text-xs tabular-nums text-muted-foreground">
-          <span className="sr-only">Last activity </span>
-          {formatRelativeToNow(lead.activity_at || lead.updated_at)}
-        </p>
+      <div className="flex shrink-0 flex-col items-end justify-between">
         <Link
           to={`/call/${lead.id}`}
-          className="inline-flex min-h-10 items-center px-2 font-mono text-xs uppercase tracking-button text-foreground underline underline-offset-4 hover:bg-muted"
+          className="inline-flex min-h-8 items-center px-2 font-mono text-xs font-medium uppercase tracking-button text-foreground underline underline-offset-4 hover:bg-muted"
           aria-label={`Call ${lead.name}`}
         >
           Call
         </Link>
+        <StageMoveMenu lead={lead} stages={stages} onMove={onMove} />
       </div>
     </li>
   );
@@ -87,41 +88,44 @@ function Column({ stage, stages, onMove, onDropLead, onLoadMore, loadingMore, co
         e.dataTransfer.dropEffect = 'move';
         setOver(true);
       }}
-      onDragLeave={() => setOver(false)}
+      onDragLeave={(e) => {
+        if (!e.currentTarget.contains(e.relatedTarget)) setOver(false);
+      }}
       onDrop={(e) => {
         e.preventDefault();
         setOver(false);
         const id = Number(e.dataTransfer.getData(DRAG_TYPE));
         if (id) onDropLead(id, stage);
       }}
-      className={`flex w-72 shrink-0 flex-col border bg-card transition-colors duration-150 lg:max-h-full lg:min-h-0 ${over ? 'border-strong bg-muted' : ''}`}
+      className={`flex w-[280px] shrink-0 flex-col border bg-card lg:h-full lg:min-h-0 ${over ? 'outline outline-2 -outline-offset-2 outline-foreground' : ''}`}
+      data-testid="pipeline-column"
     >
-      <header className="flex items-center justify-between gap-2 border-b px-2 py-2">
+      <header className="flex min-h-10 shrink-0 items-center justify-between gap-2 border-b px-2">
         <h2 className="label truncate text-foreground">{stage.name}</h2>
         <span className="flex items-center gap-2">
           {stage.kind !== 'open' && <Badge tone={stageTone(stage.kind)}>{stage.kind}</Badge>}
           <span className="font-mono text-sm tabular-nums text-foreground">{stage.count}</span>
         </span>
       </header>
-      <ul className="flex-1 space-y-2 p-2 lg:min-h-0 lg:overflow-y-auto">
+      <ul className="relative flex-1 space-y-2 p-2 lg:min-h-0 lg:overflow-y-auto">
         {stage.leads.length === 0 && <li className="px-1 py-4 text-sm text-muted-foreground">{searching ? 'No matches' : 'No leads'}</li>}
         {stage.leads.map((lead) => (
           <LeadCard key={lead.id} lead={lead} stages={stages} onMove={onMove} companyWord={companyWord} />
         ))}
+        {stage.leads.length < stage.count && (
+          <li>
+            <Button size="sm" className="w-full" onClick={() => onLoadMore(stage)} disabled={loadingMore}>
+              {loadingMore ? 'Loading…' : `Load more (${stage.count - stage.leads.length})`}
+            </Button>
+          </li>
+        )}
       </ul>
-      {stage.leads.length < stage.count && (
-        <div className="border-t p-2">
-          <Button className="w-full" onClick={() => onLoadMore(stage)} disabled={loadingMore}>
-            {loadingMore ? 'Loading…' : `Load more (${stage.count - stage.leads.length})`}
-          </Button>
-        </div>
-      )}
     </section>
   );
 }
 
 export default function Pipeline() {
-  const { active } = useCampaign();
+  const { active } = useCampaign(); // the company word only (the file shows in the header switcher)
   const companyWord = (active?.company_label || 'Brokerage').toLowerCase();
   const [columns, setColumns] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -190,44 +194,48 @@ export default function Pipeline() {
     }
   };
 
+  const openCount = columns.filter((c) => c.kind === 'open').reduce((n, c) => n + c.count, 0);
+  const matches = columns.reduce((n, c) => n + c.count, 0);
+
   return (
     <AppShell framed>
       <div className="flex flex-col gap-4 px-6 pb-6 pt-6 lg:h-full lg:min-h-0">
-        <div className="flex flex-wrap items-center justify-between gap-4 lg:shrink-0">
-          <h1 className="text-2xl font-semibold tracking-[-0.01em] text-foreground">Pipeline</h1>
-          {active && <FileTag number={active.file_number} name={active.name} />}
-        </div>
-        <div className="flex flex-wrap items-end gap-2 lg:shrink-0">
-          <div>
-            <label htmlFor="pipeline-search" className="label mb-1 block">
-              Search the board
-            </label>
+        {/* Header row: title and the open count; the search field with × on the right. */}
+        <div className="flex min-h-11 items-center justify-between gap-4 lg:shrink-0">
+          <h1 className="flex items-baseline gap-4">
+            <span className="text-2xl font-semibold tracking-[-0.01em] text-foreground">Pipeline</span>
+            <span className="font-mono text-sm tabular-nums text-muted-foreground" title={search ? 'Matches on the board' : 'Leads in open stages'}>
+              {search ? `${matches} match${matches === 1 ? '' : 'es'}` : openCount}
+            </span>
+          </h1>
+          <div className="relative w-[320px] max-w-full">
             <Field
               id="pipeline-search"
               type="text"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Name, company, phone or tag"
-              className="w-80 max-w-full"
+              placeholder="Search name, company, phone or tag"
+              aria-label="Search the board"
+              className="w-full pr-10"
             />
+            {query && (
+              <button
+                type="button"
+                onClick={() => setQuery('')}
+                aria-label="Clear the search"
+                className="absolute right-1 top-1/2 inline-flex min-h-8 min-w-8 -translate-y-1/2 items-center justify-center text-muted-foreground transition-colors duration-150 hover:bg-muted hover:text-foreground"
+              >
+                ×
+              </button>
+            )}
           </div>
-          {query && (
-            <Button variant="ghost" onClick={() => setQuery('')}>
-              Clear
-            </Button>
-          )}
-          {search && (
-            <span className="label pb-3 tabular-nums" role="status">
-              {columns.reduce((n, c) => n + c.count, 0)} match{columns.reduce((n, c) => n + c.count, 0) === 1 ? '' : 'es'}
-            </span>
-          )}
         </div>
-        <p className="text-sm text-muted-foreground lg:shrink-0">
-          Drag a card to another column, or use MOVE →. Moving a lead here never changes its dialer status.
+        <p role="status" aria-live="polite" className="sr-only">
+          {announce}
+          {search ? ` ${matches} matches.` : ''}
         </p>
-        <p role="status" aria-live="polite" className="sr-only">{announce}</p>
         {error && (
-          <p role="alert" className="text-sm text-signal">
+          <p role="alert" className="text-sm text-signal lg:shrink-0">
             <span className="label mr-2 text-signal">Error</span>
             {error}
           </p>
@@ -236,7 +244,8 @@ export default function Pipeline() {
           <p className="label">Loading…</p>
         ) : (
           // relative: the cards' sr-only labels (absolute) stay inside the scroll box.
-          <div className="relative flex items-start gap-4 overflow-x-auto pb-4 lg:min-h-0 lg:flex-1 lg:items-stretch" data-testid="pipeline-board">
+          // Sideways only: overflow-y hidden, so the page never runs past the board.
+          <div className="relative flex items-start gap-3 overflow-x-auto overflow-y-hidden lg:min-h-0 lg:flex-1 lg:items-stretch" data-testid="pipeline-board">
             {columns.map((stage) => (
               <Column
                 key={stage.id}

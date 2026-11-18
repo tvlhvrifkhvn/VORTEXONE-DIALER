@@ -35,7 +35,7 @@ The assistant answers "how do I…" questions from this file (tool `get_app_help
 - A file is a separate campaign with its own leads, stages, fields, pitch script, AI context, daily goal and budget.
 - Go to SETTINGS → FILES → + NEW FILE, pick a template (Real estate, Roofing or Blank), type a name, CREATE FILE. Only a supervisor can create or change files.
 - Then fill the tabs: BASICS (name, company label, daily goal, max attempts, monthly budget), SCRIPT & AI (AI context, pitch script), STAGES, FIELDS.
-- Switch files with the FILE switcher in the header or the FILES list in the left rail. Pause, resume or archive a file on its FILES page.
+- Switch files with the FILE switcher in the header. In SETTINGS → FILES the list marks the file you're in as CURRENT; pause, resume or archive the selected file from ⋯ beside its name.
 
 ## Add a task
 - On a lead page: the TASK tab of the composer (middle column). Type what to do, pick the type (call, email, text, other) and the due date and time, then ADD TASK. It shows under NEXT on the right.
@@ -54,7 +54,7 @@ The assistant answers "how do I…" questions from this file (tool `get_app_help
 
 ## Move stages (pipeline)
 - PIPELINE shows one column per stage. Drag a card to another column, or use MOVE → on the card. Moving a stage never changes the dialer status.
-- Search the board by name, company, phone digits or tag; CLEAR restores it. Each column scrolls on its own; LOAD MORE shows more cards.
+- The number beside "Pipeline" counts the leads in open stages. Search the board (top right) by name, company, phone digits or tag; × clears it and the number becomes the matches. The board scrolls sideways; each column scrolls on its own and ends with LOAD MORE when there are more cards. Hover a card to see its tags.
 - On a lead page the stage and the deal value are in WORK. A call outcome can move the stage too (Spoke / Interested → Contacted; DNC → Lost).
 
 ## Set call rates and budgets
@@ -85,7 +85,7 @@ The assistant answers "how do I…" questions from this file (tool `get_app_help
 - Settings: SETTINGS → INTEGRATIONS & AI (Groq key, assistant on/off, model).
 
 ## Settings
-- Open it from your initials in the header → SETTINGS. The left menu: Profile, Dialing defaults (max attempts, lines, calling hours, reminder notifications), Reporting day (time zone and day start), Files, Objections, Integrations & AI, Spend limits, SMS templates, Activity (supervisor: who changed what).
+- Open it from your initials in the header → SETTINGS. The left menu: Profile, Dialing defaults (max attempts, lines, calling hours, reminder notifications), Reporting day (time zone and day start), Files, Objections, Integrations & AI, Spend limits, SMS templates, Activity (supervisor: who changed what). Each section has one SAVE at the bottom; hover a field's label for what it does.
 
 ## Merge duplicates
 - LEADS → ⋯ → Find duplicates lists likely pairs (BACK TO LEADS returns) (same email; same name and company; same name, state and office). Choose KEEP THIS ONE, then REVIEW MERGE: pick the values that differ, check what moves, MERGE. There is no undo.

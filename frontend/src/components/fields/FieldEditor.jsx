@@ -6,8 +6,6 @@ import Panel from '../ui/Panel';
 import Button from '../ui/Button';
 import Field from '../ui/Field';
 import Badge from '../ui/Badge';
-import SectionLabel from '../ui/SectionLabel';
-import { fileLabel } from '../../hooks/useCampaign';
 import * as api from '../../lib/api';
 
 const TYPES = [
@@ -115,11 +113,8 @@ export default function FieldEditor({ campaign, disabled }) {
 
   return (
     <Panel className="space-y-4 p-6">
-      <SectionLabel index="05" title="Lead fields" meta={fileLabel(campaign)} />
-      <p className="text-sm text-muted-foreground">
-        Extra fields every lead of this file has. They show on the lead page, can be imported from a column, and the ones marked "in list" get a column in the leads table.
-      </p>
-      <ul className="border-t">
+      {/* C8D: no repeated header inside the Files tab; what fields do is the list's tooltip. */}
+      <ul className="border-t" title='Extra fields every lead of this file has: on the lead page, importable from a column; "in list" ones get a column in the leads table.'>
         {fields.length === 0 && <li className="py-2 text-sm text-muted-foreground">No fields yet.</li>}
         {fields.map((f, i) => (
           <FieldRow key={f.id} field={f} index={i} count={fields.length} disabled={disabled || busy} onSave={save} onMove={move} onDelete={remove} />
@@ -143,7 +138,7 @@ export default function FieldEditor({ campaign, disabled }) {
             <input type="checkbox" checked={draft.show} onChange={(e) => setDraft((d) => ({ ...d, show: e.target.checked }))} disabled={disabled} className="h-4 w-4 accent-primary" />
             In list
           </label>
-          <Button type="submit" variant="primary" disabled={disabled || busy || !draft.label.trim() || (draft.type === 'select' && splitOptions(draft.options).length === 0)}>
+          <Button type="submit" variant="solid" disabled={disabled || busy || !draft.label.trim() || (draft.type === 'select' && splitOptions(draft.options).length === 0)}>
             Add field
           </Button>
         </div>

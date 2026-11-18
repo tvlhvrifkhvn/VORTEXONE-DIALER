@@ -30,6 +30,7 @@ import StatusBadge from '../components/leads/StatusBadge';
 import Badge from '../components/ui/Badge';
 import { US_STATES } from '../lib/usStates';
 import * as api from '../lib/api';
+import { formatPhone } from '../lib/format';
 import { useCampaign, fileLabel, showToast } from '../hooks/useCampaign';
 import { useAuth } from '../hooks/useAuth';
 
@@ -209,7 +210,7 @@ export default function LeadDetail() {
 
       <section className="space-y-2" data-testid="lead-contact">
         <div className="flex items-center justify-between gap-2 border-t pt-2">
-          <h2 className="label">Profile</h2>
+          <h2 className="label">Contact</h2>
           {!editing && (
             <Button variant="ghost" size="sm" onClick={() => setEditing(true)} aria-label="Edit contact details">
               Edit
@@ -262,7 +263,7 @@ export default function LeadDetail() {
           <dl className="space-y-2">
             <Row label="Phone">
               <span className="inline-flex items-center gap-1">
-                <span className="font-mono tabular-nums">{lead.phone || '—'}</span>
+                <span className="font-mono tabular-nums">{lead.phone ? formatPhone(lead.phone) : '—'}</span>
                 {lead.phone && (
                   <button
                     type="button"

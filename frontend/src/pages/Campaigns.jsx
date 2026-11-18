@@ -2,6 +2,10 @@
 // edit its words and numbers, pause, resume or archive it. Only a
 // supervisor changes files (the API refuses others with 403).
 // C7B: rendered inside Settings (/settings/files); no page frame of its own.
+// C8D: a 280px list ("+ NEW FILE" secondary; rows FILE nn · name · one
+// status word; the current file says CURRENT) and the editor: a header row
+// (name, FILE nn, status; ⋯ PAUSE / RESUME, ARCHIVE), the tabs, no repeated
+// header inside a tab, SAVE FILE (solid) as the only submit.
 import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import Panel from '../components/ui/Panel';
@@ -10,7 +14,7 @@ import Field from '../components/ui/Field';
 import Badge from '../components/ui/Badge';
 import FileTag from '../components/ui/FileTag';
 import Segmented from '../components/ui/Segmented';
-import SectionLabel from '../components/ui/SectionLabel';
+import Menu from '../components/ui/Menu';
 import { useAuth } from '../hooks/useAuth';
 import { useCampaign, fileLabel } from '../hooks/useCampaign';
 import * as api from '../lib/api';
@@ -92,9 +96,12 @@ function CreateSection({ disabled, onCreated }) {
   };
 
   return (
-    <Panel className="space-y-4 p-6">
-      <SectionLabel title="New file" />
-      <form onSubmit={handleCreate} className="space-y-3">
+    <div className="space-y-4">
+      <div className="flex min-h-11 items-center">
+        <h2 className="text-xl font-semibold tracking-[-0.01em] text-foreground">New file</h2>
+      </div>
+      <Panel className="p-6">
+      <form onSubmit={handleCreate} className="space-y-4">
         <div className="space-y-2">
           <p className="label">Start from</p>
           <Segmented
@@ -120,11 +127,12 @@ function CreateSection({ disabled, onCreated }) {
           />
         </div>
         <Message message={message} />
-        <Button type="submit" variant="primary" disabled={disabled || busy || !name.trim()}>
+        <Button type="submit" variant="solid" disabled={disabled || busy || !name.trim()}>
           {busy ? 'Creating…' : 'Create file'}
         </Button>
       </form>
-    </Panel>
+      </Panel>
+    </div>
   );
 }
 
@@ -165,9 +173,8 @@ function EditSection({ campaign, tab, disabled, onSaved }) {
   };
 
   return (
-    <Panel className="space-y-4 p-6">
-      <SectionLabel title={tab === 'script' ? 'Script & AI' : 'Basics'} meta={fileLabel(campaign)} />
-      <form onSubmit={handleSave} className="space-y-3">
+    <Panel className="p-6">
+      <form onSubmit={handleSave} className="space-y-4">
         {tab === 'basics' ? (
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
@@ -187,29 +194,24 @@ function EditSection({ campaign, tab, disabled, onSaved }) {
               <Field id="file-max-attempts" type="number" min="1" max="10" value={form.defaultMaxAttempts} onChange={set('defaultMaxAttempts')} placeholder="Global" className="w-32 font-mono tabular-nums" disabled={disabled} />
             </div>
             <div>
-              <label htmlFor="file-monthly-budget" className="label mb-2 block">Monthly budget · USD</label>
+              <label htmlFor="file-monthly-budget" className="label mb-2 block" title="Dialing in this file stops at 100 %. The global budget in Settings applies too.">Monthly budget · USD</label>
               <Field id="file-monthly-budget" type="number" min="0" step="0.01" value={form.monthlyBudget} onChange={set('monthlyBudget')} placeholder="No limit" className="w-40 font-mono tabular-nums" disabled={disabled} />
-              <p className="mt-2 text-sm text-muted-foreground">Dialing in this file stops at 100 %. The global budget in Settings applies too.</p>
             </div>
           </div>
         ) : (
           <>
             <div>
               <label htmlFor="file-ai-context" className="label mb-2 block">AI context</label>
-              <Field as="textarea" id="file-ai-context" rows={3} value={form.aiContext} onChange={set('aiContext')} maxLength={2000} className="w-full resize-none" disabled={disabled} />
-              <p className="mt-2 text-sm text-muted-foreground">One or two sentences: what we offer and to whom. The AI suggestions and briefs use it.</p>
+              <Field as="textarea" id="file-ai-context" rows={3} value={form.aiContext} onChange={set('aiContext')} maxLength={2000} className="w-full resize-none" disabled={disabled} placeholder="What we offer and to whom, in one or two sentences" />
             </div>
             <div>
               <label htmlFor="file-pitch-script" className="label mb-2 block">Pitch script</label>
-              <Field as="textarea" id="file-pitch-script" rows={6} value={form.pitchScript} onChange={set('pitchScript')} maxLength={5000} className="w-full resize-none" disabled={disabled} />
-              <p className="mt-2 text-sm text-muted-foreground">
-                Shown on the call screen. Use <code>{'{name}'}</code> where your name should appear.
-              </p>
+              <Field as="textarea" id="file-pitch-script" rows={6} value={form.pitchScript} onChange={set('pitchScript')} maxLength={5000} className="w-full resize-none" disabled={disabled} placeholder="Shown on the call screen. Use {name} for your name." />
             </div>
           </>
         )}
         <Message message={message} />
-        <Button type="submit" variant="primary" disabled={disabled || busy}>
+        <Button type="submit" variant="solid" disabled={disabled || busy}>
           {busy ? 'Saving…' : 'Save file'}
         </Button>
       </form>
@@ -259,35 +261,41 @@ export default function FilesSettings() {
     }
   };
 
+  const statusWord = (c) => (c.status === 'active' ? 'Active' : c.status === 'paused' ? 'Paused' : 'Archived');
+  const moreItems = editing
+    ? [
+        editing.status === 'active'
+          ? { label: 'Pause', onSelect: () => changeStatus(editing, 'paused'), disabled: !isSupervisor || busyId === editing.id }
+          : { label: 'Resume', onSelect: () => changeStatus(editing, 'active'), disabled: !isSupervisor || busyId === editing.id },
+        ...(editing.status !== 'archived'
+          ? [{ label: '⊘ Archive', onSelect: () => changeStatus(editing, 'archived'), disabled: !isSupervisor || busyId === editing.id }]
+          : []),
+      ]
+    : [];
+
   return (
     <div className="space-y-4" data-testid="files-settings">
-      <div>
-        <h2 className="text-xl font-semibold tracking-[-0.01em] text-foreground">Files</h2>
-        <p className="mt-1 text-sm text-muted-foreground">Each file has its own pitch script, daily goal, company label, AI context, stages and fields.</p>
-        {!isSupervisor && <p className="mt-1 text-sm text-muted-foreground">Only a supervisor can create or change files.</p>}
-      </div>
       <div className="flex flex-col gap-6 xl:flex-row xl:items-start">
         {/* The file list: its own column. */}
-        <div className="space-y-2 xl:w-64 xl:shrink-0" aria-label="All files">
-          <Button variant="primary" className="w-full" onClick={() => select({ file: 'new' })} disabled={!isSupervisor}>
+        <div className="space-y-2 xl:w-[280px] xl:shrink-0" aria-label="All files">
+          <Button className="w-full" onClick={() => select({ file: 'new' })} disabled={!isSupervisor} title={isSupervisor ? undefined : 'Only a supervisor can create or change files'}>
             + New file
           </Button>
           <ul className="border-t">
             {campaigns.map((c) => {
               const selected = editing && c.id === editing.id;
+              const current = String(c.id) === String(activeId);
               return (
                 <li key={c.id} className="border-b">
                   <button
                     type="button"
                     onClick={() => select({ file: String(c.id) })}
                     aria-current={selected ? 'true' : undefined}
-                    className={`flex min-h-12 w-full flex-col items-start gap-1 px-2 py-2 text-left transition-colors duration-150 ${selected ? 'bg-muted' : 'hover:bg-muted'}`}
+                    className={`flex min-h-12 w-full items-center gap-2 px-2 py-2 text-left transition-colors duration-150 ${selected ? 'bg-muted' : 'hover:bg-muted'}`}
                   >
-                    <FileTag number={c.file_number} name={c.name} />
-                    <span className="flex items-center gap-2">
-                      <Badge tone={STATUS_TONE[c.status] || 'outline'}>{c.status}</Badge>
-                      {String(c.id) === String(activeId) && <span className="label">Active here</span>}
-                    </span>
+                    <FileTag number={c.file_number} />
+                    <span className="min-w-0 flex-1 truncate text-sm text-foreground">{c.name}</span>
+                    <span className="font-mono text-xs uppercase text-muted-foreground">{current ? 'Current' : statusWord(c)}</span>
                   </button>
                 </li>
               );
@@ -308,28 +316,13 @@ export default function FilesSettings() {
             />
           ) : editing ? (
             <>
-              <div className="flex flex-wrap items-center justify-between gap-4">
-                <div className="flex items-center gap-4">
-                  <FileTag number={editing.file_number} name={editing.name} />
-                  <Badge tone={STATUS_TONE[editing.status] || 'outline'}>{editing.status}</Badge>
+              <div className="flex min-h-11 items-center justify-between gap-4">
+                <div className="flex min-w-0 items-center gap-4">
+                  <h2 className="truncate text-xl font-semibold tracking-[-0.01em] text-foreground">{editing.name}</h2>
+                  <FileTag number={editing.file_number} />
+                  <Badge tone={STATUS_TONE[editing.status] || 'outline'}>{statusWord(editing)}</Badge>
                 </div>
-                <span className="flex flex-wrap gap-2">
-                  {editing.status === 'active' && (
-                    <Button onClick={() => changeStatus(editing, 'paused')} disabled={!isSupervisor || busyId === editing.id} aria-label={`Pause ${fileLabel(editing)}`}>
-                      Pause
-                    </Button>
-                  )}
-                  {editing.status !== 'active' && (
-                    <Button onClick={() => changeStatus(editing, 'active')} disabled={!isSupervisor || busyId === editing.id} aria-label={`Resume ${fileLabel(editing)}`}>
-                      Resume
-                    </Button>
-                  )}
-                  {editing.status !== 'archived' && (
-                    <Button onClick={() => changeStatus(editing, 'archived')} disabled={!isSupervisor || busyId === editing.id} aria-label={`Archive ${fileLabel(editing)}`}>
-                      ⊘ Archive
-                    </Button>
-                  )}
-                </span>
+                {isSupervisor && <Menu ariaLabel={`More for ${fileLabel(editing)}`} items={moreItems} />}
               </div>
               <Segmented label="File settings" options={TABS} value={tab} onChange={(t) => select({ tab: t })} />
               {(tab === 'basics' || tab === 'script') && (
@@ -339,7 +332,7 @@ export default function FilesSettings() {
               {tab === 'fields' && <FieldEditor key={`f-${editing.id}`} campaign={editing} disabled={!isSupervisor} />}
             </>
           ) : (
-            <p className="text-sm text-muted-foreground">Pick a file on the left.</p>
+            <p className="text-sm text-muted-foreground">Pick a file.</p>
           )}
         </div>
       </div>
