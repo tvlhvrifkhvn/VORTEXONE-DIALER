@@ -295,3 +295,9 @@
 - 2026-11-18 · C8B · Deleting a smart list moved from the old bar to the rail: × beside the open smart list (its confirm kept) · the bar is gone, the action isn't
 - 2026-11-18 · C8B · The selection strip's STAGE, TAG, FILE and ADD TO LIST open their existing fields in popovers; the result line shows under the strip · the strip keeps the toolbar's height
 - 2026-11-18 · C8B · NextUp.jsx and StateSidebar.jsx are deleted (no users left); QueueHoursCards.jsx keeps only queueHours(); SavedViewsBar.jsx keeps only normalizeFilters()
+- 2026-11-18 · C8C · NOTE in the composer posts the same note as the call screen's ADD NOTE (api.addLeadNote); there was no note form on the lead page · the plan's "existing form for that action"
+- 2026-11-18 · C8C · NEXT lists the scheduled callback without CLEAR: there is no route that clears a callback, and what status a cleared callback goes back to is a dialer rule the owner decides · nothing new in a "move only" phase
+- 2026-11-18 · C8C · The contact rows leave out the name (it is the top bar's title) · one fact, one place
+- 2026-11-18 · C8C · PIPELINE shows one SAVE (solid) and CANCEL only after a change, saving the stage and the deal value as needed; done tasks leave NEXT (they're in the timeline), delete moves into the row's ⋯
+- 2026-11-18 · C8C · SEND in SmsCompose and EmailCompose is solid everywhere (the call screen's QUICK SMS too): a form submit inside a panel, rule 4 · style only
+- 2026-11-18 · C8C · Delete lead keeps its words and two buttons but sits in a Dialog opened from ⋯; Move to another file lists the other files in the same ⋯ (supervisors, as the bulk move) with the bulk move's confirm

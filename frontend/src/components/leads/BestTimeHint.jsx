@@ -18,7 +18,7 @@ export default function BestTimeHint({ leadId }) {
   if (!text) return null;
   return (
     <p className="text-sm text-muted-foreground" data-testid="best-time">
-      <span className="label mr-2">Best time to call</span>
+      <span className="label mr-2">Best time</span>
       {text}
     </p>
   );

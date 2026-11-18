@@ -27,7 +27,8 @@ function mergePreview(body, lead) {
 
 /** SMS compose section within the lead detail panel — E3, plus Part C's
  * optional media attachment. */
-export function SmsCompose({ lead, onSent }) {
+// C8C: `bare` drops the muted frame (inside the lead page's composer); SEND is solid.
+export function SmsCompose({ lead, onSent, bare = false }) {
   const [templates, setTemplates] = useState([]);
   const [templateId, setTemplateId] = useState('');
   const [customText, setCustomText] = useState('');
@@ -103,7 +104,7 @@ export function SmsCompose({ lead, onSent }) {
   }
 
   return (
-    <div className="space-y-2 border bg-muted p-4">
+    <div className={bare ? 'space-y-2' : 'space-y-2 border bg-muted p-4'}>
       {/* C5C: the draft goes into the custom message; SEND stays the owner's. */}
       <DraftWithAi
         leadId={lead.id}
@@ -200,7 +201,7 @@ export function SmsCompose({ lead, onSent }) {
         >
           <Paperclip size={16} strokeWidth={1.5} aria-hidden="true" />
         </button>
-        <Button className="flex-1" onClick={handleSend} disabled={!canSend}>
+        <Button variant="solid" className="flex-1" onClick={handleSend} disabled={!canSend}>
           {uploading ? 'Uploading…' : sending ? 'Sending…' : 'Send'}
         </Button>
       </div>
@@ -211,7 +212,7 @@ export function SmsCompose({ lead, onSent }) {
 /** Email compose section — Part C. Same merge-field preview pattern as
  * SmsCompose, minus templates/segments/attachments, none of which the brief
  * asked for on this channel. */
-export function EmailCompose({ lead, onSent }) {
+export function EmailCompose({ lead, onSent, bare = false }) {
   const [subject, setSubject] = useState('');
   const [body, setBody] = useState('');
   const [sending, setSending] = useState(false);
@@ -248,7 +249,7 @@ export function EmailCompose({ lead, onSent }) {
   }
 
   return (
-    <div className="space-y-2 border bg-muted p-4">
+    <div className={bare ? 'space-y-2' : 'space-y-2 border bg-muted p-4'}>
       {/* C5C: the draft fills subject and body; SEND stays the owner's. */}
       <DraftWithAi
         leadId={lead.id}
@@ -285,7 +286,7 @@ export function EmailCompose({ lead, onSent }) {
       {error && <p role="alert" className="text-sm text-signal">{error}</p>}
       {sent && <p className="font-mono text-xs uppercase text-foreground">✓ Sent</p>}
 
-      <Button className="w-full" onClick={handleSend} disabled={!canSend}>
+      <Button variant="solid" className="w-full" onClick={handleSend} disabled={!canSend}>
         {sending ? 'Sending…' : 'Send'}
       </Button>
     </div>
@@ -403,7 +404,9 @@ const TIMELINE_POLL_MS = 30000; // C7A (was 8 s)
  * panel's "action hub". */
 // C7D: `composer` ('sms' | 'email' | null) and `onComposer` let the lead page's
 // top bar open the composers; `hideActions` drops this row's CALL / SMS / EMAIL.
-export default function LeadActionHub({ lead, composer, onComposer, hideActions = false }) {
+// C8C: on the lead page (hideActions) the timeline fills the column and scrolls
+// on its own; `refreshKey` reloads it after the page's composer saves something.
+export default function LeadActionHub({ lead, composer, onComposer, hideActions = false, refreshKey = 0 }) {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const [ownSms, setOwnSms] = useState(() => searchParams.get('reply') === '1'); // C3B: REPLY from Today
@@ -428,7 +431,7 @@ export default function LeadActionHub({ lead, composer, onComposer, hideActions 
       .finally(() => setLoadingTimeline(false));
   };
 
-  useEffect(loadTimeline, [lead.id]);
+  useEffect(loadTimeline, [lead.id, refreshKey]);
 
   // Opening a lead's panel from anywhere (Dashboard row, Inbox row, global
   // search) mounts this component, so this is the one place that needs to
@@ -450,7 +453,7 @@ export default function LeadActionHub({ lead, composer, onComposer, hideActions 
   }, [lead.id]);
 
   return (
-    <div className="space-y-4">
+    <div className={hideActions ? 'flex flex-col gap-4 lg:min-h-[18rem] lg:flex-1' : 'space-y-4'}>
       {!hideActions && (
       <div className="grid grid-cols-3 gap-2">
         <Button variant="primary" onClick={() => navigate(`/call/${lead.id}`)}>
@@ -471,7 +474,7 @@ export default function LeadActionHub({ lead, composer, onComposer, hideActions 
       {smsOpen && <SmsCompose lead={lead} onSent={loadTimeline} />}
       {emailOpen && <EmailCompose lead={lead} onSent={loadTimeline} />}
 
-      <Panel className="space-y-2 px-4 py-2">
+      <Panel className={`space-y-2 px-4 py-2 ${hideActions ? 'flex flex-col lg:min-h-0 lg:flex-1' : ''}`} data-testid="lead-timeline">
         <div className="flex flex-wrap items-center justify-between gap-2 pt-2">
           <p className="label">Timeline</p>
           <Segmented
@@ -484,9 +487,9 @@ export default function LeadActionHub({ lead, composer, onComposer, hideActions 
         {loadingTimeline ? (
           <p className="label pb-2">Loading…</p>
         ) : shown.length === 0 ? (
-          <p className="pb-2 text-sm text-muted-foreground">{timeline.length === 0 ? 'Nothing here yet.' : 'Nothing of this kind yet.'}</p>
+          <p className="pb-2 text-sm text-muted-foreground">{timeline.length === 0 ? 'No activity yet.' : 'Nothing of this kind yet.'}</p>
         ) : (
-          <ul className={`border-t ${hideActions ? '' : 'max-h-[32rem] overflow-y-auto'}`}>
+          <ul className={`border-t ${hideActions ? 'lg:min-h-0 lg:flex-1 lg:overflow-y-auto' : 'max-h-[32rem] overflow-y-auto'}`}>
             {shown.map((entry) => (
               <TimelineEntry key={`${entry.type}-${entry.id}`} entry={entry} leadName={lead.name} />
             ))}

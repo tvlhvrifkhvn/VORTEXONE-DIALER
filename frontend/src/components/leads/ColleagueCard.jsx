@@ -33,7 +33,8 @@ function openerFor(summary, people = 'agents') {
  */
 // `index` numbers the section label ("03" on the call screen). The label
 // lives here because the card renders nothing when there are no colleagues.
-export default function ColleagueCard({ leadId, index }) {
+// C8C: `twoByTwo` lays the four numbers out 2×2 (the lead page's WORK rail).
+export default function ColleagueCard({ leadId, index, twoByTwo = false }) {
   const [summary, setSummary] = useState(null);
   const { active } = useCampaign();
   const people = !active || active.kind === 'real_estate' ? 'agents' : 'people';
@@ -71,7 +72,7 @@ export default function ColleagueCard({ leadId, index }) {
           <p className="truncate text-base font-semibold text-foreground">{summary.officeLabel}</p>
         </div>
 
-        <dl className="grid grid-cols-2 border-t sm:grid-cols-4">
+        <dl className={`grid grid-cols-2 border-t ${twoByTwo ? '' : 'sm:grid-cols-4'}`}>
           {stats.map(([key, value]) => (
             <div key={key} className="border-b py-2 pr-4">
               <dt className="label">{key}</dt>

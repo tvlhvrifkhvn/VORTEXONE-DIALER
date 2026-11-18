@@ -1,15 +1,17 @@
-// The lead page's tasks (C3A): open tasks first (overdue marked), then done
-// ones; complete, reopen, delete; and the add form.
+// The lead page's tasks (C3A). C8C: the WORK rail's NEXT: a list only (the
+// add form is the composer's TASK tab): the scheduled callback, then the open
+// tasks (overdue marked) with DONE and ⋯ → Delete. Done tasks show in the
+// timeline. `refreshKey` reloads after the composer adds one.
 import { useCallback, useEffect, useState } from 'react';
-import Panel from '../ui/Panel';
 import Button from '../ui/Button';
 import Badge from '../ui/Badge';
 import SectionLabel from '../ui/SectionLabel';
-import TaskForm, { TASK_TYPES } from './TaskForm';
+import Menu from '../ui/Menu';
+import { TASK_TYPES } from './TaskForm';
 import { formatDateTime } from '../../lib/format';
 import * as api from '../../lib/api';
 
-export default function TaskPanel({ lead }) {
+export default function TaskPanel({ lead, refreshKey = 0 }) {
   const [tasks, setTasks] = useState([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
@@ -24,7 +26,7 @@ export default function TaskPanel({ lead }) {
 
   useEffect(() => {
     load();
-  }, [load]);
+  }, [load, refreshKey]);
 
   const run = async (fn) => {
     setBusy(true);
@@ -44,45 +46,46 @@ export default function TaskPanel({ lead }) {
   const open = tasks.filter((t) => !t.done_at);
   const now = Date.now();
 
+  const callbackAt = lead.status === 'callback_scheduled' && lead.next_action_at ? lead.next_action_at : null;
+  const count = open.length + (callbackAt ? 1 : 0);
+
   return (
-    <Panel className="space-y-4 p-6">
-      <SectionLabel title="Tasks" meta={`${open.length} open`} />
-      <ul className="border-t">
-        {tasks.length === 0 && <li className="py-2 text-sm text-muted-foreground">No tasks yet.</li>}
-        {tasks.map((t) => {
-          const overdue = !t.done_at && new Date(t.due_at).getTime() < now;
+    <section className="space-y-2" data-testid="lead-next">
+      <SectionLabel title="Next" meta={`${count} open`} />
+      <ul className="border">
+        {count === 0 && <li className="px-3 py-2 text-sm text-muted-foreground">Nothing scheduled.</li>}
+        {callbackAt && (
+          <li className="flex min-h-12 items-center gap-2 border-b px-3 py-2 last:border-b-0">
+            <Badge tone={new Date(callbackAt).getTime() < now ? 'solid' : 'outline'}>Callback</Badge>
+            <span className="min-w-0 flex-1 font-mono text-xs tabular-nums text-foreground">{formatDateTime(callbackAt)}</span>
+          </li>
+        )}
+        {open.map((t) => {
+          const overdue = new Date(t.due_at).getTime() < now;
           return (
-            <li key={t.id} className={`flex min-h-12 flex-wrap items-center gap-2 border-b py-2 ${t.done_at ? 'text-muted-foreground' : ''}`}>
-              <Badge tone={t.done_at ? 'muted' : 'outline'}>{TASK_TYPES.find((x) => x.value === t.type)?.label || t.type}</Badge>
-              <span className={`min-w-0 flex-1 break-words text-sm ${t.done_at ? 'line-through' : 'text-foreground'}`}>{t.title}</span>
-              {overdue && <Badge tone="solid">Overdue</Badge>}
-              {t.source === 'disposition' && <span className="label">From outcome</span>}
-              <span className="font-mono text-xs tabular-nums text-muted-foreground">
-                {t.done_at ? `Done ${formatDateTime(t.done_at)}` : `Due ${formatDateTime(t.due_at)}`}
-              </span>
-              {t.done_at ? (
-                <Button variant="ghost" onClick={() => run(() => api.reopenTask(t.id))} disabled={busy} aria-label={`Reopen ${t.title}`}>
-                  Reopen
-                </Button>
-              ) : (
-                <Button onClick={() => run(() => api.completeTask(t.id))} disabled={busy} aria-label={`Complete ${t.title}`}>
-                  ✓ Done
-                </Button>
-              )}
-              <Button
-                variant="ghost"
-                onClick={() => window.confirm(`Delete the task "${t.title}"?`) && run(() => api.deleteTask(t.id))}
-                disabled={busy}
-                aria-label={`Delete ${t.title}`}
-              >
-                ⊘
+            <li key={t.id} className="flex min-h-12 items-center gap-2 border-b px-3 py-2 last:border-b-0">
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm text-foreground" title={t.title}>
+                  {t.title}
+                </p>
+                <p className="font-mono text-xs tabular-nums text-muted-foreground">
+                  {TASK_TYPES.find((x) => x.value === t.type)?.label || t.type} · {overdue ? 'overdue · ' : ''}
+                  {formatDateTime(t.due_at)}
+                </p>
+              </div>
+              <Button size="sm" onClick={() => run(() => api.completeTask(t.id))} disabled={busy} aria-label={`Complete ${t.title}`}>
+                Done
               </Button>
+              <Menu
+                size="sm"
+                ariaLabel={`More for ${t.title}`}
+                items={[{ label: 'Delete task', onSelect: () => window.confirm(`Delete the task "${t.title}"?`) && run(() => api.deleteTask(t.id)) }]}
+              />
             </li>
           );
         })}
       </ul>
-      <TaskForm busy={busy} onSubmit={(task) => run(() => api.createTask({ ...task, leadId: lead.id }))} />
       {error && <p role="alert" className="text-sm text-signal">{error}</p>}
-    </Panel>
+    </section>
   );
 }
