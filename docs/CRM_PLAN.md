@@ -620,5 +620,5 @@ Tests: digits validation and the 501 without support; the recording toggle is st
 - C8B: done
 - C8C: done
 - C8D: done
-- C8E: not started
+- C8E: done
 - C8F: not started

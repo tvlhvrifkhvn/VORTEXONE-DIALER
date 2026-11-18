@@ -13,16 +13,17 @@ const DISPOSITIONS = [
   { key: 'dnc', label: '⊘ DNC', variant: 'dnc' },
 ];
 
-export default function DispositionButtons({ onSelect, disabled }) {
+// C8E: `columns={3}` on the call screen (same order, left to right), 48px high.
+export default function DispositionButtons({ onSelect, disabled, columns = 2 }) {
   return (
-    <div className="grid grid-cols-2 gap-2">
+    <div className={`grid gap-2 ${columns === 3 ? "grid-cols-3" : "grid-cols-2"}`} data-testid="outcome-buttons">
       {DISPOSITIONS.map((d) => (
         <ActionButton
           key={d.key}
           variant={d.variant}
           disabled={disabled}
           onClick={() => onSelect(d.key)}
-          className="flex min-h-[52px] items-center justify-center gap-2"
+          className={`flex items-center justify-center gap-2 ${columns === 3 ? 'min-h-12 px-2' : 'min-h-[52px]'}`}
         >
           {d.hotkey && <Keycap>{d.hotkey}</Keycap>}
           {d.label}

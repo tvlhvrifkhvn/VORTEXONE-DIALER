@@ -307,3 +307,8 @@
 - 2026-11-18 · C8D · Settings explanations moved into title tooltips on the labels or buttons (and USER_GUIDE.md); the calling-hours line stays. The old box about recordings and state consent went: C8F's first RECORD shows the consent reminder where it applies
 - 2026-11-18 · C8D · StageEditor and FieldEditor (not on the read list) lost their inner SectionLabel and description, and their ADD buttons are solid · the plan's "the repeated header inside each tab panel goes"
 - 2026-11-18 · C8D · ActivitySection keeps its own label and table (not on the read list); the other sections get the shared header row
+- 2026-11-18 · C8E · "3×2" = three columns, two rows: the six outcomes keep their order (left to right) and take two rows instead of three · the outcomes fit at 1440×900 with no scrolling (measured)
+- 2026-11-18 · C8E · The hotkey hint bar at the bottom of the call screen is gone: every hotkey shows as a keycap on its own control (M, ESC, V, N, and D in the OUTCOME header) · one fact, one place
+- 2026-11-18 · C8E · The HELP column is placed with a matchMedia hook (one instance, so no duplicate form ids or double fetches) rather than two CSS-hidden copies
+- 2026-11-18 · C8E · After a call ends, the 30 s note, REDIAL, and the logged outcome with UNDO · BACK TO LEADS · NEXT LEAD → sit in the CALL column under the controls (they were in the old right column) · the next step stays where the eyes are
+- 2026-11-18 · C8E · BriefCard's recent lines get index keys: the always-open brief showed React's duplicate-key warning when two recent lines were the same
