@@ -15,6 +15,7 @@ const TRIGGER =
 const TRIGGER_LOOK = {
   secondary: 'border border-strong text-foreground hover:bg-foreground hover:text-background',
   ghost: 'border border-transparent text-foreground hover:bg-muted',
+  primary: 'border border-primary-border bg-primary text-primary-foreground hover:bg-foreground hover:text-background', // C8B: a split button's arrow
 };
 const TRIGGER_SIZE = {
   sm: 'min-h-8 min-w-8 gap-2 px-2',
@@ -25,6 +26,7 @@ const TRIGGER_SIZE = {
 const OPEN_LOOK = {
   secondary: 'border border-foreground bg-foreground text-background',
   ghost: 'border border-strong bg-muted text-foreground', // keeps muted text inside readable
+  primary: 'border border-foreground bg-foreground text-background',
 };
 
 /** The shared open/close logic: outside click, Esc while focus is inside, focus back to the button. */

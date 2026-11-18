@@ -63,22 +63,7 @@ export default function LeadTable({
 
   return (
     <Panel className="overflow-x-auto p-0">
-      <div className="flex flex-wrap items-center justify-between gap-2 border-b px-4 py-2 text-sm text-muted-foreground">
-        <span className="tabular-nums">
-          Showing {leads.length} of {total} lead{total === 1 ? '' : 's'}
-          {selectedState ? ` in ${selectedState}` : ''}
-        </span>
-        {total > 0 && (
-          <button
-            type="button"
-            onClick={onSelectAllFiltered}
-            className="min-h-10 font-medium text-foreground underline underline-offset-4 hover:bg-muted"
-          >
-            Select all {total} lead{total === 1 ? '' : 's'}
-            {selectedState ? ` in ${selectedState}` : ''}
-          </button>
-        )}
-      </div>
+      {/* C8B: the count and SELECT ALL live in the page's toolbar and selection strip. */}
       <table className="w-full text-sm">
         <thead className="sticky top-0 z-[1] bg-card">
           <tr className="border-b text-left">

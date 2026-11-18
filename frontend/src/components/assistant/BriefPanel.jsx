@@ -1,4 +1,4 @@
-// Today's "04 — BRIEF" (C5C): the day at a glance, the 3 to 5 leads to call
+// Today's AI BRIEF (C5C; C8B: the right rail, compact): the day at a glance, the 3 to 5 leads to call
 // first with a one-line reason, and yesterday against the daily goal. Never
 // runs on page load: GENERATE, then REFRESH. The server keeps it for the
 // rest of the reporting day (per user and file), so GENERATE after a reload
@@ -35,8 +35,9 @@ export default function BriefPanel({ index = '04' }) {
   const y = brief?.yesterday;
   return (
     <section className="space-y-2" data-testid="brief">
-      <SectionLabel index={index} title="Brief" meta={brief ? `Generated ${formatDateTime(brief.generatedAt)}` : null} />
-      <Panel className="space-y-4 p-6">
+      {/* C8B: "AI BRIEF" in the Today rail; no description line, the Groq note is the button's tooltip. */}
+      <SectionLabel index={index} title="AI brief" meta={brief ? `Generated ${formatDateTime(brief.generatedAt)}` : null} />
+      <Panel className="space-y-4 p-4">
         {brief ? (
           <>
             {brief.note && <p className="text-base text-foreground">{brief.note}</p>}
@@ -74,20 +75,15 @@ export default function BriefPanel({ index = '04' }) {
               </div>
             </div>
           </>
-        ) : (
-          !problem && <p className="text-sm text-muted-foreground">Who to call first today and how yesterday went, from your CRM data.</p>
-        )}
+        ) : null}
         {problem && (
           <p role="alert" className={`border-l-[3px] bg-muted px-4 py-2 text-sm text-foreground ${problem.notConfigured ? 'border-strong' : 'border-l-primary'}`}>
             {problem.notConfigured ? <NotConfiguredText message={problem.message} /> : problem.message}
           </p>
         )}
-        <div className="flex flex-wrap items-center gap-2">
-          <Button onClick={() => run(Boolean(brief))} disabled={loading}>
-            {loading ? 'Working…' : brief ? 'Refresh' : 'Generate'}
-          </Button>
-          <p className="text-xs text-muted-foreground">Made by Groq from your CRM data. Check before acting.</p>
-        </div>
+        <Button size="sm" onClick={() => run(Boolean(brief))} disabled={loading} title="Who to call first today and how yesterday went. Made by Groq from your CRM data; check before acting.">
+          {loading ? 'Working…' : brief ? 'Refresh brief' : 'Generate brief'}
+        </Button>
       </Panel>
     </section>
   );
