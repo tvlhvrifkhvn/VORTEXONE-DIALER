@@ -1,27 +1,15 @@
 import Field from '../ui/Field';
 import { STATUS_LABELS } from '../../styles/theme';
-import { useCampaign } from '../../hooks/useCampaign';
 import { useStages } from '../../hooks/useStages';
 
+// C8B: the FILTERS panel under the Leads toolbar (the search field is the
+// toolbar's own, so it is not repeated here).
 export default function LeadFilters({ filters, onChange }) {
   const update = (patch) => onChange({ ...filters, ...patch });
-  const companyWord = (useCampaign().active?.company_label || 'Brokerage').toLowerCase(); // C1E
   const { stages } = useStages(); // C2B
 
   return (
     <div className="flex flex-wrap items-end gap-4">
-      <div>
-        <label htmlFor="filter-search" className="label mb-2 block">
-          Search
-        </label>
-        <Field
-          id="filter-search"
-          placeholder={`Name, phone, ${companyWord}…`}
-          value={filters.search || ''}
-          onChange={(e) => update({ search: e.target.value })}
-          className="w-64"
-        />
-      </div>
       <div>
         <label htmlFor="filter-status" className="label mb-2 block">
           Status

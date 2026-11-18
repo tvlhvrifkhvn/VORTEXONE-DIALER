@@ -49,7 +49,7 @@ async function list({ view, campaignId, now = new Date(), from, to } = {}) {
   }
   const s = campaignScope.scope('t', campaignId, 4);
   const { rows } = await db.query(
-    `SELECT ${COLUMNS}, l.name AS lead_name, (t.due_at < $3) AS overdue, count(*) OVER ()::int AS total
+    `SELECT ${COLUMNS}, l.name AS lead_name, l.brokerage AS lead_company, (t.due_at < $3) AS overdue, count(*) OVER ()::int AS total
      FROM tasks t LEFT JOIN leads l ON l.id = t.lead_id
      WHERE t.done_at IS NULL AND (t.lead_id IS NULL OR l.deleted_at IS NULL)
        AND ($1::timestamptz IS NULL OR t.due_at >= $1) AND ($2::timestamptz IS NULL OR t.due_at < $2)

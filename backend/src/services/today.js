@@ -21,7 +21,7 @@ function capped(rows) {
 async function callbacks(campaignId, now, end) {
   const s = campaignScope.scope('l', campaignId, 3);
   const { rows } = await db.query(
-    `SELECT l.id, l.name, l.phone, l.state, l.campaign_id, l.next_action_at AS due_at,
+    `SELECT l.id, l.name, l.brokerage AS company, l.phone, l.state, l.campaign_id, l.next_action_at AS due_at,
             (l.next_action_at < $1) AS overdue, count(*) OVER ()::int AS total
      FROM leads l
      WHERE l.status = 'callback_scheduled' AND l.deleted_at IS NULL AND l.next_action_at < $2 AND ${s.sql}
@@ -35,7 +35,7 @@ async function callbacks(campaignId, now, end) {
 async function unreadTexts(campaignId) {
   const s = campaignScope.scope('l', campaignId, 1);
   const { rows } = await db.query(
-    `SELECT l.id, l.name, l.campaign_id, u.unread, u.last_at, count(*) OVER ()::int AS total
+    `SELECT l.id, l.name, l.brokerage AS company, l.campaign_id, u.unread, u.last_at, count(*) OVER ()::int AS total
      FROM leads l
      JOIN (
        SELECT lead_id, count(*)::int AS unread, max(sent_at) AS last_at
@@ -54,7 +54,7 @@ async function stale(campaignId, now) {
   const s = campaignScope.scope('l', campaignId, 2);
   const since = new Date(now.getTime() - STALE_DAYS * 24 * 3600 * 1000);
   const { rows } = await db.query(
-    `SELECT l.id, l.name, l.campaign_id, st.name AS stage_name,
+    `SELECT l.id, l.name, l.brokerage AS company, l.campaign_id, st.name AS stage_name,
             GREATEST(l.updated_at, h.moved_at) AS activity_at, count(*) OVER ()::int AS total
      FROM leads l
      JOIN pipeline_stages st ON st.id = l.pipeline_stage_id AND st.kind = 'open'

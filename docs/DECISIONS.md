@@ -288,3 +288,10 @@
 - 2026-11-18 · C8A · The calling-hours chip shows Eastern time and OPEN/CLOSED; the four zones (ET, CT, MT, PT) are in its popover. Same 8 AM–9 PM rule as the old clocks, with words instead of strikethrough · color is never the only cue
 - 2026-11-18 · C8A · The spend chip is hidden until rates are set (Settings → Spend limits still says so); at 80 % of the closer budget it is a signal (orange) chip; the click still opens the split by file
 - 2026-11-18 · C8A · The user menu holds SETTINGS, THEME (INK | PAPER) and LOG OUT; the name is its first line. IMPORT leaves the nav (the route stays; C8B adds it to Leads); the import progress bar stays in the header while an import runs
+- 2026-11-18 · C8B · TO DO rows show the company: /api/today rows carry `company` and the task lists `lead_company` (the lead's brokerage; additive, tests/31-c8b) · the plan's "name and company" needed a field the rows didn't have
+- 2026-11-18 · C8B · DIAL with nothing selected reads "DIAL n" where n = the queue (dialable now + waiting for their hours), not the filtered lead count: the button dials the queue, so a filtered count would promise the wrong leads · the number matches what it dials
+- 2026-11-18 · C8B · TO DO's header counts ("n today · n overdue") count the same rows as the WHEN buttons (replies and gone-quiet leads included) · one number per fact on the screen
+- 2026-11-18 · C8B · The row actions are secondary (32px); START DIALING SESSION stays the only orange button on Today. Gone-quiet rows get CALL; the name links to the lead (OPEN is gone)
+- 2026-11-18 · C8B · Deleting a smart list moved from the old bar to the rail: × beside the open smart list (its confirm kept) · the bar is gone, the action isn't
+- 2026-11-18 · C8B · The selection strip's STAGE, TAG, FILE and ADD TO LIST open their existing fields in popovers; the result line shows under the strip · the strip keeps the toolbar's height
+- 2026-11-18 · C8B · NextUp.jsx and StateSidebar.jsx are deleted (no users left); QueueHoursCards.jsx keeps only queueHours(); SavedViewsBar.jsx keeps only normalizeFilters()
