@@ -16,6 +16,7 @@ const { apiLimiter } = require('./middleware/rateLimit');
 const authRoutes = require('./routes/auth');
 const leadsRoutes = require('./routes/leads');
 const callsRoutes = require('./routes/calls');
+const manualCallsRoutes = require('./routes/manualCalls'); // C8F
 const dispositionsRoutes = require('./routes/dispositions');
 const importsRoutes = require('./routes/imports');
 const exportsRoutes = require('./routes/exports');
@@ -97,6 +98,7 @@ app.use('/api/leads', duplicatesRoutes);
 app.use('/api/leads', insightsRoutes.leadRouter);
 app.use('/api/leads', leadListsRoutes); // C7C
 app.use('/api/leads', leadsRoutes);
+app.use('/api/calls', manualCallsRoutes); // C8F: before calls (GET /manual/recent vs GET /:id)
 app.use('/api/calls', callsRoutes);
 app.use('/api/dispositions', dispositionsRoutes);
 app.use('/api/imports', importsRoutes);

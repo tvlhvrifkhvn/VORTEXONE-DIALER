@@ -10,6 +10,7 @@ const { ApiError } = require('../middleware/errorHandler');
 const { normalizePhone } = require('../utils/phoneNormalize');
 const callingHours = require('./callingHours');
 const costEngine = require('./costEngine');
+const manualCalls = require('./manualCalls'); // C8F: a manual call's notes reach its lead when it ends
 
 // Reserved-for-fiction NANP range (555-0100 through 555-0199) — safe
 // placeholder until phone_numbers is populated with real numbers in phase 2.
@@ -140,7 +141,10 @@ async function startManual({ userId, toNumberRaw, campaignId }) {
   let telephonyCallId;
   try {
     telephonyCallId = await telephony.placeCall(fromNumber, toNumber, (event) => {
-      const write = event.type === 'ended' ? callLifecycle.markEnded(call.id, event.duration) : recordState(call.id, event.type);
+      const write =
+        event.type === 'ended'
+          ? callLifecycle.markEnded(call.id, event.duration).then(() => manualCalls.copyNotesToLead(call.id))
+          : recordState(call.id, event.type);
       write.catch((err) => {
         console.error(`Failed to record telephony event "${event.type}" for manual call ${call.id}:`, err.message);
       });
@@ -174,6 +178,7 @@ async function endManualCall(callHistoryId, user) {
       [callHistoryId, now, durationSeconds]
     );
     await costEngine.settle(callHistoryId);
+    await manualCalls.copyNotesToLead(callHistoryId); // C8F: once, if it has notes and a lead
   }
 
   return get(callHistoryId);

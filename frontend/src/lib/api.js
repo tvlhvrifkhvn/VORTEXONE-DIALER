@@ -237,6 +237,12 @@ export const startCall = (leadId, sessionId, { redial = false } = {}) =>
   });
 export const getCall = (id) => request(`/calls/${id}`);
 export const hangupCall = (id) => request(`/calls/${id}/hangup`, { method: 'POST' });
+// C8F: the dial pad's tones, RECORD switch, live notes, matched lead and recent calls.
+export const sendCallDigits = (id, digits) => request(`/calls/${id}/digits`, { method: 'POST', body: { digits } });
+export const setCallRecording = (id, on) => request(`/calls/${id}/recording`, { method: 'POST', body: { on } });
+export const saveCallNotes = (id, notes) => request(`/calls/${id}/notes`, { method: 'PUT', body: { notes } });
+export const getCallLead = (id) => request(`/calls/${id}/lead`);
+export const getRecentManualCalls = () => request('/calls/manual/recent');
 
 // manual dial pad — an ad-hoc call to a typed-in number, not tied to a lead
 export const startManualCall = (toNumber) =>
