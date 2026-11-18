@@ -3,8 +3,12 @@
 The assistant answers "how do I…" questions from this file (tool `get_app_help`). One short section per page and per common task. Keep each section under about 12 lines.
 
 ## Header and navigation
-- Row 1: the file switcher (FILE 01 · name ▾), the pages TODAY · PIPELINE · LEADS · DIALER · INBOX · IMPORT · REPORTS · SETTINGS, then ASK (the assistant), DIAL (dial any number) and LOG OUT.
-- Row 2: search all leads (name, phone, company or tag, every file), the spend meter (click for the split by file), INK / PAPER theme, and the clocks for the four US time zones (green inside 8am–9pm).
+- One row: VORTEX ONE, the file switcher (FILE 01 · name ▾), the pages TODAY · PIPELINE · LEADS · DIALER · INBOX · REPORTS, then search, the calling-hours chip, the spend chip, ASK (the assistant), DIAL (dial any number) and your initials.
+- Search all leads (name, phone, company or tag, every file): the search field on a wide screen, or the magnifier button, which opens the field.
+- The calling-hours chip shows Eastern time and OPEN or CLOSED (calls are allowed 8 AM–9 PM in the lead's time zone). Click it for all four zones: ET, CT, MT and PT.
+- The spend chip ("$3.40 TODAY") appears once call rates are set; it turns orange at 80 % of a budget. Click it for the split by file.
+- Your initials open the account menu: SETTINGS, THEME (INK | PAPER) and LOG OUT.
+- IMPORT is not in the header: open it from the Leads page (or go to /import).
 - The TODAY badge counts callbacks and tasks due today; the INBOX badge counts unread texts.
 
 ## Today page
@@ -45,7 +49,7 @@ The assistant answers "how do I…" questions from this file (tool `get_app_help
 ## Import leads
 - IMPORT: choose a CSV or Excel file and the target file (campaign). The AI suggests which column is which; check the mapping, then import.
 - Every number on the DNC list is skipped, and so is a number already in the list. Rows without a usable number are imported but marked "no phone" until one is added.
-- The import keeps running if you leave the page (progress in the header); skipped rows can be downloaded as a CSV.
+- The import keeps running if you leave the page (a progress bar shows in the header; click it to go back); skipped rows can be downloaded as a CSV.
 
 ## Move stages (pipeline)
 - PIPELINE shows one column per stage. Drag a card to another column, or use MOVE → on the card. Moving a stage never changes the dialer status.
@@ -80,7 +84,7 @@ The assistant answers "how do I…" questions from this file (tool `get_app_help
 - Settings: SETTINGS → INTEGRATIONS & AI (Groq key, assistant on/off, model).
 
 ## Settings
-- The left menu: Profile, Dialing defaults (max attempts, lines, calling hours, reminder notifications), Reporting day (time zone and day start), Files, Objections, Integrations & AI, Spend limits, SMS templates, Activity (supervisor: who changed what).
+- Open it from your initials in the header → SETTINGS. The left menu: Profile, Dialing defaults (max attempts, lines, calling hours, reminder notifications), Reporting day (time zone and day start), Files, Objections, Integrations & AI, Spend limits, SMS templates, Activity (supervisor: who changed what).
 
 ## Merge duplicates
 - LEADS → DUPLICATES lists likely pairs (same email; same name and company; same name, state and office). Choose KEEP THIS ONE, then REVIEW MERGE: pick the values that differ, check what moves, MERGE. There is no undo.

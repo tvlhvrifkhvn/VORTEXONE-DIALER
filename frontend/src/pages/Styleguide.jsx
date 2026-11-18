@@ -11,6 +11,7 @@ import StatusDot from '../components/ui/StatusDot';
 import Meter from '../components/ui/Meter';
 import Segmented from '../components/ui/Segmented';
 import Dialog from '../components/ui/Dialog';
+import Menu, { Popover } from '../components/ui/Menu';
 import StatCard from '../components/stats/StatCard';
 import StatusBadge from '../components/leads/StatusBadge';
 import AttemptBadge from '../components/leads/AttemptBadge';
@@ -137,6 +138,19 @@ export default function Styleguide() {
               </Button>
               <Button disabled>Disabled</Button>
               <Button>⊘ DNC</Button>
+            </div>
+            {/* C8A: solid submits a form inside a panel; sizes sm 32 · md 40 · lg 44 (page header). */}
+            <div className="flex flex-wrap items-center gap-4">
+              <Button variant="solid">Save</Button>
+              <Button variant="solid" size="sm">
+                Add note
+              </Button>
+              <Button size="sm">Compact 32</Button>
+              <Button>Default 40</Button>
+              <Button size="lg">Header 44</Button>
+              <Button variant="primary" size="lg">
+                Dial 626
+              </Button>
             </div>
             <div className="flex flex-wrap items-center gap-4">
               <Button variant="primary" className="min-h-12 w-64">
@@ -323,6 +337,33 @@ export default function Styleguide() {
           <div role="status" className="inline-block border border-l-[3px] border-strong border-l-primary bg-card px-4 py-3 text-foreground">
             Callback saved for Tue 10:30 CST.
           </div>
+        </Section>
+
+        <Section index="11" title="Menu" meta="↑ ↓ · ENTER · ESC">
+          <Panel className="flex flex-wrap items-start gap-4 p-6 pb-48">
+            <Menu
+              ariaLabel="More actions"
+              items={[
+                { label: 'Export CSV', onSelect: () => {} },
+                { label: 'Daily report PDF', onSelect: () => {} },
+                { label: 'Find duplicates', onSelect: () => {} },
+                { label: 'Archive', onSelect: () => {}, disabled: true },
+              ]}
+            />
+            <Menu
+              label="Stage ▾"
+              align="left"
+              items={[
+                { label: 'New', onSelect: () => {} },
+                { label: 'Interested', onSelect: () => {}, hint: '12' },
+                { label: 'Won', onSelect: () => {} },
+              ]}
+            />
+            <Menu size="sm" ariaLabel="Row actions" items={[{ label: 'Reschedule', onSelect: () => {} }]} />
+            <Popover label="Popover ▾" ariaLabel="Sample popover" variant="secondary" align="left" panelClassName="w-64">
+              <p className="px-3 py-2 text-sm text-foreground">Any content: the header's calling hours use this.</p>
+            </Popover>
+          </Panel>
         </Section>
       </div>
     </AppShell>

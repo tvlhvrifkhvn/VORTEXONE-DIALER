@@ -1,12 +1,9 @@
-// The header's spend meter (C4B, DESIGN.md section 5 Meter, budget tone):
-// today's spend, then "month / budget · %" on an 8px bar for whichever budget
-// (the file's or the global one) is closer to its limit, with the 80 % and
-// 100 % texts. "RATES NOT SET" until the owner enters rates. A click opens
+// The header's spend chip (C4B meter, C8A chip): "$3.40 TODAY", in signal
+// colors at 80 % or more of whichever budget (the file's or the global one)
+// is closer to its limit; hidden until the owner enters rates. A click opens
 // a panel with the per-file split. No key handlers beyond the browser's own.
 import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import Badge from '../ui/Badge';
-import Meter from '../ui/Meter';
 import { useSpend, shownBudget } from '../../hooks/useSpend';
 import { formatCents } from '../../lib/format';
 
@@ -66,8 +63,13 @@ export default function SpendMeter() {
     return () => document.removeEventListener('mousedown', onDown);
   }, [open]);
 
-  if (!spend) return null;
+  // C8A: a chip in the one-row header, only once call rates are set (Settings →
+  // Spend limits says when they aren't). Signal colors at 80 % or more of the
+  // closer budget; the click still opens the split by file.
+  if (!spend || !spend.ratesSet) return null;
   const budget = shownBudget(spend);
+  const pct = budget && budget.budget > 0 ? Math.round((budget.spent / budget.budget) * 100) : 0;
+  const warn = pct >= 80;
 
   return (
     <div ref={ref} className="relative">
@@ -76,30 +78,13 @@ export default function SpendMeter() {
         aria-haspopup="true"
         aria-expanded={open}
         onClick={() => setOpen((o) => !o)}
-        className="block w-56 px-2 py-1 text-left transition-colors duration-150 hover:bg-muted"
-        aria-label={`Spend: ${spend.ratesSet ? `${formatCents(spend.today.cents)} today, ${formatCents(spend.month.cents)} this month` : 'rates not set'}. Show the split by file`}
+        title={budget ? `${formatCents(budget.spent)} of ${formatCents(budget.budget)} (${budget.scope}) · ${pct}%` : `${formatCents(spend.month.cents)} this month · no budget`}
+        className={`inline-flex min-h-10 items-center gap-2 whitespace-nowrap border px-3 font-mono text-sm font-medium uppercase tabular-nums tracking-button transition-colors duration-150 ${
+          warn ? 'border-primary bg-primary text-primary-foreground hover:bg-foreground hover:text-background' : 'border-transparent text-foreground hover:bg-muted'
+        }`}
+        aria-label={`Spend: ${formatCents(spend.today.cents)} today, ${formatCents(spend.month.cents)} this month${warn ? `, ${pct}% of budget used` : ''}. Show the split by file`}
       >
-        {!spend.ratesSet ? (
-          <span className="flex items-center justify-between gap-2">
-            <span className="label">Spend</span>
-            <Badge tone="muted">Rates not set</Badge>
-          </span>
-        ) : (
-          <>
-            <span className="flex items-baseline justify-between gap-2">
-              <span className="label">Today</span>
-              <span className="font-mono text-xs tabular-nums text-foreground">{formatCents(spend.today.cents)}</span>
-            </span>
-            {budget ? (
-              <Meter tone="budget" value={budget.spent} max={budget.budget} format={(c) => formatCents(c)} className="mt-1" />
-            ) : (
-              <span className="flex items-baseline justify-between gap-2">
-                <span className="label">Month</span>
-                <span className="font-mono text-xs tabular-nums text-foreground">{formatCents(spend.month.cents)} · no budget</span>
-              </span>
-            )}
-          </>
-        )}
+        {formatCents(spend.today.cents)} <span className={`hidden 2xl:inline ${warn ? '' : 'text-muted-foreground'}`}>Today</span>
       </button>
       {open && <SplitPanel spend={spend} />}
     </div>
