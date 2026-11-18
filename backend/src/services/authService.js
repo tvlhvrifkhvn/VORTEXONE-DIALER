@@ -9,7 +9,12 @@ function toPublicUser(user) {
 }
 
 async function login(email, password) {
-  const { rows } = await db.query('SELECT * FROM users WHERE email = $1', [email]);
+  // Spaces around the email and its letter case don't matter (phone keyboards
+  // capitalise the first letter; autofill can add a trailing space).
+  const { rows } = await db.query(
+    'SELECT * FROM users WHERE lower(email) = lower($1) ORDER BY (email = $1) DESC, id LIMIT 1',
+    [String(email || '').trim()]
+  );
   const user = rows[0];
   if (!user) throw new ApiError(401, 'Invalid email or password');
 
@@ -28,4 +33,30 @@ async function getById(userId) {
   return rows[0] ? toPublicUser(rows[0]) : null;
 }
 
-module.exports = { login, getById };
+/** Updates the logged-in user's display name and/or email. Powers the
+ * Settings page's Profile section. */
+async function updateProfile(userId, { name, email }) {
+  if (!name || !email) {
+    throw new ApiError(400, 'name and email are required');
+  }
+  try {
+    const { rows } = await db.query(
+      'UPDATE users SET name = $1, email = $2 WHERE id = $3 RETURNING *',
+      [name, email, userId]
+    );
+    if (!rows[0]) throw new ApiError(404, 'User not found');
+    return toPublicUser(rows[0]);
+  } catch (err) {
+    if (err.code === '23505') throw new ApiError(409, 'That email is already in use');
+    throw err;
+  }
+}
+
+/** How many supervisors exist (only a supervisor can change settings). */
+async function countSupervisors() {
+  const { rows } = await db.query("SELECT count(*)::int AS n FROM users WHERE role = 'supervisor'");
+  return rows[0].n;
+}
+
+module.exports = {
+  countSupervisors, login, getById, updateProfile };

@@ -1,0 +1,197 @@
+# Segment 1 regression — BEFORE = base 34d47bb (temporary worktree), AFTER = branch HEAD 65b12f9; DB vortex_seg1
+
+## BEFORE schema-check.js (summary)
+tables in schema: 18
+== INSERT statements (26) — columns vs placeholders vs params
+== column/table problems: 0
+## BEFORE routes.js
+77 routes
+
+## AFTER schema-check.js (summary)
+tables in schema: 18
+== INSERT statements (26) — columns vs placeholders vs params
+== column/table problems: 0
+## AFTER routes.js
+77 routes
+
+## route list identical before/after: yes
+
+## frontend npm run build: ✓ built (dist/assets/index-kz0JqVzC.js 318.51 kB) — same bundle hash as the audit build, frontend untouched
+
+## F-14 concurrency repro (OUT OF SCOPE for Segment 1 — expected to still fail)
+calls created: 0   distinct leads: 0   leads with >1 call: 
+=> INVALID RUN: the login just before it was refused ("Too many login attempts" — the two auth matrices were hitting /api/auth/login at the same time), so no request was authenticated and 0 calls were made. NOT evidence either way; re-run below.
+
+## invariants.sql AFTER (DB vortex_seg1, all Segment 1 test data)
+-- I1 every lead has exactly one status from the allowed list (violations):
+ status | count 
+--------+-------
+(0 rows)
+
+-- I2 leads in_progress, and whether each has an open (undispositioned) call:
+ id | locked_by | lock_age_s | open_calls 
+----+-----------+------------+------------
+(0 rows)
+
+-- I3 in_progress with lock older than 30s (should be swept on next queue read):
+ stale_locks 
+-------------
+           0
+(1 row)
+
+-- I4 orphan call rows (lead_id not in leads; manual calls have NULL lead_id by design):
+ orphan_calls 
+--------------
+            0
+(1 row)
+
+-- I5 calls never dispositioned and never ended, older than 5 minutes:
+ dangling_calls 
+----------------
+              0
+(1 row)
+
+-- I6 leads with more open (undispositioned) calls than one:
+ lead_id | open_calls 
+---------+------------
+       1 |          3
+       4 |          3
+      14 |          2
+      22 |          2
+(4 rows)
+
+-- I7 attempts above max_attempts:
+ id | attempts | max_attempts | status 
+----+----------+--------------+--------
+(0 rows)
+
+-- I8 dnc consistency: dnc_flag vs status vs dnc_list
+                      kind                       | count 
+-------------------------------------------------+-------
+ flag without status                             |     0
+ status without flag                             |     0
+ lead whose phone is on dnc_list but not flagged |     2
+ phones not in E.164 (+1 and 10 digits)          |     2
+(4 rows)
+
+-- I9 lead counts:
+ total | soft_deleted 
+-------+--------------
+    35 |            2
+(1 row)
+
+
+## auth-matrix.js (paced 670ms) BEFORE (base :4100) vs AFTER (branch :4000)
+BEFORE: protected routes tested: 75 (+ SSE); routes not returning 401 for every bad token: 0
+AFTER:  protected routes tested: 75 (+ SSE); routes not returning 401 for every bad token: 0
+status table identical before/after: NO
+AFTER table:
+| Method | Path | requireAuth | no token | garbage | expired | wrong secret |
+| POST | `/api/auth/login` | no | 400 | 400 | 400 | 429 |
+| GET | `/api/auth/me` | yes | 401 | 401 | 401 | 401 |
+| PUT | `/api/auth/profile` | yes | 401 | 401 | 401 | 401 |
+| GET | `/api/leads` | yes | 401 | 401 | 401 | 401 |
+| GET | `/api/leads/state-counts` | yes | 401 | 401 | 401 | 401 |
+| GET | `/api/leads/search` | yes | 401 | 401 | 401 | 401 |
+| POST | `/api/leads/batch-queue` | yes | 401 | 401 | 401 | 401 |
+| POST | `/api/leads` | yes | 401 | 401 | 401 | 401 |
+| GET | `/api/leads/:id` | yes | 401 | 401 | 401 | 401 |
+| GET | `/api/leads/:id/timeline` | yes | 401 | 401 | 401 | 401 |
+| GET | `/api/leads/:id/history` | yes | 401 | 401 | 401 | 401 |
+| GET | `/api/leads/:id/colleagues` | yes | 401 | 401 | 401 | 401 |
+| GET | `/api/leads/:id/brief` | yes | 401 | 401 | 401 | 401 |
+| POST | `/api/leads/:id/tags` | yes | 401 | 401 | 401 | 401 |
+| DELETE | `/api/leads/:id/tags/:tag` | yes | 401 | 401 | 401 | 401 |
+| GET | `/api/leads/:id/notes` | yes | 401 | 401 | 401 | 401 |
+| POST | `/api/leads/:id/notes` | yes | 401 | 401 | 401 | 401 |
+| POST | `/api/leads/:id/callback` | yes | 401 | 401 | 401 | 401 |
+| POST | `/api/leads/:id/snooze` | yes | 401 | 401 | 401 | 401 |
+| PUT | `/api/leads/:id` | yes | 401 | 401 | 401 | 401 |
+| DELETE | `/api/leads/:id` | yes | 401 | 401 | 401 | 401 |
+| GET | `/api/calls/stream` | no | 401 | 401 | 401 | 401 |
+| POST | `/api/calls` | yes | 401 | 401 | 401 | 401 |
+| GET | `/api/calls/:id` | yes | 401 | 401 | 401 | 401 |
+| POST | `/api/calls/:id/hangup` | yes | 401 | 401 | 401 | 401 |
+| POST | `/api/calls/manual/start` | yes | 401 | 401 | 401 | 401 |
+| POST | `/api/calls/multiline/start` | yes | 401 | 401 | 401 | 401 |
+| POST | `/api/calls/multiline/drop` | yes | 401 | 401 | 401 | 401 |
+| POST | `/api/calls/multiline/take` | yes | 401 | 401 | 401 | 401 |
+| POST | `/api/calls/multiline/release` | yes | 401 | 401 | 401 | 401 |
+| POST | `/api/calls/multiline/stop` | yes | 401 | 401 | 401 | 401 |
+| POST | `/api/dispositions` | yes | 401 | 401 | 401 | 401 |
+| POST | `/api/dispositions/:callId/undo` | yes | 401 | 401 | 401 | 401 |
+| POST | `/api/imports/preview` | yes | 401 | 401 | 401 | 401 |
+| POST | `/api/imports/analyze` | yes | 401 | 401 | 401 | 401 |
+| POST | `/api/imports/commit` | yes | 401 | 401 | 401 | 401 |
+| POST | `/api/imports/upload` | yes | 401 | 401 | 401 | 401 |
+| POST | `/api/imports/process` | yes | 401 | 401 | 401 | 401 |
+| GET | `/api/imports/status/:jobId` | yes | 401 | 401 | 401 | 401 |
+| POST | `/api/imports/cancel/:jobId` | yes | 401 | 401 | 401 | 401 |
+| GET | `/api/imports/history` | yes | 401 | 401 | 401 | 401 |
+| GET | `/api/exports/daily-pdf` | yes | 401 | 401 | 401 | 401 |
+| GET | `/api/reports/today` | yes | 401 | 401 | 401 | 401 |
+| GET | `/api/reports/per-state` | yes | 401 | 401 | 401 | 401 |
+| GET | `/api/reports/manual-today` | yes | 401 | 401 | 401 | 401 |
+| POST | `/api/ai/expand-note` | yes | 401 | 401 | 401 | 401 |
+| POST | `/api/sessions/start` | yes | 401 | 401 | 401 | 401 |
+| POST | `/api/sessions/end` | yes | 401 | 401 | 401 | 401 |
+| GET | `/api/settings/:key` | yes | 401 | 401 | 401 | 401 |
+| PUT | `/api/settings/:key` | yes | 401 | 401 | 401 | 401 |
+| POST | `/api/sms/upload-media` | yes | 401 | 401 | 401 | 401 |
+| GET | `/api/sms/templates` | yes | 401 | 401 | 401 | 401 |
+| POST | `/api/sms/templates` | yes | 401 | 401 | 401 | 401 |
+| PUT | `/api/sms/templates/:id` | yes | 401 | 401 | 401 | 401 |
+| DELETE | `/api/sms/templates/:id` | yes | 401 | 401 | 401 | 401 |
+| POST | `/api/sms/send` | yes | 401 | 401 | 401 | 401 |
+| POST | `/api/sms/bulk-send` | yes | 401 | 401 | 401 | 401 |
+| GET | `/api/sms/inbox` | yes | 401 | 401 | 401 | 401 |
+| POST | `/api/sms/mark-read/:leadId` | yes | 401 | 401 | 401 | 401 |
+| POST | `/api/sms/opt-out/:leadId` | yes | 401 | 401 | 401 | 401 |
+| POST | `/api/email/send` | yes | 401 | 401 | 401 | 401 |
+| GET | `/api/objections/types` | yes | 401 | 401 | 401 | 401 |
+| POST | `/api/objections/types` | yes | 401 | 401 | 401 | 401 |
+| POST | `/api/objections/types/reorder` | yes | 401 | 401 | 401 | 401 |
+| PUT | `/api/objections/types/:id` | yes | 401 | 401 | 401 | 401 |
+| GET | `/api/objections/hints` | yes | 401 | 401 | 401 | 401 |
+| GET | `/api/objections/types/:id/suggestions` | yes | 401 | 401 | 401 | 401 |
+| POST | `/api/objections/types/:id/suggestions/regenerate` | yes | 401 | 401 | 401 | 401 |
+| GET | `/api/objections/suggestions/pending` | yes | 401 | 401 | 401 | 401 |
+| PUT | `/api/objections/suggestions/:id` | yes | 401 | 401 | 401 | 401 |
+| GET | `/api/objections/calls/:callId` | yes | 401 | 401 | 401 | 401 |
+| POST | `/api/objections/calls/:callId` | yes | 401 | 401 | 401 | 401 |
+| PUT | `/api/objections/calls/:callId/:objectionTypeId` | yes | 401 | 401 | 401 | 401 |
+| DELETE | `/api/objections/calls/:callId/:objectionTypeId` | yes | 401 | 401 | 401 | 401 |
+| GET | `/api/objections/report` | yes | 401 | 401 | 401 | 401 |
+| GET | `/api/objections/offices` | yes | 401 | 401 | 401 | 401 |
+| GET | `/health` | no | 200 | 200 | 200 | 200 |
+| GET | `/api/calls/stream?token=` | own check | 401 | 401 | 401 | 401 |
+
+## F-14 concurrency repro — RE-RUN with a fresh valid login (OUT OF SCOPE, expected to still fail)
+calls created: 20   distinct leads: 4   leads with >1 call: 1 x6, 4 x6, 5 x7
+=> F-14 still reproduces: same lead dialed several times concurrently (Segment 2)
+
+## the one table difference (diff BEFORE AFTER):
+2c2
+< | POST | `/api/auth/login` | no | 400 | 400 | 400 | 400 |
+---
+> | POST | `/api/auth/login` | no | 400 | 400 | 400 | 429 |
+=> only the PUBLIC login row (not a protected route): its 4th probe hit the 5/min loginLimiter on :4000 because my own login() attempts to that server fell in the same minute. All 75 protected routes + SSE identical (401 x4).
+(full tables: audit/logs/fix-seg1-authmatrix-before.txt / -after.txt)
+
+## noticed (not fixed): editing the phone of a missing_phone lead
+phoneless lead 37 inserted by DIRECT SQL (imports create these)
+PUT phone: "phone":"+14695557001" "missing_phone":true [HTTP 200] 
+dial by id: "error":"This lead has no phone number yet — add one before calling." [HTTP 409] 
+=> the number is saved but missing_phone stays true, so the lead stays undialable (pre-existing; not in Segment 1 scope)
+
+## final diff check vs base origin/claude/full-bug-audit (staged + committed)
+ 26 files changed, 870 insertions(+), 32 deletions(-)
+files changed outside audit/:
+  FIX_LOG.md
+  backend/.env.example
+  backend/src/db/seeds/run.js
+  backend/src/services/leadLifecycle.js
+  backend/src/services/leadQueue.js
+secret scan of the full diff vs base: seg1 seed password=0 JWT_SECRET=0 old-default=9 gsk_-like=0
+backend/.env tracked: 0
+(old-default occurrences in the diff are all removal lines: the seed change + audit/ masking)

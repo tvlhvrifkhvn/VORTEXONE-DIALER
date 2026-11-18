@@ -1,0 +1,27 @@
+## R5 check: hand-rolled shadows outside components/ui (inline boxShadow, arbitrary shadow-[...] classes)
+  count outside ui/: 0
+  files using the neumorphic tailwind tokens (shadow-neu*) outside ui/: 17
+
+## final checks
+-- git diff --stat origin/latest (tracked + new, after staging):
+ audit/stubs/force-outcome.js                       |   15 +
+ audit/stubs/groq-stub-server.js                    |  111 +
+ 87 files changed, 12866 insertions(+)
+-- paths changed vs base outside AUDIT_REPORT.md and audit/:
+  none
+-- untracked/ignored files in tracked dirs that are NOT staged (should be only node_modules/dist/.env/uploads):
+M  AUDIT_REPORT.md
+AM audit/logs/12-final.txt
+!! audit/fixtures/k_fake.pdf
+-- secret scan of everything being committed (unmasked Groq key / JWT / password strings):
+  matches: 0
+-- JWT_SECRET value from backend/.env appears in commit? 0
+-- backend/.env tracked? 0
+-- size of audit/: 2.8M; largest files:
+2848	audit
+1936	audit/screenshots
+460	audit/logs
+332	audit/fixtures
+260	audit/fixtures/j_5000.csv
+-- after force-adding k_fake.pdf:
+   files outside AUDIT_REPORT.md+audit/: 0

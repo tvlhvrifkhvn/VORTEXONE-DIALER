@@ -1,0 +1,571 @@
+# Segment 7 — reports, PDF, reporting timezone (F-34, F-45, F-46, F-49, failed dials). Branch claude/fix-seg7-reports, base 9057c96 (Segment 6; PRs #21/#22 not merged).
+# Calls inserted by DIRECT SQL at fixed wall-clock instants (labelled in fix-seg7.sh); DB = independent SQL count (dial = telephony_state not 'failed'). Controlled clock (fake-now.js, Node only) for the goal test. Synthetic data only.
+# 3 runs each on base and HEAD; runs agree except timings and the perf day's count (that data is generated relative to the real clock; PDF = DB in every run).
+
+## BASE 9057c96, 3 runs
+######## base run 1
+[base] == 5 periods: dashboard/report API (/reports/today) | PDF headline vs PDF table | DB count (dials contacts vm na dnc), Asia/Karachi
+[base]   empty past day (2026-11-05 00:00 -> 2026-11-06 00:00)
+[base]     DB:        0 0 0 0 0
+[base]     API:       5 1 cr=20% [no period info]
+[base]     PDF:       headline 5 1 0 0 0 cr=20% | table rows 0 (contacted 0, vm 0, na 0, dnc 0) | says: No calls recorded | header: Talha Arif
+[base]   past day, known mix (2026-11-10 00:00 -> 2026-11-11 00:00)
+[base]     DB:        11 3 2 4 1
+[base]     API:       5 1 cr=20% [no period info]
+[base]     PDF:       headline 5 1 2 4 1 cr=20% | table rows 10 (contacted 3, vm 2, na 4, dnc 1) | header: Talha Arif
+[base]   today (2026-11-13, Karachi) (2026-11-13 00:00 -> 2026-11-14 00:00)
+[base]     DB:        4 1 1 1 0
+[base]     API:       5 1 cr=20% [no period info]
+[base]     PDF:       headline 5 1 1 1 0 cr=20% | table rows 3 (contacted 1, vm 1, na 1, dnc 0) | header: Talha Arif
+[base]   1,500-call day (2026-11-03 00:00 -> 2026-11-04 00:00)
+[base]     DB:        1500 300 300 300 300
+[base]     API:       5 1 cr=20% [no period info]
+[base]     PDF:       headline 5 1 228 228 228 cr=20% | table rows 1140 (contacted 228, vm 228, na 228, dnc 228) | header: Talha Arif
+[base]   range across midnight (2026-11-07 22:00 -> 2026-11-08 04:00)
+[base]     DB:        3 1 1 1 0
+[base]     API:       5 1 cr=20% [no period info]
+[base]     PDF:       headline 5 1 1 1 0 cr=20% | table rows 3 (contacted 1, vm 1, na 1, dnc 0) | header: Talha Arif
+[base]   server log (periods): 0 error/warn lines
+[base] == midnight in Asia/Karachi: a contacted call at 23:59:30 Nov 10, a voicemail at 00:00:30 Nov 11 (= 18:59:30 / 19:00:30 UTC Nov 10)
+[base]   date=2026-11-10: API 0 0 cr=0% [no period info] | PDF headline 0 0 1 0 0 cr=0% | table rows 2 (contacted 1, vm 1, na 0, dnc 0) | header: Talha Arif
+[base]   date=2026-11-11: API 0 0 cr=0% [no period info] | PDF headline 0 0 0 0 0 cr=0% | table rows 0 (contacted 0, vm 0, na 0, dnc 0) | says: No calls recorded | header: Talha Arif
+[base]   server log (boundary): 0 error/warn lines
+[base] == reporting_timezone = America/Chicago; calls at 23:59:30 Nov 10 and 00:00:30 Nov 11 Chicago time (= 05:59:30 / 06:00:30 UTC Nov 11)
+[base]   setting via API: PUT reporting_timezone=America/Chicago -> HTTP 200
+[base]   date=2026-11-10: API 0 0 cr=0% [no period info] | PDF headline 0 0 0 0 0 cr=0% | table rows 0 (contacted 0, vm 0, na 0, dnc 0) | says: No calls recorded | header: Talha Arif | DB 1 1 0 0 0
+[base]   date=2026-11-11: API 0 0 cr=0% [no period info] | PDF headline 0 0 1 0 0 cr=0% | table rows 2 (contacted 1, vm 1, na 0, dnc 0) | header: Talha Arif | DB 1 0 1 0 0
+[base]   server log (tz): 0 error/warn lines
+[base] == day_start_time = 06:00 (Karachi): calls at Nov 10 05:59:30 / 06:00:30 and Nov 11 05:59:30 / 06:00:30
+[base]   PUT day_start_time=06:00 -> HTTP 200
+[base]   date=2026-11-10: API 0 0 cr=0% [no period info] | PDF headline 0 0 1 0 0 cr=0% | table rows 2 (contacted 1, vm 1, na 0, dnc 0) | header: Talha Arif | DB (06:00 -> 06:00) 2 0 1 1 0
+[base]   back to 00:00: date=2026-11-10: API 0 0 cr=0% [no period info] | DB 2 1 1 0 0
+[base]   server log (daystart): 0 error/warn lines
+[base] == 3 queue dials + 1 dial-pad dial with TELEPHONY_PROVIDER=bogus:  HTTP 502 HTTP 502 HTTP 502 / dial pad HTTP 502
+[base]   call_history: before 0 rows, 0 failed; after 4 rows, 4 failed
+[base]   today, API: before 0 0 cr=0% [no period info] | after 4 0 cr=0% [no period info]
+[base]   today, PDF: before headline 0 0 0 0 0 cr=0% | table rows 0 (contacted 0, vm 0, na 0, dnc 0) | says: No calls recorded | header: Talha Arif
+[base]                after headline 4 0 0 0 0 cr=0% | table rows 0 (contacted 0, vm 0, na 0, dnc 0) | says: No calls recorded | header: Talha Arif
+[base]   per-state report total dials: 3; manual-calls list: 1 row(s)
+[base]   lead attempts on the 5 leads: 0,0,0,0,0
+[base]   server log (failed): 4 error/warn lines
+[base] == validation (HTTP code + message)
+[base]   ?date=not-a-date -> today HTTP 200  | PDF HTTP 500
+[base]   ?date=2026-02-30 -> today HTTP 200  | PDF HTTP 200
+[base]   ?date=2026-13-01 -> today HTTP 200  | PDF HTTP 500
+[base]   ?from=2026-11-10T10:00 -> today HTTP 200  | PDF HTTP 200
+[base]   ?from=2026-11-10T10:00&to=2026-11-10T09:00 -> today HTTP 200  | PDF HTTP 200
+[base]   ?from=2025-01-01T00:00&to=2026-11-10T00:00 -> today HTTP 200  | PDF HTTP 200
+[base]   ?from=garbage&to=2026-11-10T00:00 -> today HTTP 200  | PDF HTTP 200
+[base]   ?date=2026-11-10&from=2026-11-10T00:00&to=2026-11-11T00:00 -> today HTTP 200  | PDF HTTP 200
+[base]   ?date=2026-11-10 -> today HTTP 200  | PDF HTTP 200
+[base]   PUT reporting_timezone="Mars/Olympus" -> HTTP 200; PUT day_start_time="Mars/Olympus" -> HTTP 200
+[base]   PUT reporting_timezone="" -> HTTP 200; PUT day_start_time="" -> HTTP 200
+[base]   PUT reporting_timezone="25:00" -> HTTP 200; PUT day_start_time="25:00" -> HTTP 200
+[base]   PUT reporting_timezone="6am" -> HTTP 200; PUT day_start_time="6am" -> HTTP 200
+[base]   settings now: day_start_time=6am, reporting_timezone=6am
+[base]   server log (validate): 6 error/warn lines
+[base] == daily goal counter (/reports/today, what the dashboard polls), controlled clock (Node only), day start 00:00 Karachi
+[base]    calls: Nov 10 22:00 and 23:00, Nov 11 02:00 Karachi
+[base]   at 23:59:00 Nov 10 Karachi: dials 0 0 cr=0% [no period info]
+[base]   at 00:00:30 Nov 11 Karachi (midnight passed): dials 0 0 cr=0% [no period info]
+[base]   at 04:59:00 Nov 11 Karachi (= 23:59 UTC): dials 0 0 cr=0% [no period info]
+[base]   at 05:00:30 Nov 11 Karachi (= 00:00:30 UTC): dials 0 0 cr=0% [no period info]
+[base]   server log (goal): 0 error/warn lines
+[base] == fonts: PDF text (pdftotext) for the two rows
+[base]   1   José Hernández- Ünïcödé ñ          +141555501       Contacted     Señora Muñoz: call back after 1:05     5:00
+[base]       Muñoz           façade Realty      01                             3pm Ø=ÜM — café Ø<ßà&þ <b>not bold</b> AM
+[base]                       <script>alert(1)</
+[base]                       script>
+[base]   2   Zoë Ångström Ø=ÞCafé Olé Homes     +131055501       Voicemail     Left VM for Zoë Ø=ÞØ=Üh Ø=Üi Ø=Üg
+[base]                                                                                                        1:05— Ünïcödé
+[base]                                          02                             façade                                  AM
+[base]   fonts embedded: Helvetica Helvetica-Bold 
+[base]   page image: /var/tmp/audit-scratch/seg7-base/fonts-page-1.png
+[base]   server log (fonts): 0 error/warn lines
+[base] == browser (production build): today has 4 calls (2 contacted); range Nov 7 22:00 -> Nov 8 04:00 has 3 (1 contacted)
+[base]   API today: 4 2 cr=50% [no period info] | API range: 4 2 cr=50% [no period info] | DB range: 3 1 1 1 0
+[base]   dashboard: Dials today 4, Contacts today 2, Connect rate 50%; goal text: 4 / 100 dials today
+[base]   reports, today: period "(no period line)"; Dials 4, Contacts 2
+[base]   reports: no From/To picker
+[base]   settings: Reporting timezone "(no field)", Day starts at "(no field)"
+[base]   page errors: none; 4xx/5xx: none
+[base]   server log (ui): 0 error/warn lines
+[base] == perf: 100,000 calls over the last ~90 days (5,019 leads); median of 9 runs each
+[base]   GET /api/reports/today: median 0.001425s, max 0.003163s
+[base]   GET /api/reports/today?date=2026-11-10: median 0.001272s, max 0.001491s
+[base]   GET /api/reports/per-state: median 0.026384s, max 0.039518s
+[base]   GET /api/reports/manual-today: median 0.001670s, max 0.002197s
+[base]   GET /api/exports/daily-pdf?date=2026-11-10: median 0.243496s, max 0.317518s
+[base]   calls on 2026-11-10 (Karachi day): DB 1086 199 222 222 222; PDF headline 933 168 222 222 221 cr=18% | table rows 1085 (contacted 199, vm 222, na 222, dnc 221) | header: Talha Arif
+[base]   server log (perf): 0 error/warn lines
+######## base run 2
+[base] == 5 periods: dashboard/report API (/reports/today) | PDF headline vs PDF table | DB count (dials contacts vm na dnc), Asia/Karachi
+[base]   empty past day (2026-11-05 00:00 -> 2026-11-06 00:00)
+[base]     DB:        0 0 0 0 0
+[base]     API:       5 1 cr=20% [no period info]
+[base]     PDF:       headline 5 1 0 0 0 cr=20% | table rows 0 (contacted 0, vm 0, na 0, dnc 0) | says: No calls recorded | header: Talha Arif
+[base]   past day, known mix (2026-11-10 00:00 -> 2026-11-11 00:00)
+[base]     DB:        11 3 2 4 1
+[base]     API:       5 1 cr=20% [no period info]
+[base]     PDF:       headline 5 1 2 4 1 cr=20% | table rows 10 (contacted 3, vm 2, na 4, dnc 1) | header: Talha Arif
+[base]   today (2026-11-13, Karachi) (2026-11-13 00:00 -> 2026-11-14 00:00)
+[base]     DB:        4 1 1 1 0
+[base]     API:       5 1 cr=20% [no period info]
+[base]     PDF:       headline 5 1 1 1 0 cr=20% | table rows 3 (contacted 1, vm 1, na 1, dnc 0) | header: Talha Arif
+[base]   1,500-call day (2026-11-03 00:00 -> 2026-11-04 00:00)
+[base]     DB:        1500 300 300 300 300
+[base]     API:       5 1 cr=20% [no period info]
+[base]     PDF:       headline 5 1 228 228 228 cr=20% | table rows 1140 (contacted 228, vm 228, na 228, dnc 228) | header: Talha Arif
+[base]   range across midnight (2026-11-07 22:00 -> 2026-11-08 04:00)
+[base]     DB:        3 1 1 1 0
+[base]     API:       5 1 cr=20% [no period info]
+[base]     PDF:       headline 5 1 1 1 0 cr=20% | table rows 3 (contacted 1, vm 1, na 1, dnc 0) | header: Talha Arif
+[base]   server log (periods): 0 error/warn lines
+[base] == midnight in Asia/Karachi: a contacted call at 23:59:30 Nov 10, a voicemail at 00:00:30 Nov 11 (= 18:59:30 / 19:00:30 UTC Nov 10)
+[base]   date=2026-11-10: API 0 0 cr=0% [no period info] | PDF headline 0 0 1 0 0 cr=0% | table rows 2 (contacted 1, vm 1, na 0, dnc 0) | header: Talha Arif
+[base]   date=2026-11-11: API 0 0 cr=0% [no period info] | PDF headline 0 0 0 0 0 cr=0% | table rows 0 (contacted 0, vm 0, na 0, dnc 0) | says: No calls recorded | header: Talha Arif
+[base]   server log (boundary): 0 error/warn lines
+[base] == reporting_timezone = America/Chicago; calls at 23:59:30 Nov 10 and 00:00:30 Nov 11 Chicago time (= 05:59:30 / 06:00:30 UTC Nov 11)
+[base]   setting via API: PUT reporting_timezone=America/Chicago -> HTTP 200
+[base]   date=2026-11-10: API 0 0 cr=0% [no period info] | PDF headline 0 0 0 0 0 cr=0% | table rows 0 (contacted 0, vm 0, na 0, dnc 0) | says: No calls recorded | header: Talha Arif | DB 1 1 0 0 0
+[base]   date=2026-11-11: API 0 0 cr=0% [no period info] | PDF headline 0 0 1 0 0 cr=0% | table rows 2 (contacted 1, vm 1, na 0, dnc 0) | header: Talha Arif | DB 1 0 1 0 0
+[base]   server log (tz): 0 error/warn lines
+[base] == day_start_time = 06:00 (Karachi): calls at Nov 10 05:59:30 / 06:00:30 and Nov 11 05:59:30 / 06:00:30
+[base]   PUT day_start_time=06:00 -> HTTP 200
+[base]   date=2026-11-10: API 0 0 cr=0% [no period info] | PDF headline 0 0 1 0 0 cr=0% | table rows 2 (contacted 1, vm 1, na 0, dnc 0) | header: Talha Arif | DB (06:00 -> 06:00) 2 0 1 1 0
+[base]   back to 00:00: date=2026-11-10: API 0 0 cr=0% [no period info] | DB 2 1 1 0 0
+[base]   server log (daystart): 0 error/warn lines
+[base] == 3 queue dials + 1 dial-pad dial with TELEPHONY_PROVIDER=bogus:  HTTP 502 HTTP 502 HTTP 502 / dial pad HTTP 502
+[base]   call_history: before 0 rows, 0 failed; after 4 rows, 4 failed
+[base]   today, API: before 0 0 cr=0% [no period info] | after 4 0 cr=0% [no period info]
+[base]   today, PDF: before headline 0 0 0 0 0 cr=0% | table rows 0 (contacted 0, vm 0, na 0, dnc 0) | says: No calls recorded | header: Talha Arif
+[base]                after headline 4 0 0 0 0 cr=0% | table rows 0 (contacted 0, vm 0, na 0, dnc 0) | says: No calls recorded | header: Talha Arif
+[base]   per-state report total dials: 3; manual-calls list: 1 row(s)
+[base]   lead attempts on the 5 leads: 0,0,0,0,0
+[base]   server log (failed): 4 error/warn lines
+[base] == validation (HTTP code + message)
+[base]   ?date=not-a-date -> today HTTP 200  | PDF HTTP 500
+[base]   ?date=2026-02-30 -> today HTTP 200  | PDF HTTP 200
+[base]   ?date=2026-13-01 -> today HTTP 200  | PDF HTTP 500
+[base]   ?from=2026-11-10T10:00 -> today HTTP 200  | PDF HTTP 200
+[base]   ?from=2026-11-10T10:00&to=2026-11-10T09:00 -> today HTTP 200  | PDF HTTP 200
+[base]   ?from=2025-01-01T00:00&to=2026-11-10T00:00 -> today HTTP 200  | PDF HTTP 200
+[base]   ?from=garbage&to=2026-11-10T00:00 -> today HTTP 200  | PDF HTTP 200
+[base]   ?date=2026-11-10&from=2026-11-10T00:00&to=2026-11-11T00:00 -> today HTTP 200  | PDF HTTP 200
+[base]   ?date=2026-11-10 -> today HTTP 200  | PDF HTTP 200
+[base]   PUT reporting_timezone="Mars/Olympus" -> HTTP 200; PUT day_start_time="Mars/Olympus" -> HTTP 200
+[base]   PUT reporting_timezone="" -> HTTP 200; PUT day_start_time="" -> HTTP 200
+[base]   PUT reporting_timezone="25:00" -> HTTP 200; PUT day_start_time="25:00" -> HTTP 200
+[base]   PUT reporting_timezone="6am" -> HTTP 200; PUT day_start_time="6am" -> HTTP 200
+[base]   settings now: day_start_time=6am, reporting_timezone=6am
+[base]   server log (validate): 6 error/warn lines
+[base] == daily goal counter (/reports/today, what the dashboard polls), controlled clock (Node only), day start 00:00 Karachi
+[base]    calls: Nov 10 22:00 and 23:00, Nov 11 02:00 Karachi
+[base]   at 23:59:00 Nov 10 Karachi: dials 0 0 cr=0% [no period info]
+[base]   at 00:00:30 Nov 11 Karachi (midnight passed): dials 0 0 cr=0% [no period info]
+[base]   at 04:59:00 Nov 11 Karachi (= 23:59 UTC): dials 0 0 cr=0% [no period info]
+[base]   at 05:00:30 Nov 11 Karachi (= 00:00:30 UTC): dials 0 0 cr=0% [no period info]
+[base]   server log (goal): 0 error/warn lines
+[base] == fonts: PDF text (pdftotext) for the two rows
+[base]   1   José Hernández- Ünïcödé ñ          +141555501       Contacted     Señora Muñoz: call back after 1:05     5:00
+[base]       Muñoz           façade Realty      01                             3pm Ø=ÜM — café Ø<ßà&þ <b>not bold</b> AM
+[base]                       <script>alert(1)</
+[base]                       script>
+[base]   2   Zoë Ångström Ø=ÞCafé Olé Homes     +131055501       Voicemail     Left VM for Zoë Ø=ÞØ=Üh Ø=Üi Ø=Üg
+[base]                                                                                                        1:05— Ünïcödé
+[base]                                          02                             façade                                  AM
+[base]   fonts embedded: Helvetica Helvetica-Bold 
+[base]   page image: /var/tmp/audit-scratch/seg7-base/fonts-page-1.png
+[base]   server log (fonts): 0 error/warn lines
+[base] == browser (production build): today has 4 calls (2 contacted); range Nov 7 22:00 -> Nov 8 04:00 has 3 (1 contacted)
+[base]   API today: 4 2 cr=50% [no period info] | API range: 4 2 cr=50% [no period info] | DB range: 3 1 1 1 0
+[base]   dashboard: Dials today 4, Contacts today 2, Connect rate 50%; goal text: 4 / 100 dials today
+[base]   reports, today: period "(no period line)"; Dials 4, Contacts 2
+[base]   reports: no From/To picker
+[base]   settings: Reporting timezone "(no field)", Day starts at "(no field)"
+[base]   page errors: none; 4xx/5xx: none
+[base]   server log (ui): 0 error/warn lines
+[base] == perf: 100,000 calls over the last ~90 days (5,019 leads); median of 9 runs each
+[base]   GET /api/reports/today: median 0.001318s, max 0.003115s
+[base]   GET /api/reports/today?date=2026-11-10: median 0.001093s, max 0.001261s
+[base]   GET /api/reports/per-state: median 0.020293s, max 0.023818s
+[base]   GET /api/reports/manual-today: median 0.001456s, max 0.002216s
+[base]   GET /api/exports/daily-pdf?date=2026-11-10: median 0.235954s, max 0.306964s
+[base]   calls on 2026-11-10 (Karachi day): DB 1086 199 221 222 222; PDF headline 934 168 222 222 222 cr=18% | table rows 1086 (contacted 199, vm 222, na 222, dnc 222) | header: Talha Arif
+[base]   server log (perf): 0 error/warn lines
+######## base run 3
+[base] == 5 periods: dashboard/report API (/reports/today) | PDF headline vs PDF table | DB count (dials contacts vm na dnc), Asia/Karachi
+[base]   empty past day (2026-11-05 00:00 -> 2026-11-06 00:00)
+[base]     DB:        0 0 0 0 0
+[base]     API:       5 1 cr=20% [no period info]
+[base]     PDF:       headline 5 1 0 0 0 cr=20% | table rows 0 (contacted 0, vm 0, na 0, dnc 0) | says: No calls recorded | header: Talha Arif
+[base]   past day, known mix (2026-11-10 00:00 -> 2026-11-11 00:00)
+[base]     DB:        11 3 2 4 1
+[base]     API:       5 1 cr=20% [no period info]
+[base]     PDF:       headline 5 1 2 4 1 cr=20% | table rows 10 (contacted 3, vm 2, na 4, dnc 1) | header: Talha Arif
+[base]   today (2026-11-13, Karachi) (2026-11-13 00:00 -> 2026-11-14 00:00)
+[base]     DB:        4 1 1 1 0
+[base]     API:       5 1 cr=20% [no period info]
+[base]     PDF:       headline 5 1 1 1 0 cr=20% | table rows 3 (contacted 1, vm 1, na 1, dnc 0) | header: Talha Arif
+[base]   1,500-call day (2026-11-03 00:00 -> 2026-11-04 00:00)
+[base]     DB:        1500 300 300 300 300
+[base]     API:       5 1 cr=20% [no period info]
+[base]     PDF:       headline 5 1 228 228 228 cr=20% | table rows 1140 (contacted 228, vm 228, na 228, dnc 228) | header: Talha Arif
+[base]   range across midnight (2026-11-07 22:00 -> 2026-11-08 04:00)
+[base]     DB:        3 1 1 1 0
+[base]     API:       5 1 cr=20% [no period info]
+[base]     PDF:       headline 5 1 1 1 0 cr=20% | table rows 3 (contacted 1, vm 1, na 1, dnc 0) | header: Talha Arif
+[base]   server log (periods): 0 error/warn lines
+[base] == midnight in Asia/Karachi: a contacted call at 23:59:30 Nov 10, a voicemail at 00:00:30 Nov 11 (= 18:59:30 / 19:00:30 UTC Nov 10)
+[base]   date=2026-11-10: API 0 0 cr=0% [no period info] | PDF headline 0 0 1 0 0 cr=0% | table rows 2 (contacted 1, vm 1, na 0, dnc 0) | header: Talha Arif
+[base]   date=2026-11-11: API 0 0 cr=0% [no period info] | PDF headline 0 0 0 0 0 cr=0% | table rows 0 (contacted 0, vm 0, na 0, dnc 0) | says: No calls recorded | header: Talha Arif
+[base]   server log (boundary): 0 error/warn lines
+[base] == reporting_timezone = America/Chicago; calls at 23:59:30 Nov 10 and 00:00:30 Nov 11 Chicago time (= 05:59:30 / 06:00:30 UTC Nov 11)
+[base]   setting via API: PUT reporting_timezone=America/Chicago -> HTTP 200
+[base]   date=2026-11-10: API 0 0 cr=0% [no period info] | PDF headline 0 0 0 0 0 cr=0% | table rows 0 (contacted 0, vm 0, na 0, dnc 0) | says: No calls recorded | header: Talha Arif | DB 1 1 0 0 0
+[base]   date=2026-11-11: API 0 0 cr=0% [no period info] | PDF headline 0 0 1 0 0 cr=0% | table rows 2 (contacted 1, vm 1, na 0, dnc 0) | header: Talha Arif | DB 1 0 1 0 0
+[base]   server log (tz): 0 error/warn lines
+[base] == day_start_time = 06:00 (Karachi): calls at Nov 10 05:59:30 / 06:00:30 and Nov 11 05:59:30 / 06:00:30
+[base]   PUT day_start_time=06:00 -> HTTP 200
+[base]   date=2026-11-10: API 0 0 cr=0% [no period info] | PDF headline 0 0 1 0 0 cr=0% | table rows 2 (contacted 1, vm 1, na 0, dnc 0) | header: Talha Arif | DB (06:00 -> 06:00) 2 0 1 1 0
+[base]   back to 00:00: date=2026-11-10: API 0 0 cr=0% [no period info] | DB 2 1 1 0 0
+[base]   server log (daystart): 0 error/warn lines
+[base] == 3 queue dials + 1 dial-pad dial with TELEPHONY_PROVIDER=bogus:  HTTP 502 HTTP 502 HTTP 502 / dial pad HTTP 502
+[base]   call_history: before 0 rows, 0 failed; after 4 rows, 4 failed
+[base]   today, API: before 0 0 cr=0% [no period info] | after 4 0 cr=0% [no period info]
+[base]   today, PDF: before headline 0 0 0 0 0 cr=0% | table rows 0 (contacted 0, vm 0, na 0, dnc 0) | says: No calls recorded | header: Talha Arif
+[base]                after headline 4 0 0 0 0 cr=0% | table rows 0 (contacted 0, vm 0, na 0, dnc 0) | says: No calls recorded | header: Talha Arif
+[base]   per-state report total dials: 3; manual-calls list: 1 row(s)
+[base]   lead attempts on the 5 leads: 0,0,0,0,0
+[base]   server log (failed): 4 error/warn lines
+[base] == validation (HTTP code + message)
+[base]   ?date=not-a-date -> today HTTP 200  | PDF HTTP 500
+[base]   ?date=2026-02-30 -> today HTTP 200  | PDF HTTP 200
+[base]   ?date=2026-13-01 -> today HTTP 200  | PDF HTTP 500
+[base]   ?from=2026-11-10T10:00 -> today HTTP 200  | PDF HTTP 200
+[base]   ?from=2026-11-10T10:00&to=2026-11-10T09:00 -> today HTTP 200  | PDF HTTP 200
+[base]   ?from=2025-01-01T00:00&to=2026-11-10T00:00 -> today HTTP 200  | PDF HTTP 200
+[base]   ?from=garbage&to=2026-11-10T00:00 -> today HTTP 200  | PDF HTTP 200
+[base]   ?date=2026-11-10&from=2026-11-10T00:00&to=2026-11-11T00:00 -> today HTTP 200  | PDF HTTP 200
+[base]   ?date=2026-11-10 -> today HTTP 200  | PDF HTTP 200
+[base]   PUT reporting_timezone="Mars/Olympus" -> HTTP 200; PUT day_start_time="Mars/Olympus" -> HTTP 200
+[base]   PUT reporting_timezone="" -> HTTP 200; PUT day_start_time="" -> HTTP 200
+[base]   PUT reporting_timezone="25:00" -> HTTP 200; PUT day_start_time="25:00" -> HTTP 200
+[base]   PUT reporting_timezone="6am" -> HTTP 200; PUT day_start_time="6am" -> HTTP 200
+[base]   settings now: day_start_time=6am, reporting_timezone=6am
+[base]   server log (validate): 6 error/warn lines
+[base] == daily goal counter (/reports/today, what the dashboard polls), controlled clock (Node only), day start 00:00 Karachi
+[base]    calls: Nov 10 22:00 and 23:00, Nov 11 02:00 Karachi
+[base]   at 23:59:00 Nov 10 Karachi: dials 0 0 cr=0% [no period info]
+[base]   at 00:00:30 Nov 11 Karachi (midnight passed): dials 0 0 cr=0% [no period info]
+[base]   at 04:59:00 Nov 11 Karachi (= 23:59 UTC): dials 0 0 cr=0% [no period info]
+[base]   at 05:00:30 Nov 11 Karachi (= 00:00:30 UTC): dials 0 0 cr=0% [no period info]
+[base]   server log (goal): 0 error/warn lines
+[base] == fonts: PDF text (pdftotext) for the two rows
+[base]   1   José Hernández- Ünïcödé ñ          +141555501       Contacted     Señora Muñoz: call back after 1:05     5:00
+[base]       Muñoz           façade Realty      01                             3pm Ø=ÜM — café Ø<ßà&þ <b>not bold</b> AM
+[base]                       <script>alert(1)</
+[base]                       script>
+[base]   2   Zoë Ångström Ø=ÞCafé Olé Homes     +131055501       Voicemail     Left VM for Zoë Ø=ÞØ=Üh Ø=Üi Ø=Üg
+[base]                                                                                                        1:05— Ünïcödé
+[base]                                          02                             façade                                  AM
+[base]   fonts embedded: Helvetica Helvetica-Bold 
+[base]   page image: /var/tmp/audit-scratch/seg7-base/fonts-page-1.png
+[base]   server log (fonts): 0 error/warn lines
+[base] == browser (production build): today has 4 calls (2 contacted); range Nov 7 22:00 -> Nov 8 04:00 has 3 (1 contacted)
+[base]   API today: 4 2 cr=50% [no period info] | API range: 4 2 cr=50% [no period info] | DB range: 3 1 1 1 0
+[base]   dashboard: Dials today 4, Contacts today 2, Connect rate 50%; goal text: 4 / 100 dials today
+[base]   reports, today: period "(no period line)"; Dials 4, Contacts 2
+[base]   reports: no From/To picker
+[base]   settings: Reporting timezone "(no field)", Day starts at "(no field)"
+[base]   page errors: none; 4xx/5xx: none
+[base]   server log (ui): 0 error/warn lines
+[base] == perf: 100,000 calls over the last ~90 days (5,019 leads); median of 9 runs each
+[base]   GET /api/reports/today: median 0.002020s, max 0.004057s
+[base]   GET /api/reports/today?date=2026-11-10: median 0.001639s, max 0.001888s
+[base]   GET /api/reports/per-state: median 0.021561s, max 0.025060s
+[base]   GET /api/reports/manual-today: median 0.001771s, max 0.002352s
+[base]   GET /api/exports/daily-pdf?date=2026-11-10: median 0.255894s, max 0.350758s
+[base]   calls on 2026-11-10 (Karachi day): DB 1085 199 221 221 222; PDF headline 934 168 221 222 222 cr=18% | table rows 1085 (contacted 199, vm 221, na 222, dnc 222) | header: Talha Arif
+[base]   server log (perf): 0 error/warn lines
+
+## HEAD, 3 runs
+######## after run 1
+[after] == 5 periods: dashboard/report API (/reports/today) | PDF headline vs PDF table | DB count (dials contacts vm na dnc), Asia/Karachi
+[after]   empty past day (2026-11-05 00:00 -> 2026-11-06 00:00)
+[after]     DB:        0 0 0 0 0
+[after]     API:       0 0 cr=0% [Thu, Nov 5, 2026, Asia/Karachi]
+[after]     PDF:       headline 0 0 0 0 0 cr=0% | table rows 0 (contacted 0, vm 0, na 0, dnc 0) | says: No calls recorded | header: Thu, Nov 5, 2026 · Times in Asia/Karachi · Talha Arif
+[after]   past day, known mix (2026-11-10 00:00 -> 2026-11-11 00:00)
+[after]     DB:        11 3 2 4 1
+[after]     API:       11 3 cr=27% [Tue, Nov 10, 2026, Asia/Karachi]
+[after]     PDF:       headline 11 3 2 4 1 cr=27% | table rows 11 (contacted 3, vm 2, na 4, dnc 1) | header: Tue, Nov 10, 2026 · Times in Asia/Karachi · Talha Arif
+[after]   today (2026-11-13, Karachi) (2026-11-13 00:00 -> 2026-11-14 00:00)
+[after]     DB:        4 1 1 1 0
+[after]     API:       4 1 cr=25% [Fri, Nov 13, 2026, Asia/Karachi]
+[after]     PDF:       headline 4 1 1 1 0 cr=25% | table rows 4 (contacted 1, vm 1, na 1, dnc 0) | header: Fri, Nov 13, 2026 · Times in Asia/Karachi · Talha Arif
+[after]   1,500-call day (2026-11-03 00:00 -> 2026-11-04 00:00)
+[after]     DB:        1500 300 300 300 300
+[after]     API:       1500 300 cr=20% [Tue, Nov 3, 2026, Asia/Karachi]
+[after]     PDF:       headline 1500 300 300 300 300 cr=20% | table rows 1500 (contacted 300, vm 300, na 300, dnc 300) | header: Tue, Nov 3, 2026 · Times in Asia/Karachi · Talha Arif
+[after]   range across midnight (2026-11-07 22:00 -> 2026-11-08 04:00)
+[after]     DB:        3 1 1 1 0
+[after]     API:       3 1 cr=33% [Sat, Nov 7, 2026, 22:00 to Sun, Nov 8, 2026, 04:00, Asia/Karachi]
+[after]     PDF:       headline 3 1 1 1 0 cr=33% | table rows 3 (contacted 1, vm 1, na 1, dnc 0) | header: From Sat, Nov 7, 2026, 22:00 to Sun, Nov 8, 2026, 04:00 · Times in Asia/Karachi · Talha Arif
+[after]   server log (periods): 0 error/warn lines
+[after] == midnight in Asia/Karachi: a contacted call at 23:59:30 Nov 10, a voicemail at 00:00:30 Nov 11 (= 18:59:30 / 19:00:30 UTC Nov 10)
+[after]   date=2026-11-10: API 1 1 cr=100% [Tue, Nov 10, 2026, Asia/Karachi] | PDF headline 1 1 0 0 0 cr=100% | table rows 1 (contacted 1, vm 0, na 0, dnc 0) | header: Tue, Nov 10, 2026 · Times in Asia/Karachi · Talha Arif
+[after]   date=2026-11-11: API 1 0 cr=0% [Wed, Nov 11, 2026, Asia/Karachi] | PDF headline 1 0 1 0 0 cr=0% | table rows 1 (contacted 0, vm 1, na 0, dnc 0) | header: Wed, Nov 11, 2026 · Times in Asia/Karachi · Talha Arif
+[after]   server log (boundary): 0 error/warn lines
+[after] == reporting_timezone = America/Chicago; calls at 23:59:30 Nov 10 and 00:00:30 Nov 11 Chicago time (= 05:59:30 / 06:00:30 UTC Nov 11)
+[after]   setting via API: PUT reporting_timezone=America/Chicago -> HTTP 200
+[after]   date=2026-11-10: API 1 1 cr=100% [Tue, Nov 10, 2026, America/Chicago] | PDF headline 1 1 0 0 0 cr=100% | table rows 1 (contacted 1, vm 0, na 0, dnc 0) | header: Tue, Nov 10, 2026 · Times in America/Chicago · Talha Arif | DB 1 1 0 0 0
+[after]   date=2026-11-11: API 1 0 cr=0% [Wed, Nov 11, 2026, America/Chicago] | PDF headline 1 0 1 0 0 cr=0% | table rows 1 (contacted 0, vm 1, na 0, dnc 0) | header: Wed, Nov 11, 2026 · Times in America/Chicago · Talha Arif | DB 1 0 1 0 0
+[after]   server log (tz): 0 error/warn lines
+[after] == day_start_time = 06:00 (Karachi): calls at Nov 10 05:59:30 / 06:00:30 and Nov 11 05:59:30 / 06:00:30
+[after]   PUT day_start_time=06:00 -> HTTP 200
+[after]   date=2026-11-10: API 2 0 cr=0% [Tue, Nov 10, 2026, 06:00 to Wed, Nov 11, 2026, 06:00, Asia/Karachi] | PDF headline 2 0 1 1 0 cr=0% | table rows 2 (contacted 0, vm 1, na 1, dnc 0) | header: Tue, Nov 10, 2026, 06:00 to Wed, Nov 11, 2026, 06:00 · Times in Asia/Karachi · Talha Arif | DB (06:00 -> 06:00) 2 0 1 1 0
+[after]   back to 00:00: date=2026-11-10: API 2 1 cr=50% [Tue, Nov 10, 2026, Asia/Karachi] | DB 2 1 1 0 0
+[after]   server log (daystart): 0 error/warn lines
+[after] == 3 queue dials + 1 dial-pad dial with TELEPHONY_PROVIDER=bogus:  HTTP 502 HTTP 502 HTTP 502 / dial pad HTTP 502
+[after]   call_history: before 0 rows, 0 failed; after 4 rows, 4 failed
+[after]   today, API: before 0 0 cr=0% [Fri, Nov 13, 2026, Asia/Karachi] | after 0 0 cr=0% [Fri, Nov 13, 2026, Asia/Karachi]
+[after]   today, PDF: before headline 0 0 0 0 0 cr=0% | table rows 0 (contacted 0, vm 0, na 0, dnc 0) | says: No calls recorded | header: Fri, Nov 13, 2026 · Times in Asia/Karachi · Talha Arif
+[after]                after headline 0 0 0 0 0 cr=0% | table rows 0 (contacted 0, vm 0, na 0, dnc 0) | says: No calls recorded | header: Fri, Nov 13, 2026 · Times in Asia/Karachi · Talha Arif
+[after]   per-state report total dials: 0; manual-calls list: 0 row(s)
+[after]   lead attempts on the 5 leads: 0,0,0,0,0
+[after]   server log (failed): 4 error/warn lines
+[after] == validation (HTTP code + message)
+[after]   ?date=not-a-date -> today HTTP 400 "error":"date must be a date like 2026-11-12" | PDF HTTP 400
+[after]   ?date=2026-02-30 -> today HTTP 400 "error":"date is not a real date: 2026-02-30" | PDF HTTP 400
+[after]   ?date=2026-13-01 -> today HTTP 400 "error":"date is not a real date: 2026-13-01" | PDF HTTP 400
+[after]   ?from=2026-11-10T10:00 -> today HTTP 400 "error":"A custom range needs both from and to" | PDF HTTP 400
+[after]   ?from=2026-11-10T10:00&to=2026-11-10T09:00 -> today HTTP 400 "error":"\" | PDF HTTP 400
+[after]   ?from=2025-01-01T00:00&to=2026-11-10T00:00 -> today HTTP 400 "error":"A range can be at most 366 days" | PDF HTTP 400
+[after]   ?from=garbage&to=2026-11-10T00:00 -> today HTTP 400 "error":"from must be a date and time like 2026-11-12T22:00" | PDF HTTP 400
+[after]   ?date=2026-11-10&from=2026-11-10T00:00&to=2026-11-11T00:00 -> today HTTP 400 "error":"Give either date or from/to, not both" | PDF HTTP 400
+[after]   ?date=2026-11-10 -> today HTTP 200  | PDF HTTP 200
+[after]   PUT reporting_timezone="Mars/Olympus" -> HTTP 400; PUT day_start_time="Mars/Olympus" -> HTTP 400
+[after]   PUT reporting_timezone="" -> HTTP 400; PUT day_start_time="" -> HTTP 400
+[after]   PUT reporting_timezone="25:00" -> HTTP 400; PUT day_start_time="25:00" -> HTTP 400
+[after]   PUT reporting_timezone="6am" -> HTTP 400; PUT day_start_time="6am" -> HTTP 400
+[after]   settings now: day_start_time=00:00, reporting_timezone=Asia/Karachi
+[after]   server log (validate): 0 error/warn lines
+[after] == daily goal counter (/reports/today, what the dashboard polls), controlled clock (Node only), day start 00:00 Karachi
+[after]    calls: Nov 10 22:00 and 23:00, Nov 11 02:00 Karachi
+[after]   at 23:59:00 Nov 10 Karachi: dials 2 1 cr=50% [Tue, Nov 10, 2026, Asia/Karachi]
+[after]   at 00:00:30 Nov 11 Karachi (midnight passed): dials 1 0 cr=0% [Wed, Nov 11, 2026, Asia/Karachi]
+[after]   at 04:59:00 Nov 11 Karachi (= 23:59 UTC): dials 1 0 cr=0% [Wed, Nov 11, 2026, Asia/Karachi]
+[after]   at 05:00:30 Nov 11 Karachi (= 00:00:30 UTC): dials 1 0 cr=0% [Wed, Nov 11, 2026, Asia/Karachi]
+[after]   server log (goal): 0 error/warn lines
+[after] == fonts: PDF text (pdftotext) for the two rows
+[after]   1   José Hernández-Muñoz           Ünïcödé ñ façade Realty        (415) 555-0101     Contacted     Señora Muñoz: call back after 3pm 👍 — café 🏠☎️   1:05         10:00 AM
+[after]                                      <script>alert(1)</script>                                       <b>not bold</b>
+[after]   2   Zoë Ångström 😀                 Café Olé Homes                 (310) 555-0102     Voicemail     Left VM for Zoë 😀👨‍👩‍👧 — Ünïcödé ñ façade        1:05         11:00 AM
+[after]   fonts embedded: NotoEmoji-Regular NotoSans-Bold NotoSans-Regular 
+[after]   page image: /var/tmp/audit-scratch/seg7-after/fonts-page-1.png
+[after]   server log (fonts): 0 error/warn lines
+[after] == browser (production build): today has 4 calls (2 contacted); range Nov 7 22:00 -> Nov 8 04:00 has 3 (1 contacted)
+[after]   API today: 4 2 cr=50% [Fri, Nov 13, 2026, Asia/Karachi] | API range: 3 1 cr=33% [Sat, Nov 7, 2026, 22:00 to Sun, Nov 8, 2026, 04:00, Asia/Karachi] | DB range: 3 1 1 1 0
+[after]   dashboard: Dials today 4, Contacts today 2, Connect rate 50%; goal text: 4 / 100 dials today
+[after]   reports, today: period "Fri, Nov 13, 2026 (Asia/Karachi)"; Dials 4, Contacts 2
+[after]   reports, 2026-11-07T22:00 -> 2026-11-08T04:00: period "Sat, Nov 7, 2026, 22:00 to Sun, Nov 8, 2026, 04:00 (Asia/Karachi)"; Dials 3, Contacts 1, Connect rate 33%
+[after]   reports, Download PDF for the range: file vortex-dialer-2026-11-07T2200_to_2026-11-08T0400.pdf
+[after]   settings: Reporting timezone "Asia/Karachi", Day starts at "00:00"
+[after]   page errors: none; 4xx/5xx: none
+[after]   PDF downloaded from the Reports page: headline dials 3, contacts 1; table rows 3; header: From Sat, Nov 7, 2026, 22:00 to Sun, Nov 8, 2026, 04:00 · Times in Asia/Karachi · Talha Arif
+[after]   server log (ui): 0 error/warn lines
+[after] == perf: 100,000 calls over the last ~90 days (5,019 leads); median of 9 runs each
+[after]   GET /api/reports/today: median 0.002722s, max 0.014586s
+[after]   GET /api/reports/today?date=2026-11-10: median 0.002591s, max 0.005649s
+[after]   GET /api/reports/per-state: median 0.022014s, max 0.027010s
+[after]   GET /api/reports/manual-today: median 0.002378s, max 0.003073s
+[after]   GET /api/exports/daily-pdf?date=2026-11-10: median 0.362907s, max 0.478390s
+[after]   calls on 2026-11-10 (Karachi day): DB 1086 200 221 221 222; PDF headline 1086 200 221 221 222 cr=18% | table rows 1086 (contacted 200, vm 221, na 221, dnc 222) | header: Tue, Nov 10, 2026 · Times in Asia/Karachi · Talha Arif
+[after]   server log (perf): 0 error/warn lines
+######## after run 2
+[after] == 5 periods: dashboard/report API (/reports/today) | PDF headline vs PDF table | DB count (dials contacts vm na dnc), Asia/Karachi
+[after]   empty past day (2026-11-05 00:00 -> 2026-11-06 00:00)
+[after]     DB:        0 0 0 0 0
+[after]     API:       0 0 cr=0% [Thu, Nov 5, 2026, Asia/Karachi]
+[after]     PDF:       headline 0 0 0 0 0 cr=0% | table rows 0 (contacted 0, vm 0, na 0, dnc 0) | says: No calls recorded | header: Thu, Nov 5, 2026 · Times in Asia/Karachi · Talha Arif
+[after]   past day, known mix (2026-11-10 00:00 -> 2026-11-11 00:00)
+[after]     DB:        11 3 2 4 1
+[after]     API:       11 3 cr=27% [Tue, Nov 10, 2026, Asia/Karachi]
+[after]     PDF:       headline 11 3 2 4 1 cr=27% | table rows 11 (contacted 3, vm 2, na 4, dnc 1) | header: Tue, Nov 10, 2026 · Times in Asia/Karachi · Talha Arif
+[after]   today (2026-11-13, Karachi) (2026-11-13 00:00 -> 2026-11-14 00:00)
+[after]     DB:        4 1 1 1 0
+[after]     API:       4 1 cr=25% [Fri, Nov 13, 2026, Asia/Karachi]
+[after]     PDF:       headline 4 1 1 1 0 cr=25% | table rows 4 (contacted 1, vm 1, na 1, dnc 0) | header: Fri, Nov 13, 2026 · Times in Asia/Karachi · Talha Arif
+[after]   1,500-call day (2026-11-03 00:00 -> 2026-11-04 00:00)
+[after]     DB:        1500 300 300 300 300
+[after]     API:       1500 300 cr=20% [Tue, Nov 3, 2026, Asia/Karachi]
+[after]     PDF:       headline 1500 300 300 300 300 cr=20% | table rows 1500 (contacted 300, vm 300, na 300, dnc 300) | header: Tue, Nov 3, 2026 · Times in Asia/Karachi · Talha Arif
+[after]   range across midnight (2026-11-07 22:00 -> 2026-11-08 04:00)
+[after]     DB:        3 1 1 1 0
+[after]     API:       3 1 cr=33% [Sat, Nov 7, 2026, 22:00 to Sun, Nov 8, 2026, 04:00, Asia/Karachi]
+[after]     PDF:       headline 3 1 1 1 0 cr=33% | table rows 3 (contacted 1, vm 1, na 1, dnc 0) | header: From Sat, Nov 7, 2026, 22:00 to Sun, Nov 8, 2026, 04:00 · Times in Asia/Karachi · Talha Arif
+[after]   server log (periods): 0 error/warn lines
+[after] == midnight in Asia/Karachi: a contacted call at 23:59:30 Nov 10, a voicemail at 00:00:30 Nov 11 (= 18:59:30 / 19:00:30 UTC Nov 10)
+[after]   date=2026-11-10: API 1 1 cr=100% [Tue, Nov 10, 2026, Asia/Karachi] | PDF headline 1 1 0 0 0 cr=100% | table rows 1 (contacted 1, vm 0, na 0, dnc 0) | header: Tue, Nov 10, 2026 · Times in Asia/Karachi · Talha Arif
+[after]   date=2026-11-11: API 1 0 cr=0% [Wed, Nov 11, 2026, Asia/Karachi] | PDF headline 1 0 1 0 0 cr=0% | table rows 1 (contacted 0, vm 1, na 0, dnc 0) | header: Wed, Nov 11, 2026 · Times in Asia/Karachi · Talha Arif
+[after]   server log (boundary): 0 error/warn lines
+[after] == reporting_timezone = America/Chicago; calls at 23:59:30 Nov 10 and 00:00:30 Nov 11 Chicago time (= 05:59:30 / 06:00:30 UTC Nov 11)
+[after]   setting via API: PUT reporting_timezone=America/Chicago -> HTTP 200
+[after]   date=2026-11-10: API 1 1 cr=100% [Tue, Nov 10, 2026, America/Chicago] | PDF headline 1 1 0 0 0 cr=100% | table rows 1 (contacted 1, vm 0, na 0, dnc 0) | header: Tue, Nov 10, 2026 · Times in America/Chicago · Talha Arif | DB 1 1 0 0 0
+[after]   date=2026-11-11: API 1 0 cr=0% [Wed, Nov 11, 2026, America/Chicago] | PDF headline 1 0 1 0 0 cr=0% | table rows 1 (contacted 0, vm 1, na 0, dnc 0) | header: Wed, Nov 11, 2026 · Times in America/Chicago · Talha Arif | DB 1 0 1 0 0
+[after]   server log (tz): 0 error/warn lines
+[after] == day_start_time = 06:00 (Karachi): calls at Nov 10 05:59:30 / 06:00:30 and Nov 11 05:59:30 / 06:00:30
+[after]   PUT day_start_time=06:00 -> HTTP 200
+[after]   date=2026-11-10: API 2 0 cr=0% [Tue, Nov 10, 2026, 06:00 to Wed, Nov 11, 2026, 06:00, Asia/Karachi] | PDF headline 2 0 1 1 0 cr=0% | table rows 2 (contacted 0, vm 1, na 1, dnc 0) | header: Tue, Nov 10, 2026, 06:00 to Wed, Nov 11, 2026, 06:00 · Times in Asia/Karachi · Talha Arif | DB (06:00 -> 06:00) 2 0 1 1 0
+[after]   back to 00:00: date=2026-11-10: API 2 1 cr=50% [Tue, Nov 10, 2026, Asia/Karachi] | DB 2 1 1 0 0
+[after]   server log (daystart): 0 error/warn lines
+[after] == 3 queue dials + 1 dial-pad dial with TELEPHONY_PROVIDER=bogus:  HTTP 502 HTTP 502 HTTP 502 / dial pad HTTP 502
+[after]   call_history: before 0 rows, 0 failed; after 4 rows, 4 failed
+[after]   today, API: before 0 0 cr=0% [Fri, Nov 13, 2026, Asia/Karachi] | after 0 0 cr=0% [Fri, Nov 13, 2026, Asia/Karachi]
+[after]   today, PDF: before headline 0 0 0 0 0 cr=0% | table rows 0 (contacted 0, vm 0, na 0, dnc 0) | says: No calls recorded | header: Fri, Nov 13, 2026 · Times in Asia/Karachi · Talha Arif
+[after]                after headline 0 0 0 0 0 cr=0% | table rows 0 (contacted 0, vm 0, na 0, dnc 0) | says: No calls recorded | header: Fri, Nov 13, 2026 · Times in Asia/Karachi · Talha Arif
+[after]   per-state report total dials: 0; manual-calls list: 0 row(s)
+[after]   lead attempts on the 5 leads: 0,0,0,0,0
+[after]   server log (failed): 4 error/warn lines
+[after] == validation (HTTP code + message)
+[after]   ?date=not-a-date -> today HTTP 400 "error":"date must be a date like 2026-11-12" | PDF HTTP 400
+[after]   ?date=2026-02-30 -> today HTTP 400 "error":"date is not a real date: 2026-02-30" | PDF HTTP 400
+[after]   ?date=2026-13-01 -> today HTTP 400 "error":"date is not a real date: 2026-13-01" | PDF HTTP 400
+[after]   ?from=2026-11-10T10:00 -> today HTTP 400 "error":"A custom range needs both from and to" | PDF HTTP 400
+[after]   ?from=2026-11-10T10:00&to=2026-11-10T09:00 -> today HTTP 400 "error":"\" | PDF HTTP 400
+[after]   ?from=2025-01-01T00:00&to=2026-11-10T00:00 -> today HTTP 400 "error":"A range can be at most 366 days" | PDF HTTP 400
+[after]   ?from=garbage&to=2026-11-10T00:00 -> today HTTP 400 "error":"from must be a date and time like 2026-11-12T22:00" | PDF HTTP 400
+[after]   ?date=2026-11-10&from=2026-11-10T00:00&to=2026-11-11T00:00 -> today HTTP 400 "error":"Give either date or from/to, not both" | PDF HTTP 400
+[after]   ?date=2026-11-10 -> today HTTP 200  | PDF HTTP 200
+[after]   PUT reporting_timezone="Mars/Olympus" -> HTTP 400; PUT day_start_time="Mars/Olympus" -> HTTP 400
+[after]   PUT reporting_timezone="" -> HTTP 400; PUT day_start_time="" -> HTTP 400
+[after]   PUT reporting_timezone="25:00" -> HTTP 400; PUT day_start_time="25:00" -> HTTP 400
+[after]   PUT reporting_timezone="6am" -> HTTP 400; PUT day_start_time="6am" -> HTTP 400
+[after]   settings now: day_start_time=00:00, reporting_timezone=Asia/Karachi
+[after]   server log (validate): 0 error/warn lines
+[after] == daily goal counter (/reports/today, what the dashboard polls), controlled clock (Node only), day start 00:00 Karachi
+[after]    calls: Nov 10 22:00 and 23:00, Nov 11 02:00 Karachi
+[after]   at 23:59:00 Nov 10 Karachi: dials 2 1 cr=50% [Tue, Nov 10, 2026, Asia/Karachi]
+[after]   at 00:00:30 Nov 11 Karachi (midnight passed): dials 1 0 cr=0% [Wed, Nov 11, 2026, Asia/Karachi]
+[after]   at 04:59:00 Nov 11 Karachi (= 23:59 UTC): dials 1 0 cr=0% [Wed, Nov 11, 2026, Asia/Karachi]
+[after]   at 05:00:30 Nov 11 Karachi (= 00:00:30 UTC): dials 1 0 cr=0% [Wed, Nov 11, 2026, Asia/Karachi]
+[after]   server log (goal): 0 error/warn lines
+[after] == fonts: PDF text (pdftotext) for the two rows
+[after]   1   José Hernández-Muñoz           Ünïcödé ñ façade Realty        (415) 555-0101     Contacted     Señora Muñoz: call back after 3pm 👍 — café 🏠☎️   1:05         10:00 AM
+[after]                                      <script>alert(1)</script>                                       <b>not bold</b>
+[after]   2   Zoë Ångström 😀                 Café Olé Homes                 (310) 555-0102     Voicemail     Left VM for Zoë 😀👨‍👩‍👧 — Ünïcödé ñ façade        1:05         11:00 AM
+[after]   fonts embedded: NotoEmoji-Regular NotoSans-Bold NotoSans-Regular 
+[after]   page image: /var/tmp/audit-scratch/seg7-after/fonts-page-1.png
+[after]   server log (fonts): 0 error/warn lines
+[after] == browser (production build): today has 4 calls (2 contacted); range Nov 7 22:00 -> Nov 8 04:00 has 3 (1 contacted)
+[after]   API today: 4 2 cr=50% [Fri, Nov 13, 2026, Asia/Karachi] | API range: 3 1 cr=33% [Sat, Nov 7, 2026, 22:00 to Sun, Nov 8, 2026, 04:00, Asia/Karachi] | DB range: 3 1 1 1 0
+[after]   dashboard: Dials today 4, Contacts today 2, Connect rate 50%; goal text: 4 / 100 dials today
+[after]   reports, today: period "Fri, Nov 13, 2026 (Asia/Karachi)"; Dials 4, Contacts 2
+[after]   reports, 2026-11-07T22:00 -> 2026-11-08T04:00: period "Sat, Nov 7, 2026, 22:00 to Sun, Nov 8, 2026, 04:00 (Asia/Karachi)"; Dials 3, Contacts 1, Connect rate 33%
+[after]   reports, Download PDF for the range: file vortex-dialer-2026-11-07T2200_to_2026-11-08T0400.pdf
+[after]   settings: Reporting timezone "Asia/Karachi", Day starts at "00:00"
+[after]   page errors: none; 4xx/5xx: none
+[after]   PDF downloaded from the Reports page: headline dials 3, contacts 1; table rows 3; header: From Sat, Nov 7, 2026, 22:00 to Sun, Nov 8, 2026, 04:00 · Times in Asia/Karachi · Talha Arif
+[after]   server log (ui): 0 error/warn lines
+[after] == perf: 100,000 calls over the last ~90 days (5,019 leads); median of 9 runs each
+[after]   GET /api/reports/today: median 0.002794s, max 0.015507s
+[after]   GET /api/reports/today?date=2026-11-10: median 0.002653s, max 0.005503s
+[after]   GET /api/reports/per-state: median 0.023102s, max 0.026091s
+[after]   GET /api/reports/manual-today: median 0.002903s, max 0.003920s
+[after]   GET /api/exports/daily-pdf?date=2026-11-10: median 0.371104s, max 0.522680s
+[after]   calls on 2026-11-10 (Karachi day): DB 1085 200 221 221 221; PDF headline 1085 200 221 221 221 cr=18% | table rows 1085 (contacted 200, vm 221, na 221, dnc 221) | header: Tue, Nov 10, 2026 · Times in Asia/Karachi · Talha Arif
+[after]   server log (perf): 0 error/warn lines
+######## after run 3
+[after] == 5 periods: dashboard/report API (/reports/today) | PDF headline vs PDF table | DB count (dials contacts vm na dnc), Asia/Karachi
+[after]   empty past day (2026-11-05 00:00 -> 2026-11-06 00:00)
+[after]     DB:        0 0 0 0 0
+[after]     API:       0 0 cr=0% [Thu, Nov 5, 2026, Asia/Karachi]
+[after]     PDF:       headline 0 0 0 0 0 cr=0% | table rows 0 (contacted 0, vm 0, na 0, dnc 0) | says: No calls recorded | header: Thu, Nov 5, 2026 · Times in Asia/Karachi · Talha Arif
+[after]   past day, known mix (2026-11-10 00:00 -> 2026-11-11 00:00)
+[after]     DB:        11 3 2 4 1
+[after]     API:       11 3 cr=27% [Tue, Nov 10, 2026, Asia/Karachi]
+[after]     PDF:       headline 11 3 2 4 1 cr=27% | table rows 11 (contacted 3, vm 2, na 4, dnc 1) | header: Tue, Nov 10, 2026 · Times in Asia/Karachi · Talha Arif
+[after]   today (2026-11-13, Karachi) (2026-11-13 00:00 -> 2026-11-14 00:00)
+[after]     DB:        4 1 1 1 0
+[after]     API:       4 1 cr=25% [Fri, Nov 13, 2026, Asia/Karachi]
+[after]     PDF:       headline 4 1 1 1 0 cr=25% | table rows 4 (contacted 1, vm 1, na 1, dnc 0) | header: Fri, Nov 13, 2026 · Times in Asia/Karachi · Talha Arif
+[after]   1,500-call day (2026-11-03 00:00 -> 2026-11-04 00:00)
+[after]     DB:        1500 300 300 300 300
+[after]     API:       1500 300 cr=20% [Tue, Nov 3, 2026, Asia/Karachi]
+[after]     PDF:       headline 1500 300 300 300 300 cr=20% | table rows 1500 (contacted 300, vm 300, na 300, dnc 300) | header: Tue, Nov 3, 2026 · Times in Asia/Karachi · Talha Arif
+[after]   range across midnight (2026-11-07 22:00 -> 2026-11-08 04:00)
+[after]     DB:        3 1 1 1 0
+[after]     API:       3 1 cr=33% [Sat, Nov 7, 2026, 22:00 to Sun, Nov 8, 2026, 04:00, Asia/Karachi]
+[after]     PDF:       headline 3 1 1 1 0 cr=33% | table rows 3 (contacted 1, vm 1, na 1, dnc 0) | header: From Sat, Nov 7, 2026, 22:00 to Sun, Nov 8, 2026, 04:00 · Times in Asia/Karachi · Talha Arif
+[after]   server log (periods): 0 error/warn lines
+[after] == midnight in Asia/Karachi: a contacted call at 23:59:30 Nov 10, a voicemail at 00:00:30 Nov 11 (= 18:59:30 / 19:00:30 UTC Nov 10)
+[after]   date=2026-11-10: API 1 1 cr=100% [Tue, Nov 10, 2026, Asia/Karachi] | PDF headline 1 1 0 0 0 cr=100% | table rows 1 (contacted 1, vm 0, na 0, dnc 0) | header: Tue, Nov 10, 2026 · Times in Asia/Karachi · Talha Arif
+[after]   date=2026-11-11: API 1 0 cr=0% [Wed, Nov 11, 2026, Asia/Karachi] | PDF headline 1 0 1 0 0 cr=0% | table rows 1 (contacted 0, vm 1, na 0, dnc 0) | header: Wed, Nov 11, 2026 · Times in Asia/Karachi · Talha Arif
+[after]   server log (boundary): 0 error/warn lines
+[after] == reporting_timezone = America/Chicago; calls at 23:59:30 Nov 10 and 00:00:30 Nov 11 Chicago time (= 05:59:30 / 06:00:30 UTC Nov 11)
+[after]   setting via API: PUT reporting_timezone=America/Chicago -> HTTP 200
+[after]   date=2026-11-10: API 1 1 cr=100% [Tue, Nov 10, 2026, America/Chicago] | PDF headline 1 1 0 0 0 cr=100% | table rows 1 (contacted 1, vm 0, na 0, dnc 0) | header: Tue, Nov 10, 2026 · Times in America/Chicago · Talha Arif | DB 1 1 0 0 0
+[after]   date=2026-11-11: API 1 0 cr=0% [Wed, Nov 11, 2026, America/Chicago] | PDF headline 1 0 1 0 0 cr=0% | table rows 1 (contacted 0, vm 1, na 0, dnc 0) | header: Wed, Nov 11, 2026 · Times in America/Chicago · Talha Arif | DB 1 0 1 0 0
+[after]   server log (tz): 0 error/warn lines
+[after] == day_start_time = 06:00 (Karachi): calls at Nov 10 05:59:30 / 06:00:30 and Nov 11 05:59:30 / 06:00:30
+[after]   PUT day_start_time=06:00 -> HTTP 200
+[after]   date=2026-11-10: API 2 0 cr=0% [Tue, Nov 10, 2026, 06:00 to Wed, Nov 11, 2026, 06:00, Asia/Karachi] | PDF headline 2 0 1 1 0 cr=0% | table rows 2 (contacted 0, vm 1, na 1, dnc 0) | header: Tue, Nov 10, 2026, 06:00 to Wed, Nov 11, 2026, 06:00 · Times in Asia/Karachi · Talha Arif | DB (06:00 -> 06:00) 2 0 1 1 0
+[after]   back to 00:00: date=2026-11-10: API 2 1 cr=50% [Tue, Nov 10, 2026, Asia/Karachi] | DB 2 1 1 0 0
+[after]   server log (daystart): 0 error/warn lines
+[after] == 3 queue dials + 1 dial-pad dial with TELEPHONY_PROVIDER=bogus:  HTTP 502 HTTP 502 HTTP 502 / dial pad HTTP 502
+[after]   call_history: before 0 rows, 0 failed; after 4 rows, 4 failed
+[after]   today, API: before 0 0 cr=0% [Fri, Nov 13, 2026, Asia/Karachi] | after 0 0 cr=0% [Fri, Nov 13, 2026, Asia/Karachi]
+[after]   today, PDF: before headline 0 0 0 0 0 cr=0% | table rows 0 (contacted 0, vm 0, na 0, dnc 0) | says: No calls recorded | header: Fri, Nov 13, 2026 · Times in Asia/Karachi · Talha Arif
+[after]                after headline 0 0 0 0 0 cr=0% | table rows 0 (contacted 0, vm 0, na 0, dnc 0) | says: No calls recorded | header: Fri, Nov 13, 2026 · Times in Asia/Karachi · Talha Arif
+[after]   per-state report total dials: 0; manual-calls list: 0 row(s)
+[after]   lead attempts on the 5 leads: 0,0,0,0,0
+[after]   server log (failed): 4 error/warn lines
+[after] == validation (HTTP code + message)
+[after]   ?date=not-a-date -> today HTTP 400 "error":"date must be a date like 2026-11-12" | PDF HTTP 400
+[after]   ?date=2026-02-30 -> today HTTP 400 "error":"date is not a real date: 2026-02-30" | PDF HTTP 400
+[after]   ?date=2026-13-01 -> today HTTP 400 "error":"date is not a real date: 2026-13-01" | PDF HTTP 400
+[after]   ?from=2026-11-10T10:00 -> today HTTP 400 "error":"A custom range needs both from and to" | PDF HTTP 400
+[after]   ?from=2026-11-10T10:00&to=2026-11-10T09:00 -> today HTTP 400 "error":"\" | PDF HTTP 400
+[after]   ?from=2025-01-01T00:00&to=2026-11-10T00:00 -> today HTTP 400 "error":"A range can be at most 366 days" | PDF HTTP 400
+[after]   ?from=garbage&to=2026-11-10T00:00 -> today HTTP 400 "error":"from must be a date and time like 2026-11-12T22:00" | PDF HTTP 400
+[after]   ?date=2026-11-10&from=2026-11-10T00:00&to=2026-11-11T00:00 -> today HTTP 400 "error":"Give either date or from/to, not both" | PDF HTTP 400
+[after]   ?date=2026-11-10 -> today HTTP 200  | PDF HTTP 200
+[after]   PUT reporting_timezone="Mars/Olympus" -> HTTP 400; PUT day_start_time="Mars/Olympus" -> HTTP 400
+[after]   PUT reporting_timezone="" -> HTTP 400; PUT day_start_time="" -> HTTP 400
+[after]   PUT reporting_timezone="25:00" -> HTTP 400; PUT day_start_time="25:00" -> HTTP 400
+[after]   PUT reporting_timezone="6am" -> HTTP 400; PUT day_start_time="6am" -> HTTP 400
+[after]   settings now: day_start_time=00:00, reporting_timezone=Asia/Karachi
+[after]   server log (validate): 0 error/warn lines
+[after] == daily goal counter (/reports/today, what the dashboard polls), controlled clock (Node only), day start 00:00 Karachi
+[after]    calls: Nov 10 22:00 and 23:00, Nov 11 02:00 Karachi
+[after]   at 23:59:00 Nov 10 Karachi: dials 2 1 cr=50% [Tue, Nov 10, 2026, Asia/Karachi]
+[after]   at 00:00:30 Nov 11 Karachi (midnight passed): dials 1 0 cr=0% [Wed, Nov 11, 2026, Asia/Karachi]
+[after]   at 04:59:00 Nov 11 Karachi (= 23:59 UTC): dials 1 0 cr=0% [Wed, Nov 11, 2026, Asia/Karachi]
+[after]   at 05:00:30 Nov 11 Karachi (= 00:00:30 UTC): dials 1 0 cr=0% [Wed, Nov 11, 2026, Asia/Karachi]
+[after]   server log (goal): 0 error/warn lines
+[after] == fonts: PDF text (pdftotext) for the two rows
+[after]   1   José Hernández-Muñoz           Ünïcödé ñ façade Realty        (415) 555-0101     Contacted     Señora Muñoz: call back after 3pm 👍 — café 🏠☎️   1:05         10:00 AM
+[after]                                      <script>alert(1)</script>                                       <b>not bold</b>
+[after]   2   Zoë Ångström 😀                 Café Olé Homes                 (310) 555-0102     Voicemail     Left VM for Zoë 😀👨‍👩‍👧 — Ünïcödé ñ façade        1:05         11:00 AM
+[after]   fonts embedded: NotoEmoji-Regular NotoSans-Bold NotoSans-Regular 
+[after]   page image: /var/tmp/audit-scratch/seg7-after/fonts-page-1.png
+[after]   server log (fonts): 0 error/warn lines
+[after] == browser (production build): today has 4 calls (2 contacted); range Nov 7 22:00 -> Nov 8 04:00 has 3 (1 contacted)
+[after]   API today: 4 2 cr=50% [Fri, Nov 13, 2026, Asia/Karachi] | API range: 3 1 cr=33% [Sat, Nov 7, 2026, 22:00 to Sun, Nov 8, 2026, 04:00, Asia/Karachi] | DB range: 3 1 1 1 0
+[after]   dashboard: Dials today 4, Contacts today 2, Connect rate 50%; goal text: 4 / 100 dials today
+[after]   reports, today: period "Fri, Nov 13, 2026 (Asia/Karachi)"; Dials 4, Contacts 2
+[after]   reports, 2026-11-07T22:00 -> 2026-11-08T04:00: period "Sat, Nov 7, 2026, 22:00 to Sun, Nov 8, 2026, 04:00 (Asia/Karachi)"; Dials 3, Contacts 1, Connect rate 33%
+[after]   reports, Download PDF for the range: file vortex-dialer-2026-11-07T2200_to_2026-11-08T0400.pdf
+[after]   settings: Reporting timezone "Asia/Karachi", Day starts at "00:00"
+[after]   page errors: none; 4xx/5xx: none
+[after]   PDF downloaded from the Reports page: headline dials 3, contacts 1; table rows 3; header: From Sat, Nov 7, 2026, 22:00 to Sun, Nov 8, 2026, 04:00 · Times in Asia/Karachi · Talha Arif
+[after]   server log (ui): 0 error/warn lines
+[after] == perf: 100,000 calls over the last ~90 days (5,019 leads); median of 9 runs each
+[after]   GET /api/reports/today: median 0.002738s, max 0.015020s
+[after]   GET /api/reports/today?date=2026-11-10: median 0.002492s, max 0.005418s
+[after]   GET /api/reports/per-state: median 0.022169s, max 0.025230s
+[after]   GET /api/reports/manual-today: median 0.002343s, max 0.003223s
+[after]   GET /api/exports/daily-pdf?date=2026-11-10: median 0.377582s, max 0.504885s
+[after]   calls on 2026-11-10 (Karachi day): DB 1086 200 222 221 221; PDF headline 1086 200 222 221 221 cr=18% | table rows 1086 (contacted 200, vm 222, na 221, dnc 221) | header: Tue, Nov 10, 2026 · Times in Asia/Karachi · Talha Arif
+[after]   server log (perf): 0 error/warn lines

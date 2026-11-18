@@ -1,0 +1,27 @@
+Vortex Dialer API listening on port 4000 (telephony: mock)
+Import chunk failed after 3 attempts: Connection error.
+Import chunk failed after 3 attempts: Connection error.
+Import chunk failed after 3 attempts: Connection error.
+Import chunk failed after 3 attempts: Connection error.
+Import chunk failed after 3 attempts: Connection error.
+Import chunk failed after 3 attempts: Connection error.
+Import chunk failed after 3 attempts: Connection error.
+Import chunk failed after 3 attempts: Connection error.
+Import chunk failed after 3 attempts: Connection error.
+Import chunk failed after 3 attempts: Connection error.
+Import chunk failed after 3 attempts: Connection error.
+Import chunk failed after 3 attempts: Connection error.
+Import chunk failed after 3 attempts: Connection error.
+Import chunk failed after 3 attempts: Connection error.
+Import chunk failed after 3 attempts: Connection error.
+Import job 1 failed: mapping must include at least name and phone
+Import chunk failed after 3 attempts: Connection error.
+Import chunk failed after 3 attempts: Connection error.
+Import chunk failed after 3 attempts: Connection error.
+Import chunk failed after 3 attempts: Connection error.
+Import chunk failed after 3 attempts: Connection error.
+Import chunk failed after 3 attempts: Connection error.
+Import chunk failed after 3 attempts: Connection error.
+Import chunk failed after 3 attempts: Connection error.
+Import chunk failed after 3 attempts: Connection error.
+SIGTERM received — stale-lock sweep stopped, shutting down

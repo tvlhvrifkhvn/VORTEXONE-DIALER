@@ -1,0 +1,19 @@
+Vortex Dialer API listening on port 4000 (telephony: mock)
+InternalServerError: 500 {}
+    at APIError.generate (/home/user/vortexone-dialer/backend/node_modules/groq-sdk/error.js:61:20)
+    at Groq.makeStatusError (/home/user/vortexone-dialer/backend/node_modules/groq-sdk/core.js:275:33)
+    at Groq.makeRequest (/home/user/vortexone-dialer/backend/node_modules/groq-sdk/core.js:318:30)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async Object.expandNote (/home/user/vortexone-dialer/backend/src/services/noteExpander.js:49:22)
+    at async /home/user/vortexone-dialer/backend/src/routes/ai.js:14:22 {
+  status: 500,
+  headers: {
+    connection: 'keep-alive',
+    'content-type': 'application/json',
+    date: 'Fri, 13 Nov 2026 13:06:04 GMT',
+    'keep-alive': 'timeout=5',
+    'transfer-encoding': 'chunked'
+  },
+  error: {}
+}
+SIGTERM received — stale-lock sweep and import cleanup stopped, shutting down

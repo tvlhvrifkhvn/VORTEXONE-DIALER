@@ -1,0 +1,487 @@
+# Segment 8 — SMS and email (F-37, F-38, F-39, F-41, F-31). Branch claude/fix-seg8-sms-email, base b5444d0 (Segment 7; PRs #21-#23 not merged). Mock SMS / email adapters only.
+# Test leads inserted by DIRECT SQL; controlled clock 2026-11-13 13:30 UTC (Node only); SMS_WEBHOOK_SECRET is a throwaway test value. Synthetic data only.
+# 3 runs each on base and HEAD; the runs agree (one JSON key order differs).
+
+## BASE b5444d0, 3 runs
+######## base run 1
+[base] == inbound texts (POST /api/sms/inbound, secret header); lead ANA 5020, phone (212) 555-7701
+[base]   "STOP" -> HTTP 401 action ; opt_out/dnc after: false/dnc=false | then START -> HTTP 401, after: false/dnc=false
+[base]   "stop" -> HTTP 401 action ; opt_out/dnc after: false/dnc=false | then START -> HTTP 401, after: false/dnc=false
+[base]   "Stop." -> HTTP 401 action ; opt_out/dnc after: false/dnc=false | then START -> HTTP 401, after: false/dnc=false
+[base]   " STOP " -> HTTP 401 action ; opt_out/dnc after: false/dnc=false | then START -> HTTP 401, after: false/dnc=false
+[base]   "StopAll" -> HTTP 401 action ; opt_out/dnc after: false/dnc=false | then START -> HTTP 401, after: false/dnc=false
+[base]   "UNSUBSCRIBE" -> HTTP 401 action ; opt_out/dnc after: false/dnc=false | then START -> HTTP 401, after: false/dnc=false
+[base]   "cancel" -> HTTP 401 action ; opt_out/dnc after: false/dnc=false | then START -> HTTP 401, after: false/dnc=false
+[base]   "End!" -> HTTP 401 action ; opt_out/dnc after: false/dnc=false | then START -> HTTP 401, after: false/dnc=false
+[base]   "quit" -> HTTP 401 action ; opt_out/dnc after: false/dnc=false | then START -> HTTP 401, after: false/dnc=false
+[base]   STOP then "UNSTOP" -> HTTP 401, opt_out/dnc after: false/dnc=false
+[base]   STOP then "start" -> HTTP 401, opt_out/dnc after: false/dnc=false
+[base]   STOP then "Start." -> HTTP 401, opt_out/dnc after: false/dnc=false
+[base]   sentence with 'stop' -> HTTP 401 action ; opt_out after: false/dnc=false
+ERROR:  column "provider_message_id" does not exist
+LINE 1: select count(*) from sms_messages where provider_message_id=...
+                                                ^
+[base]   duplicate delivery (providerMessageId prov-123 twice): HTTP 401 then HTTP 401 ; rows with that id: ; confirmations sent: +0 then +0
+ERROR:  column "from_number" does not exist
+LINE 1: ...where lead_id is null and direction='inbound' and from_numbe...
+                                                             ^
+[base]   unknown number (312) 555-9999: "Who is this? STOP" -> HTTP 401; "stop" -> HTTP 401 ; stored with no lead: 
+[base]   two leads, one phone: insert a 2nd lead with ANA's phone -> blocked by leads_phone_key (one lead per number) duplicate key value violates unique constraint 
+[base]   DNC lead FAY: STOP -> opt_out/dnc false/dnc=true; START -> false/dnc=true; status dnc; dnc_list rows unchanged: 0
+[base]   secret: none -> HTTP 401; wrong -> HTTP 401; ANA opt_out still: false/dnc=false
+[base]   server started WITHOUT SMS_WEBHOOK_SECRET: correct-looking secret -> HTTP 401; ANA opt_out still: false/dnc=false
+[base]   inbox: leads with unread ; unmatched list: (not returned)
+[base]   timeline ANA: {}
+[base]   totals: inbound rows 0, confirmations 0, opt events n/a
+[base]   server log (inbound): 0 error/warn lines
+[base] == templates (save-time check), leads ANA (all fields) / BOB (no brokerage) / HAL (no address = no city)
+[base]   save "Hi {{first_name}} at {{brokerage}} in {{city}}, {{state}} ({{name}})" -> 201 
+[base]   save "Hi {{ Name }} / {{FIRST_NAME}} / {{  state }} / {first_name}" -> 201 
+[base]   save "Hi {{zip}}" -> 201 
+[base]   save "Hi {first name} {{name}" -> 201 
+[base]   save "Hi {{name}} from {{ Brokerage }} {unknown}" -> 201 
+[base]   send GOOD to Ana María López -> 201  "body":"Hi {{first_name}} at Café Realty in {{city}}, NY (Ana María López)"
+[base]   send ODD to Ana María López -> 201  "body":"Hi {{ Name }} / {{FIRST_NAME}} / {{ state }} / {first_name}"
+[base]   send GOOD to Bob Empty -> 201  "body":"Hi {{first_name}} at in {{city}}, NY (Bob Empty)"
+[base]   send GOOD to Hal Nocity -> 201  "body":"Hi {{first_name}} at Hal Realty in {{city}}, NY (Hal Nocity)"
+[base]   send OLD to Ana María López -> 201  "body":"Hey {{first_name}}, {{zip}} special"
+[base]   free text with {{nickname}} -> 201  "body":"Hi Ana María López, {{nickname}}"
+[base]   template list flags: old bad; t; t; t; t; t
+[base]   bulk GOOD to ANA, BOB, HAL -> 200 {"sent":3,"skipped_opt_out":0,"skipped_dnc":0,"failed":0}
+[base]   bulk with the old bad template -> 200 
+[base]   outbound bodies containing { or } : 10; containing ' at in ' or ' at ,': 2
+[base]   server log (templates): 0 error/warn lines
+[base] == texts and calling hours (08:30 New York open, 05:30 Los Angeles closed, Dan has no state)
+[base]   single to Ana María López (NY) -> 201 
+[base]   single to Cara West (CA) -> 201 
+[base]   single to Dan Nostate (no state) -> 201 
+[base]   bulk ANA, CARA, DAN -> 200 {"sent":3,"skipped_opt_out":0,"skipped_dnc":0,"failed":0}
+[base]   CARA texts on record: 2
+[base]   STOP from CARA at 05:30 her time -> HTTP 401  (the confirmation is exempt); CARA opt_out: false/dnc=false
+[base]   calling hours OFF: single to CARA -> 201 
+[base]   server log (hours): 0 error/warn lines
+[base] == safety: single sends to EVE (opted out) and FAY (DNC); bulk to every kind of lead
+[base]   single to Eve Optout -> 400 "error":"This lead has opted out of SMS"
+[base]   single to Fay Dnc -> 400 "error":"This lead is on the Do Not Call list"
+[base]   single to Gus Nophone -> 400 "error":"This lead has no phone number yet — add one before texting."
+[base]   bulk to ANA (ok), BOB (no brokerage), CARA (closed), DAN (no state), EVE (opted out), FAY (DNC), GUS (no phone), 99999999 (no such lead) -> 200
+[base]     summary: {"sent":5,"skipped_opt_out":1,"skipped_dnc":1,"failed":0}
+[base]     adds up: no total in summary
+[base]     outbound rows written: Ana María López, Bob Empty, Cara West, Dan Nostate, Gus Nophone
+[base]   server log (safety): 0 error/warn lines
+[base] == email subject (lead ANA)
+[base]   subject "" -> 201  "subject":""
+[base]   subject "   " -> 201  "subject":""
+[base]   subject null -> 201  "subject":""
+[base]   subject "Quick question, {{first_name}}" -> 201  "subject":"Quick question, {{first_name}}"
+[base]   email rows stored: 4 ('', '', '', 'Quick question, {{first_name}}')
+[base]   mock adapter log lines: 0 — 
+[base]   server log (email): 0 error/warn lines
+[base] == provider names at startup (env value -> what happens)
+[base]   TELEPHONY_PROVIDER=bogus -> started: yes, process: running; log: Vortex Dialer API listening on port 4000 (telephony: bogus) Calling hours: worked out the time zone of 8 lead(s) 
+[base]   SMS_PROVIDER=bogus -> started: yes, process: running; log: Vortex Dialer API listening on port 4000 (telephony: mock) 
+[base]   EMAIL_PROVIDER=bogus -> started: yes, process: running; log: Vortex Dialer API listening on port 4000 (telephony: mock) 
+[base]   TELEPHONY_PROVIDER=mock -> started: yes, process: running; log: Vortex Dialer API listening on port 4000 (telephony: mock) 
+[base]   TELEPHONY_PROVIDER=twilio -> started: yes, process: running; log: Vortex Dialer API listening on port 4000 (telephony: twilio) 
+[base]   SMS_PROVIDER=mock -> started: yes, process: running; log: Vortex Dialer API listening on port 4000 (telephony: mock) 
+[base]   EMAIL_PROVIDER=mock -> started: yes, process: running; log: Vortex Dialer API listening on port 4000 (telephony: mock) 
+[base]   server log (providers): 0 error/warn lines
+######## base run 2
+[base] == inbound texts (POST /api/sms/inbound, secret header); lead ANA 5020, phone (212) 555-7701
+[base]   "STOP" -> HTTP 401 action ; opt_out/dnc after: false/dnc=false | then START -> HTTP 401, after: false/dnc=false
+[base]   "stop" -> HTTP 401 action ; opt_out/dnc after: false/dnc=false | then START -> HTTP 401, after: false/dnc=false
+[base]   "Stop." -> HTTP 401 action ; opt_out/dnc after: false/dnc=false | then START -> HTTP 401, after: false/dnc=false
+[base]   " STOP " -> HTTP 401 action ; opt_out/dnc after: false/dnc=false | then START -> HTTP 401, after: false/dnc=false
+[base]   "StopAll" -> HTTP 401 action ; opt_out/dnc after: false/dnc=false | then START -> HTTP 401, after: false/dnc=false
+[base]   "UNSUBSCRIBE" -> HTTP 401 action ; opt_out/dnc after: false/dnc=false | then START -> HTTP 401, after: false/dnc=false
+[base]   "cancel" -> HTTP 401 action ; opt_out/dnc after: false/dnc=false | then START -> HTTP 401, after: false/dnc=false
+[base]   "End!" -> HTTP 401 action ; opt_out/dnc after: false/dnc=false | then START -> HTTP 401, after: false/dnc=false
+[base]   "quit" -> HTTP 401 action ; opt_out/dnc after: false/dnc=false | then START -> HTTP 401, after: false/dnc=false
+[base]   STOP then "UNSTOP" -> HTTP 401, opt_out/dnc after: false/dnc=false
+[base]   STOP then "start" -> HTTP 401, opt_out/dnc after: false/dnc=false
+[base]   STOP then "Start." -> HTTP 401, opt_out/dnc after: false/dnc=false
+[base]   sentence with 'stop' -> HTTP 401 action ; opt_out after: false/dnc=false
+ERROR:  column "provider_message_id" does not exist
+LINE 1: select count(*) from sms_messages where provider_message_id=...
+                                                ^
+[base]   duplicate delivery (providerMessageId prov-123 twice): HTTP 401 then HTTP 401 ; rows with that id: ; confirmations sent: +0 then +0
+ERROR:  column "from_number" does not exist
+LINE 1: ...where lead_id is null and direction='inbound' and from_numbe...
+                                                             ^
+[base]   unknown number (312) 555-9999: "Who is this? STOP" -> HTTP 401; "stop" -> HTTP 401 ; stored with no lead: 
+[base]   two leads, one phone: insert a 2nd lead with ANA's phone -> blocked by leads_phone_key (one lead per number) duplicate key value violates unique constraint 
+[base]   DNC lead FAY: STOP -> opt_out/dnc false/dnc=true; START -> false/dnc=true; status dnc; dnc_list rows unchanged: 0
+[base]   secret: none -> HTTP 401; wrong -> HTTP 401; ANA opt_out still: false/dnc=false
+[base]   server started WITHOUT SMS_WEBHOOK_SECRET: correct-looking secret -> HTTP 401; ANA opt_out still: false/dnc=false
+[base]   inbox: leads with unread ; unmatched list: (not returned)
+[base]   timeline ANA: {}
+[base]   totals: inbound rows 0, confirmations 0, opt events n/a
+[base]   server log (inbound): 0 error/warn lines
+[base] == templates (save-time check), leads ANA (all fields) / BOB (no brokerage) / HAL (no address = no city)
+[base]   save "Hi {{first_name}} at {{brokerage}} in {{city}}, {{state}} ({{name}})" -> 201 
+[base]   save "Hi {{ Name }} / {{FIRST_NAME}} / {{  state }} / {first_name}" -> 201 
+[base]   save "Hi {{zip}}" -> 201 
+[base]   save "Hi {first name} {{name}" -> 201 
+[base]   save "Hi {{name}} from {{ Brokerage }} {unknown}" -> 201 
+[base]   send GOOD to Ana María López -> 201  "body":"Hi {{first_name}} at Café Realty in {{city}}, NY (Ana María López)"
+[base]   send ODD to Ana María López -> 201  "body":"Hi {{ Name }} / {{FIRST_NAME}} / {{ state }} / {first_name}"
+[base]   send GOOD to Bob Empty -> 201  "body":"Hi {{first_name}} at in {{city}}, NY (Bob Empty)"
+[base]   send GOOD to Hal Nocity -> 201  "body":"Hi {{first_name}} at Hal Realty in {{city}}, NY (Hal Nocity)"
+[base]   send OLD to Ana María López -> 201  "body":"Hey {{first_name}}, {{zip}} special"
+[base]   free text with {{nickname}} -> 201  "body":"Hi Ana María López, {{nickname}}"
+[base]   template list flags: old bad; t; t; t; t; t
+[base]   bulk GOOD to ANA, BOB, HAL -> 200 {"sent":3,"skipped_opt_out":0,"skipped_dnc":0,"failed":0}
+[base]   bulk with the old bad template -> 200 
+[base]   outbound bodies containing { or } : 10; containing ' at in ' or ' at ,': 2
+[base]   server log (templates): 0 error/warn lines
+[base] == texts and calling hours (08:30 New York open, 05:30 Los Angeles closed, Dan has no state)
+[base]   single to Ana María López (NY) -> 201 
+[base]   single to Cara West (CA) -> 201 
+[base]   single to Dan Nostate (no state) -> 201 
+[base]   bulk ANA, CARA, DAN -> 200 {"sent":3,"skipped_opt_out":0,"skipped_dnc":0,"failed":0}
+[base]   CARA texts on record: 2
+[base]   STOP from CARA at 05:30 her time -> HTTP 401  (the confirmation is exempt); CARA opt_out: false/dnc=false
+[base]   calling hours OFF: single to CARA -> 201 
+[base]   server log (hours): 0 error/warn lines
+[base] == safety: single sends to EVE (opted out) and FAY (DNC); bulk to every kind of lead
+[base]   single to Eve Optout -> 400 "error":"This lead has opted out of SMS"
+[base]   single to Fay Dnc -> 400 "error":"This lead is on the Do Not Call list"
+[base]   single to Gus Nophone -> 400 "error":"This lead has no phone number yet — add one before texting."
+[base]   bulk to ANA (ok), BOB (no brokerage), CARA (closed), DAN (no state), EVE (opted out), FAY (DNC), GUS (no phone), 99999999 (no such lead) -> 200
+[base]     summary: {"sent":5,"skipped_opt_out":1,"skipped_dnc":1,"failed":0}
+[base]     adds up: no total in summary
+[base]     outbound rows written: Ana María López, Bob Empty, Cara West, Dan Nostate, Gus Nophone
+[base]   server log (safety): 0 error/warn lines
+[base] == email subject (lead ANA)
+[base]   subject "" -> 201  "subject":""
+[base]   subject "   " -> 201  "subject":""
+[base]   subject null -> 201  "subject":""
+[base]   subject "Quick question, {{first_name}}" -> 201  "subject":"Quick question, {{first_name}}"
+[base]   email rows stored: 4 ('', '', '', 'Quick question, {{first_name}}')
+[base]   mock adapter log lines: 0 — 
+[base]   server log (email): 0 error/warn lines
+[base] == provider names at startup (env value -> what happens)
+[base]   TELEPHONY_PROVIDER=bogus -> started: yes, process: running; log: Vortex Dialer API listening on port 4000 (telephony: bogus) Calling hours: worked out the time zone of 8 lead(s) 
+[base]   SMS_PROVIDER=bogus -> started: yes, process: running; log: Vortex Dialer API listening on port 4000 (telephony: mock) 
+[base]   EMAIL_PROVIDER=bogus -> started: yes, process: running; log: Vortex Dialer API listening on port 4000 (telephony: mock) 
+[base]   TELEPHONY_PROVIDER=mock -> started: yes, process: running; log: Vortex Dialer API listening on port 4000 (telephony: mock) 
+[base]   TELEPHONY_PROVIDER=twilio -> started: yes, process: running; log: Vortex Dialer API listening on port 4000 (telephony: twilio) 
+[base]   SMS_PROVIDER=mock -> started: yes, process: running; log: Vortex Dialer API listening on port 4000 (telephony: mock) 
+[base]   EMAIL_PROVIDER=mock -> started: yes, process: running; log: Vortex Dialer API listening on port 4000 (telephony: mock) 
+[base]   server log (providers): 0 error/warn lines
+######## base run 3
+[base] == inbound texts (POST /api/sms/inbound, secret header); lead ANA 5020, phone (212) 555-7701
+[base]   "STOP" -> HTTP 401 action ; opt_out/dnc after: false/dnc=false | then START -> HTTP 401, after: false/dnc=false
+[base]   "stop" -> HTTP 401 action ; opt_out/dnc after: false/dnc=false | then START -> HTTP 401, after: false/dnc=false
+[base]   "Stop." -> HTTP 401 action ; opt_out/dnc after: false/dnc=false | then START -> HTTP 401, after: false/dnc=false
+[base]   " STOP " -> HTTP 401 action ; opt_out/dnc after: false/dnc=false | then START -> HTTP 401, after: false/dnc=false
+[base]   "StopAll" -> HTTP 401 action ; opt_out/dnc after: false/dnc=false | then START -> HTTP 401, after: false/dnc=false
+[base]   "UNSUBSCRIBE" -> HTTP 401 action ; opt_out/dnc after: false/dnc=false | then START -> HTTP 401, after: false/dnc=false
+[base]   "cancel" -> HTTP 401 action ; opt_out/dnc after: false/dnc=false | then START -> HTTP 401, after: false/dnc=false
+[base]   "End!" -> HTTP 401 action ; opt_out/dnc after: false/dnc=false | then START -> HTTP 401, after: false/dnc=false
+[base]   "quit" -> HTTP 401 action ; opt_out/dnc after: false/dnc=false | then START -> HTTP 401, after: false/dnc=false
+[base]   STOP then "UNSTOP" -> HTTP 401, opt_out/dnc after: false/dnc=false
+[base]   STOP then "start" -> HTTP 401, opt_out/dnc after: false/dnc=false
+[base]   STOP then "Start." -> HTTP 401, opt_out/dnc after: false/dnc=false
+[base]   sentence with 'stop' -> HTTP 401 action ; opt_out after: false/dnc=false
+ERROR:  column "provider_message_id" does not exist
+LINE 1: select count(*) from sms_messages where provider_message_id=...
+                                                ^
+[base]   duplicate delivery (providerMessageId prov-123 twice): HTTP 401 then HTTP 401 ; rows with that id: ; confirmations sent: +0 then +0
+ERROR:  column "from_number" does not exist
+LINE 1: ...where lead_id is null and direction='inbound' and from_numbe...
+                                                             ^
+[base]   unknown number (312) 555-9999: "Who is this? STOP" -> HTTP 401; "stop" -> HTTP 401 ; stored with no lead: 
+[base]   two leads, one phone: insert a 2nd lead with ANA's phone -> blocked by leads_phone_key (one lead per number) duplicate key value violates unique constraint 
+[base]   DNC lead FAY: STOP -> opt_out/dnc false/dnc=true; START -> false/dnc=true; status dnc; dnc_list rows unchanged: 0
+[base]   secret: none -> HTTP 401; wrong -> HTTP 401; ANA opt_out still: false/dnc=false
+[base]   server started WITHOUT SMS_WEBHOOK_SECRET: correct-looking secret -> HTTP 401; ANA opt_out still: false/dnc=false
+[base]   inbox: leads with unread ; unmatched list: (not returned)
+[base]   timeline ANA: {}
+[base]   totals: inbound rows 0, confirmations 0, opt events n/a
+[base]   server log (inbound): 0 error/warn lines
+[base] == templates (save-time check), leads ANA (all fields) / BOB (no brokerage) / HAL (no address = no city)
+[base]   save "Hi {{first_name}} at {{brokerage}} in {{city}}, {{state}} ({{name}})" -> 201 
+[base]   save "Hi {{ Name }} / {{FIRST_NAME}} / {{  state }} / {first_name}" -> 201 
+[base]   save "Hi {{zip}}" -> 201 
+[base]   save "Hi {first name} {{name}" -> 201 
+[base]   save "Hi {{name}} from {{ Brokerage }} {unknown}" -> 201 
+[base]   send GOOD to Ana María López -> 201  "body":"Hi {{first_name}} at Café Realty in {{city}}, NY (Ana María López)"
+[base]   send ODD to Ana María López -> 201  "body":"Hi {{ Name }} / {{FIRST_NAME}} / {{ state }} / {first_name}"
+[base]   send GOOD to Bob Empty -> 201  "body":"Hi {{first_name}} at in {{city}}, NY (Bob Empty)"
+[base]   send GOOD to Hal Nocity -> 201  "body":"Hi {{first_name}} at Hal Realty in {{city}}, NY (Hal Nocity)"
+[base]   send OLD to Ana María López -> 201  "body":"Hey {{first_name}}, {{zip}} special"
+[base]   free text with {{nickname}} -> 201  "body":"Hi Ana María López, {{nickname}}"
+[base]   template list flags: old bad; t; t; t; t; t
+[base]   bulk GOOD to ANA, BOB, HAL -> 200 {"sent":3,"skipped_opt_out":0,"skipped_dnc":0,"failed":0}
+[base]   bulk with the old bad template -> 200 
+[base]   outbound bodies containing { or } : 10; containing ' at in ' or ' at ,': 2
+[base]   server log (templates): 0 error/warn lines
+[base] == texts and calling hours (08:30 New York open, 05:30 Los Angeles closed, Dan has no state)
+[base]   single to Ana María López (NY) -> 201 
+[base]   single to Cara West (CA) -> 201 
+[base]   single to Dan Nostate (no state) -> 201 
+[base]   bulk ANA, CARA, DAN -> 200 {"sent":3,"skipped_opt_out":0,"skipped_dnc":0,"failed":0}
+[base]   CARA texts on record: 2
+[base]   STOP from CARA at 05:30 her time -> HTTP 401  (the confirmation is exempt); CARA opt_out: false/dnc=false
+[base]   calling hours OFF: single to CARA -> 201 
+[base]   server log (hours): 0 error/warn lines
+[base] == safety: single sends to EVE (opted out) and FAY (DNC); bulk to every kind of lead
+[base]   single to Eve Optout -> 400 "error":"This lead has opted out of SMS"
+[base]   single to Fay Dnc -> 400 "error":"This lead is on the Do Not Call list"
+[base]   single to Gus Nophone -> 400 "error":"This lead has no phone number yet — add one before texting."
+[base]   bulk to ANA (ok), BOB (no brokerage), CARA (closed), DAN (no state), EVE (opted out), FAY (DNC), GUS (no phone), 99999999 (no such lead) -> 200
+[base]     summary: {"sent":5,"skipped_opt_out":1,"skipped_dnc":1,"failed":0}
+[base]     adds up: no total in summary
+[base]     outbound rows written: Ana María López, Bob Empty, Cara West, Dan Nostate, Gus Nophone
+[base]   server log (safety): 0 error/warn lines
+[base] == email subject (lead ANA)
+[base]   subject "" -> 201  "subject":""
+[base]   subject "   " -> 201  "subject":""
+[base]   subject null -> 201  "subject":""
+[base]   subject "Quick question, {{first_name}}" -> 201  "subject":"Quick question, {{first_name}}"
+[base]   email rows stored: 4 ('', '', '', 'Quick question, {{first_name}}')
+[base]   mock adapter log lines: 0 — 
+[base]   server log (email): 0 error/warn lines
+[base] == provider names at startup (env value -> what happens)
+[base]   TELEPHONY_PROVIDER=bogus -> started: yes, process: running; log: Vortex Dialer API listening on port 4000 (telephony: bogus) Calling hours: worked out the time zone of 8 lead(s) 
+[base]   SMS_PROVIDER=bogus -> started: yes, process: running; log: Vortex Dialer API listening on port 4000 (telephony: mock) 
+[base]   EMAIL_PROVIDER=bogus -> started: yes, process: running; log: Vortex Dialer API listening on port 4000 (telephony: mock) 
+[base]   TELEPHONY_PROVIDER=mock -> started: yes, process: running; log: Vortex Dialer API listening on port 4000 (telephony: mock) 
+[base]   TELEPHONY_PROVIDER=twilio -> started: yes, process: running; log: Vortex Dialer API listening on port 4000 (telephony: twilio) 
+[base]   SMS_PROVIDER=mock -> started: yes, process: running; log: Vortex Dialer API listening on port 4000 (telephony: mock) 
+[base]   EMAIL_PROVIDER=mock -> started: yes, process: running; log: Vortex Dialer API listening on port 4000 (telephony: mock) 
+[base]   server log (providers): 0 error/warn lines
+
+## HEAD, 3 runs
+######## after run 1
+[after] == inbound texts (POST /api/sms/inbound, secret header); lead ANA 5020, phone (212) 555-7701
+[after]   "STOP" -> HTTP 201 action opt_out; opt_out/dnc after: true/dnc=false | then START -> HTTP 201, after: false/dnc=false
+[after]   "stop" -> HTTP 201 action opt_out; opt_out/dnc after: true/dnc=false | then START -> HTTP 201, after: false/dnc=false
+[after]   "Stop." -> HTTP 201 action opt_out; opt_out/dnc after: true/dnc=false | then START -> HTTP 201, after: false/dnc=false
+[after]   " STOP " -> HTTP 201 action opt_out; opt_out/dnc after: true/dnc=false | then START -> HTTP 201, after: false/dnc=false
+[after]   "StopAll" -> HTTP 201 action opt_out; opt_out/dnc after: true/dnc=false | then START -> HTTP 201, after: false/dnc=false
+[after]   "UNSUBSCRIBE" -> HTTP 201 action opt_out; opt_out/dnc after: true/dnc=false | then START -> HTTP 201, after: false/dnc=false
+[after]   "cancel" -> HTTP 201 action opt_out; opt_out/dnc after: true/dnc=false | then START -> HTTP 201, after: false/dnc=false
+[after]   "End!" -> HTTP 201 action opt_out; opt_out/dnc after: true/dnc=false | then START -> HTTP 201, after: false/dnc=false
+[after]   "quit" -> HTTP 201 action opt_out; opt_out/dnc after: true/dnc=false | then START -> HTTP 201, after: false/dnc=false
+[after]   STOP then "UNSTOP" -> HTTP 201, opt_out/dnc after: false/dnc=false
+[after]   STOP then "start" -> HTTP 201, opt_out/dnc after: false/dnc=false
+[after]   STOP then "Start." -> HTTP 201, opt_out/dnc after: false/dnc=false
+[after]   sentence with 'stop' -> HTTP 201 action "action":null; opt_out after: false/dnc=false
+[after]   duplicate delivery (providerMessageId prov-123 twice): HTTP 201 then HTTP 200 "duplicate":true; rows with that id: 1; confirmations sent: +1 then +0
+[after]   unknown number (312) 555-9999: "Who is this? STOP" -> HTTP 201; "stop" -> HTTP 201 "confirmationSent":true; stored with no lead: 2
+[after]   two leads, one phone: insert a 2nd lead with ANA's phone -> blocked by leads_phone_key (one lead per number) duplicate key value violates unique constraint 
+[after]   DNC lead FAY: STOP -> opt_out/dnc true/dnc=true; START -> false/dnc=true; status dnc; dnc_list rows unchanged: 0
+[after]   secret: none -> HTTP 401; wrong -> HTTP 401; ANA opt_out still: false/dnc=false
+[after]   server started WITHOUT SMS_WEBHOOK_SECRET: correct-looking secret -> HTTP 401; ANA opt_out still: false/dnc=false
+[after]   inbox: leads with unread Bob Empty=1, Fay Dnc=2, Ana María López=27; unmatched list: +13125559999 "stop", +13125559999 "Who is this? STOP"
+[after]   timeline ANA: {"sms/outbound":26,"sms_opt/opt_in":13,"sms/inbound":27,"sms_opt/opt_out":13}
+[after]   totals: inbound rows 32, confirmations 29, opt events 28
+[after]   server log (inbound): 0 error/warn lines
+[after] == templates (save-time check), leads ANA (all fields) / BOB (no brokerage) / HAL (no address = no city)
+[after]   save "Hi {{first_name}} at {{brokerage}} in {{city}}, {{state}} ({{name}})" -> 201 
+[after]   save "Hi {{ Name }} / {{FIRST_NAME}} / {{  state }} / {first_name}" -> 201 
+[after]   save "Hi {{zip}}" -> 400 "error":"Unsupported placeholder {{zip}}. Use only {{name}}, {{first_name}}, {{brokerage}}, {{state}}, {{city}}."
+[after]   save "Hi {first name} {{name}" -> 400 "error":"Unsupported placeholder {first name}, a stray { or }. Use only {{name}}, {{first_name}}, {{brokerage}}, {{state}}, {{city}}."
+[after]   save "Hi {{name}} from {{ Brokerage }} {unknown}" -> 400 "error":"Unsupported placeholder {unknown}. Use only {{name}}, {{first_name}}, {{brokerage}}, {{state}}, {{city}}."
+[after]   send GOOD to Ana María López -> 201  "body":"Hi Ana at Café Realty in Albany, NY (Ana María López)"
+[after]   send ODD to Ana María López -> 201  "body":"Hi Ana María López / Ana / NY / Ana"
+[after]   send GOOD to Bob Empty -> 422 "error":"Not sent: this lead has no brokerage (used in the message)" 
+[after]   send GOOD to Hal Nocity -> 422 "error":"Not sent: this lead has no city (used in the message)" 
+[after]   send OLD to Ana María López -> 422 "error":"Not sent: the message uses {{zip}}, which isn't a supported field ({{name}}, {{first_name}}, {{brokerage}}, {{state}}, {{city}})" 
+[after]   free text with {{nickname}} -> 422 "error":"Not sent: the message uses {{nickname}}, which isn't a supported field ({{name}}, {{first_name}}, {{brokerage}}, {{state}}, {{city}})" 
+[after]   template list flags: old bad NEEDS FIXING ({{zip}}); t; t
+[after]   bulk GOOD to ANA, BOB, HAL -> 200 {"total":3,"sent":1,"opted_out":0,"dnc":0,"outside_hours":0,"missing_field":2,"invalid_number":0,"not_found":0,"failed":0}
+[after]   bulk with the old bad template -> 422 "error":"This template needs fixing before it can be sent: {{zip}} isn't a supported field ({{name}}, {{first_name}}, {{brokerage}}, {{state}}, {{city}})"
+[after]   outbound bodies containing { or } : 0; containing ' at in ' or ' at ,': 0
+[after]   server log (templates): 0 error/warn lines
+[after] == texts and calling hours (08:30 New York open, 05:30 Los Angeles closed, Dan has no state)
+[after]   single to Ana María López (NY) -> 201 
+[after]   single to Cara West (CA) -> 422 "error":"Outside calling hours (8am–9pm local time; it's 5:30 AM PST there). Try again later."
+[after]   single to Dan Nostate (no state) -> 422 "error":"Time zone unknown, set the state first"
+[after]   bulk ANA, CARA, DAN -> 200 {"total":3,"sent":1,"opted_out":0,"dnc":0,"outside_hours":2,"missing_field":0,"invalid_number":0,"not_found":0,"failed":0}
+[after]   CARA texts on record: 0
+[after]   STOP from CARA at 05:30 her time -> HTTP 201 "confirmationSent":true (the confirmation is exempt); CARA opt_out: true/dnc=false
+[after]   calling hours OFF: single to CARA -> 201 
+[after]   server log (hours): 0 error/warn lines
+[after] == safety: single sends to EVE (opted out) and FAY (DNC); bulk to every kind of lead
+[after]   single to Eve Optout -> 400 "error":"This lead has opted out of SMS"
+[after]   single to Fay Dnc -> 400 "error":"This lead is on the Do Not Call list"
+[after]   single to Gus Nophone -> 400 "error":"This lead has no phone number yet — add one before texting."
+[after]   bulk to ANA (ok), BOB (no brokerage), CARA (closed), DAN (no state), EVE (opted out), FAY (DNC), GUS (no phone), 99999999 (no such lead) -> 200
+[after]     summary: {"total":8,"sent":1,"opted_out":1,"dnc":1,"outside_hours":2,"missing_field":1,"invalid_number":1,"not_found":1,"failed":0}
+[after]     adds up: sent=1 + opted_out=1 + dnc=1 + outside_hours=2 + missing_field=1 + invalid_number=1 + not_found=1 + failed=0 = 8 of total 8
+[after]     outbound rows written: Ana María López
+[after]   server log (safety): 0 error/warn lines
+[after] == email subject (lead ANA)
+[after]   subject "" -> 400 "error":"Email subject is required" 
+[after]   subject "   " -> 400 "error":"Email subject is required" 
+[after]   subject null -> 400 "error":"Email subject is required" 
+[after]   subject "Quick question, {{first_name}}" -> 201  "subject":"Quick question, Ana"
+[after]   email rows stored: 1 ('Quick question, Ana')
+[after]   mock adapter log lines: 1 — [mockEmailAdapter] would send to ana@example.test | subject: Quick question, Ana;
+[after]   server log (email): 0 error/warn lines
+[after] == provider names at startup (env value -> what happens)
+[after]   TELEPHONY_PROVIDER=bogus -> started: no, process: exited; log: Startup stopped: TELEPHONY_PROVIDER="bogus" is not a known provider. Allowed values: mock, twilio. 
+[after]   SMS_PROVIDER=bogus -> started: no, process: exited; log: Startup stopped: SMS_PROVIDER="bogus" is not a known provider. Allowed values: mock. 
+[after]   EMAIL_PROVIDER=bogus -> started: no, process: exited; log: Startup stopped: EMAIL_PROVIDER="bogus" is not a known provider. Allowed values: mock. 
+[after]   TELEPHONY_PROVIDER=mock -> started: yes, process: running; log: Vortex Dialer API listening on port 4000 (telephony: mock) Calling hours: worked out the time zone of 8 lead(s) 
+[after]   TELEPHONY_PROVIDER=twilio -> started: yes, process: running; log: Vortex Dialer API listening on port 4000 (telephony: twilio) 
+[after]   SMS_PROVIDER=mock -> started: yes, process: running; log: Vortex Dialer API listening on port 4000 (telephony: mock) 
+[after]   EMAIL_PROVIDER=mock -> started: yes, process: running; log: Vortex Dialer API listening on port 4000 (telephony: mock) 
+[after]   server log (providers): 0 error/warn lines
+######## after run 2
+[after] == inbound texts (POST /api/sms/inbound, secret header); lead ANA 5020, phone (212) 555-7701
+[after]   "STOP" -> HTTP 201 action opt_out; opt_out/dnc after: true/dnc=false | then START -> HTTP 201, after: false/dnc=false
+[after]   "stop" -> HTTP 201 action opt_out; opt_out/dnc after: true/dnc=false | then START -> HTTP 201, after: false/dnc=false
+[after]   "Stop." -> HTTP 201 action opt_out; opt_out/dnc after: true/dnc=false | then START -> HTTP 201, after: false/dnc=false
+[after]   " STOP " -> HTTP 201 action opt_out; opt_out/dnc after: true/dnc=false | then START -> HTTP 201, after: false/dnc=false
+[after]   "StopAll" -> HTTP 201 action opt_out; opt_out/dnc after: true/dnc=false | then START -> HTTP 201, after: false/dnc=false
+[after]   "UNSUBSCRIBE" -> HTTP 201 action opt_out; opt_out/dnc after: true/dnc=false | then START -> HTTP 201, after: false/dnc=false
+[after]   "cancel" -> HTTP 201 action opt_out; opt_out/dnc after: true/dnc=false | then START -> HTTP 201, after: false/dnc=false
+[after]   "End!" -> HTTP 201 action opt_out; opt_out/dnc after: true/dnc=false | then START -> HTTP 201, after: false/dnc=false
+[after]   "quit" -> HTTP 201 action opt_out; opt_out/dnc after: true/dnc=false | then START -> HTTP 201, after: false/dnc=false
+[after]   STOP then "UNSTOP" -> HTTP 201, opt_out/dnc after: false/dnc=false
+[after]   STOP then "start" -> HTTP 201, opt_out/dnc after: false/dnc=false
+[after]   STOP then "Start." -> HTTP 201, opt_out/dnc after: false/dnc=false
+[after]   sentence with 'stop' -> HTTP 201 action "action":null; opt_out after: false/dnc=false
+[after]   duplicate delivery (providerMessageId prov-123 twice): HTTP 201 then HTTP 200 "duplicate":true; rows with that id: 1; confirmations sent: +1 then +0
+[after]   unknown number (312) 555-9999: "Who is this? STOP" -> HTTP 201; "stop" -> HTTP 201 "confirmationSent":true; stored with no lead: 2
+[after]   two leads, one phone: insert a 2nd lead with ANA's phone -> blocked by leads_phone_key (one lead per number) duplicate key value violates unique constraint 
+[after]   DNC lead FAY: STOP -> opt_out/dnc true/dnc=true; START -> false/dnc=true; status dnc; dnc_list rows unchanged: 0
+[after]   secret: none -> HTTP 401; wrong -> HTTP 401; ANA opt_out still: false/dnc=false
+[after]   server started WITHOUT SMS_WEBHOOK_SECRET: correct-looking secret -> HTTP 401; ANA opt_out still: false/dnc=false
+[after]   inbox: leads with unread Bob Empty=1, Fay Dnc=2, Ana María López=27; unmatched list: +13125559999 "stop", +13125559999 "Who is this? STOP"
+[after]   timeline ANA: {"sms/outbound":26,"sms/inbound":27,"sms_opt/opt_in":13,"sms_opt/opt_out":13}
+[after]   totals: inbound rows 32, confirmations 29, opt events 28
+[after]   server log (inbound): 0 error/warn lines
+[after] == templates (save-time check), leads ANA (all fields) / BOB (no brokerage) / HAL (no address = no city)
+[after]   save "Hi {{first_name}} at {{brokerage}} in {{city}}, {{state}} ({{name}})" -> 201 
+[after]   save "Hi {{ Name }} / {{FIRST_NAME}} / {{  state }} / {first_name}" -> 201 
+[after]   save "Hi {{zip}}" -> 400 "error":"Unsupported placeholder {{zip}}. Use only {{name}}, {{first_name}}, {{brokerage}}, {{state}}, {{city}}."
+[after]   save "Hi {first name} {{name}" -> 400 "error":"Unsupported placeholder {first name}, a stray { or }. Use only {{name}}, {{first_name}}, {{brokerage}}, {{state}}, {{city}}."
+[after]   save "Hi {{name}} from {{ Brokerage }} {unknown}" -> 400 "error":"Unsupported placeholder {unknown}. Use only {{name}}, {{first_name}}, {{brokerage}}, {{state}}, {{city}}."
+[after]   send GOOD to Ana María López -> 201  "body":"Hi Ana at Café Realty in Albany, NY (Ana María López)"
+[after]   send ODD to Ana María López -> 201  "body":"Hi Ana María López / Ana / NY / Ana"
+[after]   send GOOD to Bob Empty -> 422 "error":"Not sent: this lead has no brokerage (used in the message)" 
+[after]   send GOOD to Hal Nocity -> 422 "error":"Not sent: this lead has no city (used in the message)" 
+[after]   send OLD to Ana María López -> 422 "error":"Not sent: the message uses {{zip}}, which isn't a supported field ({{name}}, {{first_name}}, {{brokerage}}, {{state}}, {{city}})" 
+[after]   free text with {{nickname}} -> 422 "error":"Not sent: the message uses {{nickname}}, which isn't a supported field ({{name}}, {{first_name}}, {{brokerage}}, {{state}}, {{city}})" 
+[after]   template list flags: old bad NEEDS FIXING ({{zip}}); t; t
+[after]   bulk GOOD to ANA, BOB, HAL -> 200 {"total":3,"sent":1,"opted_out":0,"dnc":0,"outside_hours":0,"missing_field":2,"invalid_number":0,"not_found":0,"failed":0}
+[after]   bulk with the old bad template -> 422 "error":"This template needs fixing before it can be sent: {{zip}} isn't a supported field ({{name}}, {{first_name}}, {{brokerage}}, {{state}}, {{city}})"
+[after]   outbound bodies containing { or } : 0; containing ' at in ' or ' at ,': 0
+[after]   server log (templates): 0 error/warn lines
+[after] == texts and calling hours (08:30 New York open, 05:30 Los Angeles closed, Dan has no state)
+[after]   single to Ana María López (NY) -> 201 
+[after]   single to Cara West (CA) -> 422 "error":"Outside calling hours (8am–9pm local time; it's 5:30 AM PST there). Try again later."
+[after]   single to Dan Nostate (no state) -> 422 "error":"Time zone unknown, set the state first"
+[after]   bulk ANA, CARA, DAN -> 200 {"total":3,"sent":1,"opted_out":0,"dnc":0,"outside_hours":2,"missing_field":0,"invalid_number":0,"not_found":0,"failed":0}
+[after]   CARA texts on record: 0
+[after]   STOP from CARA at 05:30 her time -> HTTP 201 "confirmationSent":true (the confirmation is exempt); CARA opt_out: true/dnc=false
+[after]   calling hours OFF: single to CARA -> 201 
+[after]   server log (hours): 0 error/warn lines
+[after] == safety: single sends to EVE (opted out) and FAY (DNC); bulk to every kind of lead
+[after]   single to Eve Optout -> 400 "error":"This lead has opted out of SMS"
+[after]   single to Fay Dnc -> 400 "error":"This lead is on the Do Not Call list"
+[after]   single to Gus Nophone -> 400 "error":"This lead has no phone number yet — add one before texting."
+[after]   bulk to ANA (ok), BOB (no brokerage), CARA (closed), DAN (no state), EVE (opted out), FAY (DNC), GUS (no phone), 99999999 (no such lead) -> 200
+[after]     summary: {"total":8,"sent":1,"opted_out":1,"dnc":1,"outside_hours":2,"missing_field":1,"invalid_number":1,"not_found":1,"failed":0}
+[after]     adds up: sent=1 + opted_out=1 + dnc=1 + outside_hours=2 + missing_field=1 + invalid_number=1 + not_found=1 + failed=0 = 8 of total 8
+[after]     outbound rows written: Ana María López
+[after]   server log (safety): 0 error/warn lines
+[after] == email subject (lead ANA)
+[after]   subject "" -> 400 "error":"Email subject is required" 
+[after]   subject "   " -> 400 "error":"Email subject is required" 
+[after]   subject null -> 400 "error":"Email subject is required" 
+[after]   subject "Quick question, {{first_name}}" -> 201  "subject":"Quick question, Ana"
+[after]   email rows stored: 1 ('Quick question, Ana')
+[after]   mock adapter log lines: 1 — [mockEmailAdapter] would send to ana@example.test | subject: Quick question, Ana;
+[after]   server log (email): 0 error/warn lines
+[after] == provider names at startup (env value -> what happens)
+[after]   TELEPHONY_PROVIDER=bogus -> started: no, process: exited; log: Startup stopped: TELEPHONY_PROVIDER="bogus" is not a known provider. Allowed values: mock, twilio. 
+[after]   SMS_PROVIDER=bogus -> started: no, process: exited; log: Startup stopped: SMS_PROVIDER="bogus" is not a known provider. Allowed values: mock. 
+[after]   EMAIL_PROVIDER=bogus -> started: no, process: exited; log: Startup stopped: EMAIL_PROVIDER="bogus" is not a known provider. Allowed values: mock. 
+[after]   TELEPHONY_PROVIDER=mock -> started: yes, process: running; log: Vortex Dialer API listening on port 4000 (telephony: mock) Calling hours: worked out the time zone of 8 lead(s) 
+[after]   TELEPHONY_PROVIDER=twilio -> started: yes, process: running; log: Vortex Dialer API listening on port 4000 (telephony: twilio) 
+[after]   SMS_PROVIDER=mock -> started: yes, process: running; log: Vortex Dialer API listening on port 4000 (telephony: mock) 
+[after]   EMAIL_PROVIDER=mock -> started: yes, process: running; log: Vortex Dialer API listening on port 4000 (telephony: mock) 
+[after]   server log (providers): 0 error/warn lines
+######## after run 3
+[after] == inbound texts (POST /api/sms/inbound, secret header); lead ANA 5020, phone (212) 555-7701
+[after]   "STOP" -> HTTP 201 action opt_out; opt_out/dnc after: true/dnc=false | then START -> HTTP 201, after: false/dnc=false
+[after]   "stop" -> HTTP 201 action opt_out; opt_out/dnc after: true/dnc=false | then START -> HTTP 201, after: false/dnc=false
+[after]   "Stop." -> HTTP 201 action opt_out; opt_out/dnc after: true/dnc=false | then START -> HTTP 201, after: false/dnc=false
+[after]   " STOP " -> HTTP 201 action opt_out; opt_out/dnc after: true/dnc=false | then START -> HTTP 201, after: false/dnc=false
+[after]   "StopAll" -> HTTP 201 action opt_out; opt_out/dnc after: true/dnc=false | then START -> HTTP 201, after: false/dnc=false
+[after]   "UNSUBSCRIBE" -> HTTP 201 action opt_out; opt_out/dnc after: true/dnc=false | then START -> HTTP 201, after: false/dnc=false
+[after]   "cancel" -> HTTP 201 action opt_out; opt_out/dnc after: true/dnc=false | then START -> HTTP 201, after: false/dnc=false
+[after]   "End!" -> HTTP 201 action opt_out; opt_out/dnc after: true/dnc=false | then START -> HTTP 201, after: false/dnc=false
+[after]   "quit" -> HTTP 201 action opt_out; opt_out/dnc after: true/dnc=false | then START -> HTTP 201, after: false/dnc=false
+[after]   STOP then "UNSTOP" -> HTTP 201, opt_out/dnc after: false/dnc=false
+[after]   STOP then "start" -> HTTP 201, opt_out/dnc after: false/dnc=false
+[after]   STOP then "Start." -> HTTP 201, opt_out/dnc after: false/dnc=false
+[after]   sentence with 'stop' -> HTTP 201 action "action":null; opt_out after: false/dnc=false
+[after]   duplicate delivery (providerMessageId prov-123 twice): HTTP 201 then HTTP 200 "duplicate":true; rows with that id: 1; confirmations sent: +1 then +0
+[after]   unknown number (312) 555-9999: "Who is this? STOP" -> HTTP 201; "stop" -> HTTP 201 "confirmationSent":true; stored with no lead: 2
+[after]   two leads, one phone: insert a 2nd lead with ANA's phone -> blocked by leads_phone_key (one lead per number) duplicate key value violates unique constraint 
+[after]   DNC lead FAY: STOP -> opt_out/dnc true/dnc=true; START -> false/dnc=true; status dnc; dnc_list rows unchanged: 0
+[after]   secret: none -> HTTP 401; wrong -> HTTP 401; ANA opt_out still: false/dnc=false
+[after]   server started WITHOUT SMS_WEBHOOK_SECRET: correct-looking secret -> HTTP 401; ANA opt_out still: false/dnc=false
+[after]   inbox: leads with unread Bob Empty=1, Fay Dnc=2, Ana María López=27; unmatched list: +13125559999 "stop", +13125559999 "Who is this? STOP"
+[after]   timeline ANA: {"sms/outbound":26,"sms_opt/opt_in":13,"sms/inbound":27,"sms_opt/opt_out":13}
+[after]   totals: inbound rows 32, confirmations 29, opt events 28
+[after]   server log (inbound): 0 error/warn lines
+[after] == templates (save-time check), leads ANA (all fields) / BOB (no brokerage) / HAL (no address = no city)
+[after]   save "Hi {{first_name}} at {{brokerage}} in {{city}}, {{state}} ({{name}})" -> 201 
+[after]   save "Hi {{ Name }} / {{FIRST_NAME}} / {{  state }} / {first_name}" -> 201 
+[after]   save "Hi {{zip}}" -> 400 "error":"Unsupported placeholder {{zip}}. Use only {{name}}, {{first_name}}, {{brokerage}}, {{state}}, {{city}}."
+[after]   save "Hi {first name} {{name}" -> 400 "error":"Unsupported placeholder {first name}, a stray { or }. Use only {{name}}, {{first_name}}, {{brokerage}}, {{state}}, {{city}}."
+[after]   save "Hi {{name}} from {{ Brokerage }} {unknown}" -> 400 "error":"Unsupported placeholder {unknown}. Use only {{name}}, {{first_name}}, {{brokerage}}, {{state}}, {{city}}."
+[after]   send GOOD to Ana María López -> 201  "body":"Hi Ana at Café Realty in Albany, NY (Ana María López)"
+[after]   send ODD to Ana María López -> 201  "body":"Hi Ana María López / Ana / NY / Ana"
+[after]   send GOOD to Bob Empty -> 422 "error":"Not sent: this lead has no brokerage (used in the message)" 
+[after]   send GOOD to Hal Nocity -> 422 "error":"Not sent: this lead has no city (used in the message)" 
+[after]   send OLD to Ana María López -> 422 "error":"Not sent: the message uses {{zip}}, which isn't a supported field ({{name}}, {{first_name}}, {{brokerage}}, {{state}}, {{city}})" 
+[after]   free text with {{nickname}} -> 422 "error":"Not sent: the message uses {{nickname}}, which isn't a supported field ({{name}}, {{first_name}}, {{brokerage}}, {{state}}, {{city}})" 
+[after]   template list flags: old bad NEEDS FIXING ({{zip}}); t; t
+[after]   bulk GOOD to ANA, BOB, HAL -> 200 {"total":3,"sent":1,"opted_out":0,"dnc":0,"outside_hours":0,"missing_field":2,"invalid_number":0,"not_found":0,"failed":0}
+[after]   bulk with the old bad template -> 422 "error":"This template needs fixing before it can be sent: {{zip}} isn't a supported field ({{name}}, {{first_name}}, {{brokerage}}, {{state}}, {{city}})"
+[after]   outbound bodies containing { or } : 0; containing ' at in ' or ' at ,': 0
+[after]   server log (templates): 0 error/warn lines
+[after] == texts and calling hours (08:30 New York open, 05:30 Los Angeles closed, Dan has no state)
+[after]   single to Ana María López (NY) -> 201 
+[after]   single to Cara West (CA) -> 422 "error":"Outside calling hours (8am–9pm local time; it's 5:30 AM PST there). Try again later."
+[after]   single to Dan Nostate (no state) -> 422 "error":"Time zone unknown, set the state first"
+[after]   bulk ANA, CARA, DAN -> 200 {"total":3,"sent":1,"opted_out":0,"dnc":0,"outside_hours":2,"missing_field":0,"invalid_number":0,"not_found":0,"failed":0}
+[after]   CARA texts on record: 0
+[after]   STOP from CARA at 05:30 her time -> HTTP 201 "confirmationSent":true (the confirmation is exempt); CARA opt_out: true/dnc=false
+[after]   calling hours OFF: single to CARA -> 201 
+[after]   server log (hours): 0 error/warn lines
+[after] == safety: single sends to EVE (opted out) and FAY (DNC); bulk to every kind of lead
+[after]   single to Eve Optout -> 400 "error":"This lead has opted out of SMS"
+[after]   single to Fay Dnc -> 400 "error":"This lead is on the Do Not Call list"
+[after]   single to Gus Nophone -> 400 "error":"This lead has no phone number yet — add one before texting."
+[after]   bulk to ANA (ok), BOB (no brokerage), CARA (closed), DAN (no state), EVE (opted out), FAY (DNC), GUS (no phone), 99999999 (no such lead) -> 200
+[after]     summary: {"total":8,"sent":1,"opted_out":1,"dnc":1,"outside_hours":2,"missing_field":1,"invalid_number":1,"not_found":1,"failed":0}
+[after]     adds up: sent=1 + opted_out=1 + dnc=1 + outside_hours=2 + missing_field=1 + invalid_number=1 + not_found=1 + failed=0 = 8 of total 8
+[after]     outbound rows written: Ana María López
+[after]   server log (safety): 0 error/warn lines
+[after] == email subject (lead ANA)
+[after]   subject "" -> 400 "error":"Email subject is required" 
+[after]   subject "   " -> 400 "error":"Email subject is required" 
+[after]   subject null -> 400 "error":"Email subject is required" 
+[after]   subject "Quick question, {{first_name}}" -> 201  "subject":"Quick question, Ana"
+[after]   email rows stored: 1 ('Quick question, Ana')
+[after]   mock adapter log lines: 1 — [mockEmailAdapter] would send to ana@example.test | subject: Quick question, Ana;
+[after]   server log (email): 0 error/warn lines
+[after] == provider names at startup (env value -> what happens)
+[after]   TELEPHONY_PROVIDER=bogus -> started: no, process: exited; log: Startup stopped: TELEPHONY_PROVIDER="bogus" is not a known provider. Allowed values: mock, twilio. 
+[after]   SMS_PROVIDER=bogus -> started: no, process: exited; log: Startup stopped: SMS_PROVIDER="bogus" is not a known provider. Allowed values: mock. 
+[after]   EMAIL_PROVIDER=bogus -> started: no, process: exited; log: Startup stopped: EMAIL_PROVIDER="bogus" is not a known provider. Allowed values: mock. 
+[after]   TELEPHONY_PROVIDER=mock -> started: yes, process: running; log: Vortex Dialer API listening on port 4000 (telephony: mock) Calling hours: worked out the time zone of 8 lead(s) 
+[after]   TELEPHONY_PROVIDER=twilio -> started: yes, process: running; log: Vortex Dialer API listening on port 4000 (telephony: twilio) 
+[after]   SMS_PROVIDER=mock -> started: yes, process: running; log: Vortex Dialer API listening on port 4000 (telephony: mock) 
+[after]   EMAIL_PROVIDER=mock -> started: yes, process: running; log: Vortex Dialer API listening on port 4000 (telephony: mock) 
+[after]   server log (providers): 0 error/warn lines

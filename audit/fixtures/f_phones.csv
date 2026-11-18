@@ -1,0 +1,11 @@
+name,phone,email,office,source,city,state
+Phone Plus One,+1 (602) 555-0601,,X,,Phoenix,AZ
+Phone Parens,(602) 555-0602,,X,,Phoenix,AZ
+Phone Dashes,602-555-0603,,X,,Phoenix,AZ
+Phone TenDigit,6025550604,,X,,Phoenix,AZ
+Phone Extension,602-555-0605 x123,,X,,Phoenix,AZ
+Phone Letters,602-555-CALL,,X,,Phoenix,AZ
+Phone Junk,not a phone,,X,,Phoenix,AZ
+Phone Short,555-0608,,X,,Phoenix,AZ
+Phone Eleven No Plus,16025550609,,X,,Phoenix,AZ
+Phone Intl,+44 20 7946 0610,,X,,Phoenix,AZ

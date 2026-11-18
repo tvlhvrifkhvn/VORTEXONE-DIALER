@@ -1,0 +1,223 @@
+## 5.1 single line (lineCount=1), outcomes forced in sequence via force-outcome: voicemail -> busy -> no_answer -> answered (forced outcome = stub, labelled)
+  0.0s SSE opened (HTTP 200)
+  0.1s POST /api/sessions/start {"mode":"multiline"} -> 201 {"sessionId":1}
+  0.1s slot 1 loading    lead=- call=-
+  0.1s slot 1 dialing    lead=1 call=65
+  0.1s slot 1 ringing    lead=1 call=65
+  0.1s POST /api/calls/multiline/start {"sessionId":1,"lineCount":1} -> 201 {"lineCount":1,"slots":[{"slotNumber":1,"leadId":1,"leadName":"Karen Mitchell","status":"ringing"}]}
+  3.1s slot 1 voicemail  lead=1 call=65
+  3.1s slot 1 loading    lead=- call=-
+  3.1s slot 1 dialing    lead=2 call=66
+  3.1s slot 1 ringing    lead=2 call=66
+  5.1s >> force-outcome = busy
+  6.1s slot 1 busy       lead=2 call=66
+  6.1s slot 1 loading    lead=- call=-
+  6.1s slot 1 dialing    lead=3 call=67
+  6.1s slot 1 ringing    lead=3 call=67
+  9.1s slot 1 busy       lead=3 call=67
+  9.1s slot 1 loading    lead=- call=-
+  9.1s slot 1 dialing    lead=4 call=68
+  9.1s slot 1 ringing    lead=4 call=68
+ 11.1s >> force-outcome = no_answer
+ 12.1s slot 1 no_answer  lead=4 call=68
+ 12.2s slot 1 loading    lead=- call=-
+ 12.2s slot 1 dialing    lead=5 call=69
+ 12.2s slot 1 ringing    lead=5 call=69
+ 15.2s slot 1 no_answer  lead=5 call=69
+ 15.2s slot 1 loading    lead=- call=-
+ 15.2s slot 1 dialing    lead=6 call=70
+ 15.2s slot 1 ringing    lead=6 call=70
+ 16.1s >> force-outcome = answered
+ 18.2s slot 1 answered   lead=6 call=70
+ 24.1s >> dispose slot 1 call 70 as contacted
+ 24.1s POST /api/dispositions {"callId":70,"disposition":"contacted"} -> 200 {"lead":{"id":6,"name":"Brian Kowalski","phone":"+14075550106","email":null,"address":"400 Orange Ave, Orlando, FL","brokerage":"Sunshine Estates","state":"FL","status":"contacted","attempts":1,"max_attempts":5,"next_act
+ 25.1s slot 1 loading    lead=- call=-
+ 25.2s slot 1 dialing    lead=7 call=71
+ 25.2s slot 1 ringing    lead=7 call=71
+ 25.2s POST /api/calls/multiline/release {"slotNumber":1} -> 200 {"promoted":null}
+ 27.2s POST /api/calls/multiline/stop {} -> 200 {"abandonedCount":1}
+ 27.2s slot 1 dropped    lead=7 call=71
+
+SUMMARY sessionId=1 events=28 byStatus={"loading":7,"dialing":7,"ringing":7,"voicemail":1,"busy":2,"no_answer":2,"answered":1,"dropped":1} maxConcurrentLiveSlots=1 (lineCount=1)
+SESSION_ID=1
+-- DB for calls placed in this run:
+ id | lead_id | slot_number |  telephony_state   | disposition |  status   | attempts 
+----+---------+-------------+--------------------+-------------+-----------+----------
+ 65 |       1 |           1 | voicemail_detected | voicemail   | voicemail |        3
+ 66 |       2 |           1 | busy               | no_answer   | no_answer |        3
+ 67 |       3 |           1 | busy               | no_answer   | no_answer |        3
+ 68 |       4 |           1 | ended              | no_answer   | cold      |       12
+ 69 |       5 |           1 | ended              | no_answer   | cold      |        8
+ 70 |       6 |           1 | answered           | contacted   | contacted |        1
+ 71 |       7 |           1 | ringing            |             | in_queue  |        1
+(7 rows)
+
+
+## 5.2 three lines, ALL answered (forced) -> held; dispose+release active -> promoted; stop while a call is still held
+  0.0s SSE opened (HTTP 200)
+  0.1s POST /api/sessions/start {"mode":"multiline"} -> 201 {"sessionId":2}
+  0.1s slot 1 loading    lead=- call=-
+  0.1s slot 2 loading    lead=- call=-
+  0.1s slot 3 loading    lead=- call=-
+  0.1s slot 2 dialing    lead=8 call=73
+  0.1s slot 2 ringing    lead=8 call=73
+  0.1s slot 1 dialing    lead=7 call=72
+  0.1s slot 1 ringing    lead=7 call=72
+  0.1s slot 3 dialing    lead=9 call=74
+  0.1s slot 3 ringing    lead=9 call=74
+  0.1s POST /api/calls/multiline/start {"sessionId":2,"lineCount":3} -> 201 {"lineCount":3,"slots":[{"slotNumber":1,"leadId":7,"leadName":"Patricia Nguyen","status":"ringing"},{"slotNumber":2,"leadId":8,"leadName":"Robert Hayes","status":"ringing"},{"slotNumber":3,"leadId":9,"leadName":"Susan De
+  3.1s slot 2 answered   lead=8 call=73
+  3.1s slot 1 held       lead=7 call=72
+  3.1s slot 3 held       lead=9 call=74
+  6.1s >> dispose slot 2 call 73 as contacted
+  6.1s POST /api/dispositions {"callId":73,"disposition":"contacted"} -> 200 {"lead":{"id":8,"name":"Robert Hayes","phone":"+13475550108","email":null,"address":"1 Brooklyn Bridge Blvd, Brooklyn, NY","brokerage":"Boroughwide Homes","state":"NY","status":"contacted","attempts":1,"max_attempts":5,"
+  7.1s >> force-outcome = no_answer
+  7.5s slot 1 answered   lead=7 call=72 (promoted from hold)
+  7.5s slot 2 loading    lead=- call=-
+  7.6s slot 2 dialing    lead=10 call=75
+  7.6s slot 2 ringing    lead=10 call=75
+  7.6s POST /api/calls/multiline/release {"slotNumber":2} -> 200 {"promoted":1}
+ 10.6s slot 2 no_answer  lead=10 call=75
+ 10.6s slot 2 loading    lead=- call=-
+ 10.6s slot 2 dialing    lead=12 call=76
+ 10.6s slot 2 ringing    lead=12 call=76
+ 13.6s slot 2 no_answer  lead=12 call=76
+ 13.6s slot 2 loading    lead=- call=-
+ 13.6s slot 2 dialing    lead=13 call=77
+ 13.6s slot 2 ringing    lead=13 call=77
+ 15.2s POST /api/calls/multiline/stop {} -> 200 {"abandonedCount":1}
+ 15.2s slot 2 dropped    lead=13 call=77
+
+SUMMARY sessionId=2 events=25 byStatus={"loading":6,"dialing":6,"ringing":6,"answered":2,"held":2,"no_answer":2,"dropped":1} maxConcurrentLiveSlots=3 (lineCount=3)
+SESSION_ID=2
+-- DB right after stop:
+ id | lead_id | slot_number | telephony_state | disposition | was_abandoned |   status    | locked_by 
+----+---------+-------------+-----------------+-------------+---------------+-------------+-----------
+ 72 |       7 |           1 | answered        |             | f             | in_progress |         1
+ 73 |       8 |           2 | answered        | contacted   | f             | contacted   |          
+ 74 |       9 |           3 | answered        |             | f             | in_progress |         1
+ 75 |      10 |           2 | ended           | no_answer   | f             | no_answer   |          
+ 76 |      12 |           2 | ended           | no_answer   | f             | no_answer   |          
+ 77 |      13 |           2 | ringing         |             | t             | in_queue    |          
+(6 rows)
+
+
+## 5.3 client closes the SSE connection at t=4s (browser tab closed) — does the server keep dialing with nobody listening?
+
+SUMMARY sessionId=3 events=21 byStatus={"loading":6,"dialing":6,"ringing":6,"no_answer":3} maxConcurrentLiveSlots=3 (lineCount=3)
+SESSION_ID=3
+calls placed by the session: at t~5s=6, 20s after the listener left=27 (still dialing if it grew)
+reconnect SSE for 4s (no new start call):
+  events received after reconnect: 12
+stop: {"abandonedCount":3} [HTTP 200]
+calls after stop: 30 -> 8s later 30
+
+## 5.4 two sessions: same user starts a 2nd session while the 1st runs; then user1 + user2 run concurrently
+user1 first session SSE (last lines):
+ 11.1s slot 2 dropped    lead=27 call=116
+
+SUMMARY sessionId=4 events=36 byStatus={"loading":9,"dialing":9,"ringing":9,"dropped":5,"no_answer":4} maxConcurrentLiveSlots=3 (lineCount=3)
+SESSION_ID=4
+user1 second session:
+  0.0s POST /api/sessions/start {"mode":"multiline"} -> 201 {"sessionId":5}
+  0.1s POST /api/calls/multiline/start {"sessionId":5,"lineCount":2} -> 201 {"lineCount":2,"slots":[{"slotNumber":1,"leadId":22,"leadName":"Lia Lane","status":"
+  8.1s POST /api/calls/multiline/stop {} -> 200 {"abandonedCount":2}
+SUMMARY sessionId=5 events=27 byStatus={"dropped":5,"loading":6,"dialing":6,"ringing":6,"no_answer":4} maxConcurrentLiveSlots=2 (lineCount=2)
+-- user1 and user2 concurrently, 3 lines each, 15s
+s_u1.txt:SUMMARY sessionId=7 events=60 byStatus={"loading":15,"dialing":15,"ringing":15,"no_answer":12,"dropped":3} maxConcurrentLiveSlots=3 (lineCount=3)
+s_u2.txt:SUMMARY sessionId=6 events=60 byStatus={"loading":15,"dialing":15,"ringing":15,"no_answer":12,"dropped":3} maxConcurrentLiveSlots=3 (lineCount=3)
+leads dialed by BOTH users in that window:
+ lead_id | users | calls 
+---------+-------+-------
+      27 | {1,2} |     2
+      28 | {1,2} |     2
+      29 | {1,2} |     2
+      41 | {1,2} |     3
+(4 rows)
+
+leads dialed twice concurrently (overlapping open calls) by anyone in that window:
+ lead_id | id  | id  
+---------+-----+-----
+      29 | 117 | 122
+      28 | 118 | 121
+      27 | 119 | 120
+      30 | 123 | 124
+      30 | 123 | 125
+      30 | 124 | 125
+      31 | 126 | 128
+      31 | 126 | 127
+      31 | 127 | 128
+      32 | 129 | 131
+      32 | 129 | 130
+      32 | 130 | 131
+      37 | 132 | 133
+      40 | 135 | 136
+      41 | 137 | 138
+      41 | 137 | 139
+      41 | 138 | 139
+      43 | 141 | 143
+      43 | 141 | 142
+      43 | 142 | 143
+      44 | 144 | 146
+      44 | 144 | 145
+      44 | 145 | 146
+(23 rows)
+
+-- detail of overlapping calls (5.4 concurrent run)
+ id  | lead_id | user_id | session_id | slot_number |   started    | telephony_state | disposition | was_abandoned 
+-----+---------+---------+------------+-------------+--------------+-----------------+-------------+---------------
+ 123 |      30 |       1 |          7 |           1 | 11:06:19.578 | ended           | no_answer   | f
+ 124 |      30 |       1 |          7 |           3 | 11:06:19.578 | ended           | no_answer   | f
+ 125 |      30 |       1 |          7 |           2 | 11:06:19.582 | ended           | no_answer   | f
+ 126 |      31 |       2 |          6 |           1 | 11:06:19.590 | ended           | no_answer   | f
+ 127 |      31 |       2 |          6 |           2 | 11:06:19.595 | ended           | no_answer   | f
+ 128 |      31 |       2 |          6 |           3 | 11:06:19.600 | ended           | no_answer   | f
+ 137 |      41 |       1 |          7 |           2 | 11:06:25.631 | ended           | no_answer   | f
+ 138 |      41 |       2 |          6 |           2 | 11:06:25.638 | ended           | no_answer   | f
+ 139 |      41 |       2 |          6 |           1 | 11:06:25.641 | ended           | no_answer   | f
+(9 rows)
+
+
+## 5.5 backend killed mid-session (3 lines, all answered) and restarted
+before kill: in_progress leads = 43(by 1), 44(by 1), 45(by 1)
+backend killed at 11:07:03
+restarted
+right after restart: in_progress = 3; multiline stop -> {"abandonedCount":0} [HTTP 200]
+the in-memory session is gone; a client reconnecting gets no events: 0 events
+~31s after the lock, one list read: in_progress = 0
+ id  | lead_id | telephony_state | disposition | open |  status  
+-----+---------+-----------------+-------------+------+----------
+ 147 |      43 | answered        |             | t    | in_queue
+ 148 |      44 | answered        |             | t    | in_queue
+ 149 |      45 | answered        |             | t    | in_queue
+(3 rows)
+
+dialing_sessions row for the killed session: id=8 ended_at=NULL
+
+## 5.6 edge queues
+a) only missing_phone leads selected: {"lineCount":2,"slots":[]} [HTTP 201]
+b) empty queue (all dialable leads temporarily parked via SQL in a transaction-free way: next_action_at pushed 1 day, restored after)
+   parked 15007 leads; POST /api/calls {}: {"call":{"id":150,"lead_id":59,"user_id":1,"started_at":"2026-11-11T11:07:35.103Z","ended_at":null,"duration_seconds":null,"disposition":null,"note":null,"from_number":"+15555550100","was_mock":true,"telephony_state":"ringing","telephony_call_id":"567abbfc-dcc2-46b8-afe8-c466daebd262","pre_disposition_snapshot":null,"disposition_at":null,"created_at":"2026-11-11T11:07:35.103Z","session_id":null,"slot_number":1,"was_abandoned":false,"to_number":null,"is_manual":false,"recording_url":null,"was_recorded":false,"attempts":3},"lead":{"id":59,"name":"Bulk Agent 10","phone":"+12145551001","email":null,"address":"City 0","brokerage":"Office 10","state":"TX","status":"in_progress","attempts":3,"max_attempts":5,"next_action_at":"2026-11-11T10:57:31.000Z","notes_count":0,"cold_at":null,"cold_reason":null,"dnc_flag":false,"locked_by":1,"locked_at":"2026-11-11T11:07:35.102Z","created_at":"2026-11-11T10:49:14.776Z","updated_at":"2026-11-11T11:07:35.102Z","deleted_at":null,"sms_opt_out":false,"missing_phone":false,"tags":[],"office_key":"office 10|city 0|TX"}} [HTTP 201]
+   multiline start:   0.0s slot 1 idle       lead=- call=- msg=No dialable leads in queue right now
+  0.1s POST /api/calls/multiline/start {"sessionId":9,"lineCount":2} -> 201 {"lineCount":2,"slots":[]}
+  0.1s slot 2 idle       lead=- call=- msg=No dialable leads in queue right now
+   restored: 15008 leads back
+(5.6b note: one lead (59) already had a past next_action_at so it wasn't parked and was served; my restore query reset 15008 rows vs 15007 parked — one extra in_queue/new row with a >23h next_action_at had its next_action_at cleared by the audit)
+
+## 5.7 adapter selection
+-- TELEPHONY_PROVIDER=bogus:
+   server STARTED with bogus provider (no startup validation)
+   POST /api/calls {leadId:49}: {"error":"Unknown TELEPHONY_PROVIDER: \"bogus\". Expected one of: mock, twilio"} [HTTP 500]
+   lead 49 after the failed call: status=in_progress attempts=1 locked_by=1; call rows: 1 (telephony_state ringing)
+-- TELEPHONY_PROVIDER=twilio:
+   server started
+   POST /api/calls {leadId:50}: {"error":"twilioAdapter is not implemented yet — set TELEPHONY_PROVIDER=mock"} [HTTP 500]
+   lead 50 after: status=in_progress attempts=1 locked_by=1; call rows: 1 (telephony_state ringing)
+   server log:
+Vortex Dialer API listening on port 4000 (telephony: twilio)
+Error: twilioAdapter is not implemented yet — set TELEPHONY_PROVIDER=mock
+-- SMS_PROVIDER=bogus / EMAIL_PROVIDER=bogus:
+   server started
+   sms send: {"error":"Unknown SMS_PROVIDER: \"bogus\". Expected one of: mock"} [HTTP 500]
+   email send: {"error":"This lead has no email address on file"} [HTTP 400]
+normal backend restored

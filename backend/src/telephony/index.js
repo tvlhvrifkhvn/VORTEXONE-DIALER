@@ -30,6 +30,13 @@ function getAdapter(provider = config.telephonyProvider) {
  *   { type: 'voicemail_detected' }
  *   { type: 'ended', duration: <seconds> }
  *
+ * Optional (F-05): { type: 'busy' } — the line was busy. An adapter may
+ * send it (followed by 'ended') or never send it: callSession treats a
+ * call that ends without being answered exactly like a busy one (the
+ * attempt counts as a no-answer and the lead is requeued), so both paths
+ * end in the same state. A real provider adapter maps its busy hang-up
+ * cause here if it has one. This does not change placeCall.
+ *
  * Ending a call from the app side (rep hangup, or submitting a disposition)
  * is NOT part of this interface — the caller simply stops acting on further
  * events for that callId. Adapters that represent a live, answered call
@@ -39,4 +46,32 @@ function placeCall(fromNumber, toNumber, onEvent) {
   return getAdapter().placeCall(fromNumber, toNumber, onEvent);
 }
 
-module.exports = { placeCall, getAdapter };
+/**
+ * C8F: two OPTIONAL adapter functions, beside the unchanged placeCall:
+ *
+ *   sendDigits(callRef, digits)  → touch tones on a live call ([0-9*#])
+ *   setRecording(callRef, on)    → start or stop recording a live call
+ *
+ * callRef is the id placeCall returned. An adapter without one simply
+ * doesn't export it: supports('digits' | 'recording') says so, and the routes
+ * answer 501 "Not available with this provider yet".
+ */
+const FEATURES = { digits: 'sendDigits', recording: 'setRecording' };
+
+function supports(feature) {
+  const fn = FEATURES[feature];
+  return Boolean(fn) && typeof getAdapter()[fn] === 'function';
+}
+
+function sendDigits(callRef, digits) {
+  return getAdapter().sendDigits(callRef, digits);
+}
+
+function setRecording(callRef, on) {
+  return getAdapter().setRecording(callRef, on);
+}
+
+// The provider names this file knows (startup check: config/validateProviders.js).
+const PROVIDERS = Object.keys(adapters);
+
+module.exports = { placeCall, getAdapter, PROVIDERS, supports, sendDigits, setRecording };

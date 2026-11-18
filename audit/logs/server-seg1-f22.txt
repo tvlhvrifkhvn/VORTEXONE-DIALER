@@ -1,0 +1,24 @@
+Vortex Dialer API listening on port 4000 (telephony: mock)
+error: null value in column "name" of relation "leads" violates not-null constraint
+    at /home/user/vortexone-dialer/backend/node_modules/pg-pool/index.js:45:11
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async Object.updateFields (/home/user/vortexone-dialer/backend/src/services/leadQueue.js:369:17)
+    at async /home/user/vortexone-dialer/backend/src/routes/leads.js:175:18 {
+  length: 361,
+  severity: 'ERROR',
+  code: '23502',
+  detail: 'Failing row contains (28, null, +18175559766, null, null, null, TX, new, 0, 5, null, 0, null, null, f, null, null, 2026-11-11 12:26:40.666083+00, 2026-11-11 12:26:40.779584+00, null, f, f, {}, null).',
+  hint: undefined,
+  position: undefined,
+  internalPosition: undefined,
+  internalQuery: undefined,
+  where: undefined,
+  schema: 'public',
+  table: 'leads',
+  column: 'name',
+  dataType: undefined,
+  constraint: undefined,
+  file: 'execMain.c',
+  line: '2057',
+  routine: 'ExecConstraints'
+}

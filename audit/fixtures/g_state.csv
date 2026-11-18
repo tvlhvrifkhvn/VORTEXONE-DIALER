@@ -1,0 +1,7 @@
+name,phone,email,office,source,city,state
+State Given,(305) 555-0701,,X,,Miami,FL
+State Lowercase,(305) 555-0702,,X,,Miami,fl
+State Full Name,(305) 555-0703,,X,,Miami,Florida
+State From Area Code,(808) 555-0704,,X,,,
+State Invalid,(808) 555-0705,,X,,,ZZ
+State Mismatch,(808) 555-0706,,X,,Dallas,TX

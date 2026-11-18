@@ -1,0 +1,7 @@
+Vortex Dialer API listening on port 4000 (telephony: mock)
+Error: Unknown SMS_PROVIDER: "bogus". Expected one of: mock
+    at getSmsAdapter (/home/user/vortexone-dialer/backend/src/telephony/smsIndex.js:13:11)
+    at Object.sendSms (/home/user/vortexone-dialer/backend/src/telephony/smsIndex.js:22:10)
+    at Object.sendSingleSms (/home/user/vortexone-dialer/backend/src/services/smsService.js:91:20)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async /home/user/vortexone-dialer/backend/src/routes/sms.js:84:21

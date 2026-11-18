@@ -1,0 +1,475 @@
+# Segment 4 — F-21, F-17, F-35, F-36, F-23, F-55, DNC phone-edit block
+# branch claude/fix-seg4-lifecycle, base claude/fix-seg3-lock-ownership 8b89b7f (PR #17 not merged)
+# Script: audit/scripts/fix-seg4.sh (fresh clone of vortex_seg3_tpl per run; mock outcome forced to answered;
+# DIRECT SQL only for labelled setup). Acting user: rep2.
+
+## PRE-FIX (base 8b89b7f)
+[pre-fix] == F-21 undo matrix: disposition, then undo within 10 s; lead, callbacks, dnc_list and session stats must be back as before ==
+[pre-fix]   FAIL contacted: disposition 200, undo 200 
+[pre-fix]        before: in_progress att=1 next=- notes=0 cold=- dnc=false locked_by=2 | callbacks=0 dnc_list=0 session=c0/v0/n0/cb0/d0
+[pre-fix]        dispo : contacted att=1 next=- notes=1 cold=- dnc=false locked_by=- | callbacks=0 dnc_list=0 session=c1/v0/n0/cb0/d0
+[pre-fix]        undone: in_progress att=1 next=- notes=0 cold=- dnc=false locked_by=2 | callbacks=0 dnc_list=0 session=c1/v0/n0/cb0/d0
+[pre-fix]   FAIL voicemail: disposition 200, undo 200 
+[pre-fix]        before: in_progress att=1 next=- notes=0 cold=- dnc=false locked_by=2 | callbacks=0 dnc_list=0 session=c2/v0/n0/cb0/d0
+[pre-fix]        dispo : voicemail att=1 next=11-12 01:25 notes=1 cold=- dnc=false locked_by=- | callbacks=0 dnc_list=0 session=c2/v1/n0/cb0/d0
+[pre-fix]        undone: in_progress att=1 next=- notes=0 cold=- dnc=false locked_by=2 | callbacks=0 dnc_list=0 session=c2/v1/n0/cb0/d0
+[pre-fix]   FAIL no_answer: disposition 200, undo 200 
+[pre-fix]        before: in_progress att=1 next=- notes=0 cold=- dnc=false locked_by=2 | callbacks=0 dnc_list=0 session=c3/v1/n0/cb0/d0
+[pre-fix]        dispo : no_answer att=1 next=11-12 01:25 notes=1 cold=- dnc=false locked_by=- | callbacks=0 dnc_list=0 session=c3/v1/n1/cb0/d0
+[pre-fix]        undone: in_progress att=1 next=- notes=0 cold=- dnc=false locked_by=2 | callbacks=0 dnc_list=0 session=c3/v1/n1/cb0/d0
+[pre-fix]   FAIL callback_scheduled: disposition 200, undo 500 (syntax error at or near "ORDER")
+[pre-fix]        before: in_progress att=1 next=- notes=0 cold=- dnc=false locked_by=2 | callbacks=0 dnc_list=0 session=c4/v1/n1/cb0/d0
+[pre-fix]        dispo : callback_scheduled att=1 next=11-13 21:25 notes=1 cold=- dnc=false locked_by=- | callbacks=1 dnc_list=0 session=c4/v1/n1/cb1/d0
+[pre-fix]        undone: callback_scheduled att=1 next=11-13 21:25 notes=1 cold=- dnc=false locked_by=- | callbacks=1 dnc_list=0 session=c4/v1/n1/cb1/d0
+[pre-fix]   PASS no_contact_number: disposition 200, undo 200 
+[pre-fix]        before: in_progress att=1 next=- notes=0 cold=- dnc=false locked_by=2 | callbacks=0 dnc_list=0 session=c4/v1/n1/cb1/d0
+[pre-fix]        dispo : no_contact_number att=1 next=- notes=1 cold=- dnc=false locked_by=- | callbacks=0 dnc_list=0 session=c4/v1/n1/cb1/d0
+[pre-fix]        undone: in_progress att=1 next=- notes=0 cold=- dnc=false locked_by=2 | callbacks=0 dnc_list=0 session=c4/v1/n1/cb1/d0
+[pre-fix]   PASS no_contact_person: disposition 200, undo 200 
+[pre-fix]        before: in_progress att=1 next=- notes=0 cold=- dnc=false locked_by=2 | callbacks=0 dnc_list=0 session=c5/v1/n1/cb1/d0
+[pre-fix]        dispo : cold att=1 next=- notes=1 cold=no_contact_person dnc=false locked_by=- | callbacks=0 dnc_list=0 session=c5/v1/n1/cb1/d0
+[pre-fix]        undone: in_progress att=1 next=- notes=0 cold=- dnc=false locked_by=2 | callbacks=0 dnc_list=0 session=c5/v1/n1/cb1/d0
+[pre-fix]   FAIL dnc: disposition 200, undo 200 
+[pre-fix]        before: in_progress att=1 next=- notes=0 cold=- dnc=false locked_by=2 | callbacks=0 dnc_list=0 session=c6/v1/n1/cb1/d0
+[pre-fix]        dispo : dnc att=1 next=- notes=1 cold=- dnc=true locked_by=- | callbacks=0 dnc_list=1 session=c6/v1/n1/cb1/d1
+[pre-fix]        undone: in_progress att=1 next=- notes=0 cold=- dnc=false locked_by=2 | callbacks=0 dnc_list=0 session=c6/v1/n1/cb1/d1
+[pre-fix]   FAIL cold: disposition 200, undo 200 
+[pre-fix]        before: in_progress att=5 next=- notes=0 cold=- dnc=false locked_by=2 | callbacks=0 dnc_list=0 session=c7/v1/n1/cb1/d1
+[pre-fix]        dispo : cold att=5 next=- notes=1 cold=max_attempts dnc=false locked_by=- | callbacks=0 dnc_list=0 session=c7/v1/n2/cb1/d1
+[pre-fix]        undone: in_progress att=5 next=- notes=0 cold=- dnc=false locked_by=2 | callbacks=0 dnc_list=0 session=c7/v1/n2/cb1/d1
+[pre-fix] == F-17 three leads named the same in TX, FL, AZ (AZ has a scheduled callback); no_contact_person on the TX one ==
+[pre-fix]   no_contact_person on TX lead 5020 -> 200, cascadedLeadIds=[5021,5022]
+[pre-fix]   TX 5020: cold att=1 next=- notes=0 cold=no_contact_person dnc=false locked_by=-
+[pre-fix]   FL 5021: cold att=0 next=- notes=0 cold=no_contact_person dnc=false locked_by=-
+[pre-fix]   AZ 5022: cold att=0 next=- notes=0 cold=no_contact_person dnc=false locked_by=-, open callbacks=1
+[pre-fix]   undo -> 200
+[pre-fix]   after undo: TX in_progress | FL cold/no_contact_person | AZ cold/no_contact_person
+[pre-fix] == F-35 callback time on the disposition path ==
+[pre-fix]   scheduledAt "next tuesday" -> 500 invalid input syntax for type timestamp with time zone: "0NaN-NaN-NaNTNaN:NaN:NaN.NaN+NaN:NaN" | lead in_progress next=-
+[pre-fix]   scheduledAt "2020-01-01" -> 200  | lead callback_scheduled next=2020-01-01 00:00
+[pre-fix]   scheduledAt "2026-11-11T21:25:33Z" -> 200  | lead callback_scheduled next=2026-11-11 21:25
+[pre-fix]   scheduledAt "2026-11-14T21:26:03Z" -> 200  | lead callback_scheduled next=2026-11-14 21:26
+[pre-fix]   lead-page route for comparison: POST /api/leads/:id/callback "next tuesday" -> 400 A valid callback date and time is required
+[pre-fix] == F-36 note linked to a call of another lead ==
+[pre-fix]   note on lead 137 with lead 147's call 15 -> 201  | stored rows: 1
+[pre-fix]   note on lead 137 with its own call 14 -> 201
+[pre-fix]   note on lead 137 without a call -> 201
+[pre-fix]   note with a call id that doesn't exist -> 500 insert or update on table "lead_notes" violates foreign key constraint "lead_notes_call_id_fkey"
+[pre-fix] == F-23 no_contact_number recovery by fixing the phone ==
+[pre-fix]   lead 157 after no_contact_number: no_contact_number att=1 next=- notes=0 cold=- dnc=false locked_by=-
+[pre-fix]   PUT phone "abc" -> 400 Enter a valid 10-digit US phone number | no_contact_number
+[pre-fix]   PUT a DNC-listed phone -> 409 This number is on the DNC list and cannot be added as a lead | no_contact_number
+[pre-fix]   PUT a valid new phone -> 200 | no_contact_number att=1 next=- notes=0 cold=- dnc=false locked_by=-
+[pre-fix]   timeline notes: none
+[pre-fix]   dial by id -> 409 Lead is not dialable (status: no_contact_number)
+[pre-fix] == F-55 phoneless lead (imported without a number) gets a number ==
+[pre-fix]   lead 5023: new phone=NULL missing_phone=true
+[pre-fix]   dial before -> 409 This lead has no phone number yet — add one before calling.
+[pre-fix]   PUT name with phone "" (what the edit form sends) -> 400 Enter a valid 10-digit US phone number
+[pre-fix]   PUT phone "(469) 555-3917" -> 200 | new phone=+14695553917 missing_phone=true
+[pre-fix]   timeline notes: none
+[pre-fix]   dial after -> 409 This lead has no phone number yet — add one before calling.
+[pre-fix] == DNC lead: phone edits blocked, other edits allowed ==
+[pre-fix]   lead 167: dnc att=1 next=- notes=0 cold=- dnc=true locked_by=- phone=+13125551014
+[pre-fix]   PUT a new phone -> 200  | phone now +18175551387
+[pre-fix]   PUT name only -> 200 
+[pre-fix]   PUT whole edit form, phone unchanged -> 409 This number is on the DNC list and cannot be added as a lead
+[pre-fix]   lead after: dnc att=1 next=- notes=0 cold=- dnc=true locked_by=- phone=+18175551387
+[pre-fix] server log: 8 error/warn lines
+
+## Read-only cascade report, on base with the cascade left in place (NO_UNDO=1)
+[pre-fix-report] == F-17 three leads named the same in TX, FL, AZ (AZ has a scheduled callback); no_contact_person on the TX one ==
+[pre-fix-report]   no_contact_person on TX lead 5020 -> 200, cascadedLeadIds=[5021,5022]
+[pre-fix-report]   TX 5020: cold att=1 next=- notes=0 cold=no_contact_person dnc=false locked_by=-
+[pre-fix-report]   FL 5021: cold att=0 next=- notes=0 cold=no_contact_person dnc=false locked_by=-
+[pre-fix-report]   AZ 5022: cold att=0 next=- notes=0 cold=no_contact_person dnc=false locked_by=-, open callbacks=1
+[pre-fix-report]   (NO_UNDO set: cascade left in place for the read-only report)
+[pre-fix-report] server log: 0 error/warn lines
+  id  |     name      | state | status |          cold_at           | source_lead_id | source_call_id 
+------+---------------+-------+--------+----------------------------+----------------+----------------
+ 5021 | Sam Same 8196 | FL    | cold   | 2026-11-11 21:26:36.737+00 |           5020 |              1
+ 5022 | Sam Same 8196 | AZ    | cold   | 2026-11-11 21:26:36.737+00 |           5020 |              1
+(2 rows)
+
+  id  |     name      | state | status |          cold_at           
+------+---------------+-------+--------+----------------------------
+ 5021 | Sam Same 8196 | FL    | cold   | 2026-11-11 21:26:36.737+00
+ 5022 | Sam Same 8196 | AZ    | cold   | 2026-11-11 21:26:36.737+00
+(2 rows)
+
+
+## After each fix
+### F-21 (e869879)
+[after-f21]   PASS contacted: disposition 200, undo 200 
+[after-f21]   PASS voicemail: disposition 200, undo 200 
+[after-f21]   PASS no_answer: disposition 200, undo 200 
+[after-f21]   PASS callback_scheduled: disposition 200, undo 200 
+[after-f21]   PASS no_contact_number: disposition 200, undo 200 
+[after-f21]   PASS no_contact_person: disposition 200, undo 200 
+[after-f21]   PASS dnc: disposition 200, undo 200 
+[after-f21]   PASS cold: disposition 200, undo 200 
+[after-f21] server log: 0 error/warn lines
+### F-17 (b900117)
+[after-f17] == F-17 three leads named the same in TX, FL, AZ (AZ has a scheduled callback); no_contact_person on the TX one ==
+[after-f17]   no_contact_person on TX lead 5020 -> 200, cascadedLeadIds=undefined
+[after-f17]   TX 5020: cold att=1 next=- notes=0 cold=no_contact_person dnc=false locked_by=-
+[after-f17]   FL 5021: in_queue att=0 next=- notes=0 cold=- dnc=false locked_by=-
+[after-f17]   AZ 5022: callback_scheduled att=0 next=11-12 21:27 notes=0 cold=- dnc=false locked_by=-, open callbacks=1
+[after-f17]   undo -> 200
+[after-f17]   after undo: TX in_progress | FL in_queue/- | AZ callback_scheduled/-
+[after-f17] == F-21 undo matrix: disposition, then undo within 10 s; lead, callbacks, dnc_list and session stats must be back as before ==
+[after-f17]   PASS contacted: disposition 200, undo 200 
+[after-f17]   PASS voicemail: disposition 200, undo 200 
+[after-f17]   PASS no_answer: disposition 200, undo 200 
+[after-f17]   PASS callback_scheduled: disposition 200, undo 200 
+[after-f17]   PASS no_contact_number: disposition 200, undo 200 
+[after-f17]   PASS no_contact_person: disposition 200, undo 200 
+[after-f17]   PASS dnc: disposition 200, undo 200 
+[after-f17]   PASS cold: disposition 200, undo 200 
+[after-f17] server log: 0 error/warn lines
+### F-35 (14ee003)
+[after-f35] == F-35 callback time on the disposition path ==
+[after-f35]   scheduledAt "next tuesday" -> 400 A valid callback date and time is required | lead in_progress next=-
+[after-f35]   scheduledAt "2020-01-01" -> 400 That callback time is in the past — pick a time from now on | lead in_progress next=-
+[after-f35]   scheduledAt "2026-11-11T21:27:21Z" -> 200  | lead callback_scheduled next=2026-11-11 21:27
+[after-f35]   scheduledAt "2026-11-14T21:27:51Z" -> 200  | lead callback_scheduled next=2026-11-14 21:27
+[after-f35]   lead-page route for comparison: POST /api/leads/:id/callback "next tuesday" -> 400 A valid callback date and time is required
+[after-f35] == F-21 undo matrix: disposition, then undo within 10 s; lead, callbacks, dnc_list and session stats must be back as before ==
+[after-f35]   PASS contacted: disposition 200, undo 200 
+[after-f35]   PASS voicemail: disposition 200, undo 200 
+[after-f35]   PASS no_answer: disposition 200, undo 200 
+[after-f35]   PASS callback_scheduled: disposition 200, undo 200 
+[after-f35]   PASS no_contact_number: disposition 200, undo 200 
+[after-f35]   PASS no_contact_person: disposition 200, undo 200 
+[after-f35]   PASS dnc: disposition 200, undo 200 
+[after-f35]   PASS cold: disposition 200, undo 200 
+[after-f35] server log: 0 error/warn lines
+### F-36 (b64ba7e)
+[after-f36] == F-36 note linked to a call of another lead ==
+[after-f36]   note on lead 19 with lead 27's call 2 -> 400 That call isn't one of this lead's calls | stored rows: 0
+[after-f36]   note on lead 19 with its own call 1 -> 201
+[after-f36]   note on lead 19 without a call -> 201
+[after-f36]   note with a call id that doesn't exist -> 400 That call isn't one of this lead's calls
+[after-f36] server log: 0 error/warn lines
+### F-36 exact audit repro (clone of the audit DB vortex_dialer: lead 69, call 154 of lead 249)
+[base] call 154 belongs to lead 249
+[base] POST /api/leads/69/notes {callId:154} -> [HTTP 201] 
+[base] POST /api/leads/249/notes {callId:154} -> [HTTP 201] 
+[after] call 154 belongs to lead 249
+[after] POST /api/leads/69/notes {callId:154} -> "error":"That call isn't one of this lead's calls" [HTTP 400] 
+[after] POST /api/leads/249/notes {callId:154} -> [HTTP 201] 
+### F-23 (30ceef4)
+[after-f23] == F-23 no_contact_number recovery by fixing the phone ==
+[after-f23]   lead 19 after no_contact_number: no_contact_number att=1 next=- notes=0 cold=- dnc=false locked_by=-
+[after-f23]   PUT phone "abc" -> 400 Enter a valid 10-digit US phone number | no_contact_number
+[after-f23]   PUT a DNC-listed phone -> 409 This number is on the DNC list and cannot be added as a lead | no_contact_number
+[after-f23]   PUT a valid new phone -> 200 | in_queue att=1 next=- notes=1 cold=- dnc=false locked_by=-
+[after-f23]   timeline notes: Number changed, back in queue
+[after-f23]   dial by id -> 201 
+[after-f23] server log: 0 error/warn lines
+### F-55 (b1870dc)
+[after-f55] == F-55 phoneless lead (imported without a number) gets a number ==
+[after-f55]   lead 5020: new phone=NULL missing_phone=true
+[after-f55]   dial before -> 409 This lead has no phone number yet — add one before calling.
+[after-f55]   PUT name with phone "" (what the edit form sends) -> 200 
+[after-f55]   PUT phone "(469) 555-2142" -> 200 | new phone=+14695552142 missing_phone=false
+[after-f55]   timeline notes: Number added, lead is now dialable
+[after-f55]   dial after -> 201 
+[after-f55] == F-23 no_contact_number recovery by fixing the phone ==
+[after-f55]   lead 19 after no_contact_number: no_contact_number att=1 next=- notes=0 cold=- dnc=false locked_by=-
+[after-f55]   PUT phone "abc" -> 400 Enter a valid 10-digit US phone number | no_contact_number
+[after-f55]   PUT a DNC-listed phone -> 409 This number is on the DNC list and cannot be added as a lead | no_contact_number
+[after-f55]   PUT a valid new phone -> 200 | in_queue att=1 next=- notes=1 cold=- dnc=false locked_by=-
+[after-f55]   timeline notes: Number changed, back in queue
+[after-f55]   dial by id -> 201 
+[after-f55] server log: 0 error/warn lines
+### DNC phone-edit block (373e2ff)
+[after-dnc] == DNC lead: phone edits blocked, other edits allowed ==
+[after-dnc]   lead 19: dnc att=1 next=- notes=0 cold=- dnc=true locked_by=- phone=+19155550110
+[after-dnc]   PUT a new phone -> 409 This lead is on the DNC list; its number can't be changed | phone now +19155550110
+[after-dnc]   PUT name only -> 200 
+[after-dnc]   PUT only its current phone -> 200 
+[after-dnc]   PUT whole edit form, phone unchanged -> 200 
+[after-dnc]   lead after: dnc att=1 next=- notes=0 cold=- dnc=true locked_by=- phone=+19155550110
+[after-dnc] server log: 0 error/warn lines
+
+## POST-FIX, 3 consecutive runs of every part on HEAD
+[post-fix-1] == F-21 undo matrix: disposition, then undo within 10 s; lead, callbacks, dnc_list and session stats must be back as before ==
+[post-fix-1]   PASS contacted: disposition 200, undo 200 
+[post-fix-1]        before: in_progress att=1 next=- notes=0 cold=- dnc=false locked_by=2 | callbacks=0 dnc_list=0 session=c0/v0/n0/cb0/d0
+[post-fix-1]        dispo : contacted att=1 next=- notes=1 cold=- dnc=false locked_by=- | callbacks=0 dnc_list=0 session=c1/v0/n0/cb0/d0
+[post-fix-1]        undone: in_progress att=1 next=- notes=0 cold=- dnc=false locked_by=2 | callbacks=0 dnc_list=0 session=c0/v0/n0/cb0/d0
+[post-fix-1]   PASS voicemail: disposition 200, undo 200 
+[post-fix-1]        before: in_progress att=1 next=- notes=0 cold=- dnc=false locked_by=2 | callbacks=0 dnc_list=0 session=c1/v0/n0/cb0/d0
+[post-fix-1]        dispo : voicemail att=1 next=11-12 01:39 notes=1 cold=- dnc=false locked_by=- | callbacks=0 dnc_list=0 session=c1/v1/n0/cb0/d0
+[post-fix-1]        undone: in_progress att=1 next=- notes=0 cold=- dnc=false locked_by=2 | callbacks=0 dnc_list=0 session=c1/v0/n0/cb0/d0
+[post-fix-1]   PASS no_answer: disposition 200, undo 200 
+[post-fix-1]        before: in_progress att=1 next=- notes=0 cold=- dnc=false locked_by=2 | callbacks=0 dnc_list=0 session=c2/v0/n0/cb0/d0
+[post-fix-1]        dispo : no_answer att=1 next=11-12 01:39 notes=1 cold=- dnc=false locked_by=- | callbacks=0 dnc_list=0 session=c2/v0/n1/cb0/d0
+[post-fix-1]        undone: in_progress att=1 next=- notes=0 cold=- dnc=false locked_by=2 | callbacks=0 dnc_list=0 session=c2/v0/n0/cb0/d0
+[post-fix-1]   PASS callback_scheduled: disposition 200, undo 200 
+[post-fix-1]        before: in_progress att=1 next=- notes=0 cold=- dnc=false locked_by=2 | callbacks=0 dnc_list=0 session=c3/v0/n0/cb0/d0
+[post-fix-1]        dispo : callback_scheduled att=1 next=11-13 21:39 notes=1 cold=- dnc=false locked_by=- | callbacks=1 dnc_list=0 session=c3/v0/n0/cb1/d0
+[post-fix-1]        undone: in_progress att=1 next=- notes=0 cold=- dnc=false locked_by=2 | callbacks=0 dnc_list=0 session=c3/v0/n0/cb0/d0
+[post-fix-1]   PASS no_contact_number: disposition 200, undo 200 
+[post-fix-1]        before: in_progress att=1 next=- notes=0 cold=- dnc=false locked_by=2 | callbacks=0 dnc_list=0 session=c4/v0/n0/cb0/d0
+[post-fix-1]        dispo : no_contact_number att=1 next=- notes=1 cold=- dnc=false locked_by=- | callbacks=0 dnc_list=0 session=c4/v0/n0/cb0/d0
+[post-fix-1]        undone: in_progress att=1 next=- notes=0 cold=- dnc=false locked_by=2 | callbacks=0 dnc_list=0 session=c4/v0/n0/cb0/d0
+[post-fix-1]   PASS no_contact_person: disposition 200, undo 200 
+[post-fix-1]        before: in_progress att=1 next=- notes=0 cold=- dnc=false locked_by=2 | callbacks=0 dnc_list=0 session=c5/v0/n0/cb0/d0
+[post-fix-1]        dispo : cold att=1 next=- notes=1 cold=no_contact_person dnc=false locked_by=- | callbacks=0 dnc_list=0 session=c5/v0/n0/cb0/d0
+[post-fix-1]        undone: in_progress att=1 next=- notes=0 cold=- dnc=false locked_by=2 | callbacks=0 dnc_list=0 session=c5/v0/n0/cb0/d0
+[post-fix-1]   PASS dnc: disposition 200, undo 200 
+[post-fix-1]        before: in_progress att=1 next=- notes=0 cold=- dnc=false locked_by=2 | callbacks=0 dnc_list=0 session=c6/v0/n0/cb0/d0
+[post-fix-1]        dispo : dnc att=1 next=- notes=1 cold=- dnc=true locked_by=- | callbacks=0 dnc_list=1 session=c6/v0/n0/cb0/d1
+[post-fix-1]        undone: in_progress att=1 next=- notes=0 cold=- dnc=false locked_by=2 | callbacks=0 dnc_list=0 session=c6/v0/n0/cb0/d0
+[post-fix-1]   PASS cold: disposition 200, undo 200 
+[post-fix-1]        before: in_progress att=5 next=- notes=0 cold=- dnc=false locked_by=2 | callbacks=0 dnc_list=0 session=c7/v0/n0/cb0/d0
+[post-fix-1]        dispo : cold att=5 next=- notes=1 cold=max_attempts dnc=false locked_by=- | callbacks=0 dnc_list=0 session=c7/v0/n1/cb0/d0
+[post-fix-1]        undone: in_progress att=5 next=- notes=0 cold=- dnc=false locked_by=2 | callbacks=0 dnc_list=0 session=c7/v0/n0/cb0/d0
+[post-fix-1] == F-17 three leads named the same in TX, FL, AZ (AZ has a scheduled callback); no_contact_person on the TX one ==
+[post-fix-1]   no_contact_person on TX lead 5020 -> 200, cascadedLeadIds=undefined
+[post-fix-1]   TX 5020: cold att=1 next=- notes=0 cold=no_contact_person dnc=false locked_by=-
+[post-fix-1]   FL 5021: in_queue att=0 next=- notes=0 cold=- dnc=false locked_by=-
+[post-fix-1]   AZ 5022: callback_scheduled att=0 next=11-12 21:39 notes=0 cold=- dnc=false locked_by=-, open callbacks=1
+[post-fix-1]   undo -> 200
+[post-fix-1]   after undo: TX in_progress | FL in_queue/- | AZ callback_scheduled/-
+[post-fix-1] == F-35 callback time on the disposition path ==
+[post-fix-1]   scheduledAt "next tuesday" -> 400 A valid callback date and time is required | lead in_progress next=-
+[post-fix-1]   scheduledAt "2020-01-01" -> 400 That callback time is in the past — pick a time from now on | lead in_progress next=-
+[post-fix-1]   scheduledAt "2026-11-11T21:38:59Z" -> 200  | lead callback_scheduled next=2026-11-11 21:38
+[post-fix-1]   scheduledAt "2026-11-14T21:39:29Z" -> 200  | lead callback_scheduled next=2026-11-14 21:39
+[post-fix-1]   lead-page route for comparison: POST /api/leads/:id/callback "next tuesday" -> 400 A valid callback date and time is required
+[post-fix-1] == F-36 note linked to a call of another lead ==
+[post-fix-1]   note on lead 137 with lead 147's call 15 -> 400 That call isn't one of this lead's calls | stored rows: 0
+[post-fix-1]   note on lead 137 with its own call 14 -> 201
+[post-fix-1]   note on lead 137 without a call -> 201
+[post-fix-1]   note with a call id that doesn't exist -> 400 That call isn't one of this lead's calls
+[post-fix-1] == F-23 no_contact_number recovery by fixing the phone ==
+[post-fix-1]   lead 157 after no_contact_number: no_contact_number att=1 next=- notes=0 cold=- dnc=false locked_by=-
+[post-fix-1]   PUT phone "abc" -> 400 Enter a valid 10-digit US phone number | no_contact_number
+[post-fix-1]   PUT a DNC-listed phone -> 409 This number is on the DNC list and cannot be added as a lead | no_contact_number
+[post-fix-1]   PUT a valid new phone -> 200 | in_queue att=1 next=- notes=1 cold=- dnc=false locked_by=-
+[post-fix-1]   timeline notes: Number changed, back in queue
+[post-fix-1]   dial by id -> 201 
+[post-fix-1] == F-55 phoneless lead (imported without a number) gets a number ==
+[post-fix-1]   lead 5023: new phone=NULL missing_phone=true
+[post-fix-1]   dial before -> 409 This lead has no phone number yet — add one before calling.
+[post-fix-1]   PUT name with phone "" (what the edit form sends) -> 200 
+[post-fix-1]   PUT phone "(469) 555-5435" -> 200 | new phone=+14695555435 missing_phone=false
+[post-fix-1]   timeline notes: Number added, lead is now dialable
+[post-fix-1]   dial after -> 201 
+[post-fix-1] == DNC lead: phone edits blocked, other edits allowed ==
+[post-fix-1]   lead 167: dnc att=1 next=- notes=0 cold=- dnc=true locked_by=- phone=+13125551014
+[post-fix-1]   PUT a new phone -> 409 This lead is on the DNC list; its number can't be changed | phone now +13125551014
+[post-fix-1]   PUT name only -> 200 
+[post-fix-1]   PUT only its current phone -> 200 
+[post-fix-1]   PUT whole edit form, phone unchanged -> 200 
+[post-fix-1]   lead after: dnc att=1 next=- notes=0 cold=- dnc=true locked_by=- phone=+13125551014
+[post-fix-1] server log: 0 error/warn lines
+[post-fix-2] == F-21 undo matrix: disposition, then undo within 10 s; lead, callbacks, dnc_list and session stats must be back as before ==
+[post-fix-2]   PASS contacted: disposition 200, undo 200 
+[post-fix-2]        before: in_progress att=1 next=- notes=0 cold=- dnc=false locked_by=2 | callbacks=0 dnc_list=0 session=c0/v0/n0/cb0/d0
+[post-fix-2]        dispo : contacted att=1 next=- notes=1 cold=- dnc=false locked_by=- | callbacks=0 dnc_list=0 session=c1/v0/n0/cb0/d0
+[post-fix-2]        undone: in_progress att=1 next=- notes=0 cold=- dnc=false locked_by=2 | callbacks=0 dnc_list=0 session=c0/v0/n0/cb0/d0
+[post-fix-2]   PASS voicemail: disposition 200, undo 200 
+[post-fix-2]        before: in_progress att=1 next=- notes=0 cold=- dnc=false locked_by=2 | callbacks=0 dnc_list=0 session=c1/v0/n0/cb0/d0
+[post-fix-2]        dispo : voicemail att=1 next=11-12 01:39 notes=1 cold=- dnc=false locked_by=- | callbacks=0 dnc_list=0 session=c1/v1/n0/cb0/d0
+[post-fix-2]        undone: in_progress att=1 next=- notes=0 cold=- dnc=false locked_by=2 | callbacks=0 dnc_list=0 session=c1/v0/n0/cb0/d0
+[post-fix-2]   PASS no_answer: disposition 200, undo 200 
+[post-fix-2]        before: in_progress att=1 next=- notes=0 cold=- dnc=false locked_by=2 | callbacks=0 dnc_list=0 session=c2/v0/n0/cb0/d0
+[post-fix-2]        dispo : no_answer att=1 next=11-12 01:39 notes=1 cold=- dnc=false locked_by=- | callbacks=0 dnc_list=0 session=c2/v0/n1/cb0/d0
+[post-fix-2]        undone: in_progress att=1 next=- notes=0 cold=- dnc=false locked_by=2 | callbacks=0 dnc_list=0 session=c2/v0/n0/cb0/d0
+[post-fix-2]   PASS callback_scheduled: disposition 200, undo 200 
+[post-fix-2]        before: in_progress att=1 next=- notes=0 cold=- dnc=false locked_by=2 | callbacks=0 dnc_list=0 session=c3/v0/n0/cb0/d0
+[post-fix-2]        dispo : callback_scheduled att=1 next=11-13 21:39 notes=1 cold=- dnc=false locked_by=- | callbacks=1 dnc_list=0 session=c3/v0/n0/cb1/d0
+[post-fix-2]        undone: in_progress att=1 next=- notes=0 cold=- dnc=false locked_by=2 | callbacks=0 dnc_list=0 session=c3/v0/n0/cb0/d0
+[post-fix-2]   PASS no_contact_number: disposition 200, undo 200 
+[post-fix-2]        before: in_progress att=1 next=- notes=0 cold=- dnc=false locked_by=2 | callbacks=0 dnc_list=0 session=c4/v0/n0/cb0/d0
+[post-fix-2]        dispo : no_contact_number att=1 next=- notes=1 cold=- dnc=false locked_by=- | callbacks=0 dnc_list=0 session=c4/v0/n0/cb0/d0
+[post-fix-2]        undone: in_progress att=1 next=- notes=0 cold=- dnc=false locked_by=2 | callbacks=0 dnc_list=0 session=c4/v0/n0/cb0/d0
+[post-fix-2]   PASS no_contact_person: disposition 200, undo 200 
+[post-fix-2]        before: in_progress att=1 next=- notes=0 cold=- dnc=false locked_by=2 | callbacks=0 dnc_list=0 session=c5/v0/n0/cb0/d0
+[post-fix-2]        dispo : cold att=1 next=- notes=1 cold=no_contact_person dnc=false locked_by=- | callbacks=0 dnc_list=0 session=c5/v0/n0/cb0/d0
+[post-fix-2]        undone: in_progress att=1 next=- notes=0 cold=- dnc=false locked_by=2 | callbacks=0 dnc_list=0 session=c5/v0/n0/cb0/d0
+[post-fix-2]   PASS dnc: disposition 200, undo 200 
+[post-fix-2]        before: in_progress att=1 next=- notes=0 cold=- dnc=false locked_by=2 | callbacks=0 dnc_list=0 session=c6/v0/n0/cb0/d0
+[post-fix-2]        dispo : dnc att=1 next=- notes=1 cold=- dnc=true locked_by=- | callbacks=0 dnc_list=1 session=c6/v0/n0/cb0/d1
+[post-fix-2]        undone: in_progress att=1 next=- notes=0 cold=- dnc=false locked_by=2 | callbacks=0 dnc_list=0 session=c6/v0/n0/cb0/d0
+[post-fix-2]   PASS cold: disposition 200, undo 200 
+[post-fix-2]        before: in_progress att=5 next=- notes=0 cold=- dnc=false locked_by=2 | callbacks=0 dnc_list=0 session=c7/v0/n0/cb0/d0
+[post-fix-2]        dispo : cold att=5 next=- notes=1 cold=max_attempts dnc=false locked_by=- | callbacks=0 dnc_list=0 session=c7/v0/n1/cb0/d0
+[post-fix-2]        undone: in_progress att=5 next=- notes=0 cold=- dnc=false locked_by=2 | callbacks=0 dnc_list=0 session=c7/v0/n0/cb0/d0
+[post-fix-2] == F-17 three leads named the same in TX, FL, AZ (AZ has a scheduled callback); no_contact_person on the TX one ==
+[post-fix-2]   no_contact_person on TX lead 5020 -> 200, cascadedLeadIds=undefined
+[post-fix-2]   TX 5020: cold att=1 next=- notes=0 cold=no_contact_person dnc=false locked_by=-
+[post-fix-2]   FL 5021: in_queue att=0 next=- notes=0 cold=- dnc=false locked_by=-
+[post-fix-2]   AZ 5022: callback_scheduled att=0 next=11-12 21:39 notes=0 cold=- dnc=false locked_by=-, open callbacks=1
+[post-fix-2]   undo -> 200
+[post-fix-2]   after undo: TX in_progress | FL in_queue/- | AZ callback_scheduled/-
+[post-fix-2] == F-35 callback time on the disposition path ==
+[post-fix-2]   scheduledAt "next tuesday" -> 400 A valid callback date and time is required | lead in_progress next=-
+[post-fix-2]   scheduledAt "2020-01-01" -> 400 That callback time is in the past — pick a time from now on | lead in_progress next=-
+[post-fix-2]   scheduledAt "2026-11-11T21:39:15Z" -> 200  | lead callback_scheduled next=2026-11-11 21:39
+[post-fix-2]   scheduledAt "2026-11-14T21:39:45Z" -> 200  | lead callback_scheduled next=2026-11-14 21:39
+[post-fix-2]   lead-page route for comparison: POST /api/leads/:id/callback "next tuesday" -> 400 A valid callback date and time is required
+[post-fix-2] == F-36 note linked to a call of another lead ==
+[post-fix-2]   note on lead 137 with lead 147's call 15 -> 400 That call isn't one of this lead's calls | stored rows: 0
+[post-fix-2]   note on lead 137 with its own call 14 -> 201
+[post-fix-2]   note on lead 137 without a call -> 201
+[post-fix-2]   note with a call id that doesn't exist -> 400 That call isn't one of this lead's calls
+[post-fix-2] == F-23 no_contact_number recovery by fixing the phone ==
+[post-fix-2]   lead 157 after no_contact_number: no_contact_number att=1 next=- notes=0 cold=- dnc=false locked_by=-
+[post-fix-2]   PUT phone "abc" -> 400 Enter a valid 10-digit US phone number | no_contact_number
+[post-fix-2]   PUT a DNC-listed phone -> 409 This number is on the DNC list and cannot be added as a lead | no_contact_number
+[post-fix-2]   PUT a valid new phone -> 200 | in_queue att=1 next=- notes=1 cold=- dnc=false locked_by=-
+[post-fix-2]   timeline notes: Number changed, back in queue
+[post-fix-2]   dial by id -> 201 
+[post-fix-2] == F-55 phoneless lead (imported without a number) gets a number ==
+[post-fix-2]   lead 5023: new phone=NULL missing_phone=true
+[post-fix-2]   dial before -> 409 This lead has no phone number yet — add one before calling.
+[post-fix-2]   PUT name with phone "" (what the edit form sends) -> 200 
+[post-fix-2]   PUT phone "(469) 555-9911" -> 200 | new phone=+14695559911 missing_phone=false
+[post-fix-2]   timeline notes: Number added, lead is now dialable
+[post-fix-2]   dial after -> 201 
+[post-fix-2] == DNC lead: phone edits blocked, other edits allowed ==
+[post-fix-2]   lead 167: dnc att=1 next=- notes=0 cold=- dnc=true locked_by=- phone=+13125551014
+[post-fix-2]   PUT a new phone -> 409 This lead is on the DNC list; its number can't be changed | phone now +13125551014
+[post-fix-2]   PUT name only -> 200 
+[post-fix-2]   PUT only its current phone -> 200 
+[post-fix-2]   PUT whole edit form, phone unchanged -> 200 
+[post-fix-2]   lead after: dnc att=1 next=- notes=0 cold=- dnc=true locked_by=- phone=+13125551014
+[post-fix-2] server log: 0 error/warn lines
+[post-fix-3] == F-21 undo matrix: disposition, then undo within 10 s; lead, callbacks, dnc_list and session stats must be back as before ==
+[post-fix-3]   PASS contacted: disposition 200, undo 200 
+[post-fix-3]        before: in_progress att=1 next=- notes=0 cold=- dnc=false locked_by=2 | callbacks=0 dnc_list=0 session=c0/v0/n0/cb0/d0
+[post-fix-3]        dispo : contacted att=1 next=- notes=1 cold=- dnc=false locked_by=- | callbacks=0 dnc_list=0 session=c1/v0/n0/cb0/d0
+[post-fix-3]        undone: in_progress att=1 next=- notes=0 cold=- dnc=false locked_by=2 | callbacks=0 dnc_list=0 session=c0/v0/n0/cb0/d0
+[post-fix-3]   PASS voicemail: disposition 200, undo 200 
+[post-fix-3]        before: in_progress att=1 next=- notes=0 cold=- dnc=false locked_by=2 | callbacks=0 dnc_list=0 session=c1/v0/n0/cb0/d0
+[post-fix-3]        dispo : voicemail att=1 next=11-12 01:39 notes=1 cold=- dnc=false locked_by=- | callbacks=0 dnc_list=0 session=c1/v1/n0/cb0/d0
+[post-fix-3]        undone: in_progress att=1 next=- notes=0 cold=- dnc=false locked_by=2 | callbacks=0 dnc_list=0 session=c1/v0/n0/cb0/d0
+[post-fix-3]   PASS no_answer: disposition 200, undo 200 
+[post-fix-3]        before: in_progress att=1 next=- notes=0 cold=- dnc=false locked_by=2 | callbacks=0 dnc_list=0 session=c2/v0/n0/cb0/d0
+[post-fix-3]        dispo : no_answer att=1 next=11-12 01:39 notes=1 cold=- dnc=false locked_by=- | callbacks=0 dnc_list=0 session=c2/v0/n1/cb0/d0
+[post-fix-3]        undone: in_progress att=1 next=- notes=0 cold=- dnc=false locked_by=2 | callbacks=0 dnc_list=0 session=c2/v0/n0/cb0/d0
+[post-fix-3]   PASS callback_scheduled: disposition 200, undo 200 
+[post-fix-3]        before: in_progress att=1 next=- notes=0 cold=- dnc=false locked_by=2 | callbacks=0 dnc_list=0 session=c3/v0/n0/cb0/d0
+[post-fix-3]        dispo : callback_scheduled att=1 next=11-13 21:39 notes=1 cold=- dnc=false locked_by=- | callbacks=1 dnc_list=0 session=c3/v0/n0/cb1/d0
+[post-fix-3]        undone: in_progress att=1 next=- notes=0 cold=- dnc=false locked_by=2 | callbacks=0 dnc_list=0 session=c3/v0/n0/cb0/d0
+[post-fix-3]   PASS no_contact_number: disposition 200, undo 200 
+[post-fix-3]        before: in_progress att=1 next=- notes=0 cold=- dnc=false locked_by=2 | callbacks=0 dnc_list=0 session=c4/v0/n0/cb0/d0
+[post-fix-3]        dispo : no_contact_number att=1 next=- notes=1 cold=- dnc=false locked_by=- | callbacks=0 dnc_list=0 session=c4/v0/n0/cb0/d0
+[post-fix-3]        undone: in_progress att=1 next=- notes=0 cold=- dnc=false locked_by=2 | callbacks=0 dnc_list=0 session=c4/v0/n0/cb0/d0
+[post-fix-3]   PASS no_contact_person: disposition 200, undo 200 
+[post-fix-3]        before: in_progress att=1 next=- notes=0 cold=- dnc=false locked_by=2 | callbacks=0 dnc_list=0 session=c5/v0/n0/cb0/d0
+[post-fix-3]        dispo : cold att=1 next=- notes=1 cold=no_contact_person dnc=false locked_by=- | callbacks=0 dnc_list=0 session=c5/v0/n0/cb0/d0
+[post-fix-3]        undone: in_progress att=1 next=- notes=0 cold=- dnc=false locked_by=2 | callbacks=0 dnc_list=0 session=c5/v0/n0/cb0/d0
+[post-fix-3]   PASS dnc: disposition 200, undo 200 
+[post-fix-3]        before: in_progress att=1 next=- notes=0 cold=- dnc=false locked_by=2 | callbacks=0 dnc_list=0 session=c6/v0/n0/cb0/d0
+[post-fix-3]        dispo : dnc att=1 next=- notes=1 cold=- dnc=true locked_by=- | callbacks=0 dnc_list=1 session=c6/v0/n0/cb0/d1
+[post-fix-3]        undone: in_progress att=1 next=- notes=0 cold=- dnc=false locked_by=2 | callbacks=0 dnc_list=0 session=c6/v0/n0/cb0/d0
+[post-fix-3]   PASS cold: disposition 200, undo 200 
+[post-fix-3]        before: in_progress att=5 next=- notes=0 cold=- dnc=false locked_by=2 | callbacks=0 dnc_list=0 session=c7/v0/n0/cb0/d0
+[post-fix-3]        dispo : cold att=5 next=- notes=1 cold=max_attempts dnc=false locked_by=- | callbacks=0 dnc_list=0 session=c7/v0/n1/cb0/d0
+[post-fix-3]        undone: in_progress att=5 next=- notes=0 cold=- dnc=false locked_by=2 | callbacks=0 dnc_list=0 session=c7/v0/n0/cb0/d0
+[post-fix-3] == F-17 three leads named the same in TX, FL, AZ (AZ has a scheduled callback); no_contact_person on the TX one ==
+[post-fix-3]   no_contact_person on TX lead 5020 -> 200, cascadedLeadIds=undefined
+[post-fix-3]   TX 5020: cold att=1 next=- notes=0 cold=no_contact_person dnc=false locked_by=-
+[post-fix-3]   FL 5021: in_queue att=0 next=- notes=0 cold=- dnc=false locked_by=-
+[post-fix-3]   AZ 5022: callback_scheduled att=0 next=11-12 21:40 notes=0 cold=- dnc=false locked_by=-, open callbacks=1
+[post-fix-3]   undo -> 200
+[post-fix-3]   after undo: TX in_progress | FL in_queue/- | AZ callback_scheduled/-
+[post-fix-3] == F-35 callback time on the disposition path ==
+[post-fix-3]   scheduledAt "next tuesday" -> 400 A valid callback date and time is required | lead in_progress next=-
+[post-fix-3]   scheduledAt "2020-01-01" -> 400 That callback time is in the past — pick a time from now on | lead in_progress next=-
+[post-fix-3]   scheduledAt "2026-11-11T21:39:30Z" -> 200  | lead callback_scheduled next=2026-11-11 21:39
+[post-fix-3]   scheduledAt "2026-11-14T21:40:00Z" -> 200  | lead callback_scheduled next=2026-11-14 21:40
+[post-fix-3]   lead-page route for comparison: POST /api/leads/:id/callback "next tuesday" -> 400 A valid callback date and time is required
+[post-fix-3] == F-36 note linked to a call of another lead ==
+[post-fix-3]   note on lead 137 with lead 147's call 15 -> 400 That call isn't one of this lead's calls | stored rows: 0
+[post-fix-3]   note on lead 137 with its own call 14 -> 201
+[post-fix-3]   note on lead 137 without a call -> 201
+[post-fix-3]   note with a call id that doesn't exist -> 400 That call isn't one of this lead's calls
+[post-fix-3] == F-23 no_contact_number recovery by fixing the phone ==
+[post-fix-3]   lead 157 after no_contact_number: no_contact_number att=1 next=- notes=0 cold=- dnc=false locked_by=-
+[post-fix-3]   PUT phone "abc" -> 400 Enter a valid 10-digit US phone number | no_contact_number
+[post-fix-3]   PUT a DNC-listed phone -> 409 This number is on the DNC list and cannot be added as a lead | no_contact_number
+[post-fix-3]   PUT a valid new phone -> 200 | in_queue att=1 next=- notes=1 cold=- dnc=false locked_by=-
+[post-fix-3]   timeline notes: Number changed, back in queue
+[post-fix-3]   dial by id -> 201 
+[post-fix-3] == F-55 phoneless lead (imported without a number) gets a number ==
+[post-fix-3]   lead 5023: new phone=NULL missing_phone=true
+[post-fix-3]   dial before -> 409 This lead has no phone number yet — add one before calling.
+[post-fix-3]   PUT name with phone "" (what the edit form sends) -> 200 
+[post-fix-3]   PUT phone "(469) 555-5738" -> 200 | new phone=+14695555738 missing_phone=false
+[post-fix-3]   timeline notes: Number added, lead is now dialable
+[post-fix-3]   dial after -> 201 
+[post-fix-3] == DNC lead: phone edits blocked, other edits allowed ==
+[post-fix-3]   lead 167: dnc att=1 next=- notes=0 cold=- dnc=true locked_by=- phone=+13125551014
+[post-fix-3]   PUT a new phone -> 409 This lead is on the DNC list; its number can't be changed | phone now +13125551014
+[post-fix-3]   PUT name only -> 200 
+[post-fix-3]   PUT only its current phone -> 200 
+[post-fix-3]   PUT whole edit form, phone unchanged -> 200 
+[post-fix-3]   lead after: dnc att=1 next=- notes=0 cold=- dnc=true locked_by=- phone=+13125551014
+[post-fix-3] server log: 0 error/warn lines
+
+## UI (audit/scripts/fix-seg4-ui.sh, vite dev)
+### base 8b89b7f
+[pre-fix] leads: call=19 dnc=31 (dnc) phoneless=5020 ncn=46 (no_contact_number) plain=61
+[pre-fix] call screen lead 19: Connected
+[pre-fix]   past callback (2020-01-01 09:00): message "That callback time is in the past" shown = false; No Answer enabled = false
+[pre-fix]   [call screen] stopped: locator.click: Timeout 5000ms exceeded.
+[pre-fix]   Undo of that callback: error text = "syntax error at or near "ORDER""; lead callback_scheduled
+[pre-fix] DNC lead 31: new phone -> message "This lead is on the DNC list; its number can't be changed" shown = false; phone in DB +18175550199
+[pre-fix]   same phone + new name -> "Saved." shown = false; name in DB "Bulk Agent 11"
+[pre-fix] phoneless lead 5020: edit brokerage with phone empty -> Saved shown = false, error shown = true
+[pre-fix]   add phone -> Saved shown = true; DB new phone=+14695550177 missing_phone=true
+[pre-fix] plain lead 61: phone "abc" -> message "Enter a valid 10-digit US phone number" shown = true; Save enabled = true
+[pre-fix] no_contact_number lead 46: new phone -> Saved shown = true; DB no_contact_number phone=+14695550188
+[pre-fix] requests: POST /api/dispositions -> 200 | POST /api/dispositions/3/undo -> 500 | PUT /api/leads/31 -> 200 | PUT /api/leads/31 -> 409 | PUT /api/leads/5020 -> 400 | PUT /api/leads/5020 -> 200 | PUT /api/leads/61 -> 400 | PUT /api/leads/46 -> 200
+[pre-fix] page errors: none
+[pre-fix] backend log error/warn lines: 3
+### HEAD, 3 runs
+[after-run1] leads: call=19 dnc=31 (dnc) phoneless=5020 ncn=46 (no_contact_number) plain=61
+[after-run1] call screen lead 19: Connected
+[after-run1]   past callback (2020-01-01 09:00): message "That callback time is in the past" shown = true; No Answer enabled = true
+[after-run1]   valid callback (tomorrow): lead callback_scheduled, open callbacks=1
+[after-run1]   Undo: lead in_progress, open callbacks=0, error text shown = false
+[after-run1] DNC lead 31: new phone -> message "This lead is on the DNC list; its number can't be changed" shown = true; phone in DB +17135551001
+[after-run1]   same phone + new name -> "Saved." shown = true; name in DB "Seg4 UI DNC renamed"
+[after-run1] phoneless lead 5020: edit brokerage with phone empty -> Saved shown = true, error shown = false
+[after-run1]   add phone -> Saved shown = true; DB new phone=+14695550177 missing_phone=false
+[after-run1] plain lead 61: phone "abc" -> message "Enter a valid 10-digit US phone number" shown = true; Save enabled = true
+[after-run1] no_contact_number lead 46: new phone -> Saved shown = true; DB in_queue phone=+14695550188
+[after-run1] requests: POST /api/dispositions -> 400 | POST /api/dispositions -> 200 | POST /api/dispositions/3/undo -> 200 | PUT /api/leads/31 -> 409 | PUT /api/leads/31 -> 200 | PUT /api/leads/5020 -> 200 | PUT /api/leads/5020 -> 200 | PUT /api/leads/61 -> 400 | PUT /api/leads/46 -> 200
+[after-run1] page errors: none
+[after-run1] backend log error/warn lines: 0
+[after-run2] leads: call=19 dnc=31 (dnc) phoneless=5020 ncn=46 (no_contact_number) plain=61
+[after-run2] call screen lead 19: Connected
+[after-run2]   past callback (2020-01-01 09:00): message "That callback time is in the past" shown = true; No Answer enabled = true
+[after-run2]   valid callback (tomorrow): lead callback_scheduled, open callbacks=1
+[after-run2]   Undo: lead in_progress, open callbacks=0, error text shown = false
+[after-run2] DNC lead 31: new phone -> message "This lead is on the DNC list; its number can't be changed" shown = true; phone in DB +17135551001
+[after-run2]   same phone + new name -> "Saved." shown = true; name in DB "Seg4 UI DNC renamed"
+[after-run2] phoneless lead 5020: edit brokerage with phone empty -> Saved shown = true, error shown = false
+[after-run2]   add phone -> Saved shown = true; DB new phone=+14695550177 missing_phone=false
+[after-run2] plain lead 61: phone "abc" -> message "Enter a valid 10-digit US phone number" shown = true; Save enabled = true
+[after-run2] no_contact_number lead 46: new phone -> Saved shown = true; DB in_queue phone=+14695550188
+[after-run2] requests: POST /api/dispositions -> 400 | POST /api/dispositions -> 200 | POST /api/dispositions/3/undo -> 200 | PUT /api/leads/31 -> 409 | PUT /api/leads/31 -> 200 | PUT /api/leads/5020 -> 200 | PUT /api/leads/5020 -> 200 | PUT /api/leads/61 -> 400 | PUT /api/leads/46 -> 200
+[after-run2] page errors: none
+[after-run2] backend log error/warn lines: 0
+[after-run3] leads: call=19 dnc=31 (dnc) phoneless=5020 ncn=46 (no_contact_number) plain=61
+[after-run3] call screen lead 19: Connected
+[after-run3]   past callback (2020-01-01 09:00): message "That callback time is in the past" shown = true; No Answer enabled = true
+[after-run3]   valid callback (tomorrow): lead callback_scheduled, open callbacks=1
+[after-run3]   Undo: lead in_progress, open callbacks=0, error text shown = false
+[after-run3] DNC lead 31: new phone -> message "This lead is on the DNC list; its number can't be changed" shown = true; phone in DB +17135551001
+[after-run3]   same phone + new name -> "Saved." shown = true; name in DB "Seg4 UI DNC renamed"
+[after-run3] phoneless lead 5020: edit brokerage with phone empty -> Saved shown = true, error shown = false
+[after-run3]   add phone -> Saved shown = true; DB new phone=+14695550177 missing_phone=false
+[after-run3] plain lead 61: phone "abc" -> message "Enter a valid 10-digit US phone number" shown = true; Save enabled = true
+[after-run3] no_contact_number lead 46: new phone -> Saved shown = true; DB in_queue phone=+14695550188
+[after-run3] requests: POST /api/dispositions -> 400 | POST /api/dispositions -> 200 | POST /api/dispositions/3/undo -> 200 | PUT /api/leads/31 -> 409 | PUT /api/leads/31 -> 200 | PUT /api/leads/5020 -> 200 | PUT /api/leads/5020 -> 200 | PUT /api/leads/61 -> 400 | PUT /api/leads/46 -> 200
+[after-run3] page errors: none
+[after-run3] backend log error/warn lines: 0

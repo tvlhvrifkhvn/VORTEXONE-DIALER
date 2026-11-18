@@ -1,12 +1,19 @@
-import NeuInput from '../ui/NeuInput';
+import { useId } from 'react';
+import Field from '../ui/Field';
 
-export default function NotesField({ value, onChange }) {
+// The visible "Notes" heading is the section label around this field
+// (DispositionPanel), so this label is for screen readers.
+export default function NotesField({ value, onChange, rows = 3 }) {
+  const id = useId();
   return (
     <div>
-      <label className="mb-1 block text-xs font-medium text-text-secondary">Notes</label>
-      <NeuInput
+      <label htmlFor={id} className="sr-only">
+        Notes
+      </label>
+      <Field
+        id={id}
         as="textarea"
-        rows={4}
+        rows={rows}
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder="What happened on this call?"

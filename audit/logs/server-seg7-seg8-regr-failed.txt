@@ -1,0 +1,30 @@
+Vortex Dialer API listening on port 4000 (telephony: twilio)
+Dial failed for call 1 (lead 1): twilioAdapter is not implemented yet — set TELEPHONY_PROVIDER=mock
+ApiError: The call couldn't be placed — the phone service returned an error. No attempt was counted and the lead is free again.
+    at Object.start (/home/user/vortexone-dialer/backend/src/services/callSession.js:88:11)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async /home/user/vortexone-dialer/backend/src/routes/calls.js:79:18 {
+  status: 502
+}
+Dial failed for call 2 (lead 1): twilioAdapter is not implemented yet — set TELEPHONY_PROVIDER=mock
+ApiError: The call couldn't be placed — the phone service returned an error. No attempt was counted and the lead is free again.
+    at Object.start (/home/user/vortexone-dialer/backend/src/services/callSession.js:88:11)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async /home/user/vortexone-dialer/backend/src/routes/calls.js:79:18 {
+  status: 502
+}
+Dial failed for call 3 (lead 1): twilioAdapter is not implemented yet — set TELEPHONY_PROVIDER=mock
+ApiError: The call couldn't be placed — the phone service returned an error. No attempt was counted and the lead is free again.
+    at Object.start (/home/user/vortexone-dialer/backend/src/services/callSession.js:88:11)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async /home/user/vortexone-dialer/backend/src/routes/calls.js:79:18 {
+  status: 502
+}
+Dial failed for call 4: twilioAdapter is not implemented yet — set TELEPHONY_PROVIDER=mock
+ApiError: The call couldn't be placed — the phone service returned an error.
+    at Object.startManual (/home/user/vortexone-dialer/backend/src/services/callSession.js:147:11)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async /home/user/vortexone-dialer/backend/src/routes/calls.js:114:18 {
+  status: 502
+}
+SIGTERM received — stale-lock sweep and import cleanup stopped, shutting down

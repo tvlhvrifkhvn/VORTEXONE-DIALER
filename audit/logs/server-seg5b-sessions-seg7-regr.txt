@@ -1,0 +1,19 @@
+Vortex Dialer API listening on port 4000 (telephony: mock)
+Calling hours: worked out the time zone of 5019 lead(s)
+Multi-line session of user 1 stopped: browser disconnected for 10 s
+SIGTERM received — stale-lock sweep and import cleanup stopped, shutting down
+Vortex Dialer API listening on port 4000 (telephony: mock)
+Calling hours: worked out the time zone of 5019 lead(s)
+SIGTERM received — stale-lock sweep and import cleanup stopped, shutting down
+Vortex Dialer API listening on port 4000 (telephony: mock)
+Calling hours: worked out the time zone of 5019 lead(s)
+Multi-line session of user 1 stopped: browser disconnected for 10 s
+SIGTERM received — stale-lock sweep and import cleanup stopped, shutting down
+Vortex Dialer API listening on port 4000 (telephony: mock)
+Calling hours: worked out the time zone of 5019 lead(s)
+SIGTERM received — stale-lock sweep and import cleanup stopped, shutting down
+Vortex Dialer API listening on port 4000 (telephony: mock)
+Calling hours: worked out the time zone of 5019 lead(s)
+Vortex Dialer API listening on port 4000 (telephony: mock)
+After restart: closed 1 dialing session(s) and 3 open call(s); 3 lead(s) back in the queue
+SIGTERM received — stale-lock sweep and import cleanup stopped, shutting down

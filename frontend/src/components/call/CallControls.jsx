@@ -1,43 +1,49 @@
 import { useState } from 'react';
-import ActionButton from '../ui/ActionButton';
-import NeuButton from '../ui/NeuButton';
-import NeuInput from '../ui/NeuInput';
+import Button from '../ui/Button';
+import Field from '../ui/Field';
 
-export default function CallControls({ onHangup, onScheduleCallback, disabled, hangupDisabled }) {
-  const [showSchedule, setShowSchedule] = useState(false);
+// Hanging up moved to the call page's own prominent "End call" button, below
+// the action grid — two hangup controls on one screen invited misclicks.
+// C8E: `startOpen` shows the time field at once (inside QUICK ACTIONS); SET is solid.
+export default function CallControls({ onScheduleCallback, disabled, startOpen = false }) {
+  const [showSchedule, setShowSchedule] = useState(startOpen);
   const [when, setWhen] = useState('');
 
   const submit = () => {
     if (!when) return;
     onScheduleCallback(new Date(when).toISOString());
-    setShowSchedule(false);
+    setShowSchedule(startOpen);
     setWhen('');
   };
 
   return (
     <div className="flex flex-col gap-3">
-      <ActionButton variant="hangup" disabled={hangupDisabled ?? disabled} onClick={onHangup} className="w-full">
-        Hang Up
-      </ActionButton>
-
       {!showSchedule ? (
-        <NeuButton onClick={() => setShowSchedule(true)} disabled={disabled} className="w-full text-sm">
+        <Button onClick={() => setShowSchedule(true)} disabled={disabled} className="w-full">
           Schedule callback
-        </NeuButton>
+        </Button>
       ) : (
-        <div className="flex items-center gap-2">
-          <NeuInput
+        <div className="space-y-2">
+          <label htmlFor="callback-when" className="label block">
+            Callback time
+          </label>
+          <Field
+            id="callback-when"
             type="datetime-local"
             value={when}
             onChange={(e) => setWhen(e.target.value)}
-            className="flex-1 text-sm"
+            className="w-full font-mono text-sm"
           />
-          <NeuButton onClick={submit} className="text-sm">
-            Set
-          </NeuButton>
-          <NeuButton onClick={() => setShowSchedule(false)} className="text-sm">
-            Cancel
-          </NeuButton>
+          <div className="flex gap-2">
+            <Button variant="solid" onClick={submit} className="flex-1" disabled={disabled || !when}>
+              Set
+            </Button>
+            {!startOpen && (
+            <Button onClick={() => setShowSchedule(false)} className="flex-1">
+              Cancel
+            </Button>
+            )}
+          </div>
         </div>
       )}
     </div>

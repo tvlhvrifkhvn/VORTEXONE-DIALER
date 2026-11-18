@@ -1,0 +1,367 @@
+# Segment 2 fix log — base origin/claude/fix-seg1-secrets-dnc @ 0b85b56, branch claude/fix-seg2-atomic-locking
+# DB per F-14 run: vortex_seg2_run cloned from template vortex_seg2_tpl (seed user, rep2, 5,019 dialable leads). Secrets never printed.
+
+## F-14 PRE-FIX (base code)
+NOTICE:  database "vortex_seg2_run" does not exist, skipping
+[pre-fix] (d) sequential order: first 10 leads served by 10 sequential POST /api/calls {} on fresh data
+[pre-fix]   order: BA777 Karen_Mitchell David_Chen Melissa_Ortiz James_Whitfield Angela_Rossi Brian_Kowalski Patricia_Nguyen Robert_Hayes Susan_Delgado   (Bulk Agent 777 was made a due callback, so it must be first)
+[pre-fix]   dial→disposition→dial: dispose call 10 no_answer -> [HTTP 200]; next dial -> [HTTP 201]
+[pre-fix] (a) 20 parallel POST /api/calls {} — one user
+[pre-fix]   statuses: 1×201201201201201201201201201201201201201201201201201201201201 
+[pre-fix]   calls created: 20   distinct leads: 3   responses' distinct lead ids: 3
+[pre-fix]   leads with >1 open call (ended_at IS NULL): 1 x3, 2 x16, 3 x4
+[pre-fix]   attempts > max_attempts (I7): 1
+[pre-fix] (b) 10 parallel POST /api/calls {leadId:24} — one user, one lead (attempts before=0)
+[pre-fix]   statuses: 1×201201201409201201201201201201   calls on lead 24: 9  attempts after=9 (delta 9)
+[pre-fix]   409 messages:       1 "error":"Lead is not dialable (status: in_progress)" 
+[pre-fix] (c) two users, 10 parallel next-lead requests each, at the same time
+[pre-fix]   user1 statuses: 1×201201201201201201201201201201   user2 statuses: 1×201201201201201201201201201201 
+[pre-fix]   leads served to BOTH users: 4, 6, 7   calls: 20 on 4 leads
+[pre-fix] (e) invariants after the run
+[pre-fix]   I7 attempts > max_attempts: 4   I2 in_progress leads without an open call: 0   leads with >1 open call: 8
+[pre-fix]   server log: 500-class errors=0  (lines: )
+(the PRE-FIX run above mis-printed statuses: the per-request .code files have no newline, so codes() concatenated them. Fixed; re-run below.)
+
+## F-14 PRE-FIX re-run (base code)
+[pre-fix2] (d) sequential order: first 10 leads served by 10 sequential POST /api/calls {} on fresh data
+[pre-fix2]   order: BA777 Karen_Mitchell David_Chen Melissa_Ortiz James_Whitfield Angela_Rossi Brian_Kowalski Patricia_Nguyen Robert_Hayes Susan_Delgado   (Bulk Agent 777 was made a due callback, so it must be first)
+[pre-fix2]   dial→disposition→dial: dispose call 10 no_answer -> [HTTP 200]; next dial -> [HTTP 201]
+[pre-fix2] (a) 20 parallel POST /api/calls {} — one user
+[pre-fix2]   statuses: 20×201 
+[pre-fix2]   calls created: 20   distinct leads: 3   responses' distinct lead ids: 3
+[pre-fix2]   leads with >1 open call (ended_at IS NULL): 1 x3, 2 x11, 3 x9
+[pre-fix2]   attempts > max_attempts (I7): 2
+[pre-fix2] (b) 10 parallel POST /api/calls {leadId:24} — one user, one lead (attempts before=0)
+[pre-fix2]   statuses: 8×201 2×409   calls on lead 24: 8  attempts after=8 (delta 8)
+[pre-fix2]   409 messages:       2 "error":"Lead is not dialable (status: in_progress)" 
+[pre-fix2] (c) two users, 10 parallel next-lead requests each, at the same time
+[pre-fix2]   user1 statuses: 10×201   user2 statuses: 10×201 
+[pre-fix2]   leads served to BOTH users: 4, 5, 6   calls: 20 on 4 leads
+[pre-fix2] (e) invariants after the run
+[pre-fix2]   I7 attempts > max_attempts: 6   I2 in_progress leads without an open call: 0   leads with >1 open call: 8
+[pre-fix2]   server log: 500-class errors=0  (lines: )
+
+## F-27 PRE-FIX (base code)
+[pre-fix] (a) one user, 3 lines, forced no_answer, 15 s
+[pre-fix]   SUMMARY sessionId=1 events=60 byStatus={"loading":15,"dialing":15,"ringing":15,"no_answer":12,"dropped":3} maxConcurrentLiveSlots=3 (lineCount=3)
+[pre-fix]   calls: 15 on 9 distinct leads
+[pre-fix]   same lead dialed twice in the same second within one session: 1:lead 8 x2, 1:lead 4 x3, 1:lead 5 x2, 1:lead 7 x3
+[pre-fix]   sample (first 6 calls): 1:slot1:lead1@26.393  2:slot2:lead2@26.393  3:slot3:lead3@26.400  4:slot1:lead4@29.413  5:slot2:lead4@29.413  6:slot3:lead4@29.413
+[pre-fix] (b) two users, two sessions at once, 3 lines each, forced no_answer, 15 s
+[pre-fix]   calls: 30 on 15 leads; sessions: 2,3
+[pre-fix]   same lead in BOTH sessions with overlapping calls (started < 6 s apart): 10
+[pre-fix]   same-second duplicates within a session: 2:lead 20 x3, 3:lead 21 x2, 2:lead 15 x3, 3:lead 14 x3, 2:lead 13 x3, 2:lead 17 x3, 3:lead 18 x2, 3:lead 16 x3
+[pre-fix] (c) audit §5.2: 3 lines all answered -> held; dispose+release active -> promoted; stop
+[pre-fix]     3.1s slot 1 answered  
+[pre-fix]     3.1s slot 3 held      
+[pre-fix]     3.1s slot 2 held      
+[pre-fix]     7.5s slot 2 answered   (promoted from hold)
+[pre-fix]     7.5s POST /api/calls/multiline/release {"slotNumber":1} -> 200 {"promoted":2}
+[pre-fix]   SUMMARY sessionId=4 events=21 byStatus={"loading":5,"dialing":5,"ringing":5,"answered":2,"held":2,"no_answer":1,"dropped":1} maxConcurrentLiveSlots=3 (lineCount=3)
+[pre-fix] (d) selected-leads session with 5 chosen ids: 1 soft-deleted (API DELETE), 1 DNC-listed (direct SQL), 3 normal
+[pre-fix]   ids=[50,51,52,53,54] deleted=51 dnc_listed=53
+[pre-fix]   multiline/start -> 201 {"lineCount":3,"slots":[{"slotNumber":1,"leadId":54,"status":"ringing"},{"slotNumber":2,"leadId":52,"status":"ringing"},{"slotNumber":3,"leadId":50,"status":"ringing"}]}
+[pre-fix]   multiline/stop -> 200 {"abandonedCount":0}
+[pre-fix]   calls per chosen lead: 50=1 51=0 52=1 53=0 54=1
+[pre-fix]   status of chosen leads: 50:no_answer 51:new(deleted) 52:no_answer 53:new 54:no_answer
+[pre-fix]   leads left in_progress after stop: 0
+[pre-fix] server log errors: 0  lines: 
+
+## F-14 POST-FIX (claimLead CAS in lockNext + explicit redial flag) — 3 consecutive runs
+### run 1
+[post-fix-1] (d) sequential order: first 10 leads served by 10 sequential POST /api/calls {} on fresh data
+[post-fix-1]   order: BA777 Karen_Mitchell David_Chen Melissa_Ortiz James_Whitfield Angela_Rossi Brian_Kowalski Patricia_Nguyen Robert_Hayes Susan_Delgado   (Bulk Agent 777 was made a due callback, so it must be first)
+[post-fix-1]   dial→disposition→dial: dispose call 10 no_answer -> [HTTP 200]; next dial -> [HTTP 201]
+[post-fix-1] (a) 20 parallel POST /api/calls {} — one user
+[post-fix-1]   statuses: 20×201 
+[post-fix-1]   calls created: 20   distinct leads: 20   responses' distinct lead ids: 20
+[post-fix-1]   leads with >1 open call (ended_at IS NULL): 1 x2, 2 x2, 3 x2, 4 x2, 5 x2, 6 x2, 7 x2, 8 x2, 10 x2
+[post-fix-1]   attempts > max_attempts (I7): 0
+[post-fix-1] (b) 10 parallel POST /api/calls {leadId:24} — one user, one lead (attempts before=0)
+[post-fix-1]   statuses: 1×201 9×409   calls on lead 24: 1  attempts after=1 (delta 1)
+[post-fix-1]   409 messages:       9 "error":"Lead is not dialable (status: in_progress)" 
+[post-fix-1] (c) two users, 10 parallel next-lead requests each, at the same time
+[post-fix-1]   user1 statuses: 10×201   user2 statuses: 10×201 
+[post-fix-1]   leads served to BOTH users: none   calls: 20 on 20 leads
+[post-fix-1] (e) invariants after the run
+[post-fix-1]   I7 attempts > max_attempts: 0   I2 in_progress leads without an open call: 0   leads with >1 open call: 9
+[post-fix-1]   server log: 500-class errors=0  (lines: )
+### run 2
+[post-fix-2] (d) sequential order: first 10 leads served by 10 sequential POST /api/calls {} on fresh data
+[post-fix-2]   order: BA777 Karen_Mitchell David_Chen Melissa_Ortiz James_Whitfield Angela_Rossi Brian_Kowalski Patricia_Nguyen Robert_Hayes Susan_Delgado   (Bulk Agent 777 was made a due callback, so it must be first)
+[post-fix-2]   dial→disposition→dial: dispose call 10 no_answer -> [HTTP 200]; next dial -> [HTTP 201]
+[post-fix-2] (a) 20 parallel POST /api/calls {} — one user
+[post-fix-2]   statuses: 20×201 
+[post-fix-2]   calls created: 20   distinct leads: 20   responses' distinct lead ids: 20
+[post-fix-2]   leads with >1 open call (ended_at IS NULL): 1 x2, 2 x2, 3 x2, 4 x2, 5 x2, 6 x2, 7 x2, 8 x2, 10 x2
+[post-fix-2]   attempts > max_attempts (I7): 0
+[post-fix-2] (b) 10 parallel POST /api/calls {leadId:24} — one user, one lead (attempts before=0)
+[post-fix-2]   statuses: 1×201 9×409   calls on lead 24: 1  attempts after=1 (delta 1)
+[post-fix-2]   409 messages:       9 "error":"Lead is not dialable (status: in_progress)" 
+[post-fix-2] (c) two users, 10 parallel next-lead requests each, at the same time
+[post-fix-2]   user1 statuses: 10×201   user2 statuses: 10×201 
+[post-fix-2]   leads served to BOTH users: none   calls: 20 on 20 leads
+[post-fix-2] (e) invariants after the run
+[post-fix-2]   I7 attempts > max_attempts: 0   I2 in_progress leads without an open call: 0   leads with >1 open call: 9
+[post-fix-2]   server log: 500-class errors=0  (lines: )
+### run 3
+[post-fix-3] (d) sequential order: first 10 leads served by 10 sequential POST /api/calls {} on fresh data
+[post-fix-3]   order: BA777 Karen_Mitchell David_Chen Melissa_Ortiz James_Whitfield Angela_Rossi Brian_Kowalski Patricia_Nguyen Robert_Hayes Susan_Delgado   (Bulk Agent 777 was made a due callback, so it must be first)
+[post-fix-3]   dial→disposition→dial: dispose call 10 no_answer -> [HTTP 200]; next dial -> [HTTP 201]
+[post-fix-3] (a) 20 parallel POST /api/calls {} — one user
+[post-fix-3]   statuses: 20×201 
+[post-fix-3]   calls created: 20   distinct leads: 20   responses' distinct lead ids: 20
+[post-fix-3]   leads with >1 open call (ended_at IS NULL): 1 x2, 2 x2, 3 x2, 4 x2, 5 x2, 6 x2, 7 x2, 8 x2, 10 x2
+[post-fix-3]   attempts > max_attempts (I7): 0
+[post-fix-3] (b) 10 parallel POST /api/calls {leadId:24} — one user, one lead (attempts before=0)
+[post-fix-3]   statuses: 1×201 9×409   calls on lead 24: 1  attempts after=1 (delta 1)
+[post-fix-3]   409 messages:       9 "error":"Lead is not dialable (status: in_progress)" 
+[post-fix-3] (c) two users, 10 parallel next-lead requests each, at the same time
+[post-fix-3]   user1 statuses: 10×201   user2 statuses: 10×201 
+[post-fix-3]   leads served to BOTH users: none   calls: 20 on 20 leads
+[post-fix-3] (e) invariants after the run
+[post-fix-3]   I7 attempts > max_attempts: 0   I2 in_progress leads without an open call: 0   leads with >1 open call: 9
+[post-fix-3]   server log: 500-class errors=0  (lines: )
+
+(post-fix runs 1-3 above: the global '>1 open call' rows for leads 1-10 are a TEST-SETUP artifact — step (d)'s 10 calls were left open and their leads re-queued by SQL, so (a) re-dialed them. Script now closes (d)'s calls via POST /api/dispositions before (a). Re-run x3:)
+## F-14 POST-FIX — 3 consecutive runs with (d)'s calls closed via the API
+### run 4
+[post-fix-4] (d) sequential order: first 10 leads served by 10 sequential POST /api/calls {} on fresh data
+[post-fix-4]   order: BA777 Karen_Mitchell David_Chen Melissa_Ortiz James_Whitfield Angela_Rossi Brian_Kowalski Patricia_Nguyen Robert_Hayes Susan_Delgado   (Bulk Agent 777 was made a due callback, so it must be first)
+[post-fix-4]   dial→disposition→dial: dispose call 10 no_answer -> [HTTP 200]; next dial -> [HTTP 201]
+[post-fix-4]   calls from (d) left open after dispositioning them: 0
+[post-fix-4] (a) 20 parallel POST /api/calls {} — one user
+[post-fix-4]   statuses: 20×201 
+[post-fix-4]   calls created: 20   distinct leads: 20   responses' distinct lead ids: 20
+[post-fix-4]   leads with >1 open call (ended_at IS NULL): none
+[post-fix-4]   attempts > max_attempts (I7): 0
+[post-fix-4] (b) 10 parallel POST /api/calls {leadId:60} — one user, one lead (attempts before=0)
+[post-fix-4]   statuses: 1×201 9×409   calls on lead 60: 1  attempts after=1 (delta 1)
+[post-fix-4]   409 messages:       9 "error":"Lead is not dialable (status: in_progress)" 
+[post-fix-4] (c) two users, 10 parallel next-lead requests each, at the same time
+[post-fix-4]   user1 statuses: 10×201   user2 statuses: 10×201 
+[post-fix-4]   leads served to BOTH users: none   calls: 20 on 20 leads
+[post-fix-4] (e) invariants after the run
+[post-fix-4]   I7 attempts > max_attempts: 0   I2 in_progress leads without an open call: 0   leads with >1 open call: 0
+[post-fix-4]   server log: 500-class errors=0  (lines: )
+### run 5
+[post-fix-5] (d) sequential order: first 10 leads served by 10 sequential POST /api/calls {} on fresh data
+[post-fix-5]   order: BA777 Karen_Mitchell David_Chen Melissa_Ortiz James_Whitfield Angela_Rossi Brian_Kowalski Patricia_Nguyen Robert_Hayes Susan_Delgado   (Bulk Agent 777 was made a due callback, so it must be first)
+[post-fix-5]   dial→disposition→dial: dispose call 10 no_answer -> [HTTP 200]; next dial -> [HTTP 201]
+[post-fix-5]   calls from (d) left open after dispositioning them: 0
+[post-fix-5] (a) 20 parallel POST /api/calls {} — one user
+[post-fix-5]   statuses: 20×201 
+[post-fix-5]   calls created: 20   distinct leads: 20   responses' distinct lead ids: 20
+[post-fix-5]   leads with >1 open call (ended_at IS NULL): none
+[post-fix-5]   attempts > max_attempts (I7): 0
+[post-fix-5] (b) 10 parallel POST /api/calls {leadId:60} — one user, one lead (attempts before=0)
+[post-fix-5]   statuses: 1×201 9×409   calls on lead 60: 1  attempts after=1 (delta 1)
+[post-fix-5]   409 messages:       9 "error":"Lead is not dialable (status: in_progress)" 
+[post-fix-5] (c) two users, 10 parallel next-lead requests each, at the same time
+[post-fix-5]   user1 statuses: 10×201   user2 statuses: 10×201 
+[post-fix-5]   leads served to BOTH users: none   calls: 20 on 20 leads
+[post-fix-5] (e) invariants after the run
+[post-fix-5]   I7 attempts > max_attempts: 0   I2 in_progress leads without an open call: 0   leads with >1 open call: 0
+[post-fix-5]   server log: 500-class errors=0  (lines: )
+### run 6
+[post-fix-6] (d) sequential order: first 10 leads served by 10 sequential POST /api/calls {} on fresh data
+[post-fix-6]   order: BA777 Karen_Mitchell David_Chen Melissa_Ortiz James_Whitfield Angela_Rossi Brian_Kowalski Patricia_Nguyen Robert_Hayes Susan_Delgado   (Bulk Agent 777 was made a due callback, so it must be first)
+[post-fix-6]   dial→disposition→dial: dispose call 10 no_answer -> [HTTP 200]; next dial -> [HTTP 201]
+[post-fix-6]   calls from (d) left open after dispositioning them: 0
+[post-fix-6] (a) 20 parallel POST /api/calls {} — one user
+[post-fix-6]   statuses: 20×201 
+[post-fix-6]   calls created: 20   distinct leads: 20   responses' distinct lead ids: 20
+[post-fix-6]   leads with >1 open call (ended_at IS NULL): none
+[post-fix-6]   attempts > max_attempts (I7): 0
+[post-fix-6] (b) 10 parallel POST /api/calls {leadId:60} — one user, one lead (attempts before=0)
+[post-fix-6]   statuses: 1×201 9×409   calls on lead 60: 1  attempts after=1 (delta 1)
+[post-fix-6]   409 messages:       9 "error":"Lead is not dialable (status: in_progress)" 
+[post-fix-6] (c) two users, 10 parallel next-lead requests each, at the same time
+[post-fix-6]   user1 statuses: 10×201   user2 statuses: 10×201 
+[post-fix-6]   leads served to BOTH users: none   calls: 20 on 20 leads
+[post-fix-6] (e) invariants after the run
+[post-fix-6]   I7 attempts > max_attempts: 0   I2 in_progress leads without an open call: 0   leads with >1 open call: 0
+[post-fix-6]   server log: 500-class errors=0  (lines: )
+
+## F-14 PRE-FIX with the corrected script (base 0b85b56 in a temporary worktree, same template data)
+[pre-fix-corrected] (d) sequential order: first 10 leads served by 10 sequential POST /api/calls {} on fresh data
+[pre-fix-corrected]   order: BA777 Karen_Mitchell David_Chen Melissa_Ortiz James_Whitfield Angela_Rossi Brian_Kowalski Patricia_Nguyen Robert_Hayes Susan_Delgado   (Bulk Agent 777 was made a due callback, so it must be first)
+[pre-fix-corrected]   dial→disposition→dial: dispose call 10 no_answer -> [HTTP 200]; next dial -> [HTTP 201]
+[pre-fix-corrected]   calls from (d) left open after dispositioning them: 0
+[pre-fix-corrected] (a) 20 parallel POST /api/calls {} — one user
+[pre-fix-corrected]   statuses: 20×201 
+[pre-fix-corrected]   calls created: 20   distinct leads: 3   responses' distinct lead ids: 3
+[pre-fix-corrected]   leads with >1 open call (ended_at IS NULL): 11 x2, 12 x14, 13 x4
+[pre-fix-corrected]   attempts > max_attempts (I7): 1
+[pre-fix-corrected] (b) 10 parallel POST /api/calls {leadId:24} — one user, one lead (attempts before=0)
+[pre-fix-corrected]   statuses: 8×201 2×409   calls on lead 24: 8  attempts after=8 (delta 8)
+[pre-fix-corrected]   409 messages:       2 "error":"Lead is not dialable (status: in_progress)" 
+[pre-fix-corrected] (c) two users, 10 parallel next-lead requests each, at the same time
+[pre-fix-corrected]   user1 statuses: 10×201   user2 statuses: 10×201 
+[pre-fix-corrected]   leads served to BOTH users: 14, 15, 16   calls: 20 on 4 leads
+[pre-fix-corrected] (e) invariants after the run
+[pre-fix-corrected]   I7 attempts > max_attempts: 3   I2 in_progress leads without an open call: 0   leads with >1 open call: 8
+[pre-fix-corrected]   server log: 500-class errors=0  (lines: )
+
+## Redial flag (post-fix)
+[post-fix] lead 26: first dial -> [HTTP 201]  attempts=1
+[post-fix]   same user, plain repeat {leadId}            -> [HTTP 409] Lead is not dialable (status: in_progress)
+[post-fix]   same user, Redial button {leadId,redial:true} -> [HTTP 201]  attempts=2
+[post-fix]   OTHER user with redial:true                 -> [HTTP 409] Lead is not dialable (status: in_progress)
+[post-fix]   calls on lead 26: 2
+
+## F-27 with ONLY the F-14 fix (callSession.js unchanged) — informational
+[after-f14-only] (a) one user, 3 lines, forced no_answer, 15 s
+[after-f14-only]   SUMMARY sessionId=1 events=60 byStatus={"loading":15,"dialing":15,"ringing":15,"no_answer":12,"dropped":3} maxConcurrentLiveSlots=3 (lineCount=3)
+[after-f14-only]   calls: 15 on 15 distinct leads
+[after-f14-only]   same lead dialed twice in the same second within one session: none
+[after-f14-only]   sample (first 6 calls): 1:slot1:lead1@36.061  2:slot2:lead2@36.062  3:slot3:lead3@36.070  4:slot1:lead4@39.081  5:slot2:lead5@39.082  6:slot3:lead6@39.092
+[after-f14-only] (b) two users, two sessions at once, 3 lines each, forced no_answer, 15 s
+[after-f14-only]   calls: 30 on 30 leads; sessions: 2,3
+[after-f14-only]   same lead in BOTH sessions with overlapping calls (started < 6 s apart): none
+[after-f14-only]   same-second duplicates within a session: none
+[after-f14-only] (c) audit §5.2: 3 lines all answered -> held; dispose+release active -> promoted; stop
+[after-f14-only]     3.1s slot 1 answered  
+[after-f14-only]     3.1s slot 2 held      
+[after-f14-only]     3.1s slot 3 held      
+[after-f14-only]     7.7s slot 2 answered   (promoted from hold)
+[after-f14-only]     7.7s POST /api/calls/multiline/release {"slotNumber":1} -> 200 {"promoted":2}
+[after-f14-only]   SUMMARY sessionId=4 events=21 byStatus={"loading":5,"dialing":5,"ringing":5,"answered":2,"held":2,"no_answer":1,"dropped":1} maxConcurrentLiveSlots=3 (lineCount=3)
+[after-f14-only] (d) selected-leads session with 5 chosen ids: 1 soft-deleted (API DELETE), 1 DNC-listed (direct SQL), 3 normal
+[after-f14-only]   ids=[50,51,52,53,54] deleted=51 dnc_listed=53
+[after-f14-only]   multiline/start -> 201 {"lineCount":3,"slots":[{"slotNumber":1,"leadId":54,"status":"ringing"},{"slotNumber":2,"leadId":52,"status":"ringing"},{"slotNumber":3,"leadId":50,"status":"ringing"}]}
+[after-f14-only]   multiline/stop -> 200 {"abandonedCount":0}
+[after-f14-only]   calls per chosen lead: 50=1 51=0 52=1 53=0 54=1
+[after-f14-only]   status of chosen leads: 50:no_answer 51:new(deleted) 52:no_answer 53:new 54:no_answer
+[after-f14-only]   leads left in_progress after stop: 0
+[after-f14-only] server log errors: 0  lines: 
+
+## F-27 POST-FIX (F-14 + serialized refills via callSession.queueRefill) — 3 consecutive runs
+### run 1
+[post-fix-1] (a) one user, 3 lines, forced no_answer, 15 s
+[post-fix-1]   SUMMARY sessionId=1 events=60 byStatus={"loading":15,"dialing":15,"ringing":15,"no_answer":12,"dropped":3} maxConcurrentLiveSlots=3 (lineCount=3)
+[post-fix-1]   calls: 15 on 15 distinct leads
+[post-fix-1]   same lead dialed twice in the same second within one session: none
+[post-fix-1]   sample (first 6 calls): 1:slot2:lead2@56.247  2:slot1:lead1@56.248  3:slot3:lead3@56.254  4:slot1:lead4@59.263  5:slot2:lead5@59.273  6:slot3:lead6@59.281
+[post-fix-1] (b) two users, two sessions at once, 3 lines each, forced no_answer, 15 s
+[post-fix-1]   calls: 30 on 30 leads; sessions: 2,3
+[post-fix-1]   same lead in BOTH sessions with overlapping calls (started < 6 s apart): none
+[post-fix-1]   same-second duplicates within a session: none
+[post-fix-1] (c) audit §5.2: 3 lines all answered -> held; dispose+release active -> promoted; stop
+[post-fix-1]     3.1s slot 1 answered  
+[post-fix-1]     3.1s slot 2 held      
+[post-fix-1]     3.1s slot 3 held      
+[post-fix-1]     7.5s slot 2 answered   (promoted from hold)
+[post-fix-1]     7.5s POST /api/calls/multiline/release {"slotNumber":1} -> 200 {"promoted":2}
+[post-fix-1]   SUMMARY sessionId=4 events=21 byStatus={"loading":5,"dialing":5,"ringing":5,"answered":2,"held":2,"no_answer":1,"dropped":1} maxConcurrentLiveSlots=3 (lineCount=3)
+[post-fix-1] (d) selected-leads session with 5 chosen ids: 1 soft-deleted (API DELETE), 1 DNC-listed (direct SQL), 3 normal
+[post-fix-1]   ids=[50,51,52,53,54] deleted=51 dnc_listed=53
+[post-fix-1]   multiline/start -> 201 {"lineCount":3,"slots":[{"slotNumber":1,"leadId":54,"status":"ringing"},{"slotNumber":2,"leadId":52,"status":"ringing"},{"slotNumber":3,"leadId":50,"status":"ringing"}]}
+[post-fix-1]   multiline/stop -> 200 {"abandonedCount":0}
+[post-fix-1]   calls per chosen lead: 50=1 51=0 52=1 53=0 54=1
+[post-fix-1]   status of chosen leads: 50:no_answer 51:new(deleted) 52:no_answer 53:new 54:no_answer
+[post-fix-1]   leads left in_progress after stop: 0
+[post-fix-1] server log errors: 0  lines: 
+### run 2
+[post-fix-2] (a) one user, 3 lines, forced no_answer, 15 s
+[post-fix-2]   SUMMARY sessionId=1 events=60 byStatus={"loading":15,"dialing":15,"ringing":15,"no_answer":12,"dropped":3} maxConcurrentLiveSlots=3 (lineCount=3)
+[post-fix-2]   calls: 15 on 15 distinct leads
+[post-fix-2]   same lead dialed twice in the same second within one session: none
+[post-fix-2]   sample (first 6 calls): 1:slot1:lead1@50.179  2:slot2:lead2@50.179  3:slot3:lead3@50.187  4:slot1:lead4@53.197  5:slot2:lead5@53.215  6:slot3:lead6@53.224
+[post-fix-2] (b) two users, two sessions at once, 3 lines each, forced no_answer, 15 s
+[post-fix-2]   calls: 30 on 30 leads; sessions: 2,3
+[post-fix-2]   same lead in BOTH sessions with overlapping calls (started < 6 s apart): none
+[post-fix-2]   same-second duplicates within a session: none
+[post-fix-2] (c) audit §5.2: 3 lines all answered -> held; dispose+release active -> promoted; stop
+[post-fix-2]     3.1s slot 1 answered  
+[post-fix-2]     3.1s slot 2 held      
+[post-fix-2]     3.1s slot 3 held      
+[post-fix-2]     7.5s slot 2 answered   (promoted from hold)
+[post-fix-2]     7.5s POST /api/calls/multiline/release {"slotNumber":1} -> 200 {"promoted":2}
+[post-fix-2]   SUMMARY sessionId=4 events=21 byStatus={"loading":5,"dialing":5,"ringing":5,"answered":2,"held":2,"no_answer":1,"dropped":1} maxConcurrentLiveSlots=3 (lineCount=3)
+[post-fix-2] (d) selected-leads session with 5 chosen ids: 1 soft-deleted (API DELETE), 1 DNC-listed (direct SQL), 3 normal
+[post-fix-2]   ids=[50,51,52,53,54] deleted=51 dnc_listed=53
+[post-fix-2]   multiline/start -> 201 {"lineCount":3,"slots":[{"slotNumber":1,"leadId":54,"status":"ringing"},{"slotNumber":2,"leadId":52,"status":"ringing"},{"slotNumber":3,"leadId":50,"status":"ringing"}]}
+[post-fix-2]   multiline/stop -> 200 {"abandonedCount":0}
+[post-fix-2]   calls per chosen lead: 50=1 51=0 52=1 53=0 54=1
+[post-fix-2]   status of chosen leads: 50:no_answer 51:new(deleted) 52:no_answer 53:new 54:no_answer
+[post-fix-2]   leads left in_progress after stop: 0
+[post-fix-2] server log errors: 0  lines: 
+### run 3
+[post-fix-3] (a) one user, 3 lines, forced no_answer, 15 s
+[post-fix-3]   SUMMARY sessionId=1 events=60 byStatus={"loading":15,"dialing":15,"ringing":15,"no_answer":12,"dropped":3} maxConcurrentLiveSlots=3 (lineCount=3)
+[post-fix-3]   calls: 15 on 15 distinct leads
+[post-fix-3]   same lead dialed twice in the same second within one session: none
+[post-fix-3]   sample (first 6 calls): 1:slot1:lead1@44.176  2:slot2:lead2@44.176  3:slot3:lead3@44.183  4:slot2:lead4@47.208  5:slot1:lead5@47.217  6:slot3:lead6@47.231
+[post-fix-3] (b) two users, two sessions at once, 3 lines each, forced no_answer, 15 s
+[post-fix-3]   calls: 30 on 30 leads; sessions: 2,3
+[post-fix-3]   same lead in BOTH sessions with overlapping calls (started < 6 s apart): none
+[post-fix-3]   same-second duplicates within a session: none
+[post-fix-3] (c) audit §5.2: 3 lines all answered -> held; dispose+release active -> promoted; stop
+[post-fix-3]     3.1s slot 1 answered  
+[post-fix-3]     3.1s slot 2 held      
+[post-fix-3]     3.1s slot 3 held      
+[post-fix-3]     7.5s slot 2 answered   (promoted from hold)
+[post-fix-3]     7.5s POST /api/calls/multiline/release {"slotNumber":1} -> 200 {"promoted":2}
+[post-fix-3]   SUMMARY sessionId=4 events=21 byStatus={"loading":5,"dialing":5,"ringing":5,"answered":2,"held":2,"no_answer":1,"dropped":1} maxConcurrentLiveSlots=3 (lineCount=3)
+[post-fix-3] (d) selected-leads session with 5 chosen ids: 1 soft-deleted (API DELETE), 1 DNC-listed (direct SQL), 3 normal
+[post-fix-3]   ids=[50,51,52,53,54] deleted=51 dnc_listed=53
+[post-fix-3]   multiline/start -> 201 {"lineCount":3,"slots":[{"slotNumber":1,"leadId":54,"status":"ringing"},{"slotNumber":2,"leadId":52,"status":"ringing"},{"slotNumber":3,"leadId":50,"status":"ringing"}]}
+[post-fix-3]   multiline/stop -> 200 {"abandonedCount":0}
+[post-fix-3]   calls per chosen lead: 50=1 51=0 52=1 53=0 54=1
+[post-fix-3]   status of chosen leads: 50:no_answer 51:new(deleted) 52:no_answer 53:new 54:no_answer
+[post-fix-3]   leads left in_progress after stop: 0
+[post-fix-3] server log errors: 0  lines: 
+
+## F-51 PRE-FIX under vite dev (React.StrictMode), mock forced answered
+(first F-51 pre-fix attempt aborted: harness used $PWD after cd into the base worktree, so the --require preload path was wrong and the backend never started. Driver script fix-seg2-f51.sh uses an absolute path.)
+[pre-fix-base] visit /call/90: POST /api/calls sent=2
+[pre-fix-base]    201 body={"leadId":"90"} -> lead 90
+[pre-fix-base]    201 body={"leadId":"90"} -> lead 90
+[pre-fix-base]    UI state at 8s: Ringing…
+[pre-fix-base] page errors: none
+[pre-fix-base] DB lead 90: calls=2 (1:answered, 2:answered) attempts 0 -> 2
+[pre-fix-after-F14] visit /call/90: POST /api/calls sent=2
+[pre-fix-after-F14]    201 body={"leadId":"90"} -> lead 90
+[pre-fix-after-F14]    409 body={"leadId":"90"} error="Lead is not dialable (status: in_progress)"
+[pre-fix-after-F14]    UI state at 8s: Couldn't start this call
+[pre-fix-after-F14] page errors: none
+[pre-fix-after-F14] DB lead 90: calls=1 (1:answered) attempts 0 -> 1
+
+## F-51 POST-FIX (useCall.js startedForRef/activeRef) — vite dev x3, dev navigation A->B, production build
+[post-fix-dev-1] visit /call/90: POST /api/calls sent=1
+[post-fix-dev-1]    201 body={"leadId":"90"} -> lead 90
+[post-fix-dev-1]    UI state at 8s: Connected
+[post-fix-dev-1] page errors: none
+[post-fix-dev-1] DB lead 90: calls=1 (1:answered) attempts 0 -> 1
+[post-fix-dev-2] visit /call/90: POST /api/calls sent=1
+[post-fix-dev-2]    201 body={"leadId":"90"} -> lead 90
+[post-fix-dev-2]    UI state at 8s: Connected
+[post-fix-dev-2] page errors: none
+[post-fix-dev-2] DB lead 90: calls=1 (1:answered) attempts 0 -> 1
+[post-fix-dev-3] visit /call/90: POST /api/calls sent=1
+[post-fix-dev-3]    201 body={"leadId":"90"} -> lead 90
+[post-fix-dev-3]    UI state at 8s: Connected
+[post-fix-dev-3] page errors: none
+[post-fix-dev-3] DB lead 90: calls=1 (1:answered) attempts 0 -> 1
+[post-fix-dev-nav] visit /call/90: POST /api/calls sent=1
+[post-fix-dev-nav]    201 body={"leadId":"90"} -> lead 90
+[post-fix-dev-nav]    UI state at 8s: Connected
+[post-fix-dev-nav] visit /call/91: POST /api/calls sent=1
+[post-fix-dev-nav]    201 body={"leadId":"91"} -> lead 91
+[post-fix-dev-nav]    UI state at 8s: Connected
+[post-fix-dev-nav] page errors: none
+[post-fix-dev-nav] DB lead 90: calls=1 (1:answered) attempts=1 status=in_progress
+[post-fix-dev-nav] DB lead 91: calls=1 (2:answered) attempts=1 status=in_progress
+[post-fix-prod] visit /call/90: POST /api/calls sent=1
+[post-fix-prod]    201 body={"leadId":"90"} -> lead 90
+[post-fix-prod]    UI state at 8s: Connected
+[post-fix-prod] page errors: none
+[post-fix-prod] DB lead 90: calls=1 (1:answered) attempts 0 -> 1
+
+## F-51 POST-FIX: dev visit to /call/next (queue pick, no lead id)
+[post-fix-dev-next] visit /call/next: POST /api/calls sent=1
+[post-fix-dev-next]    201 body={} -> lead 1
+[post-fix-dev-next]    UI state at 8s: Connected
+[post-fix-dev-next] page errors: none
+[post-fix-dev-next] DB: calls created=1 on 1 lead(s)

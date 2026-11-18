@@ -1,0 +1,4 @@
+Vortex Dialer API listening on port 4000 (telephony: mock)
+Calling hours: worked out the time zone of 8 lead(s)
+[mockEmailAdapter] would send to ana@example.test | subject: Quick question, Ana
+SIGTERM received — stale-lock sweep and import cleanup stopped, shutting down

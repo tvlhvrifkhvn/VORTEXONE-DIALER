@@ -1,33 +1,127 @@
-import NeuCard from '../ui/NeuCard';
+import { useNavigate } from 'react-router-dom';
+import Panel from '../ui/Panel';
+import Button from '../ui/Button';
 import LeadRow from './LeadRow';
+import { useCustomFields } from '../../hooks/useCustomFields';
 
-const COLUMNS = ['Lead', 'Phone', 'State', 'Attempts', 'Status', 'Added', 'Actions'];
+// No Actions column — calling, snoozing and scheduling all moved to the lead
+// page, which a row click opens.
+const COLUMNS = ['Lead', 'Phone', 'State', 'Attempts', 'Status', 'Stage', 'Added']; // C2B: Stage
+const CALLBACK_DUE_SOON_MS = 2 * 60 * 60 * 1000;
 
-export default function LeadTable({ leads, loading, onSnooze }) {
+function isCallbackDueSoon(lead) {
+  if (lead.status !== 'callback_scheduled' || !lead.next_action_at) return false;
+  const diffMs = new Date(lead.next_action_at).getTime() - Date.now();
+  return diffMs >= 0 && diffMs <= CALLBACK_DUE_SOON_MS;
+}
+
+function EmptyState({ hasAnyLeads, selectedState }) {
+  const navigate = useNavigate();
+  const message = !hasAnyLeads
+    ? 'Import your first lead list to get started.'
+    : selectedState
+      ? `No leads in ${selectedState} yet.`
+      : 'No leads match these filters.';
+  const showImportButton = !hasAnyLeads || !!selectedState;
+
+  // Empty state: a mono label, one plain sentence, one action.
   return (
-    <NeuCard className="overflow-x-auto p-0">
+    <div className="space-y-4 px-4 py-8">
+      <p className="label">{hasAnyLeads ? 'No results' : 'No leads yet'}</p>
+      <p className="text-base text-foreground">{message}</p>
+      {showImportButton && <Button onClick={() => navigate('/import')}>Import leads →</Button>}
+    </div>
+  );
+}
+
+export default function LeadTable({
+  leads,
+  loading,
+  selectedState = null,
+  hasAnyLeads = true,
+  total = 0,
+  page = 1,
+  pageSize = 50,
+  onPageChange = () => {},
+  selectedIds = new Set(),
+  onToggleLead = () => {},
+  onSelectPage = () => {},
+  onClearPage = () => {},
+  onSelectAllFiltered = () => {},
+}) {
+  // C2D: the file's fields marked "show in list" get a column each.
+  const listFields = useCustomFields().fields.filter((f) => f.show_in_list);
+  // Leads with a callback due within the next 2 hours float to the top
+  // (stable sort keeps everything else in its existing order).
+  const orderedLeads = [...leads].sort((a, b) => Number(isCallbackDueSoon(b)) - Number(isCallbackDueSoon(a)));
+
+  const rangeStart = total === 0 ? 0 : (page - 1) * pageSize + 1;
+  const rangeEnd = Math.min(total, page * pageSize);
+  const hasPrev = page > 1;
+  const hasNext = page * pageSize < total;
+  const pageFullySelected = leads.length > 0 && leads.every((l) => selectedIds.has(l.id));
+
+  return (
+    <Panel className="overflow-x-auto p-0">
+      {/* C8B: the count and SELECT ALL live in the page's toolbar and selection strip. */}
       <table className="w-full text-sm">
-        <thead>
-          <tr className="text-left text-xs uppercase tracking-wide text-text-secondary">
+        <thead className="sticky top-0 z-[1] bg-card">
+          <tr className="border-b text-left">
+            <th className="label px-3 py-3 font-medium">
+              <input
+                type="checkbox"
+                checked={pageFullySelected}
+                onChange={() => (pageFullySelected ? onClearPage() : onSelectPage())}
+                aria-label="Select page"
+                title="Select page"
+                className="h-4 w-4 cursor-pointer accent-primary"
+              />
+            </th>
             {COLUMNS.map((col) => (
-              <th key={col} className="px-3 py-3 font-medium">
+              <th key={col} className="label px-3 py-3 font-medium">
                 {col}
+              </th>
+            ))}
+            {listFields.map((f) => (
+              <th key={`custom-${f.key}`} className={`label px-3 py-3 font-medium ${f.type === 'number' ? 'text-right' : ''}`}>
+                {f.label}
               </th>
             ))}
           </tr>
         </thead>
         <tbody>
-          {leads.map((lead) => (
-            <LeadRow key={lead.id} lead={lead} onSnooze={onSnooze} />
+          {orderedLeads.map((lead, index) => (
+            <LeadRow
+              key={lead.id}
+              lead={lead}
+              index={index}
+              callbackDueSoon={isCallbackDueSoon(lead)}
+              selected={selectedIds.has(lead.id)}
+              onToggleSelect={onToggleLead}
+              listFields={listFields}
+            />
           ))}
         </tbody>
       </table>
-      {!loading && leads.length === 0 && (
-        <div className="px-4 py-8 text-center text-sm text-text-secondary">No leads match these filters.</div>
-      )}
+      {!loading && leads.length === 0 && <EmptyState hasAnyLeads={hasAnyLeads} selectedState={selectedState} />}
       {loading && leads.length === 0 && (
-        <div className="px-4 py-8 text-center text-sm text-text-secondary">Loading…</div>
+        <div className="label px-4 py-8">Loading…</div>
       )}
-    </NeuCard>
+      {total > 0 && (
+        <div className="flex items-center justify-between border-t px-4 py-2 text-sm text-muted-foreground">
+          <span className="font-mono text-xs tabular-nums">
+            Showing {rangeStart}–{rangeEnd} of {total} leads
+          </span>
+          <div className="flex gap-2">
+            <Button onClick={() => onPageChange(page - 1)} disabled={!hasPrev}>
+              Previous
+            </Button>
+            <Button onClick={() => onPageChange(page + 1)} disabled={!hasNext}>
+              Next
+            </Button>
+          </div>
+        </div>
+      )}
+    </Panel>
   );
 }

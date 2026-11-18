@@ -21,3 +21,7 @@ backend/dist/
 # generated exports
 backend/exports/
 *.pdf
+
+# uploaded SMS media attachments
+backend/uploads/
+backups/

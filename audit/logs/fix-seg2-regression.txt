@@ -1,0 +1,222 @@
+# Segment 2 regression — branch HEAD 4b7b746 vs base 0b85b56
+
+## Segment 1 repros on Segment 2 code
+### fix-seg1-f16.sh
+[seg2-regr] lead A=5020 (214) 555-0454 dialed (call 1), disposition dnc: [HTTP 200]
+[seg2-regr]   dnc_list has +12145550454: 1
+[seg2-regr]   PUT A phone -> (214) 555-0455 (moves A off the number): [HTTP 200]
+[seg2-regr] lead B=5021
+[seg2-regr]   PUT B phone="(214) 555-0454" -> [HTTP 409] This number is on the DNC list and cannot be added as a lead stored=+12145550456
+[seg2-regr]   PUT B phone="214-555-0454" -> [HTTP 409] This number is on the DNC list and cannot be added as a lead stored=+12145550456
+[seg2-regr]   PUT B phone="+1 214 555 0454" -> [HTTP 409] This number is on the DNC list and cannot be added as a lead stored=+12145550456
+[seg2-regr]   POST /api/calls {leadId:B} -> [HTTP 201] undefined | dialed number: +12145550456
+[seg2-regr] invalid phone: PUT B phone="abc" -> [HTTP 400] Enter a valid 10-digit US phone number
+[seg2-regr] number held by lead 5022: PUT B -> [HTTP 409] A lead with this phone number already exists
+[seg2-regr] clean new number "214 555 0458": PUT B -> [HTTP 200] stored=+12145550458
+[seg2-regr] lead D=5023: number put on dnc_list by DIRECT SQL, dnc_flag=f
+[seg2-regr]   by-id dial D -> [HTTP 409] This number is on the DNC list and cannot be dialed
+[seg2-regr]   D made the top queue candidate by DIRECT SQL (callback due a day ago)
+[seg2-regr]   POST /api/calls {} -> [HTTP 201] served lead=1 (D=5023)
+[seg2-regr]   D afterwards: status=dnc dnc_flag=true locked_by=null
+[seg2-regr] manual dial pad to the DNC'd number (214) 555-0454 -> [HTTP 409] This number is on the DNC list and cannot be dialed
+### fix-seg1-f16-multiline.sh
+[seg2-regr] queue mode: lead 5024 (dnc_list only) is the top candidate
+[seg2-regr]   calls placed to lead 5024: 0   lead 5024 now: dnc dnc_flag=true   other calls placed: 4
+[seg2-regr] selected-leads mode: leadIds=[5025 (dnc_list only), 5026 (clean)]
+[seg2-regr]   multiline/start -> 201 {"lineCount":2,"slots":[{"slotNumber":1,"leadId":5026,"leadName":"Seg1 ML ok 22896","status":"ringing"}]}
+[seg2-regr]   calls placed to lead 5025: 0   lead 5025 now: new dnc_flag=false   calls to clean lead 5026: 1
+### fix-seg1-f22.sh
+[seg2-regr] lead X=5027 created; DELETE /api/leads/5027 -> [HTTP 200]  deleted_at set=t
+[seg2-regr]   dial deleted lead by id -> [HTTP 404] Lead not found
+[seg2-regr]   deleted lead made the top queue candidate by DIRECT SQL; POST /api/calls {} served lead=4 (X=5027)
+[seg2-regr] control: non-deleted lead Y=5028 dial by id -> [HTTP 201]
+### fix-seg1-f52.sh
+[seg2-regr] lead X=5029
+[seg2-regr] PUT state "ZZ"            -> [HTTP 400] Enter a valid US state  stored state=TX
+[seg2-regr] PUT name null             -> [HTTP 400] Name is required
+[seg2-regr] PUT name 10,000 chars     -> [HTTP 400] Name is too long (200 characters max)  stored length=15
+[seg2-regr] PUT name "   "             -> [HTTP 400] Name is required  stored name="Seg1 Edit 15673"
+[seg2-regr] PUT name 200 chars (limit) -> [HTTP 200] undefined
+[seg2-regr] PUT name 201 chars        -> [HTTP 400] Name is too long (200 characters max)
+[seg2-regr] POST state ZZ             -> [HTTP 400] Enter a valid US state
+[seg2-regr] POST name null            -> [HTTP 400] Name is required
+[seg2-regr] POST name 10,000 chars    -> [HTTP 400] Name is too long (200 characters max)
+[seg2-regr] POST name "   "            -> [HTTP 400] Name is required
+[seg2-regr] valid edits:
+[seg2-regr]   PUT name="Seg1 Renamed 15673" -> [HTTP 200] undefined  stored name=Seg1 Renamed 15673
+[seg2-regr]   PUT phone="(817) 555-5676" -> [HTTP 200] undefined  stored phone=+18175555676
+[seg2-regr]   PUT email="seg1-15673@example.com" -> [HTTP 200] undefined  stored email=seg1-15673@example.com
+[seg2-regr]   PUT address="1 Main St, Fort Worth" -> [HTTP 200] undefined  stored address=1 Main St, Fort Worth
+[seg2-regr]   PUT brokerage="Seg1 Realty" -> [HTTP 200] undefined  stored brokerage=Seg1 Realty
+[seg2-regr]   PUT state="OK" -> [HTTP 200] undefined  stored state=OK
+[seg2-regr] lowercase state: PUT {"state":"ca"} -> [HTTP 200] undefined stored=CA   | POST state "ca" -> CA
+### fix-seg1-f06.sh (fresh DB vortex_seg2_f06, SEED_USER_PASSWORD unset)
+--- [seg2-regr] seed output on vortex_seg2_f06 (passwords masked):
+    Seed complete.
+    
+    ==== SEED LOGIN (shown once — store it now, it is not saved anywhere) ====
+      email:    vortexoneagency@gmail.com
+      password: 41cs****(len 24)
+    =========================================================================
+--- [seg2-regr] users row: vortexoneagency@gmail.com role=supervisor
+--- [seg2-regr] login with the password the seed printed (41cs****(len 24)): HTTP 200
+--- [seg2-regr] login with the OLD committed default (Chan****(len 12)): HTTP 401
+
+## BEFORE (base 0b85b56)
+schema-check: == column/table problems: 0
+routes: 77
+calling-hours.js: 34 lines
+
+## AFTER (HEAD 4b7b746)
+schema-check: == column/table problems: 0
+routes: 77
+calling-hours.js: 34 lines
+
+routes identical: yes
+calling-hours.js output identical (excluding the 'toggle ON (was …)' line, which reflects the shared DB setting): yes
+calling-hours AFTER boundaries:
+== boundaries in each state's mapped zone (2026-11-11, standard time)
+FL  America/New_York     07:59=block  08:00=ALLOW  20:59=ALLOW  21:00=block
+AZ  America/Phoenix      07:59=block  08:00=ALLOW  20:59=ALLOW  21:00=block
+HI  Pacific/Honolulu     07:59=block  08:00=ALLOW  20:59=ALLOW  21:00=block
+CA  America/Los_Angeles  07:59=block  08:00=ALLOW  20:59=ALLOW  21:00=block
+TX  America/Chicago      07:59=block  08:00=ALLOW  20:59=ALLOW  21:00=block
+NY  America/New_York     07:59=block  08:00=ALLOW  20:59=ALLOW  21:00=block
+AK  America/Anchorage    07:59=block  08:00=ALLOW  20:59=ALLOW  21:00=block
+
+dist/assets/index-CL41BCi0.js   318.76 kB │ gzip: 96.15 kB
+✓ built in 1.83s
+
+## server log summary — every backend log written during Segment 2 (audit/logs/server-seg2-*.txt + scratch logs of the F-51/redial runs)
+  server-seg2-authmatrix.txt                           errors/warnings=0 
+  server-seg2-base.txt                                 errors/warnings=0 
+  server-seg2-f14-post-fix-1.txt                       errors/warnings=0 
+  server-seg2-f14-post-fix-2.txt                       errors/warnings=0 
+  server-seg2-f14-post-fix-3.txt                       errors/warnings=0 
+  server-seg2-f14-post-fix-4.txt                       errors/warnings=0 
+  server-seg2-f14-post-fix-5.txt                       errors/warnings=0 
+  server-seg2-f14-post-fix-6.txt                       errors/warnings=0 
+  server-seg2-f14-pre-fix.txt                          errors/warnings=0 
+  server-seg2-f14-pre-fix2.txt                         errors/warnings=0 
+  server-seg2-f27-after-f14-only.txt                   errors/warnings=0 
+  server-seg2-f27-post-fix-1.txt                       errors/warnings=0 
+  server-seg2-f27-post-fix-2.txt                       errors/warnings=0 
+  server-seg2-f27-post-fix-3.txt                       errors/warnings=0 
+  server-seg2-f27-pre-fix.txt                          errors/warnings=0 
+  server-seg2-redial.txt                               errors/warnings=0 
+  server-seg2-regr.txt                                 errors/warnings=0 
+  f51-be-post-fix-dev-1.txt                            errors/warnings=0 
+  f51-be-post-fix-dev-2.txt                            errors/warnings=0 
+  f51-be-post-fix-dev-3.txt                            errors/warnings=0 
+  f51-be-post-fix-dev-nav.txt                          errors/warnings=0 
+  f51-be-post-fix-prod.txt                             errors/warnings=0 
+  f51-be-pre-fix-after-F14.txt                         errors/warnings=0 
+  f51-be-pre-fix-base.txt                              errors/warnings=0 
+  next-be.txt                                          errors/warnings=0 
+  (the only matching lines are the expected startup notices 'GROQ_API_KEY not set — … unavailable' if present)
+
+## auth-matrix.js (paced) BEFORE base :4100 vs AFTER branch :4000
+BEFORE: protected routes tested: 75 (+ SSE); routes not returning 401 for every bad token: 0
+AFTER:  protected routes tested: 75 (+ SSE); routes not returning 401 for every bad token: 0
+status tables identical: yes
+
+## ui-smoke.js against the PRODUCTION build (vite build + preview), backend HEAD
+### unauth-root (/) -> final URL /login
+### login -> /
+### dashboard (/) -> final URL /
+  pagination: before="Showing 50 of 5029 leads
+  global search 'Lia Lane' dropdown shows it: false
+  dark mode: toggled=true after reload dark=true localStorage=dark
+### lead-detail (/leads/11) -> final URL /leads/11
+### inbox (/inbox) -> final URL /inbox
+### sms-templates (/sms/templates) -> final URL /sms/templates
+### import (/import) -> final URL /import
+### reports (/reports) -> final URL /reports
+### settings (/settings) -> final URL /settings
+### dialer (/dialer) -> final URL /dialer
+### manual-dial (/call/manual) -> final URL /call/manual
+  dial pad after paste "+1 (305) 555-0138": "3055550138"
+### call-screen (/call/100) -> final URL /call/100
+  buttons: Dial a number / Switch to dark mode / Log out / BRIEF
+  after pressing 'n': No Answer
+### unknown-route (/this-does-not-exist) -> final URL /
+unauth-root: console=0 http=0
+dashboard: console=0 http=0
+lead-detail: console=0 http=0
+inbox: console=0 http=0
+sms-templates: console=0 http=0
+import: console=0 http=0
+reports: console=0 http=0
+settings: console=0 http=0
+dialer: console=0 http=0
+manual-dial: console=0 http=0
+call-screen: console=0 http=0
+unknown-route: console=0 http=0
+POST /api/calls rows for the call-screen visit to lead 100: 1
+(note: 'global search Lia Lane: false' is data, not a regression — the Segment 2 DB was built from a_clean.csv + j_5000.csv only, and Lia Lane comes from c_source.csv; the search box itself rendered and was filled)
+
+## invariants.sql on vortex_seg2_run after the regression runs
+-- I1 every lead has exactly one status from the allowed list (violations):
+ status | count 
+--------+-------
+(0 rows)
+
+-- I2 leads in_progress, and whether each has an open (undispositioned) call:
+ id | locked_by | lock_age_s | open_calls 
+----+-----------+------------+------------
+(0 rows)
+
+-- I3 in_progress with lock older than 30s (should be swept on next queue read):
+ stale_locks 
+-------------
+           0
+(1 row)
+
+-- I4 orphan call rows (lead_id not in leads; manual calls have NULL lead_id by design):
+ orphan_calls 
+--------------
+            0
+(1 row)
+
+-- I5 calls never dispositioned and never ended, older than 5 minutes:
+ dangling_calls 
+----------------
+              4
+(1 row)
+
+-- I6 leads with more open (undispositioned) calls than one:
+ lead_id | open_calls 
+---------+------------
+       4 |          2
+(1 row)
+
+-- I7 attempts above max_attempts:
+ id | attempts | max_attempts | status 
+----+----------+--------------+--------
+(0 rows)
+
+-- I8 dnc consistency: dnc_flag vs status vs dnc_list
+                      kind                       | count 
+-------------------------------------------------+-------
+ flag without status                             |     0
+ status without flag                             |     0
+ lead whose phone is on dnc_list but not flagged |     1
+ phones not in E.164 (+1 and 10 digits)          |     0
+(4 rows)
+
+-- I9 lead counts:
+ total | soft_deleted 
+-------+--------------
+  5030 |            1
+(1 row)
+
+
+## I6 follow-up: lead 4's two undispositioned calls
+ id | user_id | session_id | started  | telephony_state | ended 
+----+---------+------------+----------+-----------------+-------
+  6 |       1 |          1 | 16:14:49 | ringing         | t
+  9 |       1 |            | 16:14:56 | ringing         | f
+(2 rows)
+
+=> CORRECTION of my first explanation: the calls are 7 s apart, not minutes. Call 6 belongs to the multi-line session of fix-seg1-f16-multiline.sh and was ABANDONED when that session stopped (ended_at set, ended=t; abandonSlotCall put lead 4 back to in_queue). fix-seg1-f22.sh's next-lead request then dialed lead 4 again (call 9). Only one call was ever open (ended_at IS NULL) at a time; I6 counts undispositioned calls, which includes the abandoned one. Not a concurrency issue.
+leads with >1 OPEN call (ended_at is null): 0

@@ -1,0 +1,17 @@
+Vortex Dialer API listening on port 4000 (telephony: mock)
+MulterError: File too large
+    at abortWithCode (/home/user/vortexone-dialer/backend/node_modules/multer/lib/make-middleware.js:171:22)
+    at FileStream.<anonymous> (/home/user/vortexone-dialer/backend/node_modules/multer/lib/make-middleware.js:261:11)
+    at FileStream.emit (node:events:519:28)
+    at SBMH.ssCb [as _cb] (/home/user/vortexone-dialer/backend/node_modules/busboy/lib/types/multipart.js:479:32)
+    at feed (/home/user/vortexone-dialer/backend/node_modules/streamsearch/lib/sbmh.js:248:10)
+    at SBMH.push (/home/user/vortexone-dialer/backend/node_modules/streamsearch/lib/sbmh.js:104:16)
+    at Multipart._write (/home/user/vortexone-dialer/backend/node_modules/busboy/lib/types/multipart.js:567:19)
+    at writeOrBuffer (node:internal/streams/writable:572:12)
+    at _write (node:internal/streams/writable:501:10)
+    at Writable.write (node:internal/streams/writable:510:10) {
+  code: 'LIMIT_FILE_SIZE',
+  field: 'file',
+  storageErrors: []
+}
+SIGTERM received — stale-lock sweep stopped, shutting down

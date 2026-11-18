@@ -7,11 +7,15 @@ class ApiError extends Error {
 
 // eslint-disable-next-line no-unused-vars
 function errorHandler(err, req, res, next) {
-  const status = err.status || 500;
+  const status = err.status || err.statusCode || 500;
   if (status >= 500) {
     console.error(err);
+    // F-53: an unexpected error's detail (stack, database message) goes to
+    // the server log only. A deliberate ApiError (e.g. the 502 for a dial
+    // the provider refused) keeps its plain message.
+    if (!(err instanceof ApiError)) return res.status(status).json({ error: 'Something went wrong' });
   }
-  res.status(status).json({ error: err.message || 'Internal server error' });
+  res.status(status).json({ error: err.message || 'Request failed' });
 }
 
 function notFound(req, res) {

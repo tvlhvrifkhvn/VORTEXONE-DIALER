@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import * as api from '../lib/api';
+import { resetUserSettings } from './useUserSettings';
 
 const AuthContext = createContext(null);
 
@@ -31,6 +32,7 @@ export function AuthProvider({ children }) {
 
   const logout = useCallback(() => {
     api.setToken(null);
+    resetUserSettings();
     setUser(null);
   }, []);
 

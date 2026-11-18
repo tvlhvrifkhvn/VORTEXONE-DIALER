@@ -1,0 +1,108 @@
+## 6.1 every disposition in leadLifecycle.DISPOSITIONS: 'contacted' 'voicemail' 'no_answer' 'no_contact_number' 'no_contact_person' 'dnc' 'callback_scheduled' 
+contacted -> [HTTP 200] : lead 69 status=contacted attempts=1 notes_count=1 dnc_flag=false cold_reason=- | call 153 dispo=contacted note="note for contacted on lead 69" disposition_at=11:08:57 ended=true was_recorded=true
+voicemail -> [HTTP 200] : lead 249 status=voicemail attempts=1 notes_count=1 dnc_flag=false cold_reason=- | call 154 dispo=voicemail note="note for voicemail on lead 249" disposition_at=11:08:57 ended=true was_recorded=false
+no_answer -> [HTTP 200] : lead 250 status=no_answer attempts=1 notes_count=1 dnc_flag=false cold_reason=- | call 155 dispo=no_answer note="note for no_answer on lead 250" disposition_at=11:08:57 ended=true was_recorded=false
+no_contact_number -> [HTTP 200] : lead 251 status=no_contact_number attempts=1 notes_count=1 dnc_flag=false cold_reason=- | call 156 dispo=no_contact_number note="note for no_contact_number on lead 251" disposition_at=11:08:57 ended=true was_recorded=false
+no_contact_person -> [HTTP 200] : lead 252 status=cold attempts=1 notes_count=1 dnc_flag=false cold_reason=no_contact_person | call 157 dispo=no_contact_person note="note for no_contact_person on lead 252" disposition_at=11:08:58 ended=true was_recorded=false
+dnc -> [HTTP 200] : lead 253 status=dnc attempts=1 notes_count=1 dnc_flag=true cold_reason=- | call 158 dispo=dnc note="note for dnc on lead 253" disposition_at=11:08:58 ended=true was_recorded=false
+callback_scheduled -> [HTTP 200] : lead 254 status=callback_scheduled attempts=1 notes_count=1 dnc_flag=false cold_reason=- | call 159 dispo=callback_scheduled note="note for callback_scheduled on lead 254" disposition_at=11:08:58 ended=true was_recorded=false
+unknown disposition: {"error":"Unknown disposition: bogus"} [HTTP 400]
+callback without scheduledAt: {"error":"scheduledAt is required for callback_scheduled"} [HTTP 400]
+callback with a time in the PAST: "status":"callback_scheduled" "next_action_at":"2020-01-01T00:00:00.000Z" [HTTP 200] 
+callback with an unparseable time: {"error":"invalid input syntax for type timestamp with time zone: \"0NaN-NaN-NaNTNaN:NaN:NaN.NaN+NaN:NaN\""} [HTTP 500]
+
+## 6.2 notes / previous-notes history are scoped to the right lead
+POST /api/leads/69/notes (standalone note): "id":1
+lead 69:
+  /history: [[153,"contacted","note for contacted on lead 69"]]
+  /notes:   [[1,null,"standalone note on 69"]]
+  /timeline types: [["note","standalone note on 69"],["call","note for contacted on lead 69"]]
+lead 249:
+  /history: [[154,"voicemail","note for voicemail on lead 249"]]
+  /notes:   []
+  /timeline types: [["call","note for voicemail on lead 249"]]
+Previous-notes panel source on the call screen:
+frontend/src/pages/CallScreen.jsx:204:          {/* Notes, ✨ Expand, the six disposition buttons and Previous Notes
+frontend/src/components/call/DispositionPanel.jsx:51:      .getLeadHistory(leadId)
+frontend/src/components/call/DispositionPanel.jsx:207:        <CollapsibleSection title="Previous Notes">
+does a disposition note also create a lead_notes row? lead 69 lead_notes rows: 1 (1 = only the standalone note)
+cross-lead: lead_notes rows whose call belongs to another lead: 0
+POST a note with a callId that belongs to ANOTHER lead: "lead_id":69 "call_id":154 [HTTP 201] 
+
+## 6.3 double submit / after session end / ownership
+parallel double submit (2 at once): 
+[HTTP 200] 
+"error":"Call already has a disposition" [HTTP 409] 
+attempts after double submit: 1 status=no_answer
+-- disposition after the multi-line session ended:
+  session 10 ended: {"stats":{"id":10,"user_id":1,"started_at":"2026-11-11T11:09:25.442Z","ended_at":"2026-11-11T11:09:31.524Z","mode":"mult
+  disposition on its answered call 163 afterwards: "status":"contacted" [HTTP 200] 
+  session stats after that late disposition: contacts=1 dials=1 ended_at set=true
+-- ownership: user2 dispositions a call that belongs to user1 (lead locked to user1)
+  call 164 user=1 lead locked_by=1
+  user2 POST /api/dispositions dnc: "status":"dnc" [HTTP 200] 
+  user2 undo: "status":"in_progress" [HTTP 200] 
+  user2 hangup on user1's call: {"gracePeriodSeconds":30} [HTTP 200]
+
+## 6.4 Recording indicator logic (frontend)
+55-          <span className="flex items-center gap-1.5">
+56-            <span className="h-2 w-2 rounded-full" style={{ background: '#EF4444' }} />
+57-            <span className="text-xs font-medium" style={{ color: 'var(--text-danger, #EF4444)' }}>
+58:              Recording
+59-            </span>
+285-            {entry.was_recorded && (
+287:                Recording
+backend rule: 150:    const wasRecorded = disposition === 'contacted';
+DB: was_recorded by disposition (all calls so far):
+    disposition     | was_recorded | count 
+--------------------+--------------+-------
+ callback_scheduled | f            |     4
+ contacted          | t            |     5
+ dnc                | f            |     2
+ no_answer          | f            |    68
+ no_contact_number  | f            |     2
+ no_contact_person  | f            |     1
+ voicemail          | f            |     4
+(7 rows)
+
+
+## 6.5 'today' boundary and daily numbers vs raw SQL
+DB session TimeZone: Etc/UTC   server process TZ: UTC
+reports.todayStats SQL:
+17:     WHERE started_at >= date_trunc('day', now())`
+42:     WHERE is_manual = true AND started_at >= date_trunc('day', now())
+API /api/reports/today: {"dials":164,"contacts":5,"connectRate":3} [HTTP 200]
+raw SQL (same definition):  dials=163 contacts=5
+raw SQL incl. manual calls: dials=164
+what 'today' would be for the owner in Pakistan (Asia/Karachi) vs US Eastern:
+UTC day start=2026-11-11 00:00:00+00 | PKT day start=2026-11-10 19:00:00+00 | ET day start=2026-11-11 05:00:00+00
+frontend daily goal tracker reads:
+18:const GOAL_KEY = 'vortex_dialer_daily_goal';
+31:  const stored = Number(localStorage.getItem(GOAL_KEY));
+36:function DailyGoalTracker({ dials }) {
+41:  const pct = Math.min(100, Math.round((dials / goal) * 100));
+47:      localStorage.setItem(GOAL_KEY, String(next));
+session summary (sessions/end) vs SQL for session 10: api=dials=1 contacts=1 vm=0 na=0 sql=dials=1 contacts=1 vm=0 na=0
+all sessions — stored counters vs call_history (mismatches only):
+ id | total_dials | calls | total_no_answers | na 
+----+-------------+-------+------------------+----
+(0 rows)
+
+
+## invariants at end of §6
+-- I1 every lead has exactly one status from the allowed list (violations):
+ status | count 
+--------+-------
+(0 rows)
+-- I4 orphan call rows (lead_id not in leads; manual calls have NULL lead_id by design):
+ orphan_calls 
+--------------
+            0
+(1 row)
+
+-- I9 lead counts:
+ total | soft_deleted 
+-------+--------------
+ 15052 |            1
+(1 row)
+

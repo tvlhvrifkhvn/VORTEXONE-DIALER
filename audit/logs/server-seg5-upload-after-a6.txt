@@ -1,0 +1,4 @@
+Vortex Dialer API listening on port 4000 (telephony: mock)
+Marked 1 import(s) interrupted by the restart as failed
+Import cleanup: deleted 1 unprocessed upload(s) older than 24 h
+SIGTERM received — stale-lock sweep and import cleanup stopped, shutting down

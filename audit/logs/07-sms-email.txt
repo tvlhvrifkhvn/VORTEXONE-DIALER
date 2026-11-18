@@ -1,0 +1,84 @@
+## 7.1 templates and merge fields
+template 1 -> lead 22: Hi Lia Lane at Compass in FL!
+template 1 -> lead 15050: Hi Sam Same at in FL!
+template 2 -> lead 22: Hi {first_name}, {{first_name}} — {{ name }} / {{Name}} / {{city}}
+template 2 -> lead 15050: Hi {first_name}, {{first_name}} — {{ name }} / {{Name}} / {{city}}
+template preview/validation on save? (an unknown placeholder was accepted): template 2 stored body = Hi {first_name}, {{first_name}} — {{ name }} / {{Name}} / {{city}}
+
+## 7.2 bulk send: 5 leads = 3 normal + 1 opted-out + 1 DNC
+opted out 301; DNC lead 253 (dnc_flag=t)
+bulk-send -> {"sent":3,"skipped_opt_out":1,"skipped_dnc":1,"failed":0} [HTTP 200]  request took 4.5s
+ id | lead_id |   sent_at    | gap_s 
+----+---------+--------------+-------
+  5 |      74 | 11:10:50.162 |      
+  6 |     299 | 11:10:52.056 |  1.89
+  7 |     300 | 11:10:54.310 |  2.25
+(3 rows)
+
+single send to the DNC lead: {"error":"This lead is on the Do Not Call list"} [HTTP 400]
+single send to the opted-out lead: {"error":"This lead has opted out of SMS"} [HTTP 400]
+bulk with 51 leads: {"error":"Too many leads selected — split into batches of 50 or fewer for now"} [HTTP 400]
+
+## 7.3 STOP variants / inbound path
+routes that could accept an inbound SMS (any POST under /api/sms with from/body, or a webhook):
+POST /api/sms/upload-media
+GET /api/sms/templates
+POST /api/sms/templates
+PUT /api/sms/templates/:id
+DELETE /api/sms/templates/:id
+POST /api/sms/send
+POST /api/sms/bulk-send
+GET /api/sms/inbox
+POST /api/sms/mark-read/:leadId
+POST /api/sms/opt-out/:leadId
+code that sets direction='inbound' or parses STOP keywords: 11 matches
+=> every STOP variant (STOP, stop, "Stop.", UNSUBSCRIBE, QUIT, CANCEL, END, START/UNSTOP): MISSING — there is no inbound message path to send them through
+manual opt-out (the only opt-out path) before: sms_opt_out=false dnc_flag=false status=new dnc_list=0
+POST /api/sms/opt-out/75: [HTTP 200]
+after: sms_opt_out=true dnc_flag=false status=new dnc_list=0
+the lead is still callable after SMS opt-out (legally distinct, as intended): "call":{"id":165 [HTTP 201] 
+is there a way to undo an opt-out (START)? routes: 0 matching
+
+## 7.4 SMS quiet hours: single send at 11:11Z (= 06:11 ET) with calling_hours_enforced=true
+  call to a TX lead: "error":"Outside calling hours for TX (8am-9pm local time). Try again later." [HTTP 422] 
+  SMS to lead 22 (FL): "status":"sent" [HTTP 201] 
+
+## 7.5 inbox / conversation / timeline ordering (inbound rows inserted via SQL — DB-seeded, no real inbound path exists)
+GET /api/sms/inbox: {"leads":[{"leadId":22,"leadName":"Lia Lane","brokerage":"Compass","lastMessageBody":"early morning text","lastMessageAt":"2026-11-11T11:11:23.914Z","unreadCount":2},{"leadId":74,"leadName":"Bulk Agent 25","brokerage":"Office 25","lastMessageBody":"Hi Bulk Agent 25 at Office 25 in CA!","lastMessageAt":"2026-11-11T11:10:50.162Z","unreadCount":1}]} [HTTP 200]
+lead 22 sms_opt_out after an inbound 'STOP' row exists: f (nothing processes inbound text)
+mark-read: [HTTP 200] unread left for 22: 0
+lead 22 timeline (type, timestamp) — must be newest-first or oldest-first consistently:
+   note   2026-11-11T11:11:24.064Z timeline note
+   sms    2026-11-11T11:11:23.914Z early morning text
+   sms    2026-11-11T11:10:48.958Z Hi {first_name}, {{first_name}} — {{ nam
+   sms    2026-11-11T11:10:47.484Z Hi Lia Lane at Compass in FL!
+   sms    2026-11-11T11:09:23.964Z yes call me tomorrow
+   call   2026-11-11T11:06:05.378Z no_answer
+   call   2026-11-11T11:06:02.384Z 
+   call   2026-11-11T11:05:52.187Z 
+   call   2026-11-11T11:05:52.184Z 
+   call   2026-11-11T11:05:52.183Z 
+   sms    2026-11-11T11:01:23.964Z STOP
+   sorted newest-first: true
+
+## 7.6 MMS upload-media: limits and types (multer limit MAX_MEDIA_BYTES = 5 * 1024 * 1024; fileFilter: 0)
+  pic.png (12B) -> {"url":"/uploads/1794395501414-7f30c8911e31.png"} [HTTP 201]
+     GET /uploads/1794395501414-7f30c8911e31.png WITHOUT any token -> 200 content-type=image/png
+  page.html (64B) -> {"url":"/uploads/1794395501435-a818b5b0e797.html"} [HTTP 201]
+     GET /uploads/1794395501435-a818b5b0e797.html WITHOUT any token -> 200 content-type=text/html; charset=utf-8
+  tool.exe (8B) -> {"url":"/uploads/1794395501452-cfa597d7d65d.exe"} [HTTP 201]
+     GET /uploads/1794395501452-cfa597d7d65d.exe WITHOUT any token -> 200 content-type=application/x-msdos-program
+  big.png (6000000B) -> {"error":"File is too large — the limit is 5MB"} [HTTP 400]
+  send SMS with a mediaUrl pointing anywhere (not just /uploads): "media_url":"https://evil.example.com/x.png" [HTTP 201] 
+
+## 7.7 email compose
+  lead 12 (has email) valid: {"message":{"id":1,"lead_id":12,"direction":"outbound","subject":"Quick question","body":"Hi Ben Brooks","status":"sent","sent_at":"2026-11-11T11:11:42.490Z"}} [HTTP 201]
+  missing subject: {"message":{"id":2,"lead_id":12,"direction":"outbound","subject":"","body":"x","status":"sent","sent_at":"2026-11-11T11:11:43.114Z"}} [HTTP 201]
+  missing body:    {"error":"Email body is required"} [HTTP 400]
+  missing leadId:  {"error":"Lead not found"} [HTTP 404]
+  unknown lead:    {"error":"Lead not found"} [HTTP 404]
+  lead without email: {"error":"This lead has no email address on file"} [HTTP 400]
+  DNC lead with email: {"message":{"id":3,"lead_id":11,"direction":"outbound","subject":"x","body":"y","status":"sent","sent_at":"2026-11-11T11:11:43.599Z"}} [HTTP 201]
+  mock adapter log lines:
+  (no log line — mockEmailAdapter is silent)
+  mockEmailAdapter.js has no console output

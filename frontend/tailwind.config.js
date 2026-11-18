@@ -1,36 +1,73 @@
 /** @type {import('tailwindcss').Config} */
+// Neo-Swiss tokens: docs/DESIGN.md. Colors come from CSS variables in
+// src/styles/globals.css, so the ink and paper themes switch without
+// dark: classes.
+const token = (name) => `rgb(var(--${name}) / <alpha-value>)`;
+
 export default {
   content: ['./index.html', './src/**/*.{js,jsx}'],
   theme: {
+    // Replaced, not extended: radius 0 everywhere except dots.
+    borderRadius: {
+      none: '0',
+      sm: '0',
+      DEFAULT: '0',
+      md: '0',
+      lg: '0',
+      xl: '0',
+      '2xl': '0',
+      '3xl': '0',
+      full: '9999px',
+    },
+    // Replaced: no shadows.
+    boxShadow: {
+      none: 'none',
+      sm: 'none',
+      DEFAULT: 'none',
+      md: 'none',
+      lg: 'none',
+      xl: 'none',
+      '2xl': 'none',
+      inner: 'none',
+    },
+    fontFamily: {
+      sans: ['"Inter Tight Variable"', 'system-ui', 'sans-serif'],
+      mono: ['"IBM Plex Mono"', 'ui-monospace', 'monospace'],
+    },
+    fontSize: {
+      xs: ['12px', '16px'],
+      sm: ['13px', '18px'],
+      base: ['14px', '20px'],
+      lg: ['16px', '24px'],
+      xl: ['20px', '28px'],
+      '2xl': ['28px', '32px'],
+      display: ['56px', '56px'],
+    },
     extend: {
       colors: {
-        base: '#E4E9F0',
-        surface: '#E4E9F0',
-        'text-primary': '#3E4C63',
-        'text-secondary': '#6A7A94',
-        highlight: '#FFFFFF',
-        shadow: '#A3B1C6',
-        action: {
-          call: '#3B82F6',
-          hangup: '#EF4444',
-          contacted: '#10B981',
-          neutral: '#6B7280',
-          warn: '#F59E0B',
-          dnc: '#DC2626',
+        background: token('background'),
+        card: token('card'),
+        muted: token('muted'),
+        foreground: token('foreground'),
+        'muted-foreground': token('muted-foreground'),
+        border: token('border'),
+        strong: token('border-strong'),
+        primary: {
+          DEFAULT: token('primary'),
+          foreground: token('primary-foreground'),
+          border: token('primary-border'),
         },
+        signal: token('signal-text'),
+        live: token('live'),
+        'meter-track': token('meter-track'),
+        scrim: 'rgb(14 14 14 / 0.8)',
       },
-      borderRadius: {
-        card: '14px',
-        input: '10px',
+      borderColor: {
+        DEFAULT: 'rgb(var(--border))',
       },
-      fontFamily: {
-        sans: ['Inter', 'system-ui', 'sans-serif'],
-      },
-      boxShadow: {
-        neu: '-6px -6px 12px #FFFFFF, 6px 6px 12px #A3B1C6',
-        'neu-sm': '-3px -3px 6px #FFFFFF, 3px 3px 6px #A3B1C6',
-        'neu-inset': 'inset -4px -4px 8px #FFFFFF, inset 4px 4px 8px #A3B1C6',
-        'neu-pressed': 'inset -2px -2px 5px #FFFFFF, inset 2px 2px 5px #A3B1C6',
+      letterSpacing: {
+        label: '0.08em',
+        button: '0.06em',
       },
     },
   },

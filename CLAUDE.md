@@ -1,4 +1,9 @@
-# Vortex Dialer — CLAUDE.md
+# Vortex One Outreach (repo: vortexone-dialer)
+
+Internal names (dialer, tables, env vars) stay as they are; only the product name changed.
+
+**Read first:** docs/CODEMAP.md; docs/CRM_PLAN.md (sections 0 to 4 and your phase);
+docs/DESIGN.md for any UI work.
 
 Custom cold-calling dialer for Vortexone Agency. Solo caller (Talha Arif) offering
 virtual-assistant services to US real estate agents from Pakistan. Leads come from
@@ -26,9 +31,10 @@ spreadsheets: name, phone, address, brokerage, state.
 - Backend: Node.js + Express (plain JavaScript, not TypeScript)
 - Database: PostgreSQL (raw `pg`, no ORM)
 - Frontend: React + Vite + Tailwind CSS
-- Auth: JWT with bcrypt (single user for MVP, multi-user ready)
+- Auth: JWT with bcrypt; users with roles (supervisor, rep); only a supervisor changes settings
 - PDF export: pdfkit
-- Telephony: mock adapter now, Twilio in phase 2
+- Telephony, SMS and email: mock adapters. Telnyx is the planned provider;
+  twilioAdapter.js is an unused stub (don't delete it)
 
 ## Lead status values (a lead has exactly one at any time)
 
@@ -70,22 +76,16 @@ placeCall(fromNumber, toNumber, onEvent) → callId
 - `{ type: 'answered' }`
 - `{ type: 'voicemail_detected' }`
 - `{ type: 'ended', duration: <seconds> }`
+- optional: `{ type: 'busy' }` (followed by `ended`). An adapter that never sends it still works: a call
+  that ends without being answered is handled exactly like a busy one (counted as a no-answer, requeued).
 
 `mockAdapter.js` fires these on a timer (3s ring, then randomly answered / voicemail /
 no_answer). The route handler in `routes/calls.js` reads which adapter to use from
-`TELEPHONY_PROVIDER=mock|twilio` in `.env`.
+`TELEPHONY_PROVIDER=mock` in `.env` (real providers come later).
 
-## Design language: neumorphism, with a critical exception
+## Design language: Neo-Swiss
 
-Base palette: background `#E4E9F0`, raised surfaces use dual shadows
-(`-6px -6px 12px #FFFFFF` + `6px 6px 12px #A3B1C6`), text `#3E4C63` / `#6A7A94`,
-14px radius on cards, 10px on inputs, Inter font.
-
-Neumorphic style applies to containers, cards, inputs, sidebar, and non-critical
-buttons. **Action buttons (Call, Hangup, the six disposition buttons) use solid,
-high-contrast fills instead** — see `frontend/src/styles/theme.js` for exact colors.
-Reason: strict neumorphism minimizes contrast, which slows down repetitive clicking
-during fast dialing. Containers pretty, actions loud.
+Rules: docs/DESIGN.md. Plan and status: docs/RESKIN.md (all segments done). Decisions: docs/DECISIONS.md. Build UI from the primitives in src/components/ui/ (Panel, Button, Field, ActionButton, Badge, Keycap, SectionLabel, FileTag, StatusDot, Meter, Segmented, Dialog), all shown on the hidden /styleguide page. Two themes: ink (default) and paper. Check with `npm run build` and `npm run contrast` in frontend/, `bash audit/scripts/reskin-grep.sh` (must print nothing), and `node audit/scripts/reskin-shots.js` / `reskin-a11y.js` for screenshots, the hotkey smoke test and the keyboard and label pass.
 
 ## Rules for Claude Code working on this project
 
@@ -96,7 +96,7 @@ during fast dialing. Containers pretty, actions loud.
    rewrite unrelated files.
 4. **Every backend feature has a route in `/routes/` and its logic in `/services/`.**
    No SQL in route handlers.
-5. **Every new frontend piece uses the `/components/ui/` neumorphic primitives.**
+5. **Every new frontend piece uses the `/components/ui/` primitives, following docs/DESIGN.md.**
    Don't hand-roll shadows on new components.
 6. **Commit after every working feature.** If a change breaks something and you
    can't fix it in 2 tries, revert to the last commit and try a different approach.
@@ -104,6 +104,20 @@ during fast dialing. Containers pretty, actions loud.
    (`DATABASE_URL`, `TELEPHONY_PROVIDER`, `PORT`, `JWT_SECRET`). Never hardcode.
 8. **Prefer editing over rewriting.** If asked to change one function, change that
    one function.
+9. **Collection functions take `campaignId` explicitly** (docs/CRM_PLAN.md section 3).
+   No hidden "current campaign" on the server.
+10. **`leads.status` belongs to the dialer; `pipeline_stage_id` belongs to the CRM.** Never mix them.
+11. **DNC, SMS opt-out, calling hours and the total budget are global.** No campaign can bypass them.
+12. **New behavior goes in new files** (service, route, migration). Existing files get small, named edits.
+13. **Never edit an applied migration;** add the next numbered one.
+14. **Every new rule gets an assertion in backend/tests** (`npm run verify`, from phase C0B on).
+15. **Update docs/CODEMAP.md in the same commit.**
+
+## Checks
+
+- `cd backend && npm run verify`: the safety-net tests (backend/tests). Creates and drops its own
+  `vortex_verify` database on the DATABASE_URL server, with mock providers and no AI calls; must pass
+  before every PR. A new rule gets a new assertion there.
 
 ## Running locally
 

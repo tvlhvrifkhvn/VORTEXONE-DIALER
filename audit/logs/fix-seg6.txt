@@ -1,0 +1,921 @@
+# Segment 6 — calling hours (F-18, F-19, F-20, F-26). Branch claude/fix-seg6-calling-hours, base 6cdc127 (Segment 5 Part B, PR #21 not merged).
+# Controlled clock: audit/stubs/fake-now.js (Node clock only; Postgres now() is real). Mock telephony, outcome forced by audit/stubs/force-outcome.js. Test leads inserted by DIRECT SQL (labelled in fix-seg6.sh). Synthetic data only.
+# Each suite ran 3 times on the base and 3 times on HEAD; the runs agree except timings and which tied lead the 100k test dials first.
+
+## BASE (6cdc127) — fix-seg6-zones.js + fix-seg6.sh, 3 runs
+######## base run 1
+code: base (state only); enforcement ON
+
+== 1. boundary table (local time in the zone; expected block / ALLOW / ALLOW / block)
+  summer (DST)  ET           America/New_York     07:59=block  08:00=ALLOW  20:59=ALLOW  21:00=block
+  summer (DST)  CT           America/Chicago      07:59=block  08:00=ALLOW  20:59=ALLOW  21:00=block
+  summer (DST)  MT           America/Denver       07:59=block  08:00=ALLOW  20:59=ALLOW  21:00=block
+  summer (DST)  PT           America/Los_Angeles  07:59=block  08:00=ALLOW  20:59=ALLOW  21:00=block
+  summer (DST)  AK           America/Anchorage    07:59=block  08:00=ALLOW  20:59=ALLOW  21:00=block
+  summer (DST)  HI           Pacific/Honolulu     07:59=block  08:00=ALLOW  20:59=ALLOW  21:00=block
+  summer (DST)  AZ (no DST)  America/Phoenix      07:59=block  08:00=ALLOW  20:59=ALLOW  21:00=block
+  summer (DST)  PR           America/Puerto_Rico  07:59=block  08:00=ALLOW  20:59=ALLOW  21:00=block
+  summer (DST)  VI           America/St_Thomas    07:59=block  08:00=ALLOW  20:59=ALLOW  21:00=block
+  summer (DST)  GU           Pacific/Guam         07:59=ALLOW(WRONG)  08:00=ALLOW  20:59=block(WRONG)  21:00=block
+  summer (DST)  MP           Pacific/Saipan       07:59=ALLOW(WRONG)  08:00=ALLOW  20:59=block(WRONG)  21:00=block
+  summer (DST)  AS           Pacific/Pago_Pago    07:59=ALLOW(WRONG)  08:00=ALLOW  20:59=block(WRONG)  21:00=block
+  winter        ET           America/New_York     07:59=block  08:00=ALLOW  20:59=ALLOW  21:00=block
+  winter        CT           America/Chicago      07:59=block  08:00=ALLOW  20:59=ALLOW  21:00=block
+  winter        MT           America/Denver       07:59=block  08:00=ALLOW  20:59=ALLOW  21:00=block
+  winter        PT           America/Los_Angeles  07:59=block  08:00=ALLOW  20:59=ALLOW  21:00=block
+  winter        AK           America/Anchorage    07:59=block  08:00=ALLOW  20:59=ALLOW  21:00=block
+  winter        HI           Pacific/Honolulu     07:59=block  08:00=ALLOW  20:59=ALLOW  21:00=block
+  winter        AZ (no DST)  America/Phoenix      07:59=block  08:00=ALLOW  20:59=ALLOW  21:00=block
+  winter        PR           America/Puerto_Rico  07:59=block  08:00=block(WRONG)  20:59=ALLOW  21:00=ALLOW(WRONG)
+  winter        VI           America/St_Thomas    07:59=block  08:00=block(WRONG)  20:59=ALLOW  21:00=ALLOW(WRONG)
+  winter        GU           Pacific/Guam         07:59=ALLOW(WRONG)  08:00=ALLOW  20:59=block(WRONG)  21:00=block
+  winter        MP           Pacific/Saipan       07:59=ALLOW(WRONG)  08:00=ALLOW  20:59=block(WRONG)  21:00=block
+  winter        AS           Pacific/Pago_Pago    07:59=ALLOW(WRONG)  08:00=ALLOW  20:59=block(WRONG)  21:00=block
+  wrong cells: 16
+
+== 2. split places: every 15 min over two days (summer + winter), against the real zone
+  El Paso TX (915)                               real America/Denver       -> America/Chicago                        VIOLATION ×8 (e.g. Jul 15, 7:00 AM MDT); conservative refusals inside hours ×8
+  El Paso TX by city (Canadian cell)             real America/Denver       -> America/Chicago                        VIOLATION ×8 (e.g. Jul 15, 7:00 AM MDT); conservative refusals inside hours ×8
+  Van Horn TX (432 + city)                       real America/Denver       -> America/Chicago                        VIOLATION ×8 (e.g. Jul 15, 7:00 AM MDT); conservative refusals inside hours ×8
+  Midland TX (432 + city)                        real America/Chicago      -> America/Chicago                        ok
+  Dallas TX (214)                                real America/Chicago      -> America/Chicago                        ok
+  Pensacola FL (850 + city)                      real America/Chicago      -> America/New_York                       VIOLATION ×8 (e.g. Jul 15, 7:00 AM CDT); conservative refusals inside hours ×8
+  Pensacola FL (850, no city)                    real America/Chicago      -> America/New_York                       VIOLATION ×8 (e.g. Jul 15, 7:00 AM CDT); conservative refusals inside hours ×8
+  Tallahassee FL (850 + city)                    real America/New_York     -> America/New_York                       ok
+  Bowling Green KY (270 + city)                  real America/Chicago      -> America/New_York                       VIOLATION ×8 (e.g. Jul 15, 7:00 AM CDT); conservative refusals inside hours ×8
+  Bowling Green KY by city (Canadian cell)       real America/Chicago      -> America/New_York                       VIOLATION ×8 (e.g. Jul 15, 7:00 AM CDT); conservative refusals inside hours ×8
+  Gary IN (219)                                  real America/Chicago      -> America/Indiana/Indianapolis           VIOLATION ×8 (e.g. Jul 15, 7:00 AM CDT); conservative refusals inside hours ×8
+  Evansville IN (812 + city)                     real America/Chicago      -> America/Indiana/Indianapolis           VIOLATION ×8 (e.g. Jul 15, 7:00 AM CDT); conservative refusals inside hours ×8
+  Ontario OR (541 + city)                        real America/Boise        -> America/Los_Angeles                    VIOLATION ×8 (e.g. Jul 15, 9:00 PM MDT); conservative refusals inside hours ×8
+  Knoxville TN (865)                             real America/New_York     -> America/Chicago                        VIOLATION ×8 (e.g. Jul 15, 9:00 PM EDT); conservative refusals inside hours ×8
+  Chattanooga TN (423)                           real America/New_York     -> America/Chicago                        VIOLATION ×8 (e.g. Jul 15, 9:00 PM EDT); conservative refusals inside hours ×8
+  Coeur d'Alene ID (208 + city)                  real America/Los_Angeles  -> America/Boise                          VIOLATION ×8 (e.g. Jul 15, 7:00 AM PDT); conservative refusals inside hours ×8
+  Rapid City SD (605 + city)                     real America/Denver       -> America/Chicago                        VIOLATION ×8 (e.g. Jul 15, 7:00 AM MDT); conservative refusals inside hours ×8
+  Iron Mountain MI (906 + city)                  real America/Menominee    -> America/Detroit                        VIOLATION ×8 (e.g. Jul 15, 7:00 AM CDT); conservative refusals inside hours ×8
+  Adak AK (907 + city)                           real America/Adak         -> America/Anchorage                      VIOLATION ×8 (e.g. Jul 15, 7:00 AM HADT); conservative refusals inside hours ×8
+  Window Rock AZ, Navajo Nation (928 + city)     real America/Denver       -> America/Phoenix                        VIOLATION ×4 (e.g. Jul 15, 9:00 PM MDT); conservative refusals inside hours ×4
+  Oklahoma City OK (405)                         real America/Chicago      -> America/Chicago                        ok
+  Denver CO (303)                                real America/Denver       -> America/Denver                         ok
+  TX lead with a Denver cell (303) — moved number real America/Chicago      -> America/Chicago                        ok
+  slots allowed outside the real 8am–9pm: 132
+
+== 3. unknown / invalid / missing state (at 12:00 New York time, inside hours everywhere in the lower 48)
+  state ""     -> ALLOW (zone used: America/New_York)
+  state "  "   -> ALLOW (zone used: America/New_York)
+  state "ZZ"   -> ALLOW (zone used: America/New_York)
+  state "XX"   -> ALLOW (zone used: America/New_York)
+  state null   -> ALLOW (zone used: America/New_York)
+[base] == paths: controlled clock 2026-11-13 13:30 UTC = 08:30 New York, 07:30 Chicago (CT closed); enforcement ON
+[base] -- by lead id (POST /api/calls {leadId})
+[base]   #5020 NY open (NY +12125550111) -> 201 
+[base]   #5021 IL closed (IL +13125550111) -> 422 "error":"Outside calling hours for IL (8am-9pm local time). Try again later."
+[base]   #5022 Pensacola (FL +18505550111) -> 201 
+[base]   #5023 Gary (IN +12195550111) -> 201 
+[base]   #5024 Bowling Green (KY +12705550111) -> 201 
+[base]   #5025 No state (no state +12125550112) -> 201 
+[base] -- Redial of a closed-zone lead still locked to the rep (lock set by DIRECT SQL: a call started at 20:59, Redial after 21:00)
+[base]   #5026 Redial IL (IL +13125550112) redial -> 201 
+[base] -- multi-line, selected leads [5031 Chicago, 5032 Pensacola], 6 s
+[base]   calls placed: 1 — to: ML Pensacola
+[base] -- queue (Start Dialing, POST /api/calls {}) once: due Chicago callback + due Chicago retry + 2 due Pensacola callbacks
+[base]   next lead -> 201  #5029 Callback Pensacola (FL +18505550112)
+[base] -- multi-line, queue mode, 3 lines, 6 s
+[base]   calls placed: 1 — to: Callback Pensacola 2
+[base] -- dial pad (POST /api/calls/manual/start)
+[base]   212-555-0177 -> 201 
+[base]   312-555-0177 -> 201 
+[base]   850-555-0177 -> 201 
+[base]   416-555-0177 -> 201 
+[base]   no lead lost: test leads by status: callback_scheduled=1, contacted=7, new=2, no_answer=3
+[base]   in_progress with no open call: 0; open calls: 0
+[base]   invariants: -- I1 every lead has exactly one status from the allowed list (violations): -- I2 leads in_progress, and whether each has an open (undispositioned) call: -- I3 in_progress with lock older than 30s (should be swept on next queue read): 0 -- I4 orphan call rows (lead_id not in leads; manual calls have NULL lead_id by design): 0 -- I5 calls never dispositioned and never ended, older than 5 minutes: 0
+[base]   server log (paths): 0 error/warn lines
+[base] == elpaso: controlled clock 2026-11-13 14:30 UTC = 07:30 El Paso (MT), 08:30 Dallas (CT)
+[base]   by id #5020 El Paso (TX +19155550111) -> 201 
+[base]   by id #5022 Dallas (TX +12145550111) -> 201 
+[base]   queue next (El Paso callback due) -> 201  #5021 El Paso callback (TX +19155550112)
+[base]   dial pad 915-555-0177 -> 201 
+[base]   no lead lost: test leads by status: contacted=3
+[base]   in_progress with no open call: 0; open calls: 0
+[base]   invariants: -- I1 every lead has exactly one status from the allowed list (violations): -- I2 leads in_progress, and whether each has an open (undispositioned) call: -- I3 in_progress with lock older than 30s (should be swept on next queue read): 0 -- I4 orphan call rows (lead_id not in leads; manual calls have NULL lead_id by design): 0 -- I5 calls never dispositioned and never ended, older than 5 minutes: 0
+[base]   server log (elpaso): 0 error/warn lines
+[base] == starvation: controlled clock 2026-11-14 02:30 UTC = 21:30 New York (closed), 20:30 Dallas, 19:30 Denver; 70 New York callbacks at the front, 5 Dallas + 3 Denver + 1 Knoxville behind
+[base]   queue order, first 3: NY callback_scheduled, NY callback_scheduled, NY callback_scheduled
+[base]   by id #5098 Knoxville (TN +18655550111) (Knoxville is Eastern: 21:30) -> 201 
+[base] -- single-line Start Dialing, 3 times
+[base]   next lead #1 -> 404 "error":"No dialable leads in queue right now" 
+[base]   next lead #2 -> 404 "error":"No dialable leads in queue right now" 
+[base]   next lead #3 -> 404 "error":"No dialable leads in queue right now" 
+[base] -- counts (GET /api/leads/state-counts), totals over all states
+[base] dialable=78 (no dialable-now / waiting fields)
+[base] -- multi-line, queue mode, 3 lines, 8 s
+[base]   calls placed: 0 — by state: none; session summary: byStatus={"loading":3,"idle":3}
+[base]   New York callbacks still waiting (callback_scheduled, never dialed): 70 of 70
+[base]   no lead lost: test leads by status: callback_scheduled=70, contacted=1, new=8
+[base]   in_progress with no open call: 0; open calls: 0
+[base]   invariants: -- I1 every lead has exactly one status from the allowed list (violations): -- I2 leads in_progress, and whether each has an open (undispositioned) call: -- I3 in_progress with lock older than 30s (should be swept on next queue read): 0 -- I4 orphan call rows (lead_id not in leads; manual calls have NULL lead_id by design): 0 -- I5 calls never dispositioned and never ended, older than 5 minutes: 0
+[base]   server log (starvation): 0 error/warn lines
+[base] == toggle: 07:30 Chicago (closed). PUT the setting, then try a closed Chicago lead every 100 ms (server restarted per cycle: per-user rate limit)
+[base]   cycle 1: setting ON at startup: calls placed before the first refusal: 1
+[base]   cycle 1: OFF -> first dial allowed after 5121 ms (44 refused first)
+[base]   cycle 1: ON  -> first refusal after 4994 ms (34 call(s) placed after the switch)
+[base]   cycle 2: setting ON at startup: calls placed before the first refusal: 1
+[base]   cycle 2: OFF -> first dial allowed after 5140 ms (44 refused first)
+[base]   cycle 2: ON  -> first refusal after 5110 ms (34 call(s) placed after the switch)
+[base]   cycle 3: setting ON at startup: calls placed before the first refusal: 1
+[base]   cycle 3: OFF -> first dial allowed after 5057 ms (43 refused first)
+[base]   cycle 3: ON  -> first refusal after 4960 ms (34 call(s) placed after the switch)
+[base]   no lead lost: test leads by status: contacted=108, new=292
+[base]   in_progress with no open call: 0; open calls: 0
+[base]   invariants: -- I1 every lead has exactly one status from the allowed list (violations): -- I2 leads in_progress, and whether each has an open (undispositioned) call: -- I3 in_progress with lock older than 30s (should be swept on next queue read): 0 -- I4 orphan call rows (lead_id not in leads; manual calls have NULL lead_id by design): 0 -- I5 calls never dispositioned and never ended, older than 5 minutes: 0
+[base]   server log (toggle): 0 error/warn lines
+[base] == default: no 'calling_hours_enforced' row in settings; 07:30 Chicago
+[base]   GET setting -> 200 {"key":"calling_hours_enforced","value":null}
+[base]   dial a closed Chicago lead -> 201 
+[base]   no lead lost: test leads by status: contacted=1
+[base]   in_progress with no open call: 0; open calls: 0
+[base]   invariants: -- I1 every lead has exactly one status from the allowed list (violations): -- I2 leads in_progress, and whether each has an open (undispositioned) call: -- I3 in_progress with lock older than 30s (should be swept on next queue read): 0 -- I4 orphan call rows (lead_id not in leads; manual calls have NULL lead_id by design): 0 -- I5 calls never dispositioned and never ended, older than 5 minutes: 0
+[base]   server log (default): 0 error/warn lines
+[base] == perf: 100,000 leads (+5,000 NY callbacks at the front), 21:30 New York; server ready after 1233 ms
+[base]   zones stored: n/a (no column)
+[base]   GET /api/leads?pageSize=50 x15: median 0.082805s, max 0.095684s
+[base]   GET /api/leads/state-counts x15: median 0.015582s, max 0.020096s
+[base]   POST /api/calls {} (next lead) x10: codes 10 404;, median 0.037504s, max 0.046253s
+[base]   dialed: none
+[base]   server log (perf): 0 error/warn lines
+######## base run 2
+code: base (state only); enforcement ON
+
+== 1. boundary table (local time in the zone; expected block / ALLOW / ALLOW / block)
+  summer (DST)  ET           America/New_York     07:59=block  08:00=ALLOW  20:59=ALLOW  21:00=block
+  summer (DST)  CT           America/Chicago      07:59=block  08:00=ALLOW  20:59=ALLOW  21:00=block
+  summer (DST)  MT           America/Denver       07:59=block  08:00=ALLOW  20:59=ALLOW  21:00=block
+  summer (DST)  PT           America/Los_Angeles  07:59=block  08:00=ALLOW  20:59=ALLOW  21:00=block
+  summer (DST)  AK           America/Anchorage    07:59=block  08:00=ALLOW  20:59=ALLOW  21:00=block
+  summer (DST)  HI           Pacific/Honolulu     07:59=block  08:00=ALLOW  20:59=ALLOW  21:00=block
+  summer (DST)  AZ (no DST)  America/Phoenix      07:59=block  08:00=ALLOW  20:59=ALLOW  21:00=block
+  summer (DST)  PR           America/Puerto_Rico  07:59=block  08:00=ALLOW  20:59=ALLOW  21:00=block
+  summer (DST)  VI           America/St_Thomas    07:59=block  08:00=ALLOW  20:59=ALLOW  21:00=block
+  summer (DST)  GU           Pacific/Guam         07:59=ALLOW(WRONG)  08:00=ALLOW  20:59=block(WRONG)  21:00=block
+  summer (DST)  MP           Pacific/Saipan       07:59=ALLOW(WRONG)  08:00=ALLOW  20:59=block(WRONG)  21:00=block
+  summer (DST)  AS           Pacific/Pago_Pago    07:59=ALLOW(WRONG)  08:00=ALLOW  20:59=block(WRONG)  21:00=block
+  winter        ET           America/New_York     07:59=block  08:00=ALLOW  20:59=ALLOW  21:00=block
+  winter        CT           America/Chicago      07:59=block  08:00=ALLOW  20:59=ALLOW  21:00=block
+  winter        MT           America/Denver       07:59=block  08:00=ALLOW  20:59=ALLOW  21:00=block
+  winter        PT           America/Los_Angeles  07:59=block  08:00=ALLOW  20:59=ALLOW  21:00=block
+  winter        AK           America/Anchorage    07:59=block  08:00=ALLOW  20:59=ALLOW  21:00=block
+  winter        HI           Pacific/Honolulu     07:59=block  08:00=ALLOW  20:59=ALLOW  21:00=block
+  winter        AZ (no DST)  America/Phoenix      07:59=block  08:00=ALLOW  20:59=ALLOW  21:00=block
+  winter        PR           America/Puerto_Rico  07:59=block  08:00=block(WRONG)  20:59=ALLOW  21:00=ALLOW(WRONG)
+  winter        VI           America/St_Thomas    07:59=block  08:00=block(WRONG)  20:59=ALLOW  21:00=ALLOW(WRONG)
+  winter        GU           Pacific/Guam         07:59=ALLOW(WRONG)  08:00=ALLOW  20:59=block(WRONG)  21:00=block
+  winter        MP           Pacific/Saipan       07:59=ALLOW(WRONG)  08:00=ALLOW  20:59=block(WRONG)  21:00=block
+  winter        AS           Pacific/Pago_Pago    07:59=ALLOW(WRONG)  08:00=ALLOW  20:59=block(WRONG)  21:00=block
+  wrong cells: 16
+
+== 2. split places: every 15 min over two days (summer + winter), against the real zone
+  El Paso TX (915)                               real America/Denver       -> America/Chicago                        VIOLATION ×8 (e.g. Jul 15, 7:00 AM MDT); conservative refusals inside hours ×8
+  El Paso TX by city (Canadian cell)             real America/Denver       -> America/Chicago                        VIOLATION ×8 (e.g. Jul 15, 7:00 AM MDT); conservative refusals inside hours ×8
+  Van Horn TX (432 + city)                       real America/Denver       -> America/Chicago                        VIOLATION ×8 (e.g. Jul 15, 7:00 AM MDT); conservative refusals inside hours ×8
+  Midland TX (432 + city)                        real America/Chicago      -> America/Chicago                        ok
+  Dallas TX (214)                                real America/Chicago      -> America/Chicago                        ok
+  Pensacola FL (850 + city)                      real America/Chicago      -> America/New_York                       VIOLATION ×8 (e.g. Jul 15, 7:00 AM CDT); conservative refusals inside hours ×8
+  Pensacola FL (850, no city)                    real America/Chicago      -> America/New_York                       VIOLATION ×8 (e.g. Jul 15, 7:00 AM CDT); conservative refusals inside hours ×8
+  Tallahassee FL (850 + city)                    real America/New_York     -> America/New_York                       ok
+  Bowling Green KY (270 + city)                  real America/Chicago      -> America/New_York                       VIOLATION ×8 (e.g. Jul 15, 7:00 AM CDT); conservative refusals inside hours ×8
+  Bowling Green KY by city (Canadian cell)       real America/Chicago      -> America/New_York                       VIOLATION ×8 (e.g. Jul 15, 7:00 AM CDT); conservative refusals inside hours ×8
+  Gary IN (219)                                  real America/Chicago      -> America/Indiana/Indianapolis           VIOLATION ×8 (e.g. Jul 15, 7:00 AM CDT); conservative refusals inside hours ×8
+  Evansville IN (812 + city)                     real America/Chicago      -> America/Indiana/Indianapolis           VIOLATION ×8 (e.g. Jul 15, 7:00 AM CDT); conservative refusals inside hours ×8
+  Ontario OR (541 + city)                        real America/Boise        -> America/Los_Angeles                    VIOLATION ×8 (e.g. Jul 15, 9:00 PM MDT); conservative refusals inside hours ×8
+  Knoxville TN (865)                             real America/New_York     -> America/Chicago                        VIOLATION ×8 (e.g. Jul 15, 9:00 PM EDT); conservative refusals inside hours ×8
+  Chattanooga TN (423)                           real America/New_York     -> America/Chicago                        VIOLATION ×8 (e.g. Jul 15, 9:00 PM EDT); conservative refusals inside hours ×8
+  Coeur d'Alene ID (208 + city)                  real America/Los_Angeles  -> America/Boise                          VIOLATION ×8 (e.g. Jul 15, 7:00 AM PDT); conservative refusals inside hours ×8
+  Rapid City SD (605 + city)                     real America/Denver       -> America/Chicago                        VIOLATION ×8 (e.g. Jul 15, 7:00 AM MDT); conservative refusals inside hours ×8
+  Iron Mountain MI (906 + city)                  real America/Menominee    -> America/Detroit                        VIOLATION ×8 (e.g. Jul 15, 7:00 AM CDT); conservative refusals inside hours ×8
+  Adak AK (907 + city)                           real America/Adak         -> America/Anchorage                      VIOLATION ×8 (e.g. Jul 15, 7:00 AM HADT); conservative refusals inside hours ×8
+  Window Rock AZ, Navajo Nation (928 + city)     real America/Denver       -> America/Phoenix                        VIOLATION ×4 (e.g. Jul 15, 9:00 PM MDT); conservative refusals inside hours ×4
+  Oklahoma City OK (405)                         real America/Chicago      -> America/Chicago                        ok
+  Denver CO (303)                                real America/Denver       -> America/Denver                         ok
+  TX lead with a Denver cell (303) — moved number real America/Chicago      -> America/Chicago                        ok
+  slots allowed outside the real 8am–9pm: 132
+
+== 3. unknown / invalid / missing state (at 12:00 New York time, inside hours everywhere in the lower 48)
+  state ""     -> ALLOW (zone used: America/New_York)
+  state "  "   -> ALLOW (zone used: America/New_York)
+  state "ZZ"   -> ALLOW (zone used: America/New_York)
+  state "XX"   -> ALLOW (zone used: America/New_York)
+  state null   -> ALLOW (zone used: America/New_York)
+[base] == paths: controlled clock 2026-11-13 13:30 UTC = 08:30 New York, 07:30 Chicago (CT closed); enforcement ON
+[base] -- by lead id (POST /api/calls {leadId})
+[base]   #5020 NY open (NY +12125550111) -> 201 
+[base]   #5021 IL closed (IL +13125550111) -> 422 "error":"Outside calling hours for IL (8am-9pm local time). Try again later."
+[base]   #5022 Pensacola (FL +18505550111) -> 201 
+[base]   #5023 Gary (IN +12195550111) -> 201 
+[base]   #5024 Bowling Green (KY +12705550111) -> 201 
+[base]   #5025 No state (no state +12125550112) -> 201 
+[base] -- Redial of a closed-zone lead still locked to the rep (lock set by DIRECT SQL: a call started at 20:59, Redial after 21:00)
+[base]   #5026 Redial IL (IL +13125550112) redial -> 201 
+[base] -- multi-line, selected leads [5031 Chicago, 5032 Pensacola], 6 s
+[base]   calls placed: 1 — to: ML Pensacola
+[base] -- queue (Start Dialing, POST /api/calls {}) once: due Chicago callback + due Chicago retry + 2 due Pensacola callbacks
+[base]   next lead -> 201  #5029 Callback Pensacola (FL +18505550112)
+[base] -- multi-line, queue mode, 3 lines, 6 s
+[base]   calls placed: 1 — to: Callback Pensacola 2
+[base] -- dial pad (POST /api/calls/manual/start)
+[base]   212-555-0177 -> 201 
+[base]   312-555-0177 -> 201 
+[base]   850-555-0177 -> 201 
+[base]   416-555-0177 -> 201 
+[base]   no lead lost: test leads by status: callback_scheduled=1, contacted=7, new=2, no_answer=3
+[base]   in_progress with no open call: 0; open calls: 0
+[base]   invariants: -- I1 every lead has exactly one status from the allowed list (violations): -- I2 leads in_progress, and whether each has an open (undispositioned) call: -- I3 in_progress with lock older than 30s (should be swept on next queue read): 0 -- I4 orphan call rows (lead_id not in leads; manual calls have NULL lead_id by design): 0 -- I5 calls never dispositioned and never ended, older than 5 minutes: 0
+[base]   server log (paths): 0 error/warn lines
+[base] == elpaso: controlled clock 2026-11-13 14:30 UTC = 07:30 El Paso (MT), 08:30 Dallas (CT)
+[base]   by id #5020 El Paso (TX +19155550111) -> 201 
+[base]   by id #5022 Dallas (TX +12145550111) -> 201 
+[base]   queue next (El Paso callback due) -> 201  #5021 El Paso callback (TX +19155550112)
+[base]   dial pad 915-555-0177 -> 201 
+[base]   no lead lost: test leads by status: contacted=3
+[base]   in_progress with no open call: 0; open calls: 0
+[base]   invariants: -- I1 every lead has exactly one status from the allowed list (violations): -- I2 leads in_progress, and whether each has an open (undispositioned) call: -- I3 in_progress with lock older than 30s (should be swept on next queue read): 0 -- I4 orphan call rows (lead_id not in leads; manual calls have NULL lead_id by design): 0 -- I5 calls never dispositioned and never ended, older than 5 minutes: 0
+[base]   server log (elpaso): 0 error/warn lines
+[base] == starvation: controlled clock 2026-11-14 02:30 UTC = 21:30 New York (closed), 20:30 Dallas, 19:30 Denver; 70 New York callbacks at the front, 5 Dallas + 3 Denver + 1 Knoxville behind
+[base]   queue order, first 3: NY callback_scheduled, NY callback_scheduled, NY callback_scheduled
+[base]   by id #5098 Knoxville (TN +18655550111) (Knoxville is Eastern: 21:30) -> 201 
+[base] -- single-line Start Dialing, 3 times
+[base]   next lead #1 -> 404 "error":"No dialable leads in queue right now" 
+[base]   next lead #2 -> 404 "error":"No dialable leads in queue right now" 
+[base]   next lead #3 -> 404 "error":"No dialable leads in queue right now" 
+[base] -- counts (GET /api/leads/state-counts), totals over all states
+[base] dialable=78 (no dialable-now / waiting fields)
+[base] -- multi-line, queue mode, 3 lines, 8 s
+[base]   calls placed: 0 — by state: none; session summary: byStatus={"loading":3,"idle":3}
+[base]   New York callbacks still waiting (callback_scheduled, never dialed): 70 of 70
+[base]   no lead lost: test leads by status: callback_scheduled=70, contacted=1, new=8
+[base]   in_progress with no open call: 0; open calls: 0
+[base]   invariants: -- I1 every lead has exactly one status from the allowed list (violations): -- I2 leads in_progress, and whether each has an open (undispositioned) call: -- I3 in_progress with lock older than 30s (should be swept on next queue read): 0 -- I4 orphan call rows (lead_id not in leads; manual calls have NULL lead_id by design): 0 -- I5 calls never dispositioned and never ended, older than 5 minutes: 0
+[base]   server log (starvation): 0 error/warn lines
+[base] == toggle: 07:30 Chicago (closed). PUT the setting, then try a closed Chicago lead every 100 ms (server restarted per cycle: per-user rate limit)
+[base]   cycle 1: setting ON at startup: calls placed before the first refusal: 1
+[base]   cycle 1: OFF -> first dial allowed after 5117 ms (44 refused first)
+[base]   cycle 1: ON  -> first refusal after 4978 ms (34 call(s) placed after the switch)
+[base]   cycle 2: setting ON at startup: calls placed before the first refusal: 1
+[base]   cycle 2: OFF -> first dial allowed after 5098 ms (44 refused first)
+[base]   cycle 2: ON  -> first refusal after 5011 ms (34 call(s) placed after the switch)
+[base]   cycle 3: setting ON at startup: calls placed before the first refusal: 1
+[base]   cycle 3: OFF -> first dial allowed after 5129 ms (43 refused first)
+[base]   cycle 3: ON  -> first refusal after 5081 ms (34 call(s) placed after the switch)
+[base]   no lead lost: test leads by status: contacted=108, new=292
+[base]   in_progress with no open call: 0; open calls: 0
+[base]   invariants: -- I1 every lead has exactly one status from the allowed list (violations): -- I2 leads in_progress, and whether each has an open (undispositioned) call: -- I3 in_progress with lock older than 30s (should be swept on next queue read): 0 -- I4 orphan call rows (lead_id not in leads; manual calls have NULL lead_id by design): 0 -- I5 calls never dispositioned and never ended, older than 5 minutes: 0
+[base]   server log (toggle): 0 error/warn lines
+[base] == default: no 'calling_hours_enforced' row in settings; 07:30 Chicago
+[base]   GET setting -> 200 {"key":"calling_hours_enforced","value":null}
+[base]   dial a closed Chicago lead -> 201 
+[base]   no lead lost: test leads by status: contacted=1
+[base]   in_progress with no open call: 0; open calls: 0
+[base]   invariants: -- I1 every lead has exactly one status from the allowed list (violations): -- I2 leads in_progress, and whether each has an open (undispositioned) call: -- I3 in_progress with lock older than 30s (should be swept on next queue read): 0 -- I4 orphan call rows (lead_id not in leads; manual calls have NULL lead_id by design): 0 -- I5 calls never dispositioned and never ended, older than 5 minutes: 0
+[base]   server log (default): 0 error/warn lines
+[base] == perf: 100,000 leads (+5,000 NY callbacks at the front), 21:30 New York; server ready after 1240 ms
+[base]   zones stored: n/a (no column)
+[base]   GET /api/leads?pageSize=50 x15: median 0.080521s, max 0.116099s
+[base]   GET /api/leads/state-counts x15: median 0.015239s, max 0.017947s
+[base]   POST /api/calls {} (next lead) x10: codes 10 404;, median 0.036770s, max 0.051485s
+[base]   dialed: none
+[base]   server log (perf): 0 error/warn lines
+######## base run 3
+code: base (state only); enforcement ON
+
+== 1. boundary table (local time in the zone; expected block / ALLOW / ALLOW / block)
+  summer (DST)  ET           America/New_York     07:59=block  08:00=ALLOW  20:59=ALLOW  21:00=block
+  summer (DST)  CT           America/Chicago      07:59=block  08:00=ALLOW  20:59=ALLOW  21:00=block
+  summer (DST)  MT           America/Denver       07:59=block  08:00=ALLOW  20:59=ALLOW  21:00=block
+  summer (DST)  PT           America/Los_Angeles  07:59=block  08:00=ALLOW  20:59=ALLOW  21:00=block
+  summer (DST)  AK           America/Anchorage    07:59=block  08:00=ALLOW  20:59=ALLOW  21:00=block
+  summer (DST)  HI           Pacific/Honolulu     07:59=block  08:00=ALLOW  20:59=ALLOW  21:00=block
+  summer (DST)  AZ (no DST)  America/Phoenix      07:59=block  08:00=ALLOW  20:59=ALLOW  21:00=block
+  summer (DST)  PR           America/Puerto_Rico  07:59=block  08:00=ALLOW  20:59=ALLOW  21:00=block
+  summer (DST)  VI           America/St_Thomas    07:59=block  08:00=ALLOW  20:59=ALLOW  21:00=block
+  summer (DST)  GU           Pacific/Guam         07:59=ALLOW(WRONG)  08:00=ALLOW  20:59=block(WRONG)  21:00=block
+  summer (DST)  MP           Pacific/Saipan       07:59=ALLOW(WRONG)  08:00=ALLOW  20:59=block(WRONG)  21:00=block
+  summer (DST)  AS           Pacific/Pago_Pago    07:59=ALLOW(WRONG)  08:00=ALLOW  20:59=block(WRONG)  21:00=block
+  winter        ET           America/New_York     07:59=block  08:00=ALLOW  20:59=ALLOW  21:00=block
+  winter        CT           America/Chicago      07:59=block  08:00=ALLOW  20:59=ALLOW  21:00=block
+  winter        MT           America/Denver       07:59=block  08:00=ALLOW  20:59=ALLOW  21:00=block
+  winter        PT           America/Los_Angeles  07:59=block  08:00=ALLOW  20:59=ALLOW  21:00=block
+  winter        AK           America/Anchorage    07:59=block  08:00=ALLOW  20:59=ALLOW  21:00=block
+  winter        HI           Pacific/Honolulu     07:59=block  08:00=ALLOW  20:59=ALLOW  21:00=block
+  winter        AZ (no DST)  America/Phoenix      07:59=block  08:00=ALLOW  20:59=ALLOW  21:00=block
+  winter        PR           America/Puerto_Rico  07:59=block  08:00=block(WRONG)  20:59=ALLOW  21:00=ALLOW(WRONG)
+  winter        VI           America/St_Thomas    07:59=block  08:00=block(WRONG)  20:59=ALLOW  21:00=ALLOW(WRONG)
+  winter        GU           Pacific/Guam         07:59=ALLOW(WRONG)  08:00=ALLOW  20:59=block(WRONG)  21:00=block
+  winter        MP           Pacific/Saipan       07:59=ALLOW(WRONG)  08:00=ALLOW  20:59=block(WRONG)  21:00=block
+  winter        AS           Pacific/Pago_Pago    07:59=ALLOW(WRONG)  08:00=ALLOW  20:59=block(WRONG)  21:00=block
+  wrong cells: 16
+
+== 2. split places: every 15 min over two days (summer + winter), against the real zone
+  El Paso TX (915)                               real America/Denver       -> America/Chicago                        VIOLATION ×8 (e.g. Jul 15, 7:00 AM MDT); conservative refusals inside hours ×8
+  El Paso TX by city (Canadian cell)             real America/Denver       -> America/Chicago                        VIOLATION ×8 (e.g. Jul 15, 7:00 AM MDT); conservative refusals inside hours ×8
+  Van Horn TX (432 + city)                       real America/Denver       -> America/Chicago                        VIOLATION ×8 (e.g. Jul 15, 7:00 AM MDT); conservative refusals inside hours ×8
+  Midland TX (432 + city)                        real America/Chicago      -> America/Chicago                        ok
+  Dallas TX (214)                                real America/Chicago      -> America/Chicago                        ok
+  Pensacola FL (850 + city)                      real America/Chicago      -> America/New_York                       VIOLATION ×8 (e.g. Jul 15, 7:00 AM CDT); conservative refusals inside hours ×8
+  Pensacola FL (850, no city)                    real America/Chicago      -> America/New_York                       VIOLATION ×8 (e.g. Jul 15, 7:00 AM CDT); conservative refusals inside hours ×8
+  Tallahassee FL (850 + city)                    real America/New_York     -> America/New_York                       ok
+  Bowling Green KY (270 + city)                  real America/Chicago      -> America/New_York                       VIOLATION ×8 (e.g. Jul 15, 7:00 AM CDT); conservative refusals inside hours ×8
+  Bowling Green KY by city (Canadian cell)       real America/Chicago      -> America/New_York                       VIOLATION ×8 (e.g. Jul 15, 7:00 AM CDT); conservative refusals inside hours ×8
+  Gary IN (219)                                  real America/Chicago      -> America/Indiana/Indianapolis           VIOLATION ×8 (e.g. Jul 15, 7:00 AM CDT); conservative refusals inside hours ×8
+  Evansville IN (812 + city)                     real America/Chicago      -> America/Indiana/Indianapolis           VIOLATION ×8 (e.g. Jul 15, 7:00 AM CDT); conservative refusals inside hours ×8
+  Ontario OR (541 + city)                        real America/Boise        -> America/Los_Angeles                    VIOLATION ×8 (e.g. Jul 15, 9:00 PM MDT); conservative refusals inside hours ×8
+  Knoxville TN (865)                             real America/New_York     -> America/Chicago                        VIOLATION ×8 (e.g. Jul 15, 9:00 PM EDT); conservative refusals inside hours ×8
+  Chattanooga TN (423)                           real America/New_York     -> America/Chicago                        VIOLATION ×8 (e.g. Jul 15, 9:00 PM EDT); conservative refusals inside hours ×8
+  Coeur d'Alene ID (208 + city)                  real America/Los_Angeles  -> America/Boise                          VIOLATION ×8 (e.g. Jul 15, 7:00 AM PDT); conservative refusals inside hours ×8
+  Rapid City SD (605 + city)                     real America/Denver       -> America/Chicago                        VIOLATION ×8 (e.g. Jul 15, 7:00 AM MDT); conservative refusals inside hours ×8
+  Iron Mountain MI (906 + city)                  real America/Menominee    -> America/Detroit                        VIOLATION ×8 (e.g. Jul 15, 7:00 AM CDT); conservative refusals inside hours ×8
+  Adak AK (907 + city)                           real America/Adak         -> America/Anchorage                      VIOLATION ×8 (e.g. Jul 15, 7:00 AM HADT); conservative refusals inside hours ×8
+  Window Rock AZ, Navajo Nation (928 + city)     real America/Denver       -> America/Phoenix                        VIOLATION ×4 (e.g. Jul 15, 9:00 PM MDT); conservative refusals inside hours ×4
+  Oklahoma City OK (405)                         real America/Chicago      -> America/Chicago                        ok
+  Denver CO (303)                                real America/Denver       -> America/Denver                         ok
+  TX lead with a Denver cell (303) — moved number real America/Chicago      -> America/Chicago                        ok
+  slots allowed outside the real 8am–9pm: 132
+
+== 3. unknown / invalid / missing state (at 12:00 New York time, inside hours everywhere in the lower 48)
+  state ""     -> ALLOW (zone used: America/New_York)
+  state "  "   -> ALLOW (zone used: America/New_York)
+  state "ZZ"   -> ALLOW (zone used: America/New_York)
+  state "XX"   -> ALLOW (zone used: America/New_York)
+  state null   -> ALLOW (zone used: America/New_York)
+[base] == paths: controlled clock 2026-11-13 13:30 UTC = 08:30 New York, 07:30 Chicago (CT closed); enforcement ON
+[base] -- by lead id (POST /api/calls {leadId})
+[base]   #5020 NY open (NY +12125550111) -> 201 
+[base]   #5021 IL closed (IL +13125550111) -> 422 "error":"Outside calling hours for IL (8am-9pm local time). Try again later."
+[base]   #5022 Pensacola (FL +18505550111) -> 201 
+[base]   #5023 Gary (IN +12195550111) -> 201 
+[base]   #5024 Bowling Green (KY +12705550111) -> 201 
+[base]   #5025 No state (no state +12125550112) -> 201 
+[base] -- Redial of a closed-zone lead still locked to the rep (lock set by DIRECT SQL: a call started at 20:59, Redial after 21:00)
+[base]   #5026 Redial IL (IL +13125550112) redial -> 201 
+[base] -- multi-line, selected leads [5031 Chicago, 5032 Pensacola], 6 s
+[base]   calls placed: 1 — to: ML Pensacola
+[base] -- queue (Start Dialing, POST /api/calls {}) once: due Chicago callback + due Chicago retry + 2 due Pensacola callbacks
+[base]   next lead -> 201  #5029 Callback Pensacola (FL +18505550112)
+[base] -- multi-line, queue mode, 3 lines, 6 s
+[base]   calls placed: 1 — to: Callback Pensacola 2
+[base] -- dial pad (POST /api/calls/manual/start)
+[base]   212-555-0177 -> 201 
+[base]   312-555-0177 -> 201 
+[base]   850-555-0177 -> 201 
+[base]   416-555-0177 -> 201 
+[base]   no lead lost: test leads by status: callback_scheduled=1, contacted=7, new=2, no_answer=3
+[base]   in_progress with no open call: 0; open calls: 0
+[base]   invariants: -- I1 every lead has exactly one status from the allowed list (violations): -- I2 leads in_progress, and whether each has an open (undispositioned) call: -- I3 in_progress with lock older than 30s (should be swept on next queue read): 0 -- I4 orphan call rows (lead_id not in leads; manual calls have NULL lead_id by design): 0 -- I5 calls never dispositioned and never ended, older than 5 minutes: 0
+[base]   server log (paths): 0 error/warn lines
+[base] == elpaso: controlled clock 2026-11-13 14:30 UTC = 07:30 El Paso (MT), 08:30 Dallas (CT)
+[base]   by id #5020 El Paso (TX +19155550111) -> 201 
+[base]   by id #5022 Dallas (TX +12145550111) -> 201 
+[base]   queue next (El Paso callback due) -> 201  #5021 El Paso callback (TX +19155550112)
+[base]   dial pad 915-555-0177 -> 201 
+[base]   no lead lost: test leads by status: contacted=3
+[base]   in_progress with no open call: 0; open calls: 0
+[base]   invariants: -- I1 every lead has exactly one status from the allowed list (violations): -- I2 leads in_progress, and whether each has an open (undispositioned) call: -- I3 in_progress with lock older than 30s (should be swept on next queue read): 0 -- I4 orphan call rows (lead_id not in leads; manual calls have NULL lead_id by design): 0 -- I5 calls never dispositioned and never ended, older than 5 minutes: 0
+[base]   server log (elpaso): 0 error/warn lines
+[base] == starvation: controlled clock 2026-11-14 02:30 UTC = 21:30 New York (closed), 20:30 Dallas, 19:30 Denver; 70 New York callbacks at the front, 5 Dallas + 3 Denver + 1 Knoxville behind
+[base]   queue order, first 3: NY callback_scheduled, NY callback_scheduled, NY callback_scheduled
+[base]   by id #5098 Knoxville (TN +18655550111) (Knoxville is Eastern: 21:30) -> 201 
+[base] -- single-line Start Dialing, 3 times
+[base]   next lead #1 -> 404 "error":"No dialable leads in queue right now" 
+[base]   next lead #2 -> 404 "error":"No dialable leads in queue right now" 
+[base]   next lead #3 -> 404 "error":"No dialable leads in queue right now" 
+[base] -- counts (GET /api/leads/state-counts), totals over all states
+[base] dialable=78 (no dialable-now / waiting fields)
+[base] -- multi-line, queue mode, 3 lines, 8 s
+[base]   calls placed: 0 — by state: none; session summary: byStatus={"loading":3,"idle":3}
+[base]   New York callbacks still waiting (callback_scheduled, never dialed): 70 of 70
+[base]   no lead lost: test leads by status: callback_scheduled=70, contacted=1, new=8
+[base]   in_progress with no open call: 0; open calls: 0
+[base]   invariants: -- I1 every lead has exactly one status from the allowed list (violations): -- I2 leads in_progress, and whether each has an open (undispositioned) call: -- I3 in_progress with lock older than 30s (should be swept on next queue read): 0 -- I4 orphan call rows (lead_id not in leads; manual calls have NULL lead_id by design): 0 -- I5 calls never dispositioned and never ended, older than 5 minutes: 0
+[base]   server log (starvation): 0 error/warn lines
+[base] == toggle: 07:30 Chicago (closed). PUT the setting, then try a closed Chicago lead every 100 ms (server restarted per cycle: per-user rate limit)
+[base]   cycle 1: setting ON at startup: calls placed before the first refusal: 1
+[base]   cycle 1: OFF -> first dial allowed after 5114 ms (44 refused first)
+[base]   cycle 1: ON  -> first refusal after 5113 ms (35 call(s) placed after the switch)
+[base]   cycle 2: setting ON at startup: calls placed before the first refusal: 1
+[base]   cycle 2: OFF -> first dial allowed after 5045 ms (43 refused first)
+[base]   cycle 2: ON  -> first refusal after 5020 ms (34 call(s) placed after the switch)
+[base]   cycle 3: setting ON at startup: calls placed before the first refusal: 1
+[base]   cycle 3: OFF -> first dial allowed after 5063 ms (43 refused first)
+[base]   cycle 3: ON  -> first refusal after 5050 ms (34 call(s) placed after the switch)
+[base]   no lead lost: test leads by status: contacted=109, new=291
+[base]   in_progress with no open call: 0; open calls: 0
+[base]   invariants: -- I1 every lead has exactly one status from the allowed list (violations): -- I2 leads in_progress, and whether each has an open (undispositioned) call: -- I3 in_progress with lock older than 30s (should be swept on next queue read): 0 -- I4 orphan call rows (lead_id not in leads; manual calls have NULL lead_id by design): 0 -- I5 calls never dispositioned and never ended, older than 5 minutes: 0
+[base]   server log (toggle): 0 error/warn lines
+[base] == default: no 'calling_hours_enforced' row in settings; 07:30 Chicago
+[base]   GET setting -> 200 {"key":"calling_hours_enforced","value":null}
+[base]   dial a closed Chicago lead -> 201 
+[base]   no lead lost: test leads by status: contacted=1
+[base]   in_progress with no open call: 0; open calls: 0
+[base]   invariants: -- I1 every lead has exactly one status from the allowed list (violations): -- I2 leads in_progress, and whether each has an open (undispositioned) call: -- I3 in_progress with lock older than 30s (should be swept on next queue read): 0 -- I4 orphan call rows (lead_id not in leads; manual calls have NULL lead_id by design): 0 -- I5 calls never dispositioned and never ended, older than 5 minutes: 0
+[base]   server log (default): 0 error/warn lines
+[base] == perf: 100,000 leads (+5,000 NY callbacks at the front), 21:30 New York; server ready after 1249 ms
+[base]   zones stored: n/a (no column)
+[base]   GET /api/leads?pageSize=50 x15: median 0.086816s, max 0.105814s
+[base]   GET /api/leads/state-counts x15: median 0.017192s, max 0.020551s
+[base]   POST /api/calls {} (next lead) x10: codes 10 404;, median 0.045933s, max 0.058966s
+[base]   dialed: none
+[base]   server log (perf): 0 error/warn lines
+
+## HEAD — fix-seg6-zones.js + fix-seg6.sh, 3 runs
+# HEAD c2dae7b
+######## after run 1
+code: fix (zonesForLead); enforcement ON
+
+== 1. boundary table (local time in the zone; expected block / ALLOW / ALLOW / block)
+  summer (DST)  ET           America/New_York     07:59=block  08:00=ALLOW  20:59=ALLOW  21:00=block
+  summer (DST)  CT           America/Chicago      07:59=block  08:00=ALLOW  20:59=ALLOW  21:00=block
+  summer (DST)  MT           America/Denver       07:59=block  08:00=ALLOW  20:59=ALLOW  21:00=block
+  summer (DST)  PT           America/Los_Angeles  07:59=block  08:00=ALLOW  20:59=ALLOW  21:00=block
+  summer (DST)  AK           America/Anchorage    07:59=block  08:00=ALLOW  20:59=ALLOW  21:00=block
+  summer (DST)  HI           Pacific/Honolulu     07:59=block  08:00=ALLOW  20:59=ALLOW  21:00=block
+  summer (DST)  AZ (no DST)  America/Phoenix      07:59=block  08:00=ALLOW  20:59=ALLOW  21:00=block
+  summer (DST)  PR           America/Puerto_Rico  07:59=block  08:00=ALLOW  20:59=ALLOW  21:00=block
+  summer (DST)  VI           America/St_Thomas    07:59=block  08:00=ALLOW  20:59=ALLOW  21:00=block
+  summer (DST)  GU           Pacific/Guam         07:59=block  08:00=ALLOW  20:59=ALLOW  21:00=block
+  summer (DST)  MP           Pacific/Saipan       07:59=block  08:00=ALLOW  20:59=ALLOW  21:00=block
+  summer (DST)  AS           Pacific/Pago_Pago    07:59=block  08:00=ALLOW  20:59=ALLOW  21:00=block
+  winter        ET           America/New_York     07:59=block  08:00=ALLOW  20:59=ALLOW  21:00=block
+  winter        CT           America/Chicago      07:59=block  08:00=ALLOW  20:59=ALLOW  21:00=block
+  winter        MT           America/Denver       07:59=block  08:00=ALLOW  20:59=ALLOW  21:00=block
+  winter        PT           America/Los_Angeles  07:59=block  08:00=ALLOW  20:59=ALLOW  21:00=block
+  winter        AK           America/Anchorage    07:59=block  08:00=ALLOW  20:59=ALLOW  21:00=block
+  winter        HI           Pacific/Honolulu     07:59=block  08:00=ALLOW  20:59=ALLOW  21:00=block
+  winter        AZ (no DST)  America/Phoenix      07:59=block  08:00=ALLOW  20:59=ALLOW  21:00=block
+  winter        PR           America/Puerto_Rico  07:59=block  08:00=ALLOW  20:59=ALLOW  21:00=block
+  winter        VI           America/St_Thomas    07:59=block  08:00=ALLOW  20:59=ALLOW  21:00=block
+  winter        GU           Pacific/Guam         07:59=block  08:00=ALLOW  20:59=ALLOW  21:00=block
+  winter        MP           Pacific/Saipan       07:59=block  08:00=ALLOW  20:59=ALLOW  21:00=block
+  winter        AS           Pacific/Pago_Pago    07:59=block  08:00=ALLOW  20:59=ALLOW  21:00=block
+  wrong cells: 0
+
+== 2. split places: every 15 min over two days (summer + winter), against the real zone
+  El Paso TX (915)                               real America/Denver       -> America/Denver                         ok
+  El Paso TX by city (Canadian cell)             real America/Denver       -> America/Denver                         ok
+  Van Horn TX (432 + city)                       real America/Denver       -> America/Denver                         ok
+  Midland TX (432 + city)                        real America/Chicago      -> America/Chicago                        ok
+  Dallas TX (214)                                real America/Chicago      -> America/Chicago                        ok
+  Pensacola FL (850 + city)                      real America/Chicago      -> America/Chicago                        ok
+  Pensacola FL (850, no city)                    real America/Chicago      -> America/Chicago,America/New_York       ok; conservative refusals inside hours ×8
+  Tallahassee FL (850 + city)                    real America/New_York     -> America/New_York                       ok
+  Bowling Green KY (270 + city)                  real America/Chicago      -> America/Chicago                        ok
+  Bowling Green KY by city (Canadian cell)       real America/Chicago      -> America/Chicago                        ok
+  Gary IN (219)                                  real America/Chicago      -> America/Chicago                        ok
+  Evansville IN (812 + city)                     real America/Chicago      -> America/Chicago                        ok
+  Ontario OR (541 + city)                        real America/Boise        -> America/Boise                          ok
+  Knoxville TN (865)                             real America/New_York     -> America/New_York                       ok
+  Chattanooga TN (423)                           real America/New_York     -> America/New_York                       ok
+  Coeur d'Alene ID (208 + city)                  real America/Los_Angeles  -> America/Los_Angeles                    ok
+  Rapid City SD (605 + city)                     real America/Denver       -> America/Denver                         ok
+  Iron Mountain MI (906 + city)                  real America/Menominee    -> America/Menominee                      ok
+  Adak AK (907 + city)                           real America/Adak         -> America/Adak                           ok
+  Window Rock AZ, Navajo Nation (928 + city)     real America/Denver       -> America/Denver                         ok
+  Oklahoma City OK (405)                         real America/Chicago      -> America/Chicago                        ok
+  Denver CO (303)                                real America/Denver       -> America/Denver                         ok
+  TX lead with a Denver cell (303) — moved number real America/Chicago      -> America/Chicago,America/Denver         ok; conservative refusals inside hours ×8
+  slots allowed outside the real 8am–9pm: 0
+
+== 3. unknown / invalid / missing state (at 12:00 New York time, inside hours everywhere in the lower 48)
+  state ""     -> refused 422: "Time zone unknown, set the state first"
+  state "  "   -> refused 422: "Time zone unknown, set the state first"
+  state "ZZ"   -> refused 422: "Time zone unknown, set the state first"
+  state "XX"   -> refused 422: "Time zone unknown, set the state first"
+  state null   -> refused 422: "Time zone unknown, set the state first"
+[after] == paths: controlled clock 2026-11-13 13:30 UTC = 08:30 New York, 07:30 Chicago (CT closed); enforcement ON
+[after] -- by lead id (POST /api/calls {leadId})
+[after]   #5020 NY open (NY +12125550111) -> 201 
+[after]   #5021 IL closed (IL +13125550111) -> 422 "error":"Outside calling hours (8am–9pm local time; it's 7:30 AM CST there). Try again later."
+[after]   #5022 Pensacola (FL +18505550111) -> 422 "error":"Outside calling hours (8am–9pm local time; it's 7:30 AM CST there). Try again later."
+[after]   #5023 Gary (IN +12195550111) -> 422 "error":"Outside calling hours (8am–9pm local time; it's 7:30 AM CST there). Try again later."
+[after]   #5024 Bowling Green (KY +12705550111) -> 422 "error":"Outside calling hours (8am–9pm local time; it's 7:30 AM CST there). Try again later."
+[after]   #5025 No state (no state +12125550112) -> 422 "error":"Time zone unknown, set the state first"
+[after] -- Redial of a closed-zone lead still locked to the rep (lock set by DIRECT SQL: a call started at 20:59, Redial after 21:00)
+[after]   #5026 Redial IL (IL +13125550112) redial -> 422 "error":"Outside calling hours (8am–9pm local time; it's 7:30 AM CST there). Try again later."
+[after] -- multi-line, selected leads [5031 Chicago, 5032 Pensacola], 6 s
+[after]   calls placed: 0 — to: none
+[after] -- queue (Start Dialing, POST /api/calls {}) once: due Chicago callback + due Chicago retry + 2 due Pensacola callbacks
+[after]   next lead -> 404 "error":"No dialable leads in queue right now" 
+[after] -- multi-line, queue mode, 3 lines, 6 s
+[after]   calls placed: 0 — to: none
+[after] -- dial pad (POST /api/calls/manual/start)
+[after]   212-555-0177 -> 201 
+[after]   312-555-0177 -> 422 "error":"Outside calling hours (8am–9pm local time; it's 7:30 AM CST there). Try again later."
+[after]   850-555-0177 -> 422 "error":"Outside calling hours (8am–9pm local time; it's 7:30 AM CST / 8:30 AM EST there). Try again later."
+[after]   416-555-0177 -> 422 "error":"Time zone unknown for this number's area code — calling hours can't be checked, so it can't be dialed while they're enforced."
+[after]   no lead lost: test leads by status: callback_scheduled=3, contacted=1, in_queue=1, new=7, no_answer=1
+[after]   in_progress with no open call: 0; open calls: 0
+[after]   invariants: -- I1 every lead has exactly one status from the allowed list (violations): -- I2 leads in_progress, and whether each has an open (undispositioned) call: -- I3 in_progress with lock older than 30s (should be swept on next queue read): 0 -- I4 orphan call rows (lead_id not in leads; manual calls have NULL lead_id by design): 0 -- I5 calls never dispositioned and never ended, older than 5 minutes: 0
+[after]   server log (paths): 0 error/warn lines
+[after] == elpaso: controlled clock 2026-11-13 14:30 UTC = 07:30 El Paso (MT), 08:30 Dallas (CT)
+[after]   by id #5020 El Paso (TX +19155550111) -> 422 "error":"Outside calling hours (8am–9pm local time; it's 7:30 AM MST there). Try again later."
+[after]   by id #5022 Dallas (TX +12145550111) -> 201 
+[after]   queue next (El Paso callback due) -> 404 "error":"No dialable leads in queue right now" 
+[after]   dial pad 915-555-0177 -> 422 "error":"Outside calling hours (8am–9pm local time; it's 7:30 AM MST there). Try again later."
+[after]   no lead lost: test leads by status: callback_scheduled=1, contacted=1, new=1
+[after]   in_progress with no open call: 0; open calls: 0
+[after]   invariants: -- I1 every lead has exactly one status from the allowed list (violations): -- I2 leads in_progress, and whether each has an open (undispositioned) call: -- I3 in_progress with lock older than 30s (should be swept on next queue read): 0 -- I4 orphan call rows (lead_id not in leads; manual calls have NULL lead_id by design): 0 -- I5 calls never dispositioned and never ended, older than 5 minutes: 0
+[after]   server log (elpaso): 0 error/warn lines
+[after] == starvation: controlled clock 2026-11-14 02:30 UTC = 21:30 New York (closed), 20:30 Dallas, 19:30 Denver; 70 New York callbacks at the front, 5 Dallas + 3 Denver + 1 Knoxville behind
+[after]   queue order, first 3: NY callback_scheduled, NY callback_scheduled, NY callback_scheduled
+[after]   by id #5098 Knoxville (TN +18655550111) (Knoxville is Eastern: 21:30) -> 422 "error":"Outside calling hours (8am–9pm local time; it's 9:30 PM EST there). Try again later."
+[after] -- single-line Start Dialing, 3 times
+[after]   next lead #1 -> 201  #5090 Dallas 1 (TX +12145550211)
+[after]   next lead #2 -> 201  #5091 Dallas 2 (TX +12145550212)
+[after]   next lead #3 -> 201  #5092 Dallas 3 (TX +12145550213)
+[after] -- counts (GET /api/leads/state-counts), totals over all states
+[after] dialable=76 dialable_now=5 waiting_for_hours=71 unknown_zone=0 next_opens_at=2026-11-14T13:00:00.000Z
+[after] -- multi-line, queue mode, 3 lines, 8 s
+[after]   calls placed: 5 — by state: CO=3, TX=2; session summary: byStatus={"loading":8,"dialing":5,"ringing":5,"no_answer":5,"idle":3}
+[after]   New York callbacks still waiting (callback_scheduled, never dialed): 70 of 70
+[after]   no lead lost: test leads by status: callback_scheduled=70, contacted=3, new=1, no_answer=5
+[after]   in_progress with no open call: 0; open calls: 0
+[after]   invariants: -- I1 every lead has exactly one status from the allowed list (violations): -- I2 leads in_progress, and whether each has an open (undispositioned) call: -- I3 in_progress with lock older than 30s (should be swept on next queue read): 0 -- I4 orphan call rows (lead_id not in leads; manual calls have NULL lead_id by design): 0 -- I5 calls never dispositioned and never ended, older than 5 minutes: 0
+[after]   server log (starvation): 0 error/warn lines
+[after] == toggle: 07:30 Chicago (closed). PUT the setting, then try a closed Chicago lead every 100 ms (server restarted per cycle: per-user rate limit)
+[after]   cycle 1: setting ON at startup: calls placed before the first refusal: 0
+[after]   cycle 1: OFF -> first dial allowed after 19 ms (0 refused first)
+[after]   cycle 1: ON  -> first refusal after 15 ms (0 call(s) placed after the switch)
+[after]   cycle 2: setting ON at startup: calls placed before the first refusal: 0
+[after]   cycle 2: OFF -> first dial allowed after 31 ms (0 refused first)
+[after]   cycle 2: ON  -> first refusal after 14 ms (0 call(s) placed after the switch)
+[after]   cycle 3: setting ON at startup: calls placed before the first refusal: 0
+[after]   cycle 3: OFF -> first dial allowed after 21 ms (0 refused first)
+[after]   cycle 3: ON  -> first refusal after 14 ms (0 call(s) placed after the switch)
+[after]   no lead lost: test leads by status: contacted=3, new=397
+[after]   in_progress with no open call: 0; open calls: 0
+[after]   invariants: -- I1 every lead has exactly one status from the allowed list (violations): -- I2 leads in_progress, and whether each has an open (undispositioned) call: -- I3 in_progress with lock older than 30s (should be swept on next queue read): 0 -- I4 orphan call rows (lead_id not in leads; manual calls have NULL lead_id by design): 0 -- I5 calls never dispositioned and never ended, older than 5 minutes: 0
+[after]   server log (toggle): 0 error/warn lines
+[after] == default: no 'calling_hours_enforced' row in settings; 07:30 Chicago
+[after]   GET setting -> 200 {"key":"calling_hours_enforced","value":null}
+[after]   dial a closed Chicago lead -> 422 "error":"Outside calling hours (8am–9pm local time; it's 7:30 AM CST there). Try again later."
+[after]   no lead lost: test leads by status: new=1
+[after]   in_progress with no open call: 0; open calls: 0
+[after]   invariants: -- I1 every lead has exactly one status from the allowed list (violations): -- I2 leads in_progress, and whether each has an open (undispositioned) call: -- I3 in_progress with lock older than 30s (should be swept on next queue read): 0 -- I4 orphan call rows (lead_id not in leads; manual calls have NULL lead_id by design): 0 -- I5 calls never dispositioned and never ended, older than 5 minutes: 0
+[after]   server log (default): 0 error/warn lines
+[after] == perf: 100,000 leads (+5,000 NY callbacks at the front), 21:30 New York; server ready after 1249 ms
+[after]   zones stored: 24000 of 105019
+[after]   GET /api/leads?pageSize=50 x15: median 0.077203s, max 1.415880s
+[after]   GET /api/leads/state-counts x15: median 0.027273s, max 0.030297s
+[after]   POST /api/calls {} (next lead) x10: codes 10 201;, median 0.041040s, max 0.060075s
+[after]   dialed: AK=1, AZ=1, CA=2, CO=2, IL=1, OK=1, TX=2
+[after]   server log (perf): 0 error/warn lines
+######## after run 2
+code: fix (zonesForLead); enforcement ON
+
+== 1. boundary table (local time in the zone; expected block / ALLOW / ALLOW / block)
+  summer (DST)  ET           America/New_York     07:59=block  08:00=ALLOW  20:59=ALLOW  21:00=block
+  summer (DST)  CT           America/Chicago      07:59=block  08:00=ALLOW  20:59=ALLOW  21:00=block
+  summer (DST)  MT           America/Denver       07:59=block  08:00=ALLOW  20:59=ALLOW  21:00=block
+  summer (DST)  PT           America/Los_Angeles  07:59=block  08:00=ALLOW  20:59=ALLOW  21:00=block
+  summer (DST)  AK           America/Anchorage    07:59=block  08:00=ALLOW  20:59=ALLOW  21:00=block
+  summer (DST)  HI           Pacific/Honolulu     07:59=block  08:00=ALLOW  20:59=ALLOW  21:00=block
+  summer (DST)  AZ (no DST)  America/Phoenix      07:59=block  08:00=ALLOW  20:59=ALLOW  21:00=block
+  summer (DST)  PR           America/Puerto_Rico  07:59=block  08:00=ALLOW  20:59=ALLOW  21:00=block
+  summer (DST)  VI           America/St_Thomas    07:59=block  08:00=ALLOW  20:59=ALLOW  21:00=block
+  summer (DST)  GU           Pacific/Guam         07:59=block  08:00=ALLOW  20:59=ALLOW  21:00=block
+  summer (DST)  MP           Pacific/Saipan       07:59=block  08:00=ALLOW  20:59=ALLOW  21:00=block
+  summer (DST)  AS           Pacific/Pago_Pago    07:59=block  08:00=ALLOW  20:59=ALLOW  21:00=block
+  winter        ET           America/New_York     07:59=block  08:00=ALLOW  20:59=ALLOW  21:00=block
+  winter        CT           America/Chicago      07:59=block  08:00=ALLOW  20:59=ALLOW  21:00=block
+  winter        MT           America/Denver       07:59=block  08:00=ALLOW  20:59=ALLOW  21:00=block
+  winter        PT           America/Los_Angeles  07:59=block  08:00=ALLOW  20:59=ALLOW  21:00=block
+  winter        AK           America/Anchorage    07:59=block  08:00=ALLOW  20:59=ALLOW  21:00=block
+  winter        HI           Pacific/Honolulu     07:59=block  08:00=ALLOW  20:59=ALLOW  21:00=block
+  winter        AZ (no DST)  America/Phoenix      07:59=block  08:00=ALLOW  20:59=ALLOW  21:00=block
+  winter        PR           America/Puerto_Rico  07:59=block  08:00=ALLOW  20:59=ALLOW  21:00=block
+  winter        VI           America/St_Thomas    07:59=block  08:00=ALLOW  20:59=ALLOW  21:00=block
+  winter        GU           Pacific/Guam         07:59=block  08:00=ALLOW  20:59=ALLOW  21:00=block
+  winter        MP           Pacific/Saipan       07:59=block  08:00=ALLOW  20:59=ALLOW  21:00=block
+  winter        AS           Pacific/Pago_Pago    07:59=block  08:00=ALLOW  20:59=ALLOW  21:00=block
+  wrong cells: 0
+
+== 2. split places: every 15 min over two days (summer + winter), against the real zone
+  El Paso TX (915)                               real America/Denver       -> America/Denver                         ok
+  El Paso TX by city (Canadian cell)             real America/Denver       -> America/Denver                         ok
+  Van Horn TX (432 + city)                       real America/Denver       -> America/Denver                         ok
+  Midland TX (432 + city)                        real America/Chicago      -> America/Chicago                        ok
+  Dallas TX (214)                                real America/Chicago      -> America/Chicago                        ok
+  Pensacola FL (850 + city)                      real America/Chicago      -> America/Chicago                        ok
+  Pensacola FL (850, no city)                    real America/Chicago      -> America/Chicago,America/New_York       ok; conservative refusals inside hours ×8
+  Tallahassee FL (850 + city)                    real America/New_York     -> America/New_York                       ok
+  Bowling Green KY (270 + city)                  real America/Chicago      -> America/Chicago                        ok
+  Bowling Green KY by city (Canadian cell)       real America/Chicago      -> America/Chicago                        ok
+  Gary IN (219)                                  real America/Chicago      -> America/Chicago                        ok
+  Evansville IN (812 + city)                     real America/Chicago      -> America/Chicago                        ok
+  Ontario OR (541 + city)                        real America/Boise        -> America/Boise                          ok
+  Knoxville TN (865)                             real America/New_York     -> America/New_York                       ok
+  Chattanooga TN (423)                           real America/New_York     -> America/New_York                       ok
+  Coeur d'Alene ID (208 + city)                  real America/Los_Angeles  -> America/Los_Angeles                    ok
+  Rapid City SD (605 + city)                     real America/Denver       -> America/Denver                         ok
+  Iron Mountain MI (906 + city)                  real America/Menominee    -> America/Menominee                      ok
+  Adak AK (907 + city)                           real America/Adak         -> America/Adak                           ok
+  Window Rock AZ, Navajo Nation (928 + city)     real America/Denver       -> America/Denver                         ok
+  Oklahoma City OK (405)                         real America/Chicago      -> America/Chicago                        ok
+  Denver CO (303)                                real America/Denver       -> America/Denver                         ok
+  TX lead with a Denver cell (303) — moved number real America/Chicago      -> America/Chicago,America/Denver         ok; conservative refusals inside hours ×8
+  slots allowed outside the real 8am–9pm: 0
+
+== 3. unknown / invalid / missing state (at 12:00 New York time, inside hours everywhere in the lower 48)
+  state ""     -> refused 422: "Time zone unknown, set the state first"
+  state "  "   -> refused 422: "Time zone unknown, set the state first"
+  state "ZZ"   -> refused 422: "Time zone unknown, set the state first"
+  state "XX"   -> refused 422: "Time zone unknown, set the state first"
+  state null   -> refused 422: "Time zone unknown, set the state first"
+[after] == paths: controlled clock 2026-11-13 13:30 UTC = 08:30 New York, 07:30 Chicago (CT closed); enforcement ON
+[after] -- by lead id (POST /api/calls {leadId})
+[after]   #5020 NY open (NY +12125550111) -> 201 
+[after]   #5021 IL closed (IL +13125550111) -> 422 "error":"Outside calling hours (8am–9pm local time; it's 7:30 AM CST there). Try again later."
+[after]   #5022 Pensacola (FL +18505550111) -> 422 "error":"Outside calling hours (8am–9pm local time; it's 7:30 AM CST there). Try again later."
+[after]   #5023 Gary (IN +12195550111) -> 422 "error":"Outside calling hours (8am–9pm local time; it's 7:30 AM CST there). Try again later."
+[after]   #5024 Bowling Green (KY +12705550111) -> 422 "error":"Outside calling hours (8am–9pm local time; it's 7:30 AM CST there). Try again later."
+[after]   #5025 No state (no state +12125550112) -> 422 "error":"Time zone unknown, set the state first"
+[after] -- Redial of a closed-zone lead still locked to the rep (lock set by DIRECT SQL: a call started at 20:59, Redial after 21:00)
+[after]   #5026 Redial IL (IL +13125550112) redial -> 422 "error":"Outside calling hours (8am–9pm local time; it's 7:30 AM CST there). Try again later."
+[after] -- multi-line, selected leads [5031 Chicago, 5032 Pensacola], 6 s
+[after]   calls placed: 0 — to: none
+[after] -- queue (Start Dialing, POST /api/calls {}) once: due Chicago callback + due Chicago retry + 2 due Pensacola callbacks
+[after]   next lead -> 404 "error":"No dialable leads in queue right now" 
+[after] -- multi-line, queue mode, 3 lines, 6 s
+[after]   calls placed: 0 — to: none
+[after] -- dial pad (POST /api/calls/manual/start)
+[after]   212-555-0177 -> 201 
+[after]   312-555-0177 -> 422 "error":"Outside calling hours (8am–9pm local time; it's 7:30 AM CST there). Try again later."
+[after]   850-555-0177 -> 422 "error":"Outside calling hours (8am–9pm local time; it's 7:30 AM CST / 8:30 AM EST there). Try again later."
+[after]   416-555-0177 -> 422 "error":"Time zone unknown for this number's area code — calling hours can't be checked, so it can't be dialed while they're enforced."
+[after]   no lead lost: test leads by status: callback_scheduled=3, contacted=1, in_queue=1, new=7, no_answer=1
+[after]   in_progress with no open call: 0; open calls: 0
+[after]   invariants: -- I1 every lead has exactly one status from the allowed list (violations): -- I2 leads in_progress, and whether each has an open (undispositioned) call: -- I3 in_progress with lock older than 30s (should be swept on next queue read): 0 -- I4 orphan call rows (lead_id not in leads; manual calls have NULL lead_id by design): 0 -- I5 calls never dispositioned and never ended, older than 5 minutes: 0
+[after]   server log (paths): 0 error/warn lines
+[after] == elpaso: controlled clock 2026-11-13 14:30 UTC = 07:30 El Paso (MT), 08:30 Dallas (CT)
+[after]   by id #5020 El Paso (TX +19155550111) -> 422 "error":"Outside calling hours (8am–9pm local time; it's 7:30 AM MST there). Try again later."
+[after]   by id #5022 Dallas (TX +12145550111) -> 201 
+[after]   queue next (El Paso callback due) -> 404 "error":"No dialable leads in queue right now" 
+[after]   dial pad 915-555-0177 -> 422 "error":"Outside calling hours (8am–9pm local time; it's 7:30 AM MST there). Try again later."
+[after]   no lead lost: test leads by status: callback_scheduled=1, contacted=1, new=1
+[after]   in_progress with no open call: 0; open calls: 0
+[after]   invariants: -- I1 every lead has exactly one status from the allowed list (violations): -- I2 leads in_progress, and whether each has an open (undispositioned) call: -- I3 in_progress with lock older than 30s (should be swept on next queue read): 0 -- I4 orphan call rows (lead_id not in leads; manual calls have NULL lead_id by design): 0 -- I5 calls never dispositioned and never ended, older than 5 minutes: 0
+[after]   server log (elpaso): 0 error/warn lines
+[after] == starvation: controlled clock 2026-11-14 02:30 UTC = 21:30 New York (closed), 20:30 Dallas, 19:30 Denver; 70 New York callbacks at the front, 5 Dallas + 3 Denver + 1 Knoxville behind
+[after]   queue order, first 3: NY callback_scheduled, NY callback_scheduled, NY callback_scheduled
+[after]   by id #5098 Knoxville (TN +18655550111) (Knoxville is Eastern: 21:30) -> 422 "error":"Outside calling hours (8am–9pm local time; it's 9:30 PM EST there). Try again later."
+[after] -- single-line Start Dialing, 3 times
+[after]   next lead #1 -> 201  #5090 Dallas 1 (TX +12145550211)
+[after]   next lead #2 -> 201  #5091 Dallas 2 (TX +12145550212)
+[after]   next lead #3 -> 201  #5092 Dallas 3 (TX +12145550213)
+[after] -- counts (GET /api/leads/state-counts), totals over all states
+[after] dialable=76 dialable_now=5 waiting_for_hours=71 unknown_zone=0 next_opens_at=2026-11-14T13:00:00.000Z
+[after] -- multi-line, queue mode, 3 lines, 8 s
+[after]   calls placed: 5 — by state: CO=3, TX=2; session summary: byStatus={"loading":8,"dialing":5,"ringing":5,"no_answer":5,"idle":3}
+[after]   New York callbacks still waiting (callback_scheduled, never dialed): 70 of 70
+[after]   no lead lost: test leads by status: callback_scheduled=70, contacted=3, new=1, no_answer=5
+[after]   in_progress with no open call: 0; open calls: 0
+[after]   invariants: -- I1 every lead has exactly one status from the allowed list (violations): -- I2 leads in_progress, and whether each has an open (undispositioned) call: -- I3 in_progress with lock older than 30s (should be swept on next queue read): 0 -- I4 orphan call rows (lead_id not in leads; manual calls have NULL lead_id by design): 0 -- I5 calls never dispositioned and never ended, older than 5 minutes: 0
+[after]   server log (starvation): 0 error/warn lines
+[after] == toggle: 07:30 Chicago (closed). PUT the setting, then try a closed Chicago lead every 100 ms (server restarted per cycle: per-user rate limit)
+[after]   cycle 1: setting ON at startup: calls placed before the first refusal: 0
+[after]   cycle 1: OFF -> first dial allowed after 24 ms (0 refused first)
+[after]   cycle 1: ON  -> first refusal after 15 ms (0 call(s) placed after the switch)
+[after]   cycle 2: setting ON at startup: calls placed before the first refusal: 0
+[after]   cycle 2: OFF -> first dial allowed after 16 ms (0 refused first)
+[after]   cycle 2: ON  -> first refusal after 14 ms (0 call(s) placed after the switch)
+[after]   cycle 3: setting ON at startup: calls placed before the first refusal: 0
+[after]   cycle 3: OFF -> first dial allowed after 18 ms (0 refused first)
+[after]   cycle 3: ON  -> first refusal after 13 ms (0 call(s) placed after the switch)
+[after]   no lead lost: test leads by status: contacted=3, new=397
+[after]   in_progress with no open call: 0; open calls: 0
+[after]   invariants: -- I1 every lead has exactly one status from the allowed list (violations): -- I2 leads in_progress, and whether each has an open (undispositioned) call: -- I3 in_progress with lock older than 30s (should be swept on next queue read): 0 -- I4 orphan call rows (lead_id not in leads; manual calls have NULL lead_id by design): 0 -- I5 calls never dispositioned and never ended, older than 5 minutes: 0
+[after]   server log (toggle): 0 error/warn lines
+[after] == default: no 'calling_hours_enforced' row in settings; 07:30 Chicago
+[after]   GET setting -> 200 {"key":"calling_hours_enforced","value":null}
+[after]   dial a closed Chicago lead -> 422 "error":"Outside calling hours (8am–9pm local time; it's 7:30 AM CST there). Try again later."
+[after]   no lead lost: test leads by status: new=1
+[after]   in_progress with no open call: 0; open calls: 0
+[after]   invariants: -- I1 every lead has exactly one status from the allowed list (violations): -- I2 leads in_progress, and whether each has an open (undispositioned) call: -- I3 in_progress with lock older than 30s (should be swept on next queue read): 0 -- I4 orphan call rows (lead_id not in leads; manual calls have NULL lead_id by design): 0 -- I5 calls never dispositioned and never ended, older than 5 minutes: 0
+[after]   server log (default): 0 error/warn lines
+[after] == perf: 100,000 leads (+5,000 NY callbacks at the front), 21:30 New York; server ready after 1264 ms
+[after]   zones stored: 26000 of 105019
+[after]   GET /api/leads?pageSize=50 x15: median 0.062502s, max 1.253458s
+[after]   GET /api/leads/state-counts x15: median 0.024432s, max 0.027841s
+[after]   POST /api/calls {} (next lead) x10: codes 10 201;, median 0.040297s, max 0.054212s
+[after]   dialed: AK=1, AZ=1, CA=2, CO=2, IL=1, OK=1, TX=2
+[after]   server log (perf): 0 error/warn lines
+######## after run 3
+code: fix (zonesForLead); enforcement ON
+
+== 1. boundary table (local time in the zone; expected block / ALLOW / ALLOW / block)
+  summer (DST)  ET           America/New_York     07:59=block  08:00=ALLOW  20:59=ALLOW  21:00=block
+  summer (DST)  CT           America/Chicago      07:59=block  08:00=ALLOW  20:59=ALLOW  21:00=block
+  summer (DST)  MT           America/Denver       07:59=block  08:00=ALLOW  20:59=ALLOW  21:00=block
+  summer (DST)  PT           America/Los_Angeles  07:59=block  08:00=ALLOW  20:59=ALLOW  21:00=block
+  summer (DST)  AK           America/Anchorage    07:59=block  08:00=ALLOW  20:59=ALLOW  21:00=block
+  summer (DST)  HI           Pacific/Honolulu     07:59=block  08:00=ALLOW  20:59=ALLOW  21:00=block
+  summer (DST)  AZ (no DST)  America/Phoenix      07:59=block  08:00=ALLOW  20:59=ALLOW  21:00=block
+  summer (DST)  PR           America/Puerto_Rico  07:59=block  08:00=ALLOW  20:59=ALLOW  21:00=block
+  summer (DST)  VI           America/St_Thomas    07:59=block  08:00=ALLOW  20:59=ALLOW  21:00=block
+  summer (DST)  GU           Pacific/Guam         07:59=block  08:00=ALLOW  20:59=ALLOW  21:00=block
+  summer (DST)  MP           Pacific/Saipan       07:59=block  08:00=ALLOW  20:59=ALLOW  21:00=block
+  summer (DST)  AS           Pacific/Pago_Pago    07:59=block  08:00=ALLOW  20:59=ALLOW  21:00=block
+  winter        ET           America/New_York     07:59=block  08:00=ALLOW  20:59=ALLOW  21:00=block
+  winter        CT           America/Chicago      07:59=block  08:00=ALLOW  20:59=ALLOW  21:00=block
+  winter        MT           America/Denver       07:59=block  08:00=ALLOW  20:59=ALLOW  21:00=block
+  winter        PT           America/Los_Angeles  07:59=block  08:00=ALLOW  20:59=ALLOW  21:00=block
+  winter        AK           America/Anchorage    07:59=block  08:00=ALLOW  20:59=ALLOW  21:00=block
+  winter        HI           Pacific/Honolulu     07:59=block  08:00=ALLOW  20:59=ALLOW  21:00=block
+  winter        AZ (no DST)  America/Phoenix      07:59=block  08:00=ALLOW  20:59=ALLOW  21:00=block
+  winter        PR           America/Puerto_Rico  07:59=block  08:00=ALLOW  20:59=ALLOW  21:00=block
+  winter        VI           America/St_Thomas    07:59=block  08:00=ALLOW  20:59=ALLOW  21:00=block
+  winter        GU           Pacific/Guam         07:59=block  08:00=ALLOW  20:59=ALLOW  21:00=block
+  winter        MP           Pacific/Saipan       07:59=block  08:00=ALLOW  20:59=ALLOW  21:00=block
+  winter        AS           Pacific/Pago_Pago    07:59=block  08:00=ALLOW  20:59=ALLOW  21:00=block
+  wrong cells: 0
+
+== 2. split places: every 15 min over two days (summer + winter), against the real zone
+  El Paso TX (915)                               real America/Denver       -> America/Denver                         ok
+  El Paso TX by city (Canadian cell)             real America/Denver       -> America/Denver                         ok
+  Van Horn TX (432 + city)                       real America/Denver       -> America/Denver                         ok
+  Midland TX (432 + city)                        real America/Chicago      -> America/Chicago                        ok
+  Dallas TX (214)                                real America/Chicago      -> America/Chicago                        ok
+  Pensacola FL (850 + city)                      real America/Chicago      -> America/Chicago                        ok
+  Pensacola FL (850, no city)                    real America/Chicago      -> America/Chicago,America/New_York       ok; conservative refusals inside hours ×8
+  Tallahassee FL (850 + city)                    real America/New_York     -> America/New_York                       ok
+  Bowling Green KY (270 + city)                  real America/Chicago      -> America/Chicago                        ok
+  Bowling Green KY by city (Canadian cell)       real America/Chicago      -> America/Chicago                        ok
+  Gary IN (219)                                  real America/Chicago      -> America/Chicago                        ok
+  Evansville IN (812 + city)                     real America/Chicago      -> America/Chicago                        ok
+  Ontario OR (541 + city)                        real America/Boise        -> America/Boise                          ok
+  Knoxville TN (865)                             real America/New_York     -> America/New_York                       ok
+  Chattanooga TN (423)                           real America/New_York     -> America/New_York                       ok
+  Coeur d'Alene ID (208 + city)                  real America/Los_Angeles  -> America/Los_Angeles                    ok
+  Rapid City SD (605 + city)                     real America/Denver       -> America/Denver                         ok
+  Iron Mountain MI (906 + city)                  real America/Menominee    -> America/Menominee                      ok
+  Adak AK (907 + city)                           real America/Adak         -> America/Adak                           ok
+  Window Rock AZ, Navajo Nation (928 + city)     real America/Denver       -> America/Denver                         ok
+  Oklahoma City OK (405)                         real America/Chicago      -> America/Chicago                        ok
+  Denver CO (303)                                real America/Denver       -> America/Denver                         ok
+  TX lead with a Denver cell (303) — moved number real America/Chicago      -> America/Chicago,America/Denver         ok; conservative refusals inside hours ×8
+  slots allowed outside the real 8am–9pm: 0
+
+== 3. unknown / invalid / missing state (at 12:00 New York time, inside hours everywhere in the lower 48)
+  state ""     -> refused 422: "Time zone unknown, set the state first"
+  state "  "   -> refused 422: "Time zone unknown, set the state first"
+  state "ZZ"   -> refused 422: "Time zone unknown, set the state first"
+  state "XX"   -> refused 422: "Time zone unknown, set the state first"
+  state null   -> refused 422: "Time zone unknown, set the state first"
+[after] == paths: controlled clock 2026-11-13 13:30 UTC = 08:30 New York, 07:30 Chicago (CT closed); enforcement ON
+[after] -- by lead id (POST /api/calls {leadId})
+[after]   #5020 NY open (NY +12125550111) -> 201 
+[after]   #5021 IL closed (IL +13125550111) -> 422 "error":"Outside calling hours (8am–9pm local time; it's 7:30 AM CST there). Try again later."
+[after]   #5022 Pensacola (FL +18505550111) -> 422 "error":"Outside calling hours (8am–9pm local time; it's 7:30 AM CST there). Try again later."
+[after]   #5023 Gary (IN +12195550111) -> 422 "error":"Outside calling hours (8am–9pm local time; it's 7:30 AM CST there). Try again later."
+[after]   #5024 Bowling Green (KY +12705550111) -> 422 "error":"Outside calling hours (8am–9pm local time; it's 7:30 AM CST there). Try again later."
+[after]   #5025 No state (no state +12125550112) -> 422 "error":"Time zone unknown, set the state first"
+[after] -- Redial of a closed-zone lead still locked to the rep (lock set by DIRECT SQL: a call started at 20:59, Redial after 21:00)
+[after]   #5026 Redial IL (IL +13125550112) redial -> 422 "error":"Outside calling hours (8am–9pm local time; it's 7:30 AM CST there). Try again later."
+[after] -- multi-line, selected leads [5031 Chicago, 5032 Pensacola], 6 s
+[after]   calls placed: 0 — to: none
+[after] -- queue (Start Dialing, POST /api/calls {}) once: due Chicago callback + due Chicago retry + 2 due Pensacola callbacks
+[after]   next lead -> 404 "error":"No dialable leads in queue right now" 
+[after] -- multi-line, queue mode, 3 lines, 6 s
+[after]   calls placed: 0 — to: none
+[after] -- dial pad (POST /api/calls/manual/start)
+[after]   212-555-0177 -> 201 
+[after]   312-555-0177 -> 422 "error":"Outside calling hours (8am–9pm local time; it's 7:30 AM CST there). Try again later."
+[after]   850-555-0177 -> 422 "error":"Outside calling hours (8am–9pm local time; it's 7:30 AM CST / 8:30 AM EST there). Try again later."
+[after]   416-555-0177 -> 422 "error":"Time zone unknown for this number's area code — calling hours can't be checked, so it can't be dialed while they're enforced."
+[after]   no lead lost: test leads by status: callback_scheduled=3, contacted=1, in_queue=1, new=7, no_answer=1
+[after]   in_progress with no open call: 0; open calls: 0
+[after]   invariants: -- I1 every lead has exactly one status from the allowed list (violations): -- I2 leads in_progress, and whether each has an open (undispositioned) call: -- I3 in_progress with lock older than 30s (should be swept on next queue read): 0 -- I4 orphan call rows (lead_id not in leads; manual calls have NULL lead_id by design): 0 -- I5 calls never dispositioned and never ended, older than 5 minutes: 0
+[after]   server log (paths): 0 error/warn lines
+[after] == elpaso: controlled clock 2026-11-13 14:30 UTC = 07:30 El Paso (MT), 08:30 Dallas (CT)
+[after]   by id #5020 El Paso (TX +19155550111) -> 422 "error":"Outside calling hours (8am–9pm local time; it's 7:30 AM MST there). Try again later."
+[after]   by id #5022 Dallas (TX +12145550111) -> 201 
+[after]   queue next (El Paso callback due) -> 404 "error":"No dialable leads in queue right now" 
+[after]   dial pad 915-555-0177 -> 422 "error":"Outside calling hours (8am–9pm local time; it's 7:30 AM MST there). Try again later."
+[after]   no lead lost: test leads by status: callback_scheduled=1, contacted=1, new=1
+[after]   in_progress with no open call: 0; open calls: 0
+[after]   invariants: -- I1 every lead has exactly one status from the allowed list (violations): -- I2 leads in_progress, and whether each has an open (undispositioned) call: -- I3 in_progress with lock older than 30s (should be swept on next queue read): 0 -- I4 orphan call rows (lead_id not in leads; manual calls have NULL lead_id by design): 0 -- I5 calls never dispositioned and never ended, older than 5 minutes: 0
+[after]   server log (elpaso): 0 error/warn lines
+[after] == starvation: controlled clock 2026-11-14 02:30 UTC = 21:30 New York (closed), 20:30 Dallas, 19:30 Denver; 70 New York callbacks at the front, 5 Dallas + 3 Denver + 1 Knoxville behind
+[after]   queue order, first 3: NY callback_scheduled, NY callback_scheduled, NY callback_scheduled
+[after]   by id #5098 Knoxville (TN +18655550111) (Knoxville is Eastern: 21:30) -> 422 "error":"Outside calling hours (8am–9pm local time; it's 9:30 PM EST there). Try again later."
+[after] -- single-line Start Dialing, 3 times
+[after]   next lead #1 -> 201  #5090 Dallas 1 (TX +12145550211)
+[after]   next lead #2 -> 201  #5091 Dallas 2 (TX +12145550212)
+[after]   next lead #3 -> 201  #5092 Dallas 3 (TX +12145550213)
+[after] -- counts (GET /api/leads/state-counts), totals over all states
+[after] dialable=76 dialable_now=5 waiting_for_hours=71 unknown_zone=0 next_opens_at=2026-11-14T13:00:00.000Z
+[after] -- multi-line, queue mode, 3 lines, 8 s
+[after]   calls placed: 5 — by state: CO=3, TX=2; session summary: byStatus={"loading":8,"dialing":5,"ringing":5,"no_answer":5,"idle":3}
+[after]   New York callbacks still waiting (callback_scheduled, never dialed): 70 of 70
+[after]   no lead lost: test leads by status: callback_scheduled=70, contacted=3, new=1, no_answer=5
+[after]   in_progress with no open call: 0; open calls: 0
+[after]   invariants: -- I1 every lead has exactly one status from the allowed list (violations): -- I2 leads in_progress, and whether each has an open (undispositioned) call: -- I3 in_progress with lock older than 30s (should be swept on next queue read): 0 -- I4 orphan call rows (lead_id not in leads; manual calls have NULL lead_id by design): 0 -- I5 calls never dispositioned and never ended, older than 5 minutes: 0
+[after]   server log (starvation): 0 error/warn lines
+[after] == toggle: 07:30 Chicago (closed). PUT the setting, then try a closed Chicago lead every 100 ms (server restarted per cycle: per-user rate limit)
+[after]   cycle 1: setting ON at startup: calls placed before the first refusal: 0
+[after]   cycle 1: OFF -> first dial allowed after 15 ms (0 refused first)
+[after]   cycle 1: ON  -> first refusal after 12 ms (0 call(s) placed after the switch)
+[after]   cycle 2: setting ON at startup: calls placed before the first refusal: 0
+[after]   cycle 2: OFF -> first dial allowed after 22 ms (0 refused first)
+[after]   cycle 2: ON  -> first refusal after 14 ms (0 call(s) placed after the switch)
+[after]   cycle 3: setting ON at startup: calls placed before the first refusal: 0
+[after]   cycle 3: OFF -> first dial allowed after 20 ms (0 refused first)
+[after]   cycle 3: ON  -> first refusal after 18 ms (0 call(s) placed after the switch)
+[after]   no lead lost: test leads by status: contacted=3, new=397
+[after]   in_progress with no open call: 0; open calls: 0
+[after]   invariants: -- I1 every lead has exactly one status from the allowed list (violations): -- I2 leads in_progress, and whether each has an open (undispositioned) call: -- I3 in_progress with lock older than 30s (should be swept on next queue read): 0 -- I4 orphan call rows (lead_id not in leads; manual calls have NULL lead_id by design): 0 -- I5 calls never dispositioned and never ended, older than 5 minutes: 0
+[after]   server log (toggle): 0 error/warn lines
+[after] == default: no 'calling_hours_enforced' row in settings; 07:30 Chicago
+[after]   GET setting -> 200 {"key":"calling_hours_enforced","value":null}
+[after]   dial a closed Chicago lead -> 422 "error":"Outside calling hours (8am–9pm local time; it's 7:30 AM CST there). Try again later."
+[after]   no lead lost: test leads by status: new=1
+[after]   in_progress with no open call: 0; open calls: 0
+[after]   invariants: -- I1 every lead has exactly one status from the allowed list (violations): -- I2 leads in_progress, and whether each has an open (undispositioned) call: -- I3 in_progress with lock older than 30s (should be swept on next queue read): 0 -- I4 orphan call rows (lead_id not in leads; manual calls have NULL lead_id by design): 0 -- I5 calls never dispositioned and never ended, older than 5 minutes: 0
+[after]   server log (default): 0 error/warn lines
+[after] == perf: 100,000 leads (+5,000 NY callbacks at the front), 21:30 New York; server ready after 1250 ms
+[after]   zones stored: 26000 of 105019
+[after]   GET /api/leads?pageSize=50 x15: median 0.068842s, max 1.262547s
+[after]   GET /api/leads/state-counts x15: median 0.025119s, max 0.027867s
+[after]   POST /api/calls {} (next lead) x10: codes 10 201;, median 0.041533s, max 0.056742s
+[after]   dialed: AK=1, AZ=1, CA=2, CO=1, OK=1, TX=4
+[after]   server log (perf): 0 error/warn lines
+
+## UI (production build) — fix-seg6-ui.sh, 3 runs each, base and HEAD
+# The browser clock is real (not controlled), so the local times shown are the real time; the server's clock is 2026-11-14 02:30 UTC.
+######## UI base run 1
+[base] closed lead 26 (NY, 21:30 there), open lead 16 (CA, 18:30 there)
+[base] settings: stored value (no row); switch aria-checked=false; page says: (no ON/OFF line)
+[base] switch clicked once: stored value (no row); switch aria-checked=true; page says: (no ON/OFF line)
+[base] switch clicked again: stored value (no row); switch aria-checked=false; page says: (no ON/OFF line)
+[base] after "Save defaults": stored value true
+[base] dashboard: "Dialable now" = (not shown); "Waiting for their hours" = (not shown)
+[base] lead list: local times shown: 0 (e.g. -)
+[base] call screen (open lead 16): header after "Attempt": "Connected"; error shown: false
+[base] call screen (closed lead 26): refusal shown = true; calls to it: 0
+[base] page errors: none; 5xx responses: none
+[base] backend log error/warn lines: 0
+######## UI after run 1
+[after] closed lead 26 (NY, 21:30 there), open lead 16 (CA, 18:30 there)
+[after] settings: stored value (no row); switch aria-checked=true; page says: Calling hours are ON — leads are only dialed 8am–9pm their local time
+[after] switch clicked once: stored value false; switch aria-checked=false; page says: Calling hours are OFF — leads can be dialed at any hour
+[after] switch clicked again: stored value true; switch aria-checked=true; page says: Calling hours are ON — leads are only dialed 8am–9pm their local time
+[after] dashboard: "Dialable now" = 3014 (Inside 8am–9pm their time); "Waiting for their hours" = 2005 (Next opens at 01:00 PM)
+[after] lead list: local times shown: 50 (e.g. 10:04 AM EST | 9:04 AM CST | 7:04 AM PST · closed | 8:04 AM MST)
+[after] call screen (open lead 16): header after "Attempt": "7:04 AM PST · closed"; error shown: false
+[after] call screen (closed lead 26): refusal shown = true; calls to it: 0
+[after] page errors: none; 5xx responses: none
+[after] backend log error/warn lines: 0
+######## UI base run 2
+[base] closed lead 26 (NY, 21:30 there), open lead 16 (CA, 18:30 there)
+[base] settings: stored value (no row); switch aria-checked=false; page says: (no ON/OFF line)
+[base] switch clicked once: stored value (no row); switch aria-checked=true; page says: (no ON/OFF line)
+[base] switch clicked again: stored value (no row); switch aria-checked=false; page says: (no ON/OFF line)
+[base] after "Save defaults": stored value true
+[base] dashboard: "Dialable now" = (not shown); "Waiting for their hours" = (not shown)
+[base] lead list: local times shown: 0 (e.g. -)
+[base] call screen (open lead 16): header after "Attempt": "Connected"; error shown: false
+[base] call screen (closed lead 26): refusal shown = true; calls to it: 0
+[base] page errors: none; 5xx responses: none
+[base] backend log error/warn lines: 0
+######## UI after run 2
+[after] closed lead 26 (NY, 21:30 there), open lead 16 (CA, 18:30 there)
+[after] settings: stored value (no row); switch aria-checked=true; page says: Calling hours are ON — leads are only dialed 8am–9pm their local time
+[after] switch clicked once: stored value false; switch aria-checked=false; page says: Calling hours are OFF — leads can be dialed at any hour
+[after] switch clicked again: stored value true; switch aria-checked=true; page says: Calling hours are ON — leads are only dialed 8am–9pm their local time
+[after] dashboard: "Dialable now" = 3014 (Inside 8am–9pm their time); "Waiting for their hours" = 2005 (Next opens at 01:00 PM)
+[after] lead list: local times shown: 50 (e.g. 10:05 AM EST | 9:05 AM CST | 7:05 AM PST · closed | 8:05 AM MST)
+[after] call screen (open lead 16): header after "Attempt": "7:05 AM PST · closed"; error shown: false
+[after] call screen (closed lead 26): refusal shown = true; calls to it: 0
+[after] page errors: none; 5xx responses: none
+[after] backend log error/warn lines: 0
+######## UI base run 3
+[base] closed lead 26 (NY, 21:30 there), open lead 16 (CA, 18:30 there)
+[base] settings: stored value (no row); switch aria-checked=false; page says: (no ON/OFF line)
+[base] switch clicked once: stored value (no row); switch aria-checked=true; page says: (no ON/OFF line)
+[base] switch clicked again: stored value (no row); switch aria-checked=false; page says: (no ON/OFF line)
+[base] after "Save defaults": stored value true
+[base] dashboard: "Dialable now" = (not shown); "Waiting for their hours" = (not shown)
+[base] lead list: local times shown: 0 (e.g. -)
+[base] call screen (open lead 16): header after "Attempt": "Connected"; error shown: false
+[base] call screen (closed lead 26): refusal shown = true; calls to it: 0
+[base] page errors: none; 5xx responses: none
+[base] backend log error/warn lines: 0
+######## UI after run 3
+[after] closed lead 26 (NY, 21:30 there), open lead 16 (CA, 18:30 there)
+[after] settings: stored value (no row); switch aria-checked=true; page says: Calling hours are ON — leads are only dialed 8am–9pm their local time
+[after] switch clicked once: stored value false; switch aria-checked=false; page says: Calling hours are OFF — leads can be dialed at any hour
+[after] switch clicked again: stored value true; switch aria-checked=true; page says: Calling hours are ON — leads are only dialed 8am–9pm their local time
+[after] dashboard: "Dialable now" = 3014 (Inside 8am–9pm their time); "Waiting for their hours" = 2005 (Next opens at 01:00 PM)
+[after] lead list: local times shown: 50 (e.g. 10:06 AM EST | 9:06 AM CST | 7:06 AM PST · closed | 8:06 AM MST)
+[after] call screen (open lead 16): header after "Attempt": "7:06 AM PST · closed"; error shown: false
+[after] call screen (closed lead 26): refusal shown = true; calls to it: 0
+[after] page errors: none; 5xx responses: none
+[after] backend log error/warn lines: 0
+UI-DONE
