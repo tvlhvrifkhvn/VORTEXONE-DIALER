@@ -301,3 +301,4 @@
 - 2026-11-18 · C8C · PIPELINE shows one SAVE (solid) and CANCEL only after a change, saving the stage and the deal value as needed; done tasks leave NEXT (they're in the timeline), delete moves into the row's ⋯
 - 2026-11-18 · C8C · SEND in SmsCompose and EmailCompose is solid everywhere (the call screen's QUICK SMS too): a form submit inside a panel, rule 4 · style only
 - 2026-11-18 · C8C · Delete lead keeps its words and two buttons but sits in a Dialog opened from ⋯; Move to another file lists the other files in the same ⋯ (supervisors, as the bulk move) with the bulk move's confirm
+- 2026-11-18 · after C8C · CLEAR on a scheduled callback (DELETE /api/leads/:id/callback) sends the lead back to in_queue, dialable now (next_action_at NULL), and marks its callbacks rows done; only a callback_scheduled lead can be cleared (409 otherwise), so DNC and locked leads are untouched · the owner asked for it after C8C; attempts are not changed

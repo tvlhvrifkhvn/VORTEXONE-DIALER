@@ -20,6 +20,7 @@ const SUMMARIES = {
   'POST /api/leads/:id/stage': 'Moved the stage',
   'PUT /api/leads/:id/deal': 'Set the deal value',
   'POST /api/leads/:id/callback': 'Scheduled a callback',
+  'DELETE /api/leads/:id/callback': 'Cleared a callback',
   'POST /api/leads/:id/snooze': 'Snoozed the lead',
   'POST /api/leads/:id/campaign': 'Moved to another file',
   'POST /api/leads/:id/draft': 'Drafted a message with AI',

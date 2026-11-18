@@ -310,7 +310,7 @@ export default function LeadDetail() {
       {/* C2B: stage, lost reason and deal value. Only when the lead is in the active file (else the page switches). */}
       {inActiveFile && <LeadStagePanel lead={lead} onChange={setLead} />}
       {/* C3A: the open tasks and the scheduled callback (the forms are the composer's tabs). */}
-      <TaskPanel lead={lead} refreshKey={refresh.tasks} />
+      <TaskPanel lead={lead} refreshKey={refresh.tasks} onLeadChange={setLead} />
       {/* C5B: the AI summary, on request only. */}
       <LeadSummaryPanel key={lead.id} leadId={lead.id} />
       <ColleagueCard leadId={lead.id} twoByTwo />
