@@ -19,6 +19,10 @@ const reports = require('../reports');
 const reportingPeriod = require('../reportingPeriod');
 const pipeline = require('../pipeline');
 const campaigns = require('../campaigns');
+const bestTime = require('../bestTime');
+const funnel = require('../funnel');
+const objectionService = require('../objectionService');
+const appHelp = require('./appHelp');
 const customFields = require('../customFields');
 const costEngine = require('../costEngine');
 const campaignScope = require('../campaignScope');
@@ -453,6 +457,85 @@ async function proposeStage(args, ctx) {
   });
 }
 
+// ---- C7F: best times, objections, funnel, the file, app help -------------------
+
+const compactBest = (r) =>
+  r && {
+    calls: r.calls,
+    enough: r.enough,
+    best: r.best,
+    text: r.text,
+    by_hour: r.hours.filter((x) => x.calls > 0).map((x) => ({ hour: x.hour, calls: x.calls, rate_pct: x.rate })),
+  };
+
+async function getBestTimes(args, ctx) {
+  if (args.lead_id !== undefined && args.lead_id !== null && args.lead_id !== '') {
+    const lead = await loadLead(requiredId(args, 'lead_id'));
+    remember(ctx, lead.id, lead.name);
+    const r = await bestTime.forLead(lead.id);
+    return { lead_id: lead.id, state: r.stateCode, this_lead: compactBest(r.lead), its_state: compactBest(r.state), text: r.text, local_time: "the lead's local hour, last 90 days" };
+  }
+  const state = optionalText(args, 'state', 2);
+  if (state && !/^[A-Za-z]{2}$/.test(state)) throw new ToolArgError('state must be a 2-letter US state');
+  const rows = (await bestTime.perState(ctx.campaignId)).filter((r) => !state || r.state === state.toUpperCase());
+  return capped('states', rows.map((r) => ({ state: r.state, ...compactBest(r) })));
+}
+
+async function getObjections(args, ctx) {
+  const report = await objectionService.getReport({ campaignId: ctx.campaignId });
+  return {
+    from: report.dateFrom,
+    to: report.dateTo,
+    ...capped('objections', report.objections),
+  };
+}
+
+async function getFunnel(args, ctx) {
+  const period = oneOf(args, 'period', PERIODS, 'this month');
+  const p = await periodFor(period);
+  const list = ctx.campaignId === campaignScope.ALL
+    ? (await campaigns.list()).filter((c) => c.status !== 'archived')
+    : [await campaigns.getById(ctx.campaignId)];
+  const files = [];
+  for (const c of list.slice(0, MAX_ROWS)) {
+    const f = await funnel.forCampaign(c.id, p);
+    files.push({
+      file: fileLabel(c.file_number, c.name),
+      stages: f.stages.map((s) => ({ stage: s.name, reached: s.reached, conversion_pct: s.conversionPct })),
+      wins: f.wins,
+      lost: f.lost,
+      cost_per_win_cents: f.costPerWinCents,
+      rates_set: f.ratesSet,
+    });
+  }
+  return { period: p.label, ...capped('files', files) };
+}
+
+const fileFacts = (c) => ({
+  file: fileLabel(c.file_number, c.name),
+  kind: c.kind,
+  status: c.status,
+  company_label: c.company_label,
+  ai_context: c.ai_context,
+  pitch_script: c.pitch_script,
+  daily_goal: c.daily_goal,
+  max_attempts: c.default_max_attempts,
+  monthly_budget_cents: c.monthly_budget_cents === null || c.monthly_budget_cents === undefined ? null : Number(c.monthly_budget_cents),
+});
+
+async function getFile(args, ctx) {
+  if (ctx.campaignId === campaignScope.ALL) {
+    const list = (await campaigns.list()).filter((c) => c.status !== 'archived');
+    return capped('files', list.map(fileFacts));
+  }
+  return fileFacts(await campaigns.getById(ctx.campaignId));
+}
+
+async function getAppHelp(args) {
+  const topic = optionalText(args, 'topic', 200) || '';
+  return { source: 'the Vortex One Outreach user guide', ...appHelp.search(topic) };
+}
+
 // ---- the registry (names, descriptions and JSON schemas sent to the model) -----
 
 const campaignParam = {
@@ -542,6 +625,35 @@ const TOOLS = {
       required: ['lead_id', 'stage_id'],
       additionalProperties: false,
     },
+  },
+  get_best_times: {
+    run: getBestTimes,
+    description: "Best local hours to call (connect rate by the lead's local hour, last 90 days): for one lead (and its state), or per state in scope.",
+    parameters: {
+      type: 'object',
+      properties: { lead_id: { type: 'integer' }, state: { type: 'string', description: '2-letter US state.' } },
+      additionalProperties: false,
+    },
+  },
+  get_objections: {
+    run: getObjections,
+    description: 'Objections logged on calls (last 30 days): each with how often it came up and how often the call still ended well.',
+    parameters: { type: 'object', properties: {}, additionalProperties: false },
+  },
+  get_funnel: {
+    run: getFunnel,
+    description: 'The stage funnel for a period: how many leads reached each stage, conversion from the stage before, wins, lost, cost per win.',
+    parameters: { type: 'object', properties: { period: { type: 'string', enum: PERIODS } }, additionalProperties: false },
+  },
+  get_file: {
+    run: getFile,
+    description: "The current file's settings: what it sells (AI context), company label, pitch script, daily goal, max attempts, monthly budget.",
+    parameters: { type: 'object', properties: {}, additionalProperties: false },
+  },
+  get_app_help: {
+    run: getAppHelp,
+    description: 'How to use Vortex One Outreach: the user guide sections matching a topic (e.g. "add a task", "smart list", "import", "hotkeys"). No topic lists the sections.',
+    parameters: { type: 'object', properties: { topic: { type: 'string' } }, additionalProperties: false },
   },
   list_campaigns: {
     run: listCampaigns,

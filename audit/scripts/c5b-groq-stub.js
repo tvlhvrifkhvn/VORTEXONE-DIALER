@@ -12,6 +12,18 @@ const port = Number(process.argv[2]) || 4599;
 function reply(body) {
   const system = (body.messages || [])[0]?.content || '';
   const question = [...(body.messages || [])].reverse().find((m) => m.role === 'user')?.content || '';
+  // C7F: web search, how-do-I (get_app_help), general advice.
+  if (body.model === 'groq/compound') {
+    return answer('Most agents answer between 10am and noon on weekdays, after showings start later in the day.\n- Tuesday to Thursday are busiest for listings.\n- Avoid weekend mornings: open houses.\nSources: nar.realtor, inman.com');
+  }
+  if (body.tools && /^How do I add a task/.test(question)) {
+    const toolMsgs = (body.messages || []).filter((m) => m.role === 'tool');
+    if (toolMsgs.length === 0) return toolCall('get_app_help', { topic: 'add a task' });
+    return answer('On the lead page, click ADD TASK in the top bar (or use the TASKS panel on the right):\n- type what to do, pick the type and the due time\n- ADD TASK saves it\nOn Today, TO DO shows it; DONE and RESCHEDULE are on each row.');
+  }
+  if (body.tools && /^How should I open a cold call/.test(question)) {
+    return answer('General advice — not from your data.\n- Say who you are and why in one sentence, then ask a question about their week.\n- Mention one result for an agent like them (a colleague in their office, if you have one).\n- Aim for a 10-minute call, not a sale, on the first try.');
+  }
   // C5C: the brief, the two drafts, and proposals.
   if (!body.tools && /morning brief/.test(system)) {
     const facts = JSON.parse(body.messages[1].content);

@@ -198,6 +198,7 @@ async function setupFile() {
 }
 
 module.exports = {
+  PASSWORD,
   db,
   start,
   resetDb,
