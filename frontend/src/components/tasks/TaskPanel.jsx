@@ -11,7 +11,8 @@ import { TASK_TYPES } from './TaskForm';
 import { formatDateTime } from '../../lib/format';
 import * as api from '../../lib/api';
 
-export default function TaskPanel({ lead, refreshKey = 0 }) {
+// onLeadChange: CLEAR on the scheduled callback sends the lead back to the queue.
+export default function TaskPanel({ lead, refreshKey = 0, onLeadChange }) {
   const [tasks, setTasks] = useState([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
@@ -58,6 +59,14 @@ export default function TaskPanel({ lead, refreshKey = 0 }) {
           <li className="flex min-h-12 items-center gap-2 border-b px-3 py-2 last:border-b-0">
             <Badge tone={new Date(callbackAt).getTime() < now ? 'solid' : 'outline'}>Callback</Badge>
             <span className="min-w-0 flex-1 font-mono text-xs tabular-nums text-foreground">{formatDateTime(callbackAt)}</span>
+            <Button
+              size="sm"
+              disabled={busy}
+              title="Clear the callback: the lead goes back to the queue"
+              onClick={() => window.confirm('Clear this callback? The lead goes back to the queue.') && run(async () => onLeadChange?.((await api.clearCallback(lead.id)).lead))}
+            >
+              Clear
+            </Button>
           </li>
         )}
         {open.map((t) => {

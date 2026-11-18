@@ -29,7 +29,7 @@ The assistant answers "how do I…" questions from this file (tool `get_app_help
 - Top bar: BACK, name and company, STATUS and STAGE, the lead's local time (OPEN or CLOSED), then CALL · SMS · EMAIL (SMS and EMAIL open that composer tab) · ⋯ (Move to another file, supervisors; Delete lead, with a confirm).
 - Left (PROFILE): contact details (copy the phone with the copy button; EDIT to change them, then SAVE or CANCEL), TAGS & LISTS (+ ADD), FIELDS (the file's own fields; EDIT, SAVE), BEST TIME.
 - Middle (ACTIVITY): the composer with tabs NOTE · SMS · EMAIL · TASK · CALLBACK (SMS and EMAIL have DRAFT WITH AI), then the timeline (calls, texts, emails, notes, stage changes, tasks, activity) with its filter.
-- Right (WORK): PIPELINE (stage and deal value; SAVE shows after a change), NEXT (the scheduled callback and open tasks: DONE, ⋯ → Delete task), AI SUMMARY (GENERATE), OFFICE (colleagues at the same office).
+- Right (WORK): PIPELINE (stage and deal value; SAVE shows after a change), NEXT (the scheduled callback with CLEAR, which sends the lead back to the queue; open tasks: DONE, ⋯ → Delete task), AI SUMMARY (GENERATE), OFFICE (colleagues at the same office).
 
 ## Create a file (campaign)
 - A file is a separate campaign with its own leads, stages, fields, pitch script, AI context, daily goal and budget.

@@ -1,6 +1,7 @@
 const express = require('express');
 const leadQueue = require('../services/leadQueue');
 const leadLifecycle = require('../services/leadLifecycle');
+const callbackClear = require('../services/callbackClear');
 const timeline = require('../services/timeline');
 const colleagueIntel = require('../services/colleagueIntel');
 const preCallBrief = require('../services/preCallBrief');
@@ -154,6 +155,15 @@ router.post(
   '/:id/callback',
   asyncHandler(async (req, res) => {
     const lead = await leadLifecycle.scheduleCallback({ leadId: req.params.id, scheduledAt: req.body.scheduledAt });
+    res.json({ lead });
+  })
+);
+
+// Clear a scheduled callback: the lead goes back to the queue (services/callbackClear.js).
+router.delete(
+  '/:id/callback',
+  asyncHandler(async (req, res) => {
+    const lead = await callbackClear.clearCallback({ leadId: req.params.id });
     res.json({ lead });
   })
 );
