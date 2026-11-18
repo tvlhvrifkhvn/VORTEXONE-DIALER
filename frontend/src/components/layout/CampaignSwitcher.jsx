@@ -32,9 +32,14 @@ export default function CampaignSwitcher() {
         aria-expanded={open}
         aria-label={`Active file: ${active ? `File ${active.file_number}, ${active.name}` : 'loading'}. Switch file`}
         onClick={() => setOpen((o) => !o)}
-        className="inline-flex min-h-10 items-center gap-2 px-2 transition-colors duration-150 hover:bg-muted"
+        title={active?.name}
+        className="inline-flex min-h-10 shrink-0 items-center gap-2 px-2 transition-colors duration-150 hover:bg-muted"
       >
-        <FileTag number={active?.file_number ?? 1} name={active?.name ?? ''} />
+        {/* C8A: in the one-row header the name shows from 1440px wide (title and aria-label below). */}
+        <FileTag number={active?.file_number ?? 1} />
+        <span className="hidden max-w-[7rem] truncate font-mono text-xs font-medium uppercase text-muted-foreground min-[1440px]:inline 2xl:max-w-[12rem]">
+          {active?.name ?? ''}
+        </span>
         {active?.status === 'paused' && <Badge tone="muted">Paused</Badge>}
         <span aria-hidden="true" className="font-mono text-xs text-muted-foreground">
           ▾

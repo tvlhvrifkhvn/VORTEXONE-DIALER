@@ -481,6 +481,108 @@ Do:
 - Panel: suggested questions grouped as YOUR DATA · HOW DO I · ADVICE; the conversation keeps the last 10 turns.
 Tests (with the stub): a "how do I create a task" question calls get_app_help; a general question returns the general-advice line and no tool calls; data questions still use tools and cite leads; privacy rules unchanged; WEB never sends CRM data. Gate extra: run 10 sample questions against the real Groq key only if the owner sets RUN_LIVE_AI=1, and print the answers.
 
+## Block 4: clarity and hierarchy (C8A to C8F)
+Owner feedback after Block 3: too much text, the same information in several places, buttons without a clear reason, pages that feel like a cockpit. Block 4 rearranges and removes. Only C8F (manual dial pad) adds features. The call screen layout may change in C8E only; its hotkeys (M, Esc, V, N, D), handlers, confirms and outcome logic never change.
+
+Clarity rules (C8A writes them into docs/DESIGN.md as section 9; every phase follows them):
+1. Every element needs a reason: an action the owner takes on this screen, or information they need here. Otherwise remove it.
+2. One fact, one place per screen. The current file appears only in the header switcher; pages don't repeat it.
+3. No explanatory paragraphs in the UI. An empty state is one short line. Explanations go in a `title` tooltip or in docs/USER_GUIDE.md (the assistant answers "how do I"). Section labels are plain names ("TO DO", "OUTCOME"): the "01 —" numbers go.
+4. One primary (orange) button per screen. Buttons that submit a form inside a panel use the solid style (bg-foreground, text-background), never orange. Other actions are secondary buttons; rare actions go in a "⋯" menu.
+5. Sizes: buttons 40px; compact buttons 32px (inside rails, lists, cards, panel headers); call controls 48px. A page's header row uses 44px for every button in it (the primary and the buttons beside it). Buttons in one row share one height and sit on one center line. Gaps: 8px inside a group of buttons, 16px between groups. Buttons of the same kind in one row have equal widths. Rows stacked on a page share their left and right edges. Segmented controls match the height of the buttons beside them. Tags never wrap.
+6. Every page starts with one header row: the title on the left (with at most one muted count or date), its actions on the right. Then the content.
+7. Status and stage are labeled when they appear together ("STATUS · NEW", "STAGE · NEW").
+8. Regions follow the Block 3 frame: fixed header, each region scrolls on its own, no browser scrollbar at 1440×900 and 1280×720.
+9. Each phase updates the docs/USER_GUIDE.md sections for the screens it changes, so the assistant's "how do I" answers stay right.
+
+## C8A Header and clarity rules (Sonnet 5.5, high)
+Read: components/layout/AppShell.jsx, CampaignSwitcher.jsx, SpendMeter.jsx, PageFrame.jsx, App.jsx, pages/Styleguide.jsx, docs/DESIGN.md, the ui/ primitives.
+Do:
+- docs/DESIGN.md: section 9 "Clarity rules" (the 9 rules above). Log the decisions in docs/DECISIONS.md.
+- New ui/ primitive `Menu`: a button ("⋯" or a label with ▾) that opens a list of actions. Keyboard accessible (arrow keys, Enter); Esc closes it only while focus is inside it, so it never collides with the call screen's Esc. Add `Menu` and the solid button style to /styleguide.
+- One header row, 56px high. Left to right:
+  - the wordmark "VORTEX ONE" (the word OUTREACH goes; the browser tab keeps the full name);
+  - the file switcher;
+  - nav: TODAY · PIPELINE · LEADS · DIALER · INBOX · REPORTS (IMPORT leaves the nav, its route stays, C8B puts it on the Leads page; SETTINGS moves into the user menu);
+  - the lead search field (280px; below 1280px wide it becomes a search icon button that opens the field);
+  - a calling-hours chip "ET 6:26 AM · CLOSED" (or "· OPEN", from the existing calling-hours logic). Clicking it opens a small popover with the four US zones, each with its time and OPEN or CLOSED. No strikethrough text anywhere;
+  - a spend chip ("$3.40 TODAY", in signal colors at 80% or more of a budget), only when call rates are set; hidden otherwise (Settings → Spend limits still says rates aren't set);
+  - ASK · DIAL;
+  - a user menu (the owner's initials) with SETTINGS, THEME (INK | PAPER) and LOG OUT.
+- The second header row goes away (search, spend, theme, clocks moved as above). The header stays one row (no wrapping) at 1180px wide and up.
+- Rail collapse buttons (« »): 32px, muted, at the top of their rail.
+Gate extra: header screenshots at 1440 and 1180 wide, both themes, with the user menu and the hours popover open.
+
+## C8B Today and Leads (Sonnet 5.5, high)
+Read: pages/Today.jsx, components/today/TodoList.jsx, NextUp.jsx, components/assistant/BriefPanel.jsx, pages/Dashboard.jsx, components/layout/LeftRail.jsx, StateSidebar.jsx, components/leads/SavedViewsBar.jsx, LeadFilters.jsx, BulkActions.jsx, AddToList.jsx, DuplicatesView.jsx, components/stats/QueueHoursCards.jsx.
+Today is "what to do now"; Leads is "find people". They no longer share a left rail or the numbers.
+Today (main column and a right rail; no left rail):
+- Header row: "Today" and the date (muted) · START DIALING SESSION → (the page primary).
+- One row of four equal tiles, all numbers 2xl: DIALS ("0 of 100" with a thin goal bar; EDIT as a 32px text button in the tile, supervisors only as now: the edit logic of DailyGoalTracker in pages/Dashboard.jsx moves here), CONTACTS, CONNECT RATE, DUE (overdue + today).
+- TO DO: header row "TO DO" with "1 today · 0 overdue" on the right. One row of controls: Segmented OVERDUE n · TODAY n · UPCOMING n on the left, a TYPE select on the right (All types, Callbacks, Tasks, Replies, "Gone quiet (no activity 7+ days)"). Rows: time (mono) · type tag · name and company · one-line detail · actions on the right (CALL, REPLY or DONE; ⋯ with RESCHEDULE). Empty: "Nothing here."
+- Right rail: PIPELINE (one row per stage with its count; "OPEN BOARD →" in the group header), then AI BRIEF (a 32px GENERATE BRIEF button; the Groq note becomes its tooltip).
+- Remove: the left rail, NEXT UP (it repeats TO DO), the FILE tag beside the title, the "Gone quiet = …" help line, the brief's description paragraph.
+Leads (left rail and main column):
+- Left rail, top to bottom: ALL LEADS (count) · SMART LISTS (a "+" icon button in the group header saves the current filters as a smart list) · LISTS ("+" creates a list) · STATES (collapsible; one count per state; the not-contacted count goes into the row's tooltip). No descriptions, no FILES group. An empty group shows "None yet".
+- The separate STATES panel goes (now in the rail).
+- Header row: "Leads" and the count · on the right: a DIAL split button (the primary; it runs the existing handleStartDialingSession: the selection if any, otherwise the queue; label "DIAL 626" or "DIAL 3 SELECTED"; its arrow opens the existing LINES 1 · 2 · 3 control and the line "592 dialable now · 0 waiting for their hours") · IMPORT (secondary, opens /import) · ⋯ (Export CSV, Daily report PDF, Find duplicates, Save filters as a smart list). All three are 44px high, centered on one line with the title.
+- Toolbar (40px): the search field filling the width, the count "50 of 626" (muted), and FILTERS (n) at the right end, as wide as IMPORT and ⋯ above it, so both rows share their edges. FILTERS opens the existing filter fields in a panel under it. Active filters show as chips with ×.
+- When rows are selected, a strip of the same height replaces the toolbar: "3 SELECTED" · SMS · ADD TO LIST · STAGE · TAG · FILE, and on the right SELECT ALL 626 · CLEAR.
+- Remove: the KPI tiles, the daily goal, the DIALABLE NOW and WAITING tiles (now in the DIAL menu), the LEADS | DUPLICATES tabs (duplicates open from ⋯ as a full view with BACK TO LEADS), the ALL LEADS and "+ SAVE CURRENT FILTERS" buttons, the second "626 LEADS" line, the separate "Showing 50 of 626" line.
+Gate extra: screenshots of Today, and of Leads with 3 rows selected, the filters open and the DIAL menu open; both themes, at 1440×900 and 1280×720 (no browser scrollbar).
+
+## C8C Lead page (Sonnet 5.5, high)
+Read: pages/LeadDetail.jsx, components/leads/LeadActionHub.jsx, TagEditor.jsx, CustomFieldsPanel.jsx, BestTimeHint.jsx, ColleagueCard.jsx, components/tasks/TaskPanel.jsx, TaskForm.jsx, components/pipeline/LeadStagePanel.jsx, components/assistant/LeadSummaryPanel.jsx, DraftWithAi.jsx, components/layout/PageFrame.jsx.
+Layout like Follow Up Boss: a top bar, PROFILE on the left (300px), ACTIVITY in the middle, WORK on the right (320px). Nothing new: existing parts move.
+- Top bar: ← BACK · name (xl) and company (muted) · STATUS and STAGE tags (labeled) · the lead's local time and OPEN/CLOSED · CALL (the page primary) · SMS · EMAIL (they open that composer tab) · ⋯ (Move to another file: a file picker that calls the existing api.bulkMoveCampaign with this one lead; Delete lead, with its existing confirm). ADD TASK leaves the top bar (it is a composer tab).
+- PROFILE: contact details as read-only rows (label and value; the phone in mono with a copy button) and an EDIT button in the section header that turns the rows into the existing form with SAVE (solid) and CANCEL. Then TAGS & LISTS (chips, "+ ADD"), FIELDS (custom fields, same read and EDIT pattern), BEST TIME (one line). DELETE LEAD moves to ⋯.
+- ACTIVITY: a composer at the top with tabs NOTE · SMS · EMAIL · TASK · CALLBACK (NOTE by default). Each tab holds the existing form for that action; SMS and EMAIL keep DRAFT WITH AI; each submit button is solid. Under it, the TIMELINE with its filter, filling the rest of the column and scrolling on its own. Empty: "No activity yet."
+- WORK: PIPELINE (stage select and deal value; SAVE appears only after a change), NEXT (open tasks with DONE, the scheduled callback with CLEAR; lists only, the forms live in the composer), AI SUMMARY (GENERATE, 32px), OFFICE (the four colleague numbers in a 2×2 grid).
+Gate extra: screenshots of a lead with a full timeline and of each composer tab, both themes; CALL visible without scrolling at 1280×720.
+
+## C8D Pipeline and Settings (Sonnet 5.5, high)
+Read: pages/Pipeline.jsx, components/pipeline/StageMoveMenu.jsx, pages/Settings.jsx, pages/Campaigns.jsx, components/pipeline/StageEditor.jsx, components/layout/PageFrame.jsx.
+Pipeline:
+- Header row: "Pipeline" and the open count · on the right, the search field (320px) with a clear "×". No label, no help line (the drag hint becomes the cards' tooltip).
+- The board fills the height under the header exactly, with no page scroll. It scrolls sideways only: set overflow-y hidden on the board (overflow-x on its own makes it scroll vertically too, which is why the column headers disappear and the page runs past the board).
+- Each column is a flex column: a sticky header (stage name, count, WON or LOST tag), a card list that scrolls on its own, and LOAD MORE at the end of the list. Columns are 280px wide and 12px apart.
+- An empty column keeps its header, shows "No leads", and stays a full-height drop zone. While dragging, the target column gets a 2px outline.
+- Cards: name (semibold) · company (one line, muted) · status tag and last activity (mono) · CALL and MOVE → as 32px text buttons on the right. Every card has the same height.
+Settings:
+- Each section: one header row with its title; content at most 720px wide; one SAVE (solid) at the bottom. Remove the description paragraphs; keep a one-line note only where a rule matters (calling hours).
+- Files list (280px): "+ NEW FILE" at the top as a secondary button (not orange). Each row: the FILE nn tag · the name · one status word (Active or Paused). The current file shows a muted "CURRENT" (replaces "ACTIVE HERE"; no double ACTIVE tags).
+- File editor: a header row with the name (xl), the FILE nn tag and the status tag; PAUSE or RESUME and ARCHIVE move into ⋯. The tabs stay; the repeated header inside each tab panel goes. SAVE FILE (solid) is the only submit. NEW FILE opens its form in the editor area.
+Gate extra: screenshots of the board (normal, searching, while dragging), every Settings section and every Files tab; both themes, at 1440×900 and 1280×720 (no browser scrollbar).
+
+## C8E Call screen (Opus 5.5, medium)
+Read: pages/CallScreen.jsx, components/call/CallHeader.jsx, CallContactHeader.jsx, CallCostRow.jsx, BriefCard.jsx, CallActionGrid.jsx, CallControls.jsx, NotesField.jsx, DispositionPanel.jsx, DispositionButtons.jsx, ObjectionPanel.jsx, components/leads/ColleagueCard.jsx, and the quick SMS part of LeadActionHub.jsx.
+Goal: everything needed during a call is visible without scrolling at 1440×900; at 1280×720 the center column needs no page scroll. Only placement changes: hotkeys, handlers, timers, confirms and the outcome logic stay exactly as they are.
+Three columns:
+- LEAD (left, 320px): name (xl), company, phone (mono), tags for state · attempt · local time, the BRIEF text (always open), OFFICE (four numbers 2×2), RECENT (the existing PreviousNotes list from DispositionPanel.jsx, the last 5, compact), VIEW LEAD ↗.
+- CALL (center, flexible, at most 760px): status (dot and RINGING, CONNECTED or ON HOLD) and the timer (display size) in one row; the cosmetic REC mark in CallHeader.jsx goes (nothing is recorded; real recording comes with the provider); EST. COST under it only when rates are set. A controls row, 48px, equal widths: [M] MUTE · HOLD · [ESC] END CALL (the primary, double width). NOTES (4 rows; EXPAND NOTE as a 32px button in its header). OUTCOME: the [D] hint in its header; MOVE TO STAGE and FOLLOW-UP TASK in one row; the six outcome buttons in the same 3×2 grid and order, 48px high.
+- HELP (right, 340px): PITCH SCRIPT (the existing ScriptPanel, open by default, scrolls; the pitch script appears only here, once), OBJECTIONS (the existing objection panel shown inline, not behind a button), QUICK ACTIONS as compact rows: ADD TAG, QUICK SMS, ADD TASK, SCHEDULE CALLBACK (each opens its existing form inline or in a Dialog; SCHEDULE CALLBACK is the existing CallControls).
+- The 8-button action grid goes: MUTE and HOLD move into the controls row; ADD NOTE goes (the NOTES box is always visible and its text is saved with the outcome, as today); VIEW LEAD becomes the link in the left column; ADD TAG, QUICK SMS, OBJECTION and ADD TASK move to the right column.
+- Below 1280px the right column becomes tabs (SCRIPT · OBJECTIONS · ACTIONS) under the center column.
+Gate extra: screenshots while ringing, connected, ended with the outcomes, and with the hang-up confirm open; both themes, at 1440×900 and 1280×720. The hotkey smoke (M, V, N, D, Esc) passes.
+
+## C8F Manual dial pad (Opus 5.5, medium)
+Read: components/call/DialPad.jsx, pages/ManualCall.jsx, backend/src/telephony/index.js, mockAdapter.js, routes/calls.js (the manual, get and hangup routes), services/callSession.js `startManual`, utils/phoneNormalize.js, services/leadQueue.js `addNote`.
+Do:
+- Migration 044: `call_history.notes` (text, null) and `call_history.recording` (boolean, default false).
+- Telephony: two optional adapter functions, `sendDigits(callRef, digits)` and `setRecording(callRef, on)`. The `placeCall` contract doesn't change. The mock adapter implements both as no-ops that succeed. telephony/index.js exposes `supports('digits')` and `supports('recording')`; without support the routes answer 501 "Not available with this provider yet".
+- Routes, for the owner's own calls (digits and recording only while the call is live; notes until 24 hours after it ends):
+  - POST /api/calls/:id/digits (`[0-9*#]`, 1 to 32 characters)
+  - POST /api/calls/:id/recording ({ on })
+  - PUT /api/calls/:id/notes (max 5,000 characters)
+  - GET /api/calls/manual/recent (the last 10 manual calls: number, time, duration, matched lead)
+- Lead match: when the dialed number belongs to a lead (normalizePhone), the screen shows that lead with OPEN LEAD. Manual calls still never change a lead's status or attempts. When the call ends, its notes are added once to that lead as a note "Manual call · m:ss · <notes>".
+- UI, one centered column (480px wide, in the middle of the page); everything sits under the dial pad, at the same width:
+  - DIAL PAD panel: the number in 2xl mono (an input you can type or paste into); during and after a call, a status row under it (dot and CONNECTED, ON HOLD or CALL ENDED; REC while recording; the timer in 2xl mono on the right); a 3×4 keypad (52px keys, letters under the digits; during a call it sends tones through `sendDigits` and shows the digits sent); at the bottom, in the same place: CALL (the primary) before a call, MUTE · HOLD · RECORD (a toggle) · HANG UP (the primary) during it, NEW CALL after it.
+  - Under the pad: before a call, RECENT (the last 10 manual calls; click one to put its number in the pad); during a call, the matched lead with OPEN LEAD or "No lead with this number", then NOTES that save on their own ("Saved"); after a call, the summary (notes added to the lead) or, when no lead matched, the existing SAVE AS LEAD form; saving it adds the call's notes to the new lead once, in the same note format.
+  - At 1440×900 nothing scrolls during a call.
+  - RECORD: the first time, a Dialog: "Recording laws differ by state. In all-party-consent states, tell the other person before you record." with OK and CANCEL (remembered in localStorage). MUTE and HOLD stay screen-only until the real provider, as on the call screen.
+Tests: digits validation and the 501 without support; the recording toggle is stored; notes save and the 24-hour limit; the recent list; the lead match and the one-time note copy; a manual call never changes lead status; DNC numbers are still refused. Gate extra: screenshots before, during and after a manual call; both themes.
+
 ## Later (specs get written when their turn comes)
 - Real Telnyx adapter (roadmap Phase C): possible once C1E and C4A are merged.
 - Meetings. Extra phone numbers per lead and a company panel. Email templates and a unified inbox. Sequences. Website lead capture.
@@ -514,3 +616,9 @@ Tests (with the stub): a "how do I create a task" question calls get_app_help; a
 - C7D: done
 - C7E: done
 - C7F: done
+- C8A: done
+- C8B: not started
+- C8C: not started
+- C8D: not started
+- C8E: not started
+- C8F: not started

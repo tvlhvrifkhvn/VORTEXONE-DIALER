@@ -9,6 +9,8 @@ import SpendMeter from './SpendMeter';
 import AssistantPanel from '../assistant/AssistantPanel';
 import ReminderToasts from './ReminderToasts';
 import Meter from '../ui/Meter';
+import Menu from '../ui/Menu';
+import CallingHoursChip from './CallingHoursChip';
 import Segmented from '../ui/Segmented';
 import StatusDot from '../ui/StatusDot';
 import { useAuth } from '../../hooks/useAuth';
@@ -19,11 +21,18 @@ import { pollWhileVisible } from '../../lib/poll';
 import { useToday } from '../../hooks/useToday';
 
 const navLinkClasses = ({ isActive }) =>
-  `inline-flex min-h-10 items-center px-2 font-mono text-sm font-medium uppercase tracking-button transition-colors duration-150 ${
+  `inline-flex min-h-10 items-center whitespace-nowrap px-2 font-mono text-xs font-medium uppercase tracking-button transition-colors duration-150 2xl:text-sm ${
     isActive ? 'bg-foreground text-background' : 'text-foreground hover:bg-muted'
   }`;
 
 const THEME_KEY = 'vortex.theme';
+
+/** "Talha Arif" → "TA" (the user menu's button). */
+function initials(name) {
+  const parts = String(name || '').trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return '··';
+  return (parts[0][0] + (parts.length > 1 ? parts[parts.length - 1][0] : '')).toUpperCase();
+}
 const SEARCH_DEBOUNCE_MS = 300;
 
 // darkMode === true means the 'ink' theme (the default); false means 'paper'.
@@ -35,69 +44,16 @@ function getInitialDarkMode() {
   }
 }
 
-const TIME_ZONES = [
-  { label: 'EST', tz: 'America/New_York' },
-  { label: 'CST', tz: 'America/Chicago' },
-  { label: 'MST', tz: 'America/Denver' },
-  { label: 'PST', tz: 'America/Los_Angeles' },
-];
-
-function formatZoneTime(now, tz) {
-  const timeStr = new Intl.DateTimeFormat('en-US', {
-    timeZone: tz,
-    hour: 'numeric',
-    minute: '2-digit',
-    hour12: true,
-  })
-    .format(now)
-    .replace(' ', '')
-    .toLowerCase();
-  const hour24 = Number(
-    new Intl.DateTimeFormat('en-US', { timeZone: tz, hour: 'numeric', hour12: false }).format(now)
-  );
-  const isLegalHours = hour24 >= 8 && hour24 < 21;
-  return { timeStr, isLegalHours };
-}
-
-/** Live clock for all four US time zones the dialer calls into, updated
- * every second, green when it's within 8am-9pm calling hours there. */
-function TimeZoneClock() {
-  const [now, setNow] = useState(() => new Date());
-
-  useEffect(() => {
-    const id = setInterval(() => setNow(new Date()), 1000);
-    return () => clearInterval(id);
-  }, []);
-
-  return (
-    <div className="hidden items-center gap-3 font-mono text-xs uppercase tabular-nums xl:flex">
-      {TIME_ZONES.map(({ label, tz }) => {
-        const { timeStr, isLegalHours } = formatZoneTime(now, tz);
-        return (
-          <span
-            key={label}
-            className="flex items-center gap-1"
-            title={isLegalHours ? 'Inside calling hours (8am–9pm)' : 'Outside calling hours (8am–9pm)'}
-          >
-            <span className="text-muted-foreground">{label}</span>
-            <span className={isLegalHours ? 'font-medium text-foreground' : 'text-muted-foreground line-through'}>
-              {timeStr}
-            </span>
-            {!isLegalHours && <span className="sr-only">(outside calling hours)</span>}
-          </span>
-        );
-      })}
-    </div>
-  );
-}
-
 /** Navbar search across all states — debounced, shows a results dropdown,
- * and opens the lead detail panel directly on click. */
+ * and opens the lead detail panel directly on click. C8A: 280px from 1680px
+ * wide; narrower, a search icon button that opens the field under the header. */
 function GlobalSearch() {
   const navigate = useNavigate();
   const [query, setQuery] = useState('');
   const [results, setResults] = useState([]);
   const [open, setOpen] = useState(false);
+  const [expanded, setExpanded] = useState(false); // below 1680px only
+  const inputRef = useRef(null);
   const debounceRef = useRef(null);
   const containerRef = useRef(null);
 
@@ -121,14 +77,35 @@ function GlobalSearch() {
 
   useEffect(() => {
     const handleClickOutside = (e) => {
-      if (containerRef.current && !containerRef.current.contains(e.target)) setOpen(false);
+      if (containerRef.current && !containerRef.current.contains(e.target)) {
+        setOpen(false);
+        setExpanded(false);
+      }
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  useEffect(() => {
+    if (expanded) inputRef.current?.focus();
+  }, [expanded]);
+
   return (
-    <div ref={containerRef} className="relative w-44 lg:w-56">
+    <div ref={containerRef} className="relative min-[1680px]:w-[280px]">
+      <button
+        type="button"
+        onClick={() => setExpanded((x) => !x)}
+        aria-label="Search all leads"
+        aria-expanded={expanded}
+        className={`inline-flex min-h-10 min-w-10 items-center justify-center transition-colors duration-150 min-[1680px]:hidden ${
+          expanded ? 'bg-foreground text-background' : 'text-foreground hover:bg-muted'
+        }`}
+      >
+        <Search size={16} strokeWidth={1.5} aria-hidden="true" />
+      </button>
+      <div
+        className={`${expanded ? 'absolute right-0 top-full z-40 mt-1 block w-[320px] border border-strong bg-card p-2' : 'hidden'} min-[1680px]:static min-[1680px]:mt-0 min-[1680px]:block min-[1680px]:w-auto min-[1680px]:border-0 min-[1680px]:bg-transparent min-[1680px]:p-0`}
+      >
       <div className="relative">
         <Search
           size={16}
@@ -137,6 +114,7 @@ function GlobalSearch() {
           className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
         />
         <Field
+          ref={inputRef}
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onFocus={() => results.length > 0 && setOpen(true)}
@@ -153,6 +131,7 @@ function GlobalSearch() {
                 type="button"
                 onClick={() => {
                   setOpen(false);
+                  setExpanded(false);
                   setQuery('');
                   navigate(`/leads/${lead.id}`);
                 }}
@@ -167,6 +146,7 @@ function GlobalSearch() {
           ))}
         </ul>
       )}
+      </div>
     </div>
   );
 }
@@ -269,7 +249,7 @@ function ImportProgressBadge() {
       type="button"
       onClick={() => navigate('/import')}
       title={`Importing ${job.filename || 'leads'} — ${job.phaseLabel || `${job.processedRows}/${job.totalRows} rows`}`}
-      className="w-48 px-2 py-1 text-left transition-colors duration-150 hover:bg-muted"
+      className="w-32 shrink-0 px-2 py-1 text-left transition-colors duration-150 hover:bg-muted"
     >
       <Meter
         label="Importing"
@@ -309,23 +289,16 @@ export default function AppShell({ children, framed = false }) {
 
   return (
     <div className="min-h-screen bg-background lg:flex lg:h-screen lg:flex-col lg:overflow-hidden">
+      {/* C8A: one header row, 56px: wordmark · file switcher · nav · search ·
+          calling hours · spend · ASK · DIAL · user menu. No wrapping from 1180px. */}
       <header className="border-b lg:shrink-0">
-        {/* Row 1: wordmark and campaign file on the left, nav, then the
-            account controls flush right. */}
-        <div className="flex flex-wrap items-center justify-between gap-4 px-6 py-3">
-          <div className="flex items-center gap-6">
-            <span className="flex items-baseline gap-2">
-              <span className="text-lg font-semibold tracking-[-0.01em] text-foreground">VORTEX ONE</span>
-              <span className="hidden font-mono text-xs font-medium uppercase tracking-label text-muted-foreground 2xl:inline">
-                Outreach
-              </span>
-            </span>
-            {/* C1E: the FileTag is the campaign switcher. */}
-            <CampaignSwitcher />
-          </div>
+        <div className="flex min-h-14 flex-wrap items-center gap-4 px-6 py-2 xl:flex-nowrap">
+          <span className="hidden whitespace-nowrap text-lg font-semibold tracking-[-0.01em] text-foreground xl:inline">VORTEX ONE</span>
+          {/* C1E: the FileTag is the campaign switcher. */}
+          <CampaignSwitcher />
 
-          <nav aria-label="Main" className="flex flex-wrap">
-            {/* C3B: section 4 order. */}
+          <nav aria-label="Main" className="flex shrink-0">
+            {/* C3B: section 4 order. C8A: IMPORT is on the Leads page (C8B), SETTINGS in the user menu. */}
             <NavLink to="/" end className={navLinkClasses}>
               {({ isActive }) => (
                 <span className="inline-flex items-center gap-2">
@@ -365,51 +338,54 @@ export default function AppShell({ children, framed = false }) {
                 </span>
               )}
             </NavLink>
-            <NavLink to="/import" className={navLinkClasses}>
-              Import
-            </NavLink>
             <NavLink to="/reports" className={navLinkClasses}>
               Reports
             </NavLink>
-            <NavLink to="/settings" className={navLinkClasses}>
-              Settings
-            </NavLink>
           </nav>
 
-          <div className="flex items-center gap-4">
-            {/* C2B: hidden below 2xl so the header stays one row with the PIPELINE link. */}
-            {user && <span className="hidden text-sm text-muted-foreground 2xl:inline">{user.name}</span>}
-            <Button active={askOpen} aria-expanded={askOpen} onClick={() => setAskOpen((o) => !o)} title="Ask the assistant about your CRM data">
-              Ask
-            </Button>
-            <Button onClick={() => navigate('/call/manual')} title="Dial a number">
-              <Phone size={16} strokeWidth={1.5} aria-hidden="true" />
-              Dial
-            </Button>
-            <Button variant="ghost" onClick={handleLogout}>
-              Log out
-            </Button>
-          </div>
-        </div>
-
-        {/* Row 2: search, import progress, then the spend meter beside the theme
-            toggle (C4B, section 4; row 1 has no room for both at 1440) and the
-            four US clocks. */}
-        <div className="flex flex-wrap items-center gap-6 border-t px-6 py-2">
-          <GlobalSearch />
-          <ImportProgressBadge />
-          <div className="ml-auto flex flex-wrap items-center gap-6">
+          <div className="ml-auto flex shrink-0 items-center gap-4">
+            <GlobalSearch />
+            <ImportProgressBadge />
+            <CallingHoursChip />
             <SpendMeter />
-            <Segmented
-              label="Theme"
-              options={[
-                { value: 'ink', label: 'Ink' },
-                { value: 'paper', label: 'Paper' },
+            <div className="flex items-center gap-2">
+              <Button active={askOpen} aria-expanded={askOpen} onClick={() => setAskOpen((o) => !o)} title="Ask the assistant about your CRM data" className="px-3">
+                Ask
+              </Button>
+              <Button onClick={() => navigate('/call/manual')} title="Dial a number" className="px-3">
+                <Phone size={16} strokeWidth={1.5} aria-hidden="true" className="hidden 2xl:block" />
+                Dial
+              </Button>
+            </div>
+            <Menu
+              ariaLabel={`Account${user?.name ? `: ${user.name}` : ''}`}
+              title={user?.name}
+              label={initials(user?.name)}
+              variant="ghost"
+              panelClassName="w-64"
+              header={user && <p className="truncate border-b px-3 py-2 text-sm text-muted-foreground">{user.name}</p>}
+              items={[
+                { label: 'Settings', onSelect: () => navigate('/settings') },
+                {
+                  key: 'theme',
+                  custom: (
+                    <div className="flex min-h-10 items-center justify-between gap-4 px-3 py-2">
+                      <span className="label">Theme</span>
+                      <Segmented
+                        label="Theme"
+                        options={[
+                          { value: 'ink', label: 'Ink' },
+                          { value: 'paper', label: 'Paper' },
+                        ]}
+                        value={darkMode ? 'ink' : 'paper'}
+                        onChange={(v) => setDarkMode(v === 'ink')}
+                      />
+                    </div>
+                  ),
+                },
+                { label: 'Log out', onSelect: handleLogout },
               ]}
-              value={darkMode ? 'ink' : 'paper'}
-              onChange={(v) => setDarkMode(v === 'ink')}
             />
-            <TimeZoneClock />
           </div>
         </div>
       </header>

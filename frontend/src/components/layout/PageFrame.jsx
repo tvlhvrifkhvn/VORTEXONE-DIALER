@@ -17,8 +17,9 @@ function readCollapsed(id) {
   }
 }
 
+// C8A: 32px, muted, at the top of the rail.
 const toggleClass =
-  'min-h-10 min-w-10 px-2 font-mono text-sm text-muted-foreground transition-colors duration-150 hover:bg-muted hover:text-foreground';
+  'min-h-8 min-w-8 px-2 font-mono text-xs text-muted-foreground transition-colors duration-150 hover:bg-muted hover:text-foreground';
 
 function Rail({ side, label, collapsed, onToggle, children }) {
   const left = side === 'left';

@@ -132,6 +132,12 @@ A label plus a number in mono tabular figures, 2xl. Display size only where sect
 ### Toast
 bg-card, 1px border-strong, a 3px primary bar on the left, text-foreground.
 
+### Menu (ui/Menu.jsx, C8A)
+- A button ("⋯", or a label with ▾) that opens a bg-card list with a 1px border-strong; rows are 40px mono uppercase, hover and focus bg-muted.
+- Keyboard: Enter, Space or ↓ opens it on the first item; ↑ ↓ Home End move; Enter runs an item; Tab leaves and closes it.
+- Esc closes it and returns focus to the button, only while focus is inside the menu (the key stops there, so it never ends a call).
+- `Popover` is the same frame for other content (the calling-hours zones).
+
 ### Icons
 - lucide-react at 16px (20px in call controls), strokeWidth 1.5.
 - aria-hidden when next to text; icon-only buttons need an aria-label.
@@ -172,3 +178,16 @@ bg-card, 1px border-strong, a 3px primary bar on the left, text-foreground.
 - Everything works by keyboard.
 - Targets at least 40px (44px for call controls).
 - Color is never the only cue.
+
+## 9. Clarity rules (C8A, Block 4; every screen follows them)
+1. Every element needs a reason: an action the owner takes on this screen, or information they need here. Otherwise remove it.
+2. One fact, one place per screen. The current file appears only in the header switcher; pages don't repeat it.
+3. No explanatory paragraphs in the UI. An empty state is one short line. Explanations go in a `title` tooltip or in docs/USER_GUIDE.md (the assistant answers "how do I"). Section labels are plain names ("TO DO", "OUTCOME"): the "01 —" numbers go.
+4. One primary (orange) button per screen. Buttons that submit a form inside a panel use the solid style (`Button variant="solid"`: bg-foreground, text-background), never orange. Other actions are secondary buttons; rare actions go in a "⋯" menu (ui/Menu.jsx).
+5. Sizes: buttons 40px (`size="md"`); compact buttons 32px (`size="sm"`: inside rails, lists, cards, panel headers); call controls 48px. A page's header row uses 44px (`size="lg"`) for every button in it (the primary and the buttons beside it). Buttons in one row share one height and sit on one center line. Gaps: 8px inside a group of buttons, 16px between groups. Buttons of the same kind in one row have equal widths. Rows stacked on a page share their left and right edges. Segmented controls match the height of the buttons beside them. Tags never wrap.
+6. Every page starts with one header row: the title on the left (with at most one muted count or date), its actions on the right. Then the content.
+7. Status and stage are labeled when they appear together ("STATUS · NEW", "STAGE · NEW").
+8. Regions follow the Block 3 frame: fixed header, each region scrolls on its own, no browser scrollbar at 1440×900 and 1280×720.
+9. Each phase updates the docs/USER_GUIDE.md sections for the screens it changes, so the assistant's "how do I" answers stay right.
+
+The app header (C8A) is one 56px row: wordmark · file switcher · nav · search · calling-hours chip · spend chip · ASK · DIAL · user menu. It never wraps from 1180px. To fit, it narrows in steps: the search field (280px) shows from 1680px, below that a search icon button opens it; the file name beside FILE nn shows from 1440px; the wordmark shows from 1280px; nav labels are 12px below 1536px.
