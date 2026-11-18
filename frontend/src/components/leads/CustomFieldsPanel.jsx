@@ -1,11 +1,11 @@
 // The lead page's file fields (C2D): one input per field of the active file,
 // by type. Saving sends only what changed as `custom` (an emptied field is
 // sent as null, which clears it). The server checks every value.
+// C8C: in PROFILE as FIELDS: read-only rows; EDIT turns them into the inputs
+// with SAVE (solid) and CANCEL.
 import { useEffect, useState } from 'react';
-import Panel from '../ui/Panel';
 import Button from '../ui/Button';
 import Field from '../ui/Field';
-import SectionLabel from '../ui/SectionLabel';
 import { useCustomFields } from '../../hooks/useCustomFields';
 import * as api from '../../lib/api';
 
@@ -58,6 +58,7 @@ export default function CustomFieldsPanel({ lead, onChange }) {
   const [draft, setDraft] = useState({});
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState(null);
+  const [editing, setEditing] = useState(false);
 
   useEffect(() => {
     setDraft(Object.fromEntries(fields.map((f) => [f.key, toInput(f, lead.custom?.[f.key])])));
@@ -74,6 +75,7 @@ export default function CustomFieldsPanel({ lead, onChange }) {
       const custom = Object.fromEntries(changed.map((f) => [f.key, fromInput(f, draft[f.key])]));
       const { lead: updated } = await api.updateLead(lead.id, { custom });
       onChange(updated);
+      setEditing(false);
       setMessage({ type: 'ok', text: 'Fields saved.' });
     } catch (err) {
       setMessage({ type: 'error', text: err.message });
@@ -82,27 +84,65 @@ export default function CustomFieldsPanel({ lead, onChange }) {
     }
   };
 
+  const shown = (f) => {
+    const v = lead.custom?.[f.key];
+    if (v === undefined || v === null || v === '') return '—';
+    if (f.type === 'boolean') return v ? 'Yes' : 'No';
+    return String(v);
+  };
+
   return (
-    <Panel className="space-y-4 p-6">
-      <SectionLabel title="File fields" meta={`${fields.length} field${fields.length === 1 ? '' : 's'}`} />
-      <div className="grid gap-4 sm:grid-cols-2">
-        {fields.map((f) => (
-          <div key={f.key}>
-            <label htmlFor={`custom-${f.key}`} className="label mb-2 block">
-              {f.label}
-            </label>
-            <FieldInput field={f} value={draft[f.key] ?? ''} onChange={(v) => setDraft((d) => ({ ...d, [f.key]: v }))} />
-          </div>
-        ))}
+    <section className="space-y-2" data-testid="lead-fields">
+      <div className="flex items-center justify-between gap-2 border-t pt-2">
+        <h2 className="label">Fields</h2>
+        {!editing && (
+          <Button variant="ghost" size="sm" onClick={() => { setMessage(null); setEditing(true); }} aria-label="Edit fields">
+            Edit
+          </Button>
+        )}
       </div>
+      {editing ? (
+        <div className="space-y-3">
+          {fields.map((f) => (
+            <div key={f.key}>
+              <label htmlFor={`custom-${f.key}`} className="label mb-1 block">
+                {f.label}
+              </label>
+              <FieldInput field={f} value={draft[f.key] ?? ''} onChange={(v) => setDraft((d) => ({ ...d, [f.key]: v }))} />
+            </div>
+          ))}
+          <div className="flex gap-2">
+            <Button variant="solid" size="sm" onClick={save} disabled={busy || changed.length === 0}>
+              {busy ? 'Saving…' : 'Save'}
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                setDraft(Object.fromEntries(fields.map((f) => [f.key, toInput(f, lead.custom?.[f.key])])));
+                setEditing(false);
+              }}
+              disabled={busy}
+            >
+              Cancel
+            </Button>
+          </div>
+        </div>
+      ) : (
+        <dl className="space-y-1">
+          {fields.map((f) => (
+            <div key={f.key} className="flex items-baseline justify-between gap-2 text-sm">
+              <dt className="label shrink-0">{f.label}</dt>
+              <dd className="min-w-0 truncate text-right text-foreground" title={shown(f)}>{shown(f)}</dd>
+            </div>
+          ))}
+        </dl>
+      )}
       {message && (
         <p role={message.type === 'ok' ? 'status' : 'alert'} className={`text-sm ${message.type === 'ok' ? 'text-foreground' : 'text-signal'}`}>
           {message.text}
         </p>
       )}
-      <Button variant="primary" onClick={save} disabled={busy || changed.length === 0}>
-        {busy ? 'Saving…' : 'Save fields'}
-      </Button>
-    </Panel>
+    </section>
   );
 }

@@ -1,13 +1,13 @@
 // The lead page's pipeline block (C2B): the stage picker, a lost reason when
 // the stage is the lost one, and the deal value. Saving the stage writes a
 // history row (source manual); neither save touches the dialer status.
+// C8C: the WORK rail's PIPELINE: stage and deal value stacked, and one SAVE
+// (solid) that appears only after a change; it saves whichever changed.
 import { useEffect, useState } from 'react';
-import Panel from '../ui/Panel';
 import Button from '../ui/Button';
 import Field from '../ui/Field';
-import Badge from '../ui/Badge';
 import SectionLabel from '../ui/SectionLabel';
-import { useStages, stageTone } from '../../hooks/useStages';
+import { useStages } from '../../hooks/useStages';
 import { formatDateTime } from '../../lib/format';
 import * as api from '../../lib/api';
 
@@ -27,7 +27,6 @@ export default function LeadStagePanel({ lead, onChange }) {
     setDeal(toDollars(lead.deal_value_cents));
   }, [lead.pipeline_stage_id, lead.lost_reason, lead.deal_value_cents]);
 
-  const current = stages.find((s) => s.id === lead.pipeline_stage_id);
   const picked = stages.find((s) => String(s.id) === stageId);
   const stageChanged = picked && (picked.id !== lead.pipeline_stage_id || (picked.kind === 'lost' && lostReason.trim() !== (lead.lost_reason || '')));
 
@@ -51,6 +50,7 @@ export default function LeadStagePanel({ lead, onChange }) {
       return updated;
     }, `Moved to ${picked.name}.`);
 
+  const dealChanged = deal !== toDollars(lead.deal_value_cents);
   const saveDeal = () => {
     const trimmed = deal.trim().replace(/[$,]/g, '');
     if (trimmed !== '' && !/^\d+(\.\d{1,2})?$/.test(trimmed)) {
@@ -61,17 +61,24 @@ export default function LeadStagePanel({ lead, onChange }) {
     run(async () => (await api.setLeadDealValue(lead.id, cents)).lead, cents === null ? 'Deal value cleared.' : 'Deal value saved.');
   };
 
+  const save = async () => {
+    if (stageChanged) await saveStage();
+    if (dealChanged) saveDeal();
+  };
+  const cancel = () => {
+    setStageId(String(lead.pipeline_stage_id || ''));
+    setLostReason(lead.lost_reason || '');
+    setDeal(toDollars(lead.deal_value_cents));
+    setMessage(null);
+  };
+
   return (
-    <Panel className="space-y-4 p-6">
-      <SectionLabel
-        title="Pipeline"
-        meta={current ? <Badge tone={stageTone(current.kind)}>{current.name}</Badge> : undefined}
-      />
-      {lead.won_at && <p className="font-mono text-xs uppercase text-muted-foreground">Won {formatDateTime(lead.won_at)}</p>}
-      <div className="flex flex-wrap items-end gap-4">
+    <section className="space-y-2" data-testid="lead-pipeline">
+      <SectionLabel title="Pipeline" meta={lead.won_at ? `Won ${formatDateTime(lead.won_at)}` : undefined} />
+      <div className="space-y-3">
         <div>
-          <label htmlFor="lead-stage" className="label mb-2 block">Stage</label>
-          <Field as="select" id="lead-stage" value={stageId} onChange={(e) => setStageId(e.target.value)} className="w-56">
+          <label htmlFor="lead-stage" className="label mb-1 block">Stage</label>
+          <Field as="select" id="lead-stage" value={stageId} onChange={(e) => setStageId(e.target.value)} className="w-full">
             {stages.map((s) => (
               <option key={s.id} value={s.id}>
                 {s.name}
@@ -81,43 +88,31 @@ export default function LeadStagePanel({ lead, onChange }) {
           </Field>
         </div>
         {picked?.kind === 'lost' && (
-          <div className="min-w-[16rem] flex-1">
-            <label htmlFor="lead-lost-reason" className="label mb-2 block">Lost reason</label>
-            <Field
-              id="lead-lost-reason"
-              value={lostReason}
-              onChange={(e) => setLostReason(e.target.value)}
-              maxLength={200}
-              placeholder="e.g. Went with another VA"
-              className="w-full"
-            />
+          <div>
+            <label htmlFor="lead-lost-reason" className="label mb-1 block">Lost reason</label>
+            <Field id="lead-lost-reason" value={lostReason} onChange={(e) => setLostReason(e.target.value)} maxLength={200} placeholder="e.g. Went with another VA" className="w-full" />
           </div>
         )}
-        <Button variant="primary" onClick={saveStage} disabled={busy || !stageChanged}>
-          Save stage
-        </Button>
-      </div>
-      <div className="flex flex-wrap items-end gap-4">
         <div>
-          <label htmlFor="lead-deal-value" className="label mb-2 block">Deal value · USD</label>
-          <Field
-            id="lead-deal-value"
-            inputMode="decimal"
-            value={deal}
-            onChange={(e) => setDeal(e.target.value)}
-            placeholder="0"
-            className="w-40 font-mono tabular-nums"
-          />
+          <label htmlFor="lead-deal-value" className="label mb-1 block">Deal value · USD</label>
+          <Field id="lead-deal-value" inputMode="decimal" value={deal} onChange={(e) => setDeal(e.target.value)} placeholder="0" className="w-full font-mono tabular-nums" />
         </div>
-        <Button onClick={saveDeal} disabled={busy || deal === toDollars(lead.deal_value_cents)}>
-          Save deal value
-        </Button>
+        {(stageChanged || dealChanged) && (
+          <div className="flex gap-2">
+            <Button variant="solid" size="sm" onClick={save} disabled={busy}>
+              {busy ? 'Saving…' : 'Save'}
+            </Button>
+            <Button variant="ghost" size="sm" onClick={cancel} disabled={busy}>
+              Cancel
+            </Button>
+          </div>
+        )}
       </div>
       {message && (
         <p role={message.type === 'ok' ? 'status' : 'alert'} className={`text-sm ${message.type === 'ok' ? 'text-foreground' : 'text-signal'}`}>
           {message.text}
         </p>
       )}
-    </Panel>
+    </section>
   );
 }

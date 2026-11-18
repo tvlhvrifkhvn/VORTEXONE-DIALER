@@ -1,10 +1,17 @@
+// /leads/:id (C7D, C8C): a top bar (BACK · name and company · STATUS and
+// STAGE · local time · CALL, SMS, EMAIL, ⋯) over three columns like Follow Up
+// Boss: PROFILE (300px: contact details read-only with EDIT, TAGS & LISTS,
+// FIELDS, BEST TIME), ACTIVITY (the composer NOTE · SMS · EMAIL · TASK ·
+// CALLBACK, then the timeline filling the column), WORK (320px: PIPELINE,
+// NEXT, AI SUMMARY, OFFICE). Nothing new: the existing parts, moved.
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { ArrowLeft, ListTodo, Mail, MessageSquare, Phone, PhoneOff } from 'lucide-react';
+import { ArrowLeft, Copy, PhoneOff } from 'lucide-react';
 import AppShell from '../components/layout/AppShell';
 import PageFrame from '../components/layout/PageFrame';
 import { useStages } from '../hooks/useStages';
 import LeadActionHub from '../components/leads/LeadActionHub';
+import LeadComposer from '../components/leads/LeadComposer';
 import ColleagueCard from '../components/leads/ColleagueCard';
 import LeadStagePanel from '../components/pipeline/LeadStagePanel';
 import CustomFieldsPanel from '../components/leads/CustomFieldsPanel';
@@ -12,63 +19,45 @@ import TagEditor from '../components/leads/TagEditor';
 import TaskPanel from '../components/tasks/TaskPanel';
 import LeadSummaryPanel from '../components/assistant/LeadSummaryPanel';
 import BestTimeHint from '../components/leads/BestTimeHint';
+import { leadLocalTime } from '../components/leads/LeadLocalTime';
 import Panel from '../components/ui/Panel';
 import Button from '../components/ui/Button';
 import Field from '../components/ui/Field';
+import Menu from '../components/ui/Menu';
+import Dialog from '../components/ui/Dialog';
 import ActionButton from '../components/ui/ActionButton';
 import StatusBadge from '../components/leads/StatusBadge';
 import Badge from '../components/ui/Badge';
 import { US_STATES } from '../lib/usStates';
-import { formatDateTime } from '../lib/format';
 import * as api from '../lib/api';
 import { useCampaign, fileLabel, showToast } from '../hooks/useCampaign';
+import { useAuth } from '../hooks/useAuth';
 
 const EDITABLE_FIELDS = ['name', 'phone', 'email', 'address', 'brokerage', 'state'];
 
-function CallbackScheduler({ lead, onScheduled }) {
-  const [when, setWhen] = useState('');
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState(null);
-
-  const submit = async () => {
-    if (!when) return;
-    setSaving(true);
-    setError(null);
-    try {
-      const { lead: updated } = await api.scheduleCallback(lead.id, new Date(when).toISOString());
-      onScheduled(updated);
-      setWhen('');
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setSaving(false);
-    }
-  };
-
+/** The lead's local time and OPEN / CLOSED, ticking every 30 s. */
+function LocalTimeChip({ lead }) {
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    const t = setInterval(() => setNow(new Date()), 30_000);
+    return () => clearInterval(t);
+  }, []);
+  const local = leadLocalTime(lead, now);
+  if (!local) return null;
   return (
-    <div className="space-y-2">
-      {lead.status === 'callback_scheduled' && lead.next_action_at && (
-        <p className="border-l-[3px] border-strong bg-muted px-4 py-2 text-sm text-foreground">
-          Callback scheduled for{' '}
-          <span className="font-mono tabular-nums">{formatDateTime(lead.next_action_at)}</span>
-        </p>
-      )}
-      <label htmlFor="lead-callback-when" className="label block">
-        Callback time
-      </label>
-      <div className="flex flex-wrap items-center gap-2">
-        <Field
-          id="lead-callback-when"
-          type="datetime-local"
-          value={when}
-          onChange={(e) => setWhen(e.target.value)}
-          className="flex-1 font-mono text-sm"
-        />
-        <Button variant="primary" onClick={submit} disabled={saving || !when}>
-          {saving ? 'Saving…' : 'Schedule callback'}
-        </Button>
-      </div>
-      {error && <p role="alert" className="text-sm text-signal">{error}</p>}
+    <span className="whitespace-nowrap font-mono text-xs uppercase tabular-nums text-muted-foreground" title="The lead's local time; calls are allowed 8 AM–9 PM there">
+      {local.text}
+      {!local.unknown && <span className={local.open ? 'text-foreground' : ''}> · {local.open ? 'Open' : 'Closed'}</span>}
+    </span>
+  );
+}
+
+/** A label-value row in PROFILE. */
+function Row({ label, children }) {
+  return (
+    <div className="flex items-baseline justify-between gap-2 text-sm">
+      <dt className="label shrink-0">{label}</dt>
+      <dd className="min-w-0 text-right text-foreground">{children}</dd>
     </div>
   );
 }
@@ -86,8 +75,10 @@ export default function LeadDetail() {
   const [error, setError] = useState(null);
   // C7D: the top bar opens the composers (REPLY from Today opens SMS) and the WORK rail.
   const [searchParams] = useSearchParams();
-  const [composer, setComposer] = useState(() => (searchParams.get('reply') === '1' ? 'sms' : null));
-  const [openWork, setOpenWork] = useState(0);
+  const [tab, setTab] = useState(() => (searchParams.get('reply') === '1' ? 'sms' : 'note'));
+  const [editing, setEditing] = useState(false);
+  const [refresh, setRefresh] = useState({ timeline: 0, tasks: 0 });
+  const { user } = useAuth();
   const { stages } = useStages();
   // C1E: the company word comes from the file; a lead of another file switches to it.
   const { active, activeId, campaigns, switchTo } = useCampaign();
@@ -124,6 +115,7 @@ export default function LeadDetail() {
     try {
       const { lead: updated } = await api.updateLead(lead.id, fields);
       setLead(updated);
+      setEditing(false);
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
     } catch (err) {
@@ -165,24 +157,39 @@ export default function LeadDetail() {
     );
   }
 
-  // C7D: three columns under an always-visible top bar. PROFILE (left):
-  // contact details, tags and lists, file fields, best time, delete. Main:
-  // the composer when opened from the top bar, then the timeline. WORK
-  // (right): tasks, callback, AI summary, stage and deal, office.
   const inActiveFile = String(lead.campaign_id) === String(activeId);
   const stageName = stages.find((s) => s.id === lead.pipeline_stage_id)?.name;
-  const addTask = () => {
-    setOpenWork((n) => n + 1);
-    setTimeout(() => {
-      const box = document.getElementById('lead-work-tasks');
-      box?.scrollIntoView({ block: 'start' });
-      box?.querySelector('input')?.focus();
-    }, 50);
+  const otherFiles = (campaigns || []).filter((c) => String(c.id) !== String(lead.campaign_id) && c.status !== 'archived');
+
+  const openComposer = (t) => {
+    setTab(t);
+    setTimeout(() => document.getElementById('composer-panel')?.querySelector('textarea, select, input')?.focus(), 50);
+  };
+  const composed = (kind) =>
+    setRefresh((r) => ({ timeline: r.timeline + 1, tasks: kind === 'task' ? r.tasks + 1 : r.tasks }));
+
+  // ⋯ → Move to another file: the existing bulk move with this one lead (supervisor, as on Leads).
+  const moveTo = async (file) => {
+    if (!window.confirm(`Move ${lead.name} to ${fileLabel(file)}? It starts in that file's first stage.`)) return;
+    try {
+      await api.bulkMoveCampaign([lead.id], file.id);
+      const { lead: moved } = await api.getLead(lead.id);
+      setLead(moved);
+    } catch (err) {
+      setError(err.message);
+    }
+  };
+  const moreItems = [
+    ...(user?.role === 'supervisor' ? otherFiles.map((c) => ({ label: `Move to ${fileLabel(c)}`, onSelect: () => moveTo(c) })) : []),
+    { label: '⊘ Delete lead', onSelect: () => setConfirmingDelete(true) },
+  ];
+
+  const copyPhone = () => {
+    navigator.clipboard?.writeText(lead.phone).then(() => showToast('Phone number copied.')).catch(() => {});
   };
 
   const profile = (
     <div className="space-y-6 pt-2" data-testid="lead-profile">
-      <p className="label">Profile</p>
       {/* C6B: a merged lead is gone from every list; say where it went. */}
       {lead.merged_into && (
         <p role="status" className="border-l-[3px] border-strong bg-muted px-4 py-2 text-sm text-foreground">
@@ -196,37 +203,89 @@ export default function LeadDetail() {
       {lead.missing_phone && (
         <p className="flex items-center gap-2 border-l-[3px] border-l-primary bg-muted px-4 py-2 text-sm text-foreground">
           <PhoneOff size={16} strokeWidth={1.5} aria-hidden="true" />
-          {lead.original_phone
-            ? `Number unreadable: ${lead.original_phone} — this lead can't be dialed until a valid number is added below.`
-            : "No phone number on file — this lead can't be dialed until one is added below."}
+          {lead.original_phone ? `Number unreadable: ${lead.original_phone}. Add a valid number with EDIT.` : 'No phone number on file. Add one with EDIT.'}
         </p>
       )}
 
-      <section className="space-y-3">
-        <h2 className="label">Contact details</h2>
-        {EDITABLE_FIELDS.map((field) => (
-          <div key={field}>
-            <label htmlFor={`lead-field-${field}`} className="label mb-2 block">
-              {field === 'brokerage' ? companyWord : field}
-            </label>
-            {field === 'state' ? (
-              <Field id={`lead-field-${field}`} as="select" value={fields[field]} onChange={(e) => handleChange(field, e.target.value)} className="w-full">
-                {US_STATES.map((s) => (
-                  <option key={s} value={s}>
-                    {s}
-                  </option>
-                ))}
-              </Field>
-            ) : (
-              <Field
-                id={`lead-field-${field}`}
-                value={fields[field]}
-                onChange={(e) => handleChange(field, e.target.value)}
-                className={`w-full ${field === 'phone' ? 'font-mono tabular-nums' : ''}`}
-              />
-            )}
+      <section className="space-y-2" data-testid="lead-contact">
+        <div className="flex items-center justify-between gap-2 border-t pt-2">
+          <h2 className="label">Profile</h2>
+          {!editing && (
+            <Button variant="ghost" size="sm" onClick={() => setEditing(true)} aria-label="Edit contact details">
+              Edit
+            </Button>
+          )}
+        </div>
+        {editing ? (
+          <div className="space-y-3">
+            {EDITABLE_FIELDS.map((field) => (
+              <div key={field}>
+                <label htmlFor={`lead-field-${field}`} className="label mb-1 block">
+                  {field === 'brokerage' ? companyWord : field}
+                </label>
+                {field === 'state' ? (
+                  <Field id={`lead-field-${field}`} as="select" value={fields[field]} onChange={(e) => handleChange(field, e.target.value)} className="w-full">
+                    {US_STATES.map((st) => (
+                      <option key={st} value={st}>
+                        {st}
+                      </option>
+                    ))}
+                  </Field>
+                ) : (
+                  <Field
+                    id={`lead-field-${field}`}
+                    value={fields[field]}
+                    onChange={(e) => handleChange(field, e.target.value)}
+                    className={`w-full ${field === 'phone' ? 'font-mono tabular-nums' : ''}`}
+                  />
+                )}
+              </div>
+            ))}
+            <div className="flex gap-2">
+              <Button variant="solid" size="sm" onClick={handleSave} disabled={saving}>
+                {saving ? 'Saving…' : 'Save'}
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                disabled={saving}
+                onClick={() => {
+                  setFields(EDITABLE_FIELDS.reduce((acc, f) => ({ ...acc, [f]: lead[f] || '' }), {}));
+                  setEditing(false);
+                }}
+              >
+                Cancel
+              </Button>
+            </div>
           </div>
-        ))}
+        ) : (
+          <dl className="space-y-2">
+            <Row label="Phone">
+              <span className="inline-flex items-center gap-1">
+                <span className="font-mono tabular-nums">{lead.phone || '—'}</span>
+                {lead.phone && (
+                  <button
+                    type="button"
+                    onClick={copyPhone}
+                    aria-label="Copy phone number"
+                    title="Copy"
+                    className="inline-flex min-h-8 min-w-8 items-center justify-center text-muted-foreground transition-colors duration-150 hover:bg-muted hover:text-foreground"
+                  >
+                    <Copy size={16} strokeWidth={1.5} aria-hidden="true" />
+                  </button>
+                )}
+              </span>
+            </Row>
+            <Row label="Email">
+              <span className="block truncate" title={lead.email || undefined}>
+                {lead.email || '—'}
+              </span>
+            </Row>
+            <Row label={companyWord}>{lead.brokerage || '—'}</Row>
+            <Row label="Address">{lead.address || '—'}</Row>
+            <Row label="State">{lead.state || '—'}</Row>
+          </dl>
+        )}
         {error && (
           <p role="alert" className="text-sm text-signal">
             <span className="label mr-2 text-signal">Error</span>
@@ -234,9 +293,6 @@ export default function LeadDetail() {
           </p>
         )}
         {saved && <p className="font-mono text-xs uppercase text-foreground">✓ Saved</p>}
-        <Button variant="primary" className="w-full" onClick={handleSave} disabled={saving}>
-          {saving ? 'Saving…' : 'Save changes'}
-        </Button>
       </section>
 
       {/* C2D: tags (and C7C lists) with add and remove. */}
@@ -246,45 +302,18 @@ export default function LeadDetail() {
 
       {/* C6C: the best local hour to call, from the last 90 days. */}
       <BestTimeHint leadId={lead.id} />
-
-      <div className="border-t pt-4">
-        {!confirmingDelete ? (
-          <Button variant="ghost" onClick={() => setConfirmingDelete(true)}>
-            ⊘ Delete lead
-          </Button>
-        ) : (
-          <div className="space-y-2">
-            <p className="text-sm text-muted-foreground">This removes the lead from every list. This can't be undone from here.</p>
-            <div className="flex gap-2">
-              <ActionButton variant="dnc" className="flex-1" onClick={handleDelete} disabled={deleting}>
-                {deleting ? 'Deleting…' : '⊘ Confirm delete'}
-              </ActionButton>
-              <Button className="flex-1" onClick={() => setConfirmingDelete(false)}>
-                Cancel
-              </Button>
-            </div>
-          </div>
-        )}
-      </div>
     </div>
   );
 
   const work = (
     <div className="space-y-6 pt-2" data-testid="lead-work">
-      <p className="label">Work</p>
-      {/* C3A: tasks (add, complete). */}
-      <div id="lead-work-tasks">
-        <TaskPanel lead={lead} />
-      </div>
-      <Panel className="space-y-4 p-6">
-        <h2 className="label">Schedule a callback</h2>
-        <CallbackScheduler lead={lead} onScheduled={setLead} />
-      </Panel>
-      {/* C5B: the AI summary, on request only. */}
-      <LeadSummaryPanel key={lead.id} leadId={lead.id} />
       {/* C2B: stage, lost reason and deal value. Only when the lead is in the active file (else the page switches). */}
       {inActiveFile && <LeadStagePanel lead={lead} onChange={setLead} />}
-      <ColleagueCard leadId={lead.id} />
+      {/* C3A: the open tasks and the scheduled callback (the forms are the composer's tabs). */}
+      <TaskPanel lead={lead} refreshKey={refresh.tasks} />
+      {/* C5B: the AI summary, on request only. */}
+      <LeadSummaryPanel key={lead.id} leadId={lead.id} />
+      <ColleagueCard leadId={lead.id} twoByTwo />
     </div>
   );
 
@@ -296,7 +325,7 @@ export default function LeadDetail() {
           <button
             type="button"
             onClick={() => navigate(-1)}
-            className="flex min-h-10 items-center gap-2 font-mono text-sm font-medium uppercase tracking-button text-muted-foreground transition-colors duration-150 hover:text-foreground"
+            className="flex min-h-11 items-center gap-2 font-mono text-sm font-medium uppercase tracking-button text-muted-foreground transition-colors duration-150 hover:text-foreground"
           >
             <ArrowLeft size={16} strokeWidth={1.5} aria-hidden="true" />
             Back
@@ -305,36 +334,55 @@ export default function LeadDetail() {
             <h1 className="truncate text-xl font-semibold tracking-[-0.01em] text-foreground">{lead.name}</h1>
             <p className="truncate text-sm text-muted-foreground">{lead.brokerage || `No ${companyWord} on file`}</p>
           </div>
-          <StatusBadge status={lead.status} />
-          {stageName && <Badge tone="outline">{stageName}</Badge>}
-          <div className="flex flex-wrap gap-2">
-            <Button variant="primary" onClick={() => navigate(`/call/${lead.id}`)}>
-              <Phone size={16} strokeWidth={1.5} aria-hidden="true" />
+          <span className="flex items-center gap-1">
+            <span className="label">Status ·</span>
+            <StatusBadge status={lead.status} />
+          </span>
+          {stageName && (
+            <span className="flex items-center gap-1">
+              <span className="label">Stage ·</span>
+              <Badge tone="outline">{stageName}</Badge>
+            </span>
+          )}
+          <LocalTimeChip lead={lead} />
+          <div className="flex items-center gap-2">
+            <Button variant="primary" size="lg" className="w-28" onClick={() => navigate(`/call/${lead.id}`)}>
               Call
             </Button>
-            <Button active={composer === 'sms'} aria-pressed={composer === 'sms'} onClick={() => setComposer((c) => (c === 'sms' ? null : 'sms'))}>
-              <MessageSquare size={16} strokeWidth={1.5} aria-hidden="true" />
+            <Button size="lg" className="w-28" onClick={() => openComposer('sms')}>
               SMS
             </Button>
-            <Button active={composer === 'email'} aria-pressed={composer === 'email'} onClick={() => setComposer((c) => (c === 'email' ? null : 'email'))}>
-              <Mail size={16} strokeWidth={1.5} aria-hidden="true" />
+            <Button size="lg" className="w-28" onClick={() => openComposer('email')}>
               Email
             </Button>
-            <Button onClick={addTask}>
-              <ListTodo size={16} strokeWidth={1.5} aria-hidden="true" />
-              Add task
-            </Button>
+            <Menu ariaLabel="More lead actions" size="lg" className="w-11 px-0" items={moreItems} />
           </div>
         </div>
 
         <div className="lg:min-h-0 lg:flex-1">
-          <PageFrame id="lead" left={profile} leftLabel="Profile" right={work} rightLabel="Work" openRight={openWork}>
-            <div className="mt-6 space-y-6">
-              <LeadActionHub lead={lead} composer={composer} onComposer={setComposer} hideActions />
+          <PageFrame id="lead" left={profile} leftLabel="Profile" right={work} rightLabel="Work" leftWidth="lg:w-[300px]" mainClassName="lg:flex lg:flex-col">
+            <div className="mt-6 flex flex-col gap-4 lg:min-h-0 lg:flex-1" data-testid="lead-activity">
+              <LeadComposer lead={lead} tab={tab} onTab={setTab} onDone={composed} onLeadChange={setLead} />
+              <LeadActionHub lead={lead} hideActions refreshKey={refresh.timeline} />
             </div>
           </PageFrame>
         </div>
       </div>
+      {confirmingDelete && (
+          <Dialog title="Delete lead">
+            <div className="space-y-4">
+              <p className="text-sm text-foreground">This removes the lead from every list. This can't be undone from here.</p>
+              <div className="flex gap-2">
+                <ActionButton variant="dnc" className="flex-1" onClick={handleDelete} disabled={deleting}>
+                  {deleting ? 'Deleting…' : '⊘ Confirm delete'}
+                </ActionButton>
+                <Button className="flex-1" onClick={() => setConfirmingDelete(false)}>
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          </Dialog>
+      )}
     </AppShell>
   );
 }

@@ -26,10 +26,10 @@ The assistant answers "how do I…" questions from this file (tool `get_app_help
 - Click a lead to open its page.
 
 ## Lead page
-- Top bar: BACK, name, company, status, stage, and CALL · SMS · EMAIL · ADD TASK.
-- Left (PROFILE): contact details (edit, SAVE CHANGES), tags and lists, file fields, best time to call, DELETE LEAD.
-- Middle: the SMS or email composer (with DRAFT WITH AI) when opened, then the timeline (calls, texts, emails, notes, stage changes, tasks, activity) with filters.
-- Right (WORK): tasks, schedule a callback, AI SUMMARY, pipeline stage and deal value, office and colleagues.
+- Top bar: BACK, name and company, STATUS and STAGE, the lead's local time (OPEN or CLOSED), then CALL · SMS · EMAIL (SMS and EMAIL open that composer tab) · ⋯ (Move to another file, supervisors; Delete lead, with a confirm).
+- Left (PROFILE): contact details (copy the phone with the copy button; EDIT to change them, then SAVE or CANCEL), TAGS & LISTS (+ ADD), FIELDS (the file's own fields; EDIT, SAVE), BEST TIME.
+- Middle (ACTIVITY): the composer with tabs NOTE · SMS · EMAIL · TASK · CALLBACK (SMS and EMAIL have DRAFT WITH AI), then the timeline (calls, texts, emails, notes, stage changes, tasks, activity) with its filter.
+- Right (WORK): PIPELINE (stage and deal value; SAVE shows after a change), NEXT (the scheduled callback and open tasks: DONE, ⋯ → Delete task), AI SUMMARY (GENERATE), OFFICE (colleagues at the same office).
 
 ## Create a file (campaign)
 - A file is a separate campaign with its own leads, stages, fields, pitch script, AI context, daily goal and budget.
@@ -38,7 +38,7 @@ The assistant answers "how do I…" questions from this file (tool `get_app_help
 - Switch files with the FILE switcher in the header or the FILES list in the left rail. Pause, resume or archive a file on its FILES page.
 
 ## Add a task
-- On a lead page: ADD TASK in the top bar (or the TASKS panel on the right). Type what to do, pick the type (call, email, text, other) and the due date and time, then ADD TASK.
+- On a lead page: the TASK tab of the composer (middle column). Type what to do, pick the type (call, email, text, other) and the due date and time, then ADD TASK. It shows under NEXT on the right.
 - After a call: the outcome panel has "Add a follow-up task".
 - On Today, TO DO shows the tasks: DONE marks one done, RESCHEDULE changes its due time. Tasks due soon also pop up as reminders (CALL, OPEN, SNOOZE 10 MIN).
 

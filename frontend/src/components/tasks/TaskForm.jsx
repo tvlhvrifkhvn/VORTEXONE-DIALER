@@ -26,7 +26,8 @@ export function defaultDue() {
   return localInputValue(d);
 }
 
-export default function TaskForm({ onSubmit, submitLabel = 'Add task', busy = false, initialTitle = '' }) {
+// C8C: submitVariant 'solid' inside the lead page's composer.
+export default function TaskForm({ onSubmit, submitLabel = 'Add task', busy = false, initialTitle = '', submitVariant = 'primary' }) {
   const id = useId();
   const [title, setTitle] = useState(initialTitle);
   const [type, setType] = useState('call');
@@ -60,7 +61,7 @@ export default function TaskForm({ onSubmit, submitLabel = 'Add task', busy = fa
         <label htmlFor={`${id}-due`} className="label mb-2 block">Due</label>
         <Field id={`${id}-due`} type="datetime-local" value={due} onChange={(e) => setDue(e.target.value)} className="font-mono text-sm" />
       </div>
-      <Button type="submit" variant="primary" disabled={busy || !title.trim() || !due}>
+      <Button type="submit" variant={submitVariant} disabled={busy || !title.trim() || !due}>
         {submitLabel}
       </Button>
     </form>

@@ -21,9 +21,9 @@ function readCollapsed(id) {
 const toggleClass =
   'min-h-8 min-w-8 px-2 font-mono text-xs text-muted-foreground transition-colors duration-150 hover:bg-muted hover:text-foreground';
 
-function Rail({ side, label, collapsed, onToggle, children }) {
+function Rail({ side, label, collapsed, onToggle, children, width: widthClass }) {
   const left = side === 'left';
-  const width = left ? 'lg:w-[248px]' : 'lg:w-[320px]';
+  const width = widthClass || (left ? 'lg:w-[248px]' : 'lg:w-[320px]');
   if (collapsed) {
     return (
       <div className={`hidden shrink-0 lg:flex lg:flex-col ${left ? 'border-r lg:order-1' : 'border-l lg:order-3'}`}>
@@ -48,7 +48,8 @@ function Rail({ side, label, collapsed, onToggle, children }) {
   );
 }
 
-export default function PageFrame({ id, left, right, leftLabel = 'Side menu', rightLabel = 'Side panel', mainClassName = '', openRight = 0, children }) {
+// C8C: leftWidth / rightWidth override the rail widths (the lead page's PROFILE is 300px).
+export default function PageFrame({ id, left, right, leftLabel = 'Side menu', rightLabel = 'Side panel', mainClassName = '', openRight = 0, leftWidth, rightWidth, children }) {
   const [collapsed, setCollapsed] = useState(() => readCollapsed(id));
   // C7D: a page can open the right rail (e.g. ADD TASK on the lead page); bump openRight.
   useEffect(() => {
@@ -68,14 +69,14 @@ export default function PageFrame({ id, left, right, leftLabel = 'Side menu', ri
   return (
     <div className="flex flex-col lg:h-full lg:min-h-0 lg:flex-row" data-testid="page-frame">
       {left && (
-        <Rail side="left" label={leftLabel} collapsed={Boolean(collapsed.left)} onToggle={() => toggle('left')}>
+        <Rail side="left" label={leftLabel} collapsed={Boolean(collapsed.left)} onToggle={() => toggle('left')} width={leftWidth}>
           {left}
         </Rail>
       )}
       {/* AppShell's <main> holds the frame; this is the main column. */}
       <div className={`order-1 min-w-0 flex-1 px-6 pb-10 lg:order-2 lg:min-h-0 lg:overflow-y-auto ${mainClassName}`}>{children}</div>
       {right && (
-        <Rail side="right" label={rightLabel} collapsed={Boolean(collapsed.right)} onToggle={() => toggle('right')}>
+        <Rail side="right" label={rightLabel} collapsed={Boolean(collapsed.right)} onToggle={() => toggle('right')} width={rightWidth}>
           {right}
         </Rail>
       )}

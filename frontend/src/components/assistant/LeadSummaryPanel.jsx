@@ -2,7 +2,6 @@
 // asks again past the server's 10-minute cache. Shows the summary, the next
 // step, any objections and when it was made.
 import { useState } from 'react';
-import Panel from '../ui/Panel';
 import Button from '../ui/Button';
 import Badge from '../ui/Badge';
 import SectionLabel from '../ui/SectionLabel';
@@ -31,7 +30,8 @@ export default function LeadSummaryPanel({ leadId }) {
   };
 
   return (
-    <Panel className="space-y-4 p-6" data-testid="lead-summary">
+    // C8C: in the WORK rail: no description line; GENERATE is 32px with the Groq note as its title.
+    <section className="space-y-2" data-testid="lead-summary">
       <SectionLabel title="AI summary" meta={summary ? `Generated ${formatDateTime(summary.generatedAt)}` : null} />
       {summary ? (
         <div className="space-y-3">
@@ -57,9 +57,7 @@ export default function LeadSummaryPanel({ leadId }) {
             )}
           </div>
         </div>
-      ) : (
-        !problem && <p className="text-sm text-muted-foreground">A short summary of this lead from its history, tasks and fields.</p>
-      )}
+      ) : null}
 
       {problem &&
         (problem.notConfigured ? (
@@ -72,12 +70,9 @@ export default function LeadSummaryPanel({ leadId }) {
           </p>
         ))}
 
-      <div className="flex flex-wrap items-center gap-2">
-        <Button onClick={() => run(Boolean(summary))} disabled={loading}>
-          {loading ? 'Working…' : summary ? 'Refresh' : 'Generate'}
-        </Button>
-        <p className="text-xs text-muted-foreground">Made by Groq from your CRM data. Check before acting.</p>
-      </div>
-    </Panel>
+      <Button size="sm" onClick={() => run(Boolean(summary))} disabled={loading} title="A short summary of this lead from its history, tasks and fields. Made by Groq from your CRM data; check before acting.">
+        {loading ? 'Working…' : summary ? 'Refresh' : 'Generate'}
+      </Button>
+    </section>
   );
 }
