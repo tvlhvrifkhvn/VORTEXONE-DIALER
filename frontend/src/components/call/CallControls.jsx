@@ -4,14 +4,15 @@ import Field from '../ui/Field';
 
 // Hanging up moved to the call page's own prominent "End call" button, below
 // the action grid — two hangup controls on one screen invited misclicks.
-export default function CallControls({ onScheduleCallback, disabled }) {
-  const [showSchedule, setShowSchedule] = useState(false);
+// C8E: `startOpen` shows the time field at once (inside QUICK ACTIONS); SET is solid.
+export default function CallControls({ onScheduleCallback, disabled, startOpen = false }) {
+  const [showSchedule, setShowSchedule] = useState(startOpen);
   const [when, setWhen] = useState('');
 
   const submit = () => {
     if (!when) return;
     onScheduleCallback(new Date(when).toISOString());
-    setShowSchedule(false);
+    setShowSchedule(startOpen);
     setWhen('');
   };
 
@@ -34,12 +35,14 @@ export default function CallControls({ onScheduleCallback, disabled }) {
             className="w-full font-mono text-sm"
           />
           <div className="flex gap-2">
-            <Button variant="primary" onClick={submit} className="flex-1">
+            <Button variant="solid" onClick={submit} className="flex-1" disabled={disabled || !when}>
               Set
             </Button>
+            {!startOpen && (
             <Button onClick={() => setShowSchedule(false)} className="flex-1">
               Cancel
             </Button>
+            )}
           </div>
         </div>
       )}

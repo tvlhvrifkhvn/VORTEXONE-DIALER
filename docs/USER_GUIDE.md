@@ -67,6 +67,12 @@ The assistant answers "how do I…" questions from this file (tool `get_app_help
 - When someone answers, log the outcome: Spoke / Interested, Voicemail, No answer, Callback (with a time), Bad number, No contact (person), DNC. UNDO is available for 10 seconds.
 - No answer and voicemail come back 4 hours later until the max attempts; then the lead goes cold.
 
+## Call screen
+- Left (LEAD): name, company, phone, state, attempt and local time; the BRIEF (what happened before, the opener, the best time); OFFICE (colleagues at the same office); RECENT (the last 5 calls and notes); VIEW LEAD ↗ opens the lead page in a new tab (leaving this screen would end the call).
+- Middle (CALL): the call's state and timer; EST. COST once call rates are set; MUTE · HOLD · END CALL; NOTES (EXPAND NOTE rewrites them with AI); OUTCOME: optionally MOVE TO STAGE and a FOLLOW-UP TASK, then one of the six outcome buttons. After the call: REDIAL, or UNDO and NEXT LEAD →.
+- Right (HELP): the PITCH SCRIPT, OBJECTIONS (tap the ones you hear; a tip shows what worked before) and QUICK ACTIONS: ADD TAG, QUICK SMS, ADD TASK, SCHEDULE CALLBACK. On a screen narrower than 1280px these are tabs (SCRIPT · OBJECTIONS · ACTIONS) under the middle column.
+- Notes are saved with the outcome. MUTE and HOLD only change the screen until the real phone provider is connected.
+
 ## Hotkeys on the call screen
 - M mutes and unmutes. Esc asks to hang up. D jumps to the outcome buttons. V logs Voicemail. N logs No answer and moves on.
 - Hotkeys never fire while you type in a field (notes, the callback time, a stage picker).

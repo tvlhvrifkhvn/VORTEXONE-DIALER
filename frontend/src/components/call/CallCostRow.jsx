@@ -58,14 +58,16 @@ export default function CallCostRow({ call }) {
     /* storage unavailable: no session time */
   }
 
+  // C8E: EST. COST only once rates are set; nothing at all without rates or a session.
+  const showCost = Boolean(spend?.ratesSet);
+  if (!showCost && !(sessionId && (startedAt || sessionStats))) return null;
   return (
     <p className="flex flex-wrap items-center gap-x-6 gap-y-1 font-mono text-xs uppercase tabular-nums text-muted-foreground" data-testid="call-cost-row">
-      <span>
-        Est. cost{' '}
-        <span className="text-foreground">
-          {spend && !spend.ratesSet ? 'rates not set' : cost === null ? '—' : formatCents(cost, { precise: true })}
+      {showCost && (
+        <span>
+          Est. cost <span className="text-foreground">{cost === null ? '—' : formatCents(cost, { precise: true })}</span>
         </span>
-      </span>
+      )}
       {sessionId && startedAt && (
         <span>
           Session <span className="text-foreground">{formatDuration(Math.max(0, Math.floor((now - startedAt) / 1000)))}</span>

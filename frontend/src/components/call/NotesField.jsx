@@ -3,7 +3,7 @@ import Field from '../ui/Field';
 
 // The visible "Notes" heading is the section label around this field
 // (DispositionPanel), so this label is for screen readers.
-export default function NotesField({ value, onChange }) {
+export default function NotesField({ value, onChange, rows = 3 }) {
   const id = useId();
   return (
     <div>
@@ -13,7 +13,7 @@ export default function NotesField({ value, onChange }) {
       <Field
         id={id}
         as="textarea"
-        rows={3}
+        rows={rows}
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder="What happened on this call?"

@@ -33,7 +33,7 @@ function PitchScriptText({ repName }) {
 }
 
 /** Collapsible sidebar section — arrow toggle, collapsed by default. */
-function CollapsibleSection({ title, defaultOpen = false, children }) {
+function CollapsibleSection({ title, defaultOpen = false, children, bodyClassName = '' }) {
   const [open, setOpen] = useState(defaultOpen);
   return (
     <Panel className="px-4 py-2">
@@ -48,7 +48,7 @@ function CollapsibleSection({ title, defaultOpen = false, children }) {
           ▶
         </span>
       </button>
-      {open && <div className="pb-2 pt-2">{children}</div>}
+      {open && <div className={`pb-2 pt-2 ${bodyClassName}`}>{children}</div>}
     </Panel>
   );
 }
@@ -59,7 +59,8 @@ function CollapsibleSection({ title, defaultOpen = false, children }) {
  * "Add note" during a call. Both come from the lead timeline
  * (GET /api/leads/:id/timeline); the call in progress is left out.
  */
-function PreviousNotes({ leadId, currentCallId }) {
+// C8E: exported for the call screen's LEAD column (RECENT: `limit` 5, `compact`).
+export function PreviousNotes({ leadId, currentCallId, limit = null, compact = false }) {
   const [entries, setEntries] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -87,12 +88,13 @@ function PreviousNotes({ leadId, currentCallId }) {
   }, [leadId, currentCallId]);
 
   if (loading) return <p className="label">Loading…</p>;
-  if (entries.length === 0) return <p className="text-sm text-muted-foreground">No previous calls or notes.</p>;
+  if (entries.length === 0) return <p className="text-sm text-muted-foreground">{compact ? 'Nothing yet.' : 'No previous calls or notes.'}</p>;
+  const shown = limit ? entries.slice(0, limit) : entries;
 
   return (
     <ul>
-      {entries.map((e) => (
-        <li key={`${e.type}-${e.id}`} className="border-b py-2 last:border-b-0">
+      {shown.map((e) => (
+        <li key={`${e.type}-${e.id}`} className={`border-b last:border-b-0 ${compact ? 'py-1' : 'py-2'}`}>
           <div className="flex items-center justify-between gap-2">
             <span className="flex items-center gap-2">
               <Badge tone="muted">{e.type === 'call' ? 'Call' : 'Note'}</Badge>
@@ -100,8 +102,8 @@ function PreviousNotes({ leadId, currentCallId }) {
             </span>
             {e.type === 'call' && <StatusBadge status={e.disposition} />}
           </div>
-          {e.type === 'call' && e.note && <p className="mt-1 text-sm text-foreground">{e.note}</p>}
-          {e.type === 'note' && <p className="mt-1 text-sm text-foreground">{e.body}</p>}
+          {e.type === 'call' && e.note && <p className={`mt-1 text-sm text-foreground ${compact ? 'line-clamp-2' : ''}`}>{e.note}</p>}
+          {e.type === 'note' && <p className={`mt-1 text-sm text-foreground ${compact ? 'line-clamp-2' : ''}`}>{e.body}</p>}
         </li>
       ))}
     </ul>
@@ -110,10 +112,11 @@ function PreviousNotes({ leadId, currentCallId }) {
 
 /** The pitch script panel on its own, for layouts (the call screen) that
  * place it in a sidebar rather than inline under the disposition buttons. */
-export function ScriptPanel() {
+// C8E: `defaultOpen` and a scrolling body on the call screen's HELP column.
+export function ScriptPanel({ defaultOpen = false }) {
   const { user } = useAuth();
   return (
-    <CollapsibleSection title="Pitch script">
+    <CollapsibleSection title="Pitch script" defaultOpen={defaultOpen} bodyClassName={defaultOpen ? 'max-h-[40vh] overflow-y-auto' : ''}>
       <p className="text-sm leading-relaxed text-foreground"><PitchScriptText repName={user?.name || 'the rep'} /></p>
     </CollapsibleSection>
   );
@@ -137,6 +140,10 @@ export default function DispositionPanel({
   // Section numbers for the labels, e.g. { notes: '05', outcome: '06' } on
   // the call screen. Unnumbered elsewhere (a multi-line card).
   sections = {},
+  // C8E: the call screen's layout: NOTES 4 rows with a 32px EXPAND NOTE, MOVE
+  // TO STAGE and FOLLOW-UP TASK in one row, the six outcomes 3×2 at 48px, and
+  // no PREVIOUS NOTES (they're RECENT in the LEAD column). Logic unchanged.
+  compact = false,
 }) {
   const { user } = useAuth();
   const [note, setNote] = useState('');
@@ -242,12 +249,12 @@ export default function DispositionPanel({
           title="Notes"
           className="mb-2 items-center"
           meta={
-            <Button variant="ghost" className="-my-2" onClick={handleExpandNote} disabled={!note.trim() || expanding}>
+            <Button variant="ghost" size={compact ? 'sm' : 'md'} className="-my-2" onClick={handleExpandNote} disabled={!note.trim() || expanding}>
               {expanding ? 'Expanding…' : 'Expand note'}
             </Button>
           }
         />
-        <NotesField value={note} onChange={setNote} />
+        <NotesField value={note} onChange={setNote} rows={compact ? 4 : 3} />
       </section>
 
       <section className="space-y-2">
@@ -260,6 +267,7 @@ export default function DispositionPanel({
             </span>
           }
         />
+        <div className={compact ? 'flex flex-wrap items-center gap-x-6 gap-y-2' : 'space-y-2'}>
         {/* C2B: optional stage move with the outcome (Auto = the file's rules). */}
         {stages.length > 0 && (
           <div className="flex flex-wrap items-center gap-2">
@@ -272,7 +280,7 @@ export default function DispositionPanel({
               value={stageId}
               onChange={(e) => setStageId(e.target.value)}
               disabled={locked}
-              className="w-56 text-sm"
+              className={`${compact ? 'w-44' : 'w-56'} text-sm`}
             >
               <option value="">Auto</option>
               {stages.map((s) => (
@@ -311,9 +319,10 @@ export default function DispositionPanel({
             </>
           )}
         </div>
+        </div>
         {/* D highlight: a 2px primary outline, no animation. */}
         <div ref={dispositionRef} className={highlight ? 'outline outline-2 outline-offset-4 outline-primary' : ''}>
-          <DispositionButtons onSelect={handleSelect} disabled={locked} />
+          <DispositionButtons onSelect={handleSelect} disabled={locked} columns={compact ? 3 : 2} />
         </div>
 
         {retrying && <p className="font-mono text-sm uppercase text-foreground">{retrying}</p>}
@@ -324,9 +333,11 @@ export default function DispositionPanel({
           </p>
         )}
 
-        <CollapsibleSection title="Previous Notes">
-          <PreviousNotes leadId={lead?.id} currentCallId={callId} />
-        </CollapsibleSection>
+        {!compact && (
+          <CollapsibleSection title="Previous Notes">
+            <PreviousNotes leadId={lead?.id} currentCallId={callId} />
+          </CollapsibleSection>
+        )}
       </section>
 
       {showScript && (

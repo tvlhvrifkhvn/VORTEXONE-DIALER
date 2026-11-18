@@ -19,7 +19,10 @@ function StateMark({ state }) {
   return <span className="font-mono text-sm font-medium uppercase text-muted-foreground">{label}</span>;
 }
 
-export default function CallHeader({ call, ended = false }) {
+// C8E: one row: the state (dot and RINGING, CONNECTED or ON HOLD) on the left,
+// the timer (display size) on the right. The cosmetic REC mark is gone:
+// nothing is recorded until the real provider.
+export default function CallHeader({ call, ended = false, onHold = false }) {
   const [elapsed, setElapsed] = useState(0);
   // Set once the call leaves 'ringing' — the timer must count from the
   // moment the call connects (answered/voicemail), not from started_at
@@ -49,18 +52,13 @@ export default function CallHeader({ call, ended = false }) {
   const state = ended ? 'ended' : call?.telephony_state || 'ringing';
 
   return (
-    <div className="flex flex-col items-end gap-2">
-      <div className="flex items-center gap-4">
+    <div className="flex items-center justify-between gap-4" data-testid="call-status">
+      {onHold && state === 'answered' ? (
+        <span className="font-mono text-sm font-medium uppercase text-foreground">On hold</span>
+      ) : (
         <StateMark state={state} />
-        {state === 'answered' && (
-          <StatusDot tone="signal" className="text-sm">
-            REC<span className="sr-only"> (recording)</span>
-          </StatusDot>
-        )}
-      </div>
-      <span className="font-mono text-display font-medium tabular-nums text-foreground">
-        {formatDuration(elapsed)}
-      </span>
+      )}
+      <span className="font-mono text-display font-medium tabular-nums text-foreground">{formatDuration(elapsed)}</span>
     </div>
   );
 }

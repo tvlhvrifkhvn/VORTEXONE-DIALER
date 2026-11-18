@@ -25,9 +25,11 @@ function AiLine({ text }) {
  * collapses to its one-line headline (tap to expand) so it stops taking space.
  * `brief` is { instant, ai } from GET /api/leads/:id/brief.
  */
-export default function BriefCard({ brief, collapsed = false, className = '' }) {
-  const [open, setOpen] = useState(!collapsed);
+// C8E: `alwaysOpen` (the call screen's LEAD column): no toggle, the text stays open.
+export default function BriefCard({ brief, collapsed = false, className = '', alwaysOpen = false }) {
+  const [openState, setOpen] = useState(!collapsed);
   useEffect(() => setOpen(!collapsed), [collapsed]);
+  const open = alwaysOpen || openState;
 
   const { instant, ai } = brief || {};
   if (!instant) {
@@ -42,6 +44,11 @@ export default function BriefCard({ brief, collapsed = false, className = '' }) 
 
   return (
     <Panel className={`p-4 ${className}`} data-testid="brief-card">
+      {alwaysOpen ? (
+        <p className="text-sm font-medium text-foreground" data-testid="brief-headline">
+          {instant.headline}
+        </p>
+      ) : (
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
@@ -60,6 +67,7 @@ export default function BriefCard({ brief, collapsed = false, className = '' }) 
           <ChevronDown size={16} strokeWidth={1.5} aria-hidden="true" className="shrink-0 text-muted-foreground" />
         )}
       </button>
+      )}
 
       {/* Fades in whenever it lands; never blocks the instant line. */}
       {ai && open && <AiLine text={ai.text} />}
@@ -77,8 +85,8 @@ export default function BriefCard({ brief, collapsed = false, className = '' }) 
           )}
           {d.recent.length > 0 && (
             <ul className="space-y-0.5">
-              {d.recent.map((r) => (
-                <li key={r}>{r}</li>
+              {d.recent.map((r, i) => (
+                <li key={`${i}-${r}`}>{r}</li>
               ))}
             </ul>
           )}
